@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { fetchTenantSettings, updateTenantSettings } from '../_lib/tenant-settings'
 
 interface TenantSettingsPayload {
   schoolName: string
@@ -21,26 +22,6 @@ interface TenantSettingsResponse extends TenantSettingsPayload {
   updatedAt: string
 }
 
-const defaultSettings: TenantSettingsResponse = {
-  schoolName: 'Excellence Academy',
-  schoolAddress: '123 Education Road, Lagos, Nigeria',
-  schoolEmail: 'info@excellenceacademy.edu.ng',
-  schoolPhone: '+234-801-234-5678',
-  currentSession: '2025/2026',
-  currentTerm: 'First Term',
-  enableSMS: true,
-  enableEmail: true,
-  enableBiometric: false,
-  enableOnlinePayment: true,
-  autoBackup: true,
-  twoFactorAuth: false,
-  maintenanceMode: false,
-  logoUrl: null,
-  updatedAt: new Date().toISOString(),
-}
-
-let cachedSettings: TenantSettingsResponse = { ...defaultSettings }
-
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,PUT')
   return res.status(405).json({ error: 'Method not allowed' })
@@ -59,9 +40,15 @@ function parseBody(req: VercelRequest) {
   return req.body as Partial<TenantSettingsPayload>
 }
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
-    return res.status(200).json({ settings: cachedSettings })
+    try {
+      const settings = await fetchTenantSettings()
+      return res.status(200).json({ settings })
+    } catch (error) {
+      console.error('Error fetching tenant settings:', error)
+      return res.status(500).json({ error: 'Failed to fetch tenant settings' })
+    }
   }
 
   if (req.method === 'PUT') {
@@ -70,14 +57,13 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'A JSON body is required.' })
     }
 
-    const nextSettings: TenantSettingsResponse = {
-      ...cachedSettings,
-      ...body,
-      updatedAt: new Date().toISOString(),
+    try {
+      const updated = await updateTenantSettings(body as TenantSettingsPayload)
+      return res.status(200).json({ settings: updated })
+    } catch (error) {
+      console.error('Error updating tenant settings:', error)
+      return res.status(500).json({ error: 'Failed to update tenant settings' })
     }
-
-    cachedSettings = nextSettings
-    return res.status(200).json({ settings: cachedSettings })
   }
 
   return methodNotAllowed(res)

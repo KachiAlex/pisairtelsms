@@ -42,19 +42,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
   {
-    id: 'system',
-    label: 'System Controls',
-    icon: <Settings className="w-5 h-5" />,
-    children: [
-      { id: 'system-settings', label: 'System Settings' },
-      { id: 'school-profile', label: 'School Profile' },
-      { id: 'roles-permissions', label: 'Roles & Permissions' },
-      { id: 'user-accounts', label: 'User Accounts' },
-      { id: 'audit-logs', label: 'Audit Logs' },
-      { id: 'import-export', label: 'Import/Export' },
-    ]
-  },
-  {
     id: 'students',
     label: 'Student Management',
     icon: <GraduationCap className="w-5 h-5" />,
@@ -211,6 +198,19 @@ const navItems: NavItem[] = [
       { id: 'biometric-devices', label: 'Biometric Devices' },
       { id: 'lms-integration', label: 'LMS Integration' },
       { id: 'api-management', label: 'API Management' },
+    ]
+  },
+  {
+    id: 'system',
+    label: 'System Controls',
+    icon: <Settings className="w-5 h-5" />,
+    children: [
+      { id: 'system-settings', label: 'System Settings' },
+      { id: 'school-profile', label: 'School Profile' },
+      { id: 'roles-permissions', label: 'Roles & Permissions' },
+      { id: 'user-accounts', label: 'User Accounts' },
+      { id: 'audit-logs', label: 'Audit Logs' },
+      { id: 'import-export', label: 'Import/Export' },
     ]
   },
   {

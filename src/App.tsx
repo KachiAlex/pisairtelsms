@@ -1,63 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Menu, User, Bell, Search } from 'lucide-react';
 import { HomePage } from './components/HomePage';
 import { Sidebar } from './components/Sidebar';
-import { Dashboard } from './components/pages/Dashboard';
-import { StudentsList } from './components/pages/StudentsList';
-import { StudentEnrollment } from './components/pages/StudentEnrollment';
-import { StudentPromotion } from './components/pages/StudentPromotion';
-import { StudentDocuments } from './components/pages/StudentDocuments';
-import { StudentHealth } from './components/pages/StudentHealth';
-import { StudentAttendance } from './components/pages/StudentAttendance';
-import { TimetableScheduling } from './components/pages/TimetableScheduling';
-import { StaffHR } from './components/pages/StaffHR';
-import { CommunicationHub } from './components/pages/CommunicationHub';
-import { ExamManagement } from './components/pages/ExamManagement';
-import { FinanceManagement } from './components/pages/FinanceManagement';
-import { AnalyticsDashboard } from './components/pages/AnalyticsDashboard';
-import { SystemSettings } from './components/pages/SystemSettings';
-import { SchoolProfile } from './components/pages/SchoolProfile';
-import { RolesPermissions } from './components/pages/RolesPermissions';
-import { UserAccounts } from './components/pages/UserAccounts';
-import { AuditLogs } from './components/pages/AuditLogs';
-import { ImportExport } from './components/pages/ImportExport';
-import { AcademicStructureOverview } from './components/pages/AcademicStructureOverview';
-import { ClassesAndArms } from './components/pages/ClassesAndArms';
-import { SubjectsCatalog } from './components/pages/SubjectsCatalog';
-import { TeacherAllocation } from './components/pages/TeacherAllocation';
-import { CAConfiguration } from './components/pages/CAConfiguration';
-import { GradingPolicy } from './components/pages/GradingPolicy';
-import { AcademicCalendar } from './components/pages/AcademicCalendar';
-import { CAScoreEntry } from './components/pages/CAScoreEntry';
-import { ResultComputation } from './components/pages/ResultComputation';
-import { ResultApproval } from './components/pages/ResultApproval';
-import { Broadsheets } from './components/pages/Broadsheets';
-import { Transcripts } from './components/pages/Transcripts';
-import { ResultPublishing } from './components/pages/ResultPublishing';
-import { AccessControl } from './components/pages/AccessControl';
-import { SessionManagement } from './components/pages/SessionManagement';
-import { DataEncryption } from './components/pages/DataEncryption';
-import { BackupRestore } from './components/pages/BackupRestore';
-import { PendingApprovals } from './components/pages/PendingApprovals';
-import { SystemAlerts } from './components/pages/SystemAlerts';
-import { TaskManagement } from './components/pages/TaskManagement';
-import { SchoolBranding } from './components/pages/SchoolBranding';
-import { ReportTemplates } from './components/pages/ReportTemplates';
-import { GradingScale } from './components/pages/GradingScale';
-import { PaymentGateway } from './components/pages/PaymentGateway';
-import { BiometricDevices } from './components/pages/BiometricDevices';
-import { LMSIntegration } from './components/pages/LMSIntegration';
-import { APIManagement } from './components/pages/APIManagement';
-import { OfflineCBTSync } from './components/pages/OfflineCBTSync';
-import { ExamItemAnalysis } from './components/pages/ExamItemAnalysis';
-import { PredictiveRiskAlerts } from './components/pages/PredictiveRiskAlerts';
-import { CertificateVerification } from './components/pages/CertificateVerification';
-import { SystemHealth } from './components/pages/SystemHealth';
-import { ErrorLogs } from './components/pages/ErrorLogs';
-import { HelpCenter } from './components/pages/HelpCenter';
-import { SupportTickets } from './components/pages/SupportTickets';
-import { SuperAdminPortal } from './components/pages/SuperAdminPortal';
+const Dashboard = lazy(() => import('./components/pages/Dashboard'));
+const StudentsList = lazy(() => import('./components/pages/StudentsList'));
+const StudentEnrollment = lazy(() => import('./components/pages/StudentEnrollment'));
+const StudentPromotion = lazy(() => import('./components/pages/StudentPromotion'));
+const StudentDocuments = lazy(() => import('./components/pages/StudentDocuments'));
+const StudentHealth = lazy(() => import('./components/pages/StudentHealth'));
+const StudentAttendance = lazy(() => import('./components/pages/StudentAttendance'));
+const TimetableScheduling = lazy(() => import('./components/pages/TimetableScheduling'));
+const StaffHR = lazy(() => import('./components/pages/StaffHR'));
+const CommunicationHub = lazy(() => import('./components/pages/CommunicationHub'));
+const ExamManagement = lazy(() => import('./components/pages/ExamManagement'));
+const FinanceManagement = lazy(() => import('./components/pages/FinanceManagement'));
+const AnalyticsDashboard = lazy(() => import('./components/pages/AnalyticsDashboard'));
+const SystemSettings = lazy(() => import('./components/pages/SystemSettings'));
+const SchoolProfile = lazy(() => import('./components/pages/SchoolProfile'));
+const RolesPermissions = lazy(() => import('./components/pages/RolesPermissions'));
+const UserAccounts = lazy(() => import('./components/pages/UserAccounts'));
+const AuditLogs = lazy(() => import('./components/pages/AuditLogs'));
+const ImportExport = lazy(() => import('./components/pages/ImportExport'));
+const AcademicStructureOverview = lazy(() => import('./components/pages/AcademicStructureOverview'));
+const ClassesAndArms = lazy(() => import('./components/pages/ClassesAndArms'));
+const SubjectsCatalog = lazy(() => import('./components/pages/SubjectsCatalog'));
+const TeacherAllocation = lazy(() => import('./components/pages/TeacherAllocation'));
+const CAConfiguration = lazy(() => import('./components/pages/CAConfiguration'));
+const GradingPolicy = lazy(() => import('./components/pages/GradingPolicy'));
+const AcademicCalendar = lazy(() => import('./components/pages/AcademicCalendar'));
+const CAScoreEntry = lazy(() => import('./components/pages/CAScoreEntry'));
+const ResultComputation = lazy(() => import('./components/pages/ResultComputation'));
+const ResultApproval = lazy(() => import('./components/pages/ResultApproval'));
+const Broadsheets = lazy(() => import('./components/pages/Broadsheets'));
+const Transcripts = lazy(() => import('./components/pages/Transcripts'));
+const ResultPublishing = lazy(() => import('./components/pages/ResultPublishing'));
+const AccessControl = lazy(() => import('./components/pages/AccessControl'));
+const SessionManagement = lazy(() => import('./components/pages/SessionManagement'));
+const DataEncryption = lazy(() => import('./components/pages/DataEncryption'));
+const BackupRestore = lazy(() => import('./components/pages/BackupRestore'));
+const PendingApprovals = lazy(() => import('./components/pages/PendingApprovals'));
+const SystemAlerts = lazy(() => import('./components/pages/SystemAlerts'));
+const TaskManagement = lazy(() => import('./components/pages/TaskManagement'));
+const SchoolBranding = lazy(() => import('./components/pages/SchoolBranding'));
+const ReportTemplates = lazy(() => import('./components/pages/ReportTemplates'));
+const GradingScale = lazy(() => import('./components/pages/GradingScale'));
+const PaymentGateway = lazy(() => import('./components/pages/PaymentGateway'));
+const BiometricDevices = lazy(() => import('./components/pages/BiometricDevices'));
+const LMSIntegration = lazy(() => import('./components/pages/LMSIntegration'));
+const APIManagement = lazy(() => import('./components/pages/APIManagement'));
+const OfflineCBTSync = lazy(() => import('./components/pages/OfflineCBTSync'));
+const ExamItemAnalysis = lazy(() => import('./components/pages/ExamItemAnalysis'));
+const PredictiveRiskAlerts = lazy(() => import('./components/pages/PredictiveRiskAlerts'));
+const CertificateVerification = lazy(() => import('./components/pages/CertificateVerification'));
+const SystemHealth = lazy(() => import('./components/pages/SystemHealth'));
+const ErrorLogs = lazy(() => import('./components/pages/ErrorLogs'));
+const HelpCenter = lazy(() => import('./components/pages/HelpCenter'));
+const SupportTickets = lazy(() => import('./components/pages/SupportTickets'));
+const SuperAdminPortal = lazy(() => import('./components/pages/SuperAdminPortal'));
 import { LoginRole } from './components/auth/LoginPanel';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
 import { Button } from './components/ui/button';
@@ -337,7 +337,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{renderPage()}</main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6"><Suspense fallback={<div className="flex items-center justify-center h-full"><div>Loading...</div></div>}>{renderPage()}</Suspense></main>
       </div>
     </div>
   );
@@ -350,7 +350,7 @@ export default function App() {
         element={<AccessPortalPage onLoginSuccess={handleLoginSuccess} onBackToMarketing={() => navigate('/')} />}
       />
       <Route path="/tenant" element={tenantShell} />
-      <Route path="/super-admin" element={<SuperAdminPortal onSignOut={() => navigate('/login')} />} />
+      <Route path="/super-admin" element={<Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

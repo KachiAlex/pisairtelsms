@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ShieldCheck, Building2, Eye, EyeOff, AlertTriangle } from 'lucide-react'
+import { ShieldCheck, Building2, Eye, EyeOff } from 'lucide-react'
 
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -21,7 +21,6 @@ interface LoginPanelProps {
 const STORAGE_KEY = 'scholix.superAdminAccount'
 
 export function LoginPanel({ onLogin }: LoginPanelProps) {
-  const [role, setRole] = useState<LoginRole>('tenant-admin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -64,17 +63,20 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
     }
   }, [email])
 
-  const roleDescription = useMemo(() => {
-    if (role === 'super-admin') {
-      return 'Enter the credentials configured for your Scholix super admin account.'
-    }
-    return 'Use your school workspace email to continue.'
-  }, [role])
+  const normalizedStoredEmail = storedAccount?.email?.trim().toLowerCase() ?? ''
+  const normalizedInputEmail = email.trim().toLowerCase()
+  const isSuperAdminFlow = useMemo(() => {
+    if (!storedAccount) return false
+    return normalizedInputEmail === normalizedStoredEmail
+  }, [normalizedInputEmail, normalizedStoredEmail, storedAccount])
+
+  const helperText = isSuperAdminFlow
+    ? 'Super admin account detected. Enter the credentials configured for your Scholix command center.'
+    : 'Use your school workspace email to enter the Scholix tenant console.'
 
   const handleAccountCreated = async (account: SuperAdminAccountFormData) => {
     const savedAccount = await upsertSuperAdminAccount(account)
     setStoredAccount(savedAccount)
-    setRole('super-admin')
     setEmail(savedAccount.email)
     setPassword('')
     setAccountLoadError('')
@@ -84,22 +86,10 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
     event.preventDefault()
     setError('')
 
-    if (role === 'super-admin') {
-      if (!storedAccount) {
-        setError('No super admin account is provisioned in the Scholix cloud yet.')
-        return
-      }
-
-      const normalizedInput = email.trim().toLowerCase()
-      const normalizedStored = storedAccount.email.trim().toLowerCase()
-      if (normalizedInput !== normalizedStored) {
-        setError('Email must match the registered super admin account.')
-        return
-      }
-
+    if (isSuperAdminFlow) {
       try {
         setIsVerifying(true)
-        const verifiedAccount = await verifySuperAdminAccount(normalizedInput, password)
+        const verifiedAccount = await verifySuperAdminAccount(normalizedInputEmail, password)
         setStoredAccount(verifiedAccount)
         onLogin('super-admin')
         return
@@ -113,7 +103,7 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
       }
     }
 
-    onLogin(role)
+    onLogin('tenant-admin')
   }
 
   return (
@@ -131,32 +121,11 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 px-6 py-6">
-        <div className="flex gap-2 rounded-2xl bg-gray-100 p-1 text-sm font-medium">
-          <button
-            type="button"
-            onClick={() => setRole('tenant-admin')}
-            className={`flex-1 rounded-xl px-4 py-2 transition ${
-              role === 'tenant-admin' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-            }`}
-          >
-            School Admin
-          </button>
-          <button
-            type="button"
-            onClick={() => setRole('super-admin')}
-            className={`flex-1 rounded-xl px-4 py-2 transition ${
-              role === 'super-admin' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-            }`}
-          >
-            Super Admin
-          </button>
-        </div>
-
         <div className="space-y-1">
           <label className="text-sm font-medium text-gray-700">Work Email</label>
           <Input
             type="email"
-            placeholder={role === 'super-admin' ? 'you@scholix.cloud' : 'principal@school.edu'}
+            placeholder="principal@school.edu"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
@@ -188,20 +157,11 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
           </div>
         </div>
 
-        <p className="text-xs text-gray-500">{roleDescription}</p>
+        <p className="text-xs text-gray-500">{helperText}</p>
 
         {accountLoadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
             {accountLoadError}
-          </div>
-        )}
-
-        {role === 'super-admin' && !storedAccount && !isAccountLoading && !accountLoadError && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4" />
-              <p>No super admin account detected in the Scholix cloud. Create one below to unlock the portal.</p>
-            </div>
           </div>
         )}
 
@@ -224,22 +184,24 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
         <Button
           type="submit"
           className="w-full bg-blue-600 hover:bg-blue-700"
-          disabled={role === 'super-admin' && isVerifying}
+          disabled={isSuperAdminFlow && isVerifying}
         >
-          {role === 'super-admin'
-            ? isVerifying
-              ? 'Verifying credentials...'
-              : 'Enter Super Admin Portal'
-            : 'Access School Dashboard'}
+          {isSuperAdminFlow ? (isVerifying ? 'Verifying super admin credentials...' : 'Enter Super Admin Portal') : 'Access School Dashboard'}
         </Button>
 
-        <div className="rounded-xl bg-blue-50 p-3 text-xs text-blue-800 space-y-3">
-          <div className="flex items-start gap-2">
-            <Building2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <p>
-              Need help onboarding a new tenant?{' '}
-              <span className="font-semibold">Contact the Scholix partnerships team</span> to fast-track deployment.
-            </p>
+        <div className="rounded-xl bg-blue-50 p-4 text-xs text-blue-800 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-white/70 p-2">
+              <Building2 className="h-4 w-4 text-blue-700" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-blue-900">Scholix provisioning</p>
+              {storedAccount ? (
+                <p>Super admin account registered for {storedAccount.organization} ({storedAccount.email}).</p>
+              ) : (
+                <p>No super admin account detected yet. Provision one below to unlock the command center.</p>
+              )}
+            </div>
           </div>
           <CreateSuperAdminAccountDialog
             existingAccount={

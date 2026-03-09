@@ -1,10 +1,20 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { CalendarRange, Clock3, MapPin, Download, Upload, BellRing, AlertTriangle } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
 const termSummary = [
   { term: 'First Term', start: '09 Sep 2025', end: '06 Dec 2025', exams: '25 Nov - 04 Dec', status: 'In session' },
@@ -27,6 +37,13 @@ const eventTable = [
 ]
 
 export function AcademicCalendar() {
+  const [addMilestoneOpen, setAddMilestoneOpen] = useState(false)
+  const [newMilestone, setNewMilestone] = useState({
+    title: '',
+    date: '',
+    owner: '',
+    status: 'Tentative' as 'Tentative' | 'Live' | 'Locked' | 'High priority'
+  })
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -42,7 +59,7 @@ export function AcademicCalendar() {
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" /> Export calendar
           </Button>
-          <Button>
+          <Button onClick={() => setAddMilestoneOpen(true)}>
             <CalendarRange className="h-4 w-4 mr-2" /> Add milestone
           </Button>
         </div>
@@ -172,6 +189,67 @@ export function AcademicCalendar() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={addMilestoneOpen} onOpenChange={setAddMilestoneOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Milestone</DialogTitle>
+            <DialogDescription>Create a new academic milestone for the calendar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="milestone-title">Title</Label>
+              <Input
+                id="milestone-title"
+                placeholder="e.g., Mid-term break"
+                value={newMilestone.title}
+                onChange={(e) => setNewMilestone({ ...newMilestone, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="milestone-date">Date</Label>
+              <Input
+                id="milestone-date"
+                placeholder="e.g., 01 Mar"
+                value={newMilestone.date}
+                onChange={(e) => setNewMilestone({ ...newMilestone, date: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="milestone-owner">Owner</Label>
+              <Input
+                id="milestone-owner"
+                placeholder="e.g., Principal"
+                value={newMilestone.owner}
+                onChange={(e) => setNewMilestone({ ...newMilestone, owner: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="milestone-status">Status</Label>
+              <Select value={newMilestone.status} onValueChange={(value: typeof newMilestone.status) => setNewMilestone({ ...newMilestone, status: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Tentative">Tentative</SelectItem>
+                  <SelectItem value="Live">Live</SelectItem>
+                  <SelectItem value="Locked">Locked</SelectItem>
+                  <SelectItem value="High priority">High priority</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAddMilestoneOpen(false)}>Cancel</Button>
+            <Button onClick={() => {
+              console.log('Adding milestone:', newMilestone)
+              setNewMilestone({ title: '', date: '', owner: '', status: 'Tentative' })
+              setAddMilestoneOpen(false)
+            }}>Add Milestone</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

@@ -364,7 +364,9 @@ export function Dashboard() {
                   <p className="text-sm font-medium text-gray-900">{alert.title}</p>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">{alert.impact}</p>
-                <button className="mt-3 text-xs font-semibold text-blue-600">View runbook</button>
+                <button className="mt-3 text-xs font-semibold text-blue-600" onClick={() => alert('View runbook functionality - would open compliance runbook for this alert')}>
+                  View runbook
+                </button>
               </div>
             ))}
           </CardContent>
@@ -464,7 +466,7 @@ export function Dashboard() {
                 <p className="text-sm font-semibold text-gray-900">{action.title}</p>
                 <p className="text-sm text-gray-500 mt-1">{action.description}</p>
               </div>
-              <button className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-600">
+              <button className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-600" onClick={() => alert(`${action.buttonLabel} functionality - would open ${action.title.toLowerCase()} interface`)}>
                 {action.buttonLabel}
                 <BarChart3 className="h-4 w-4" />
               </button>

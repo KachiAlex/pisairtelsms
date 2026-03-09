@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Settings, Save, CheckCircle, AlertCircle, Percent, BookOpen, Users, Clock } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -9,6 +9,7 @@ import { Label } from '../ui/label'
 import { Slider } from '../ui/slider'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Alert, AlertDescription } from '../ui/alert'
+import { useTenant } from '../contexts/TenantContext'
 
 const defaultWeights = {
   primary: { tests: 30, assignments: 20, projects: 10, exams: 40 },
@@ -17,10 +18,34 @@ const defaultWeights = {
 }
 
 export function CAConfiguration() {
+  const { tenantId } = useTenant()
   const [weights, setWeights] = useState(defaultWeights)
   const [hasChanges, setHasChanges] = useState(false)
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [loading, setLoading] = useState(true)
+
+  // Load CA config from backend
+  useEffect(() => {
+    const loadCAConfig = async () => {
+      if (!tenantId) return
+
+      try {
+        const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}`)
+        if (response.ok) {
+          const config = await response.json()
+          setWeights(config)
+        }
+      } catch (error) {
+        console.error('Failed to load CA config:', error)
+        // Keep default weights
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadCAConfig()
+  }, [tenantId])
 
   const updateWeight = (level: keyof typeof weights, type: keyof typeof weights.primary, value: number) => {
     setWeights(prev => ({
@@ -42,11 +67,23 @@ export function CAConfiguration() {
   const handleSave = async () => {
     setSaveStatus('saving')
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(weights),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save CA config')
+      }
+
       setSaveStatus('saved')
       setHasChanges(false)
     } catch (error) {
+      console.error('Error saving CA config:', error)
       setSaveStatus('error')
     }
   }
@@ -54,7 +91,34 @@ export function CAConfiguration() {
   const handlePublish = async () => {
     await handleSave()
     setPublishDialogOpen(false)
-    // Additional publish logic would go here
+    // Additional publish logic could go here
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Assessment setup</p>
+            <h1 className="text-2xl font-bold text-gray-900">CA configuration</h1>
+            <p className="text-sm text-gray-600">Configure assessment weights for each class level.</p>
+          </div>
+        </div>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+          {[1, 2, 3].map(i => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const WeightConfigurator = ({ level, levelName }: { level: keyof typeof weights, levelName: string }) => {
@@ -243,7 +307,7 @@ export function CAConfiguration() {
               <h3 className="font-semibold text-gray-900">Need to customize for specific classes?</h3>
               <p className="text-sm text-gray-600">You can override these defaults for individual subjects or classes.</p>
             </div>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => alert('Advanced overrides functionality - would open advanced configuration dialog')}>
               <Settings className="h-4 w-4 mr-2" />
               Advanced overrides
             </Button>

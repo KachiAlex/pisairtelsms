@@ -81,10 +81,10 @@ export function SubjectsCatalog() {
           <p className="text-sm text-gray-600">Control core and elective subjects, curriculum versions, and resources.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => alert('Advanced filtering functionality - would open filter dialog')}>
             <Filter className="h-4 w-4 mr-2" /> Filters
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => alert('Export CSV functionality - would download subjects catalog')}>
             <Download className="h-4 w-4 mr-2" /> Export CSV
           </Button>
           <Dialog open={addSubjectOpen} onOpenChange={setAddSubjectOpen}>
@@ -322,7 +322,9 @@ export function SubjectsCatalog() {
                       <div className="flex items-center gap-2">
                         <span>{subject.resources}</span>
                         {subject.resources === 'Upload' && (
-                          <Button size="sm" variant="outline" className="text-[11px] h-6">Request assets</Button>
+                          <Button size="sm" variant="outline" className="text-[11px] h-6" onClick={() => alert(`Requesting assets for ${subject.name} - would send notification to subject owner`)}>
+                            Request assets
+                          </Button>
                         )}
                       </div>
                     </TableCell>

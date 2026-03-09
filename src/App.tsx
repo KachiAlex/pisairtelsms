@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Menu, User, Bell, Search } from 'lucide-react';
 import { HomePage } from './components/HomePage';
 import { Sidebar } from './components/Sidebar';
+import { TenantProvider } from './contexts/TenantContext';
 const Dashboard = lazy(() => import('./components/pages/Dashboard'));
 const StudentsList = lazy(() => import('./components/pages/StudentsList'));
 const StudentEnrollment = lazy(() => import('./components/pages/StudentEnrollment'));
@@ -348,17 +349,19 @@ export default function App() {
   );
 
   return (
-    <Routes>
-      <Route path="/" element={<HomePage onNavigateToDashboard={() => navigate('/login')} />} />
-      <Route
-        path="/login"
-        element={<AccessPortalPage onLoginSuccess={handleLoginSuccess} onBackToMarketing={() => navigate('/')} />}
-      />
-      <Route path="/apply" element={<Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense>} />
-      <Route path="/inquiry" element={<Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense>} />
-      <Route path="/tenant" element={tenantShell} />
-      <Route path="/super-admin" element={<Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <TenantProvider>
+      <Routes>
+        <Route path="/" element={<HomePage onNavigateToDashboard={() => navigate('/login')} />} />
+        <Route
+          path="/login"
+          element={<AccessPortalPage onLoginSuccess={handleLoginSuccess} onBackToMarketing={() => navigate('/')} />}
+        />
+        <Route path="/apply" element={<Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense>} />
+        <Route path="/inquiry" element={<Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense>} />
+        <Route path="/tenant" element={tenantShell} />
+        <Route path="/super-admin" element={<Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </TenantProvider>
   );
 }

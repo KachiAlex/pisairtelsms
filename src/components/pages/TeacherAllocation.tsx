@@ -21,12 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select'
-import { DndContext, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 
-const DraggableTeacher = ({ teacher }) => {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: teacher.name })
-  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
+const DraggableTeacher = ({ teacher, onDragStart, onDragEnd }) => {
+  const style = {
+    cursor: 'grab',
+  }
 
   return (
     <div
@@ -143,18 +142,6 @@ export function TeacherAllocation() {
   const [editableSlots, setEditableSlots] = useState(
     allocationMatrix.filter(row => row.coverage === 'Open').map((row, index) => ({ ...row, id: index, assignedTeacher: '' }))
   )
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  const handleDragEnd = (event) => {
-    const { active, over } = event
-    if (over) {
-      setEditableSlots(prev => prev.map(r => r.id === over.id ? { ...r, assignedTeacher: active.id } : r))
-    }
-  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -164,10 +151,10 @@ export function TeacherAllocation() {
           <p className="text-sm text-gray-600">Balance loads, fill gaps, and monitor risks across timetable slots.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => alert('Search teacher functionality - would open teacher search dialog')}>
             <Search className="h-4 w-4 mr-2" /> Search teacher
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => alert('Auto-balance load functionality - would automatically redistribute teacher assignments')}>
             <Shuffle className="h-4 w-4 mr-2" /> Auto-balance load
           </Button>
           <Button onClick={() => setAssignOpen(true)}>
@@ -182,26 +169,43 @@ export function TeacherAllocation() {
             <DialogTitle>Assign Teacher Slots</DialogTitle>
             <DialogDescription>Drag teachers to open slots to assign to classes and students.</DialogDescription>
           </DialogHeader>
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <div className="flex gap-6 h-96">
-              <div className="w-1/3">
-                <h3 className="text-lg font-semibold mb-4">Teachers</h3>
-                <div className="space-y-2 overflow-y-auto h-full">
-                  {teacherCards.map(teacher => (
-                    <DraggableTeacher key={teacher.name} teacher={teacher} />
-                  ))}
-                </div>
-              </div>
-              <div className="w-2/3">
-                <h3 className="text-lg font-semibold mb-4">Open Slots</h3>
-                <div className="grid gap-2 overflow-y-auto h-full">
-                  {editableSlots.map(row => (
-                    <DroppableSlot key={row.id} slot={row} />
-                  ))}
-                </div>
+          <div className="flex gap-6 h-96">
+            <div className="w-1/3">
+              <h3 className="text-lg font-semibold mb-4">Teachers</h3>
+              <div className="space-y-2 overflow-y-auto h-full">
+                {teacherCards.map(teacher => (
+                  <div
+                    key={teacher.name}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData('text/plain', teacher.name)}
+                    className="p-3 bg-blue-50 rounded-lg cursor-grab"
+                  >
+                    {teacher.name}
+                  </div>
+                ))}
               </div>
             </div>
-          </DndContext>
+            <div className="w-2/3">
+              <h3 className="text-lg font-semibold mb-4">Open Slots</h3>
+              <div className="grid gap-2 overflow-y-auto h-full">
+                {editableSlots.map(row => (
+                  <div
+                    key={row.id}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const teacher = e.dataTransfer.getData('text/plain')
+                      setEditableSlots(prev => prev.map(r => r.id === row.id ? { ...r, assignedTeacher: teacher } : r))
+                    }}
+                    className="p-3 border rounded-lg bg-gray-50 hover:bg-green-50"
+                  >
+                    {row.class} - {row.subject}
+                    {row.assignedTeacher && <div className="mt-2 text-green-600 font-semibold">Assigned: {row.assignedTeacher}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
             <Button onClick={() => { /* handle assign */ setAssignOpen(false) }}>Assign Slots</Button>
@@ -324,7 +328,7 @@ export function TeacherAllocation() {
                 </div>
               </div>
             ))}
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" onClick={() => alert('View allocation board functionality - would open detailed teacher allocation interface')}>
               <Users className="h-4 w-4 mr-2" /> View allocation board
             </Button>
           </CardContent>
@@ -351,7 +355,7 @@ export function TeacherAllocation() {
               </div>
             </div>
           ))}
-          <Button variant="outline" className="w-full" size="sm">
+          <Button variant="outline" className="w-full" size="sm" onClick={() => alert('Assign substitute functionality - would open substitute teacher assignment dialog')}>
             <UserCheck className="h-4 w-4 mr-2" /> Assign substitute
           </Button>
         </CardContent>

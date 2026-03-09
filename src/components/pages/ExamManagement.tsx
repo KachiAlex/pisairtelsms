@@ -85,6 +85,18 @@ export function ExamManagement() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
 
+  // Form state for creating exam
+  const [examForm, setExamForm] = useState({
+    title: '',
+    subject: '',
+    class: '',
+    duration: '',
+    totalQuestions: '',
+    passMark: '',
+    examDate: '',
+    startTime: '',
+  });
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Ongoing':
@@ -98,6 +110,78 @@ export function ExamManagement() {
       default:
         return 'bg-gray-100 text-gray-700';
     }
+  };
+
+  // Handle form input changes
+  const handleFormChange = (field: keyof typeof examForm, value: string) => {
+    setExamForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Validate form
+  const validateForm = () => {
+    return examForm.title.trim() &&
+           examForm.subject &&
+           examForm.class &&
+           examForm.duration &&
+           examForm.totalQuestions &&
+           examForm.passMark &&
+           examForm.examDate &&
+           examForm.startTime;
+  };
+
+  // Handle exam creation
+  const handleCreateExam = () => {
+    if (!validateForm()) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+
+    const newExam: Exam = {
+      id: `exam-${Date.now()}`,
+      title: examForm.title,
+      subject: examForm.subject,
+      class: examForm.class,
+      status: 'Draft',
+      date: examForm.examDate,
+      duration: `${examForm.duration} mins`,
+      questions: parseInt(examForm.totalQuestions),
+      participants: 0, // Will be assigned when scheduled
+      completed: 0,
+    };
+
+    setExams(prev => [...prev, newExam]);
+
+    // Reset form and close dialog
+    setExamForm({
+      title: '',
+      subject: '',
+      class: '',
+      duration: '',
+      totalQuestions: '',
+      passMark: '',
+      examDate: '',
+      startTime: '',
+    });
+    setIsCreateDialogOpen(false);
+  };
+
+  // Handle starting a scheduled exam
+  const handleStartExam = (exam: Exam) => {
+    setExams(prev => prev.map(e =>
+      e.id === exam.id ? { ...e, status: 'Ongoing' as const } : e
+    ));
+  };
+
+  // Handle exam settings
+  const handleExamSettings = (exam: Exam) => {
+    // For now, just show an alert. In a real app, this would open a settings dialog
+    alert(`Settings for ${exam.subject} exam`);
+  };
+
+  // Handle adding a question
+  const handleAddQuestion = () => {
+    // For now, just show an alert. In a real app, this would open a question creation dialog
+    alert('Add Question functionality - would open question creation dialog');
   };
 
   return (
@@ -224,12 +308,12 @@ export function ExamManagement() {
                       </Button>
                     )}
                     {exam.status === 'Scheduled' && (
-                      <Button variant="outline">
+                      <Button variant="outline" onClick={() => handleStartExam(exam)}>
                         <Play className="w-4 h-4 mr-2" />
                         Start
                       </Button>
                     )}
-                    <Button variant="outline" size="icon">
+                    <Button variant="outline" size="icon" onClick={() => handleExamSettings(exam)}>
                       <Settings className="w-4 h-4" />
                     </Button>
                   </div>
@@ -278,7 +362,7 @@ export function ExamManagement() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Question Bank</CardTitle>
-                <Button className="bg-blue-600 hover:bg-blue-700">
+                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAddQuestion}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Question
                 </Button>
@@ -314,62 +398,97 @@ export function ExamManagement() {
           <div className="space-y-4">
             <div>
               <Label>Exam Title</Label>
-              <Input placeholder="e.g., First Term Examination" />
+              <Input
+                placeholder="e.g., First Term Examination"
+                value={examForm.title}
+                onChange={(e) => handleFormChange('title', e.target.value)}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Subject</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option>Select Subject</option>
-                  <option>Mathematics</option>
-                  <option>English Language</option>
-                  <option>Physics</option>
-                  <option>Chemistry</option>
-                  <option>Biology</option>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={examForm.subject}
+                  onChange={(e) => handleFormChange('subject', e.target.value)}
+                >
+                  <option value="">Select Subject</option>
+                  <option value="Mathematics">Mathematics</option>
+                  <option value="English Language">English Language</option>
+                  <option value="Physics">Physics</option>
+                  <option value="Chemistry">Chemistry</option>
+                  <option value="Biology">Biology</option>
                 </select>
               </div>
               <div>
                 <Label>Class</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option>Select Class</option>
-                  <option>JSS 1</option>
-                  <option>JSS 2</option>
-                  <option>JSS 3</option>
-                  <option>SS 1</option>
-                  <option>SS 2</option>
-                  <option>SS 3</option>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={examForm.class}
+                  onChange={(e) => handleFormChange('class', e.target.value)}
+                >
+                  <option value="">Select Class</option>
+                  <option value="JSS 1">JSS 1</option>
+                  <option value="JSS 2">JSS 2</option>
+                  <option value="JSS 3">JSS 3</option>
+                  <option value="SS 1">SS 1</option>
+                  <option value="SS 2">SS 2</option>
+                  <option value="SS 3">SS 3</option>
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label>Duration (mins)</Label>
-                <Input type="number" placeholder="90" />
+                <Input
+                  type="number"
+                  placeholder="90"
+                  value={examForm.duration}
+                  onChange={(e) => handleFormChange('duration', e.target.value)}
+                />
               </div>
               <div>
                 <Label>Total Questions</Label>
-                <Input type="number" placeholder="50" />
+                <Input
+                  type="number"
+                  placeholder="50"
+                  value={examForm.totalQuestions}
+                  onChange={(e) => handleFormChange('totalQuestions', e.target.value)}
+                />
               </div>
               <div>
                 <Label>Pass Mark (%)</Label>
-                <Input type="number" placeholder="40" />
+                <Input
+                  type="number"
+                  placeholder="40"
+                  value={examForm.passMark}
+                  onChange={(e) => handleFormChange('passMark', e.target.value)}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Exam Date</Label>
-                <Input type="date" />
+                <Input
+                  type="date"
+                  value={examForm.examDate}
+                  onChange={(e) => handleFormChange('examDate', e.target.value)}
+                />
               </div>
               <div>
                 <Label>Start Time</Label>
-                <Input type="time" />
+                <Input
+                  type="time"
+                  value={examForm.startTime}
+                  onChange={(e) => handleFormChange('startTime', e.target.value)}
+                />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateExam}>
                 Create Exam
               </Button>
             </div>

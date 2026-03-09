@@ -1,259 +1,257 @@
-import React from 'react'
-import { Gauge, ClipboardList, Edit3, CheckCircle2, AlertTriangle, Clock3, GitCompareArrows, Activity } from 'lucide-react'
+import React, { useState } from 'react'
+import { Settings, Save, CheckCircle, AlertCircle, Percent, BookOpen, Users, Clock } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Input } from '../ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
+import { Label } from '../ui/label'
+import { Slider } from '../ui/slider'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
+import { Alert, AlertDescription } from '../ui/alert'
 
-const assessmentWeights = [
-  { level: 'Primary', tests: 30, assignments: 20, projects: 10, exams: 40 },
-  { level: 'JSS', tests: 25, assignments: 15, projects: 10, exams: 50 },
-  { level: 'SSS', tests: 20, assignments: 15, projects: 15, exams: 50 },
-]
-
-const overrideRequests = [
-  { term: 'First Term', subject: 'Further Math', reason: 'External curriculum alignment', status: 'Awaiting QA', impact: 'Affects SS2 science stream', risk: 'High' },
-  { term: 'Second Term', subject: 'Basic Tech', reason: 'Project-based pilot', status: 'In review', impact: 'JSS3 technical cohort', risk: 'Medium' },
-]
-
-const moderationChecks = [
-  { label: 'Score normalization', detail: 'Auto-enabled for all SS classes', status: 'Active' },
-  { label: 'Outlier detection', detail: 'Two classes flagged last term', status: 'Monitoring' },
-  { label: 'Result approval SLA', detail: '48hr SLA across departments', status: 'Healthy' },
-]
-
-const scenarioComparison = [
-  {
-    label: 'Current template',
-    tests: 25,
-    assignments: 15,
-    projects: 10,
-    exams: 50,
-    effect: 'Balanced weighting for CA-heavy schools',
-  },
-  {
-    label: 'Proposed STEM pilot',
-    tests: 20,
-    assignments: 20,
-    projects: 15,
-    exams: 45,
-    effect: 'Adds more project signals for Maker labs',
-  },
-]
-
-const auditTrail = [
-  { actor: 'Dr. Tolu Adisa', role: 'Academic Head', action: 'Published CA template', timestamp: 'Jan 08, 2026 – 08:42' },
-  { actor: 'QA Desk', role: 'Quality Assurance', action: 'Reviewed override backlog', timestamp: 'Jan 15, 2026 – 16:12' },
-  { actor: 'Assessment Ops', role: 'Operations', action: 'Synced template to all classes', timestamp: 'Jan 16, 2026 – 09:27' },
-]
+const defaultWeights = {
+  primary: { tests: 30, assignments: 20, projects: 10, exams: 40 },
+  jss: { tests: 25, assignments: 15, projects: 10, exams: 50 },
+  sss: { tests: 20, assignments: 15, projects: 15, exams: 50 },
+}
 
 export function CAConfiguration() {
+  const [weights, setWeights] = useState(defaultWeights)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const updateWeight = (level: keyof typeof weights, type: keyof typeof weights.primary, value: number) => {
+    setWeights(prev => ({
+      ...prev,
+      [level]: {
+        ...prev[level],
+        [type]: value
+      }
+    }))
+    setHasChanges(true)
+    setSaveStatus('idle')
+  }
+
+  const validateWeights = (levelWeights: typeof weights.primary) => {
+    const total = Object.values(levelWeights).reduce((sum, val) => sum + val, 0)
+    return total === 100
+  }
+
+  const handleSave = async () => {
+    setSaveStatus('saving')
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      setSaveStatus('saved')
+      setHasChanges(false)
+    } catch (error) {
+      setSaveStatus('error')
+    }
+  }
+
+  const handlePublish = async () => {
+    await handleSave()
+    setPublishDialogOpen(false)
+    // Additional publish logic would go here
+  }
+
+  const WeightConfigurator = ({ level, levelName }: { level: keyof typeof weights, levelName: string }) => {
+    const levelWeights = weights[level]
+    const isValid = validateWeights(levelWeights)
+
+    return (
+      <Card className={!isValid ? 'border-amber-200 bg-amber-50/30' : ''}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            {levelName}
+            {!isValid && <AlertCircle className="h-4 w-4 text-amber-500" />}
+          </CardTitle>
+          <CardDescription>
+            Set assessment weights for {levelName.toLowerCase()} level classes
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {!isValid && (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Weights must total 100%. Current total: {Object.values(levelWeights).reduce((sum, val) => sum + val, 0)}%
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-4">
+            {Object.entries(levelWeights).map(([type, value]) => (
+              <div key={type} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium capitalize">
+                    {type === 'tests' ? 'Tests' :
+                     type === 'assignments' ? 'Assignments' :
+                     type === 'projects' ? 'Projects' : 'Final Exams'}
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={value}
+                      onChange={(e) => updateWeight(level, type as keyof typeof levelWeights, parseInt(e.target.value) || 0)}
+                      className="w-16 h-8 text-center"
+                    />
+                    <Percent className="h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
+                <Slider
+                  value={[value]}
+                  onValueChange={([val]) => updateWeight(level, type as keyof typeof levelWeights, val)}
+                  max={100}
+                  min={0}
+                  step={5}
+                  className="w-full"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-4 border-t">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">Total Weight:</span>
+              <span className={`font-semibold ${isValid ? 'text-green-600' : 'text-amber-600'}`}>
+                {Object.values(levelWeights).reduce((sum, val) => sum + val, 0)}%
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Assessment playbook</p>
+          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Assessment setup</p>
           <h1 className="text-2xl font-bold text-gray-900">CA configuration</h1>
-          <p className="text-sm text-gray-600">Set standardized continuous assessment weights and guardrails.</p>
+          <p className="text-sm text-gray-600">Configure assessment weights for each class level.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <Edit3 className="h-4 w-4 mr-2" /> Edit current template
-          </Button>
-          <Button>
-            <ClipboardList className="h-4 w-4 mr-2" /> Publish to classes
-          </Button>
+          {hasChanges && (
+            <Button onClick={handleSave} disabled={saveStatus === 'saving'}>
+              {saveStatus === 'saving' ? 'Saving...' :
+               saveStatus === 'saved' ? <><CheckCircle className="h-4 w-4 mr-2" /> Saved</> :
+               saveStatus === 'error' ? 'Error saving' :
+               <><Save className="h-4 w-4 mr-2" /> Save changes</>}
+            </Button>
+          )}
+          <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+            <DialogTrigger asChild>
+              <Button disabled={hasChanges}>
+                <Users className="h-4 w-4 mr-2" /> Publish to classes
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Publish CA Configuration</DialogTitle>
+                <DialogDescription>
+                  This will apply the new assessment weights to all classes. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <Users className="h-5 w-5 mx-auto mb-1 text-blue-600" />
+                    <p className="font-semibold">24 Classes</p>
+                    <p className="text-xs text-gray-600">Will be updated</p>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <Clock className="h-5 w-5 mx-auto mb-1 text-green-600" />
+                    <p className="font-semibold">Immediate</p>
+                    <p className="text-xs text-gray-600">Takes effect</p>
+                  </div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg">
+                    <Settings className="h-5 w-5 mx-auto mb-1 text-purple-600" />
+                    <p className="font-semibold">Auto-sync</p>
+                    <p className="text-xs text-gray-600">Results updated</p>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPublishDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handlePublish}>
+                  Publish Configuration
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Status Overview */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card>
           <CardContent className="p-4">
-            <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
-              <Gauge className="h-5 w-5" />
+            <div className="rounded-full bg-green-50 text-green-600 w-10 h-10 flex items-center justify-center">
+              <CheckCircle className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Sessions using template</p>
-            <p className="text-3xl font-semibold text-gray-900">6</p>
-            <p className="text-xs text-gray-500">2022 - 2027</p>
+            <p className="text-xs text-gray-500 mt-3">Current status</p>
+            <p className="text-lg font-semibold text-gray-900">Published</p>
+            <p className="text-xs text-gray-500">Last updated Jan 16</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="rounded-full bg-emerald-50 text-emerald-600 w-10 h-10 flex items-center justify-center">
-              <CheckCircle2 className="h-5 w-5" />
+            <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
+              <Users className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Compliance score</p>
-            <p className="text-3xl font-semibold text-gray-900">98%</p>
-            <p className="text-xs text-gray-500">Last audit Jan 12</p>
+            <p className="text-xs text-gray-500 mt-3">Classes using config</p>
+            <p className="text-lg font-semibold text-gray-900">24</p>
+            <p className="text-xs text-gray-500">All active classes</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="rounded-full bg-amber-50 text-amber-600 w-10 h-10 flex items-center justify-center">
-              <AlertTriangle className="h-5 w-5" />
+              <AlertCircle className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Override requests</p>
-            <p className="text-3xl font-semibold text-gray-900">4</p>
-            <p className="text-xs text-gray-500">2 pending QA review</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="rounded-full bg-purple-50 text-purple-600 w-10 h-10 flex items-center justify-center">
-              <Clock3 className="h-5 w-5" />
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Next recalibration</p>
-            <p className="text-3xl font-semibold text-gray-900">18 days</p>
-            <p className="text-xs text-gray-500">Triggered every mid-term</p>
+            <p className="text-xs text-gray-500 mt-3">Validation status</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {Object.values(weights).every(w => validateWeights(w)) ? 'Valid' : 'Needs fixing'}
+            </p>
+            <p className="text-xs text-gray-500">All weights must = 100%</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Default weight template</CardTitle>
-          <CardDescription>Applies to all classes unless overridden.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-2xl border border-gray-100 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Level</TableHead>
-                  <TableHead>Tests</TableHead>
-                  <TableHead>Assignments</TableHead>
-                  <TableHead>Projects</TableHead>
-                  <TableHead>Exams</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assessmentWeights.map((row) => (
-                  <TableRow key={row.level}>
-                    <TableCell className="font-semibold text-gray-900">{row.level}</TableCell>
-                    <TableCell>{row.tests}%</TableCell>
-                    <TableCell>{row.assignments}%</TableCell>
-                    <TableCell>{row.projects}%</TableCell>
-                    <TableCell>{row.exams}%</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {/* Configuration Sections */}
+      <div className="space-y-6">
+        <WeightConfigurator level="primary" levelName="Primary School" />
+        <WeightConfigurator level="jss" levelName="Junior Secondary" />
+        <WeightConfigurator level="sss" levelName="Senior Secondary" />
+      </div>
+
+      {/* Quick Actions */}
+      <Card className="bg-gray-50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-gray-500">Term</p>
-              <Input value="2025/2026 • First Term" readOnly className="bg-gray-50" />
+              <h3 className="font-semibold text-gray-900">Need to customize for specific classes?</h3>
+              <p className="text-sm text-gray-600">You can override these defaults for individual subjects or classes.</p>
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Effective from</p>
-              <Input value="08 Jan 2026" readOnly className="bg-gray-50" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Scenario comparison</CardTitle>
-          <CardDescription>Preview impact before committing template changes.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          {scenarioComparison.map((scenario) => (
-            <div key={scenario.label} className="rounded-2xl border border-gray-100 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{scenario.label}</p>
-                  <p className="text-xs text-gray-500">{scenario.effect}</p>
-                </div>
-                <GitCompareArrows className="h-4 w-4 text-blue-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-                <span>Tests: <span className="text-gray-900 font-medium">{scenario.tests}%</span></span>
-                <span>Assignments: <span className="text-gray-900 font-medium">{scenario.assignments}%</span></span>
-                <span>Projects: <span className="text-gray-900 font-medium">{scenario.projects}%</span></span>
-                <span>Exams: <span className="text-gray-900 font-medium">{scenario.exams}%</span></span>
-              </div>
-              <Button variant="outline" size="sm">Simulate</Button>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Override requests</CardTitle>
-            <CardDescription>Department-led adjustments awaiting sign-off.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {overrideRequests.map((request) => (
-              <div key={request.subject} className="rounded-2xl border border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{request.subject}</p>
-                    <p className="text-xs text-gray-500">{request.term}</p>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">{request.status}</Badge>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">{request.reason}</p>
-                <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-3">
-                  <span className="font-medium text-gray-900">Impact: {request.impact}</span>
-                  <span className={request.risk === 'High' ? 'text-rose-600 font-semibold' : 'text-amber-600 font-semibold'}>
-                    Risk: {request.risk}
-                  </span>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Button size="sm" variant="outline">Review</Button>
-                  <Button size="sm" variant="ghost" className="text-rose-600">Reject</Button>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Moderation controls</CardTitle>
-            <CardDescription>Automations that keep CA data clean.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {moderationChecks.map((check) => (
-              <div key={check.label} className="rounded-2xl border border-gray-100 p-4">
-                <p className="text-sm font-semibold text-gray-900">{check.label}</p>
-                <p className="text-xs text-gray-500">{check.detail}</p>
-                <Badge variant="outline" className="text-[11px] mt-2">{check.status}</Badge>
-              </div>
-            ))}
-            <Button className="w-full" variant="outline">
-              <Gauge className="h-4 w-4 mr-2" /> Configure moderation
+            <Button variant="outline">
+              <Settings className="h-4 w-4 mr-2" />
+              Advanced overrides
             </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Publishing trail</CardTitle>
-          <CardDescription>Every edit is logged for compliance and rollback.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {auditTrail.map((entry) => (
-            <div key={entry.timestamp} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{entry.actor}</p>
-                <p className="text-xs text-gray-500">{entry.role}</p>
-              </div>
-              <div className="text-sm text-gray-600 flex-1">
-                {entry.action}
-              </div>
-              <p className="text-xs text-gray-400">{entry.timestamp}</p>
-            </div>
-          ))}
+          </div>
         </CardContent>
       </Card>
     </div>
   )
 }
-export default CAConfiguration;
+
+export default CAConfiguration

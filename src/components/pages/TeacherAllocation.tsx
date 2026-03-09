@@ -24,6 +24,37 @@ import {
 import { DndContext, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 
+const DraggableTeacher = ({ teacher }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: teacher.name })
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={`p-3 bg-blue-50 rounded-lg cursor-grab ${isDragging ? 'opacity-50' : ''}`}
+    >
+      {teacher.name}
+    </div>
+  )
+}
+
+const DroppableSlot = ({ slot }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: slot.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`p-3 border rounded-lg bg-gray-50 ${isOver ? 'bg-green-100 border-green-300' : ''}`}
+    >
+      {slot.class} - {slot.subject}
+      {slot.assignedTeacher && <div className="mt-2 text-green-600 font-semibold">Assigned: {slot.assignedTeacher}</div>}
+    </div>
+  )
+}
+
 const coverageStats = [
   { label: 'Teacher coverage', value: '91%', detail: '234 / 258 slots assigned', color: 'bg-emerald-500' },
   { label: 'Open periods', value: '19', detail: 'Highest: Chemistry (SS2)', color: 'bg-amber-500' },
@@ -156,40 +187,17 @@ export function TeacherAllocation() {
               <div className="w-1/3">
                 <h3 className="text-lg font-semibold mb-4">Teachers</h3>
                 <div className="space-y-2 overflow-y-auto h-full">
-                  {teacherCards.map(teacher => {
-                    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: teacher.name })
-                    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
-                    return (
-                      <div
-                        key={teacher.name}
-                        ref={setNodeRef}
-                        style={style}
-                        {...listeners}
-                        {...attributes}
-                        className={`p-3 bg-blue-50 rounded-lg cursor-grab ${isDragging ? 'opacity-50' : ''}`}
-                      >
-                        {teacher.name}
-                      </div>
-                    )
-                  })}
+                  {teacherCards.map(teacher => (
+                    <DraggableTeacher key={teacher.name} teacher={teacher} />
+                  ))}
                 </div>
               </div>
               <div className="w-2/3">
                 <h3 className="text-lg font-semibold mb-4">Open Slots</h3>
                 <div className="grid gap-2 overflow-y-auto h-full">
-                  {editableSlots.map(row => {
-                    const { setNodeRef, isOver } = useDroppable({ id: row.id })
-                    return (
-                      <div
-                        key={row.id}
-                        ref={setNodeRef}
-                        className={`p-3 border rounded-lg bg-gray-50 ${isOver ? 'bg-green-100 border-green-300' : ''}`}
-                      >
-                        {row.class} - {row.subject}
-                        {row.assignedTeacher && <div className="mt-2 text-green-600 font-semibold">Assigned: {row.assignedTeacher}</div>}
-                      </div>
-                    )
-                  })}
+                  {editableSlots.map(row => (
+                    <DroppableSlot key={row.id} slot={row} />
+                  ))}
                 </div>
               </div>
             </div>

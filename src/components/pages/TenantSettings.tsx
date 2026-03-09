@@ -25,13 +25,13 @@ export function TenantSettings({ tenantId, tenantName }: TenantSettingsProps) {
     loadTenantConfig()
   }, [tenantId])
 
-  const loadTenantConfig = () => {
+  const loadTenantConfig = async () => {
     setLoading(true)
     try {
-      let tenantConfig = TenantDomainManager.getTenantConfig(tenantId)
+      let tenantConfig = await TenantDomainManager.getTenantConfig(tenantId)
       if (!tenantConfig) {
         tenantConfig = TenantDomainManager.createDefaultConfig(tenantId, tenantName)
-        TenantDomainManager.saveTenantConfig(tenantId, tenantConfig)
+        await TenantDomainManager.saveTenantConfig(tenantId, tenantConfig)
       }
       setConfig(tenantConfig)
     } catch (error) {
@@ -302,3 +302,5 @@ export function TenantSettings({ tenantId, tenantName }: TenantSettingsProps) {
     </div>
   )
 }
+
+export default TenantSettings;

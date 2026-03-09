@@ -1,9 +1,19 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Layers, GraduationCap, ShieldCheck, BookText, Sparkles, Clock3, TrendingUp, Building, Target, GitMerge, Megaphone } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Textarea } from '../ui/textarea'
 
 const structureMetrics = [
   {
@@ -98,6 +108,8 @@ const complianceWatch = [
 ]
 
 export function AcademicStructureOverview() {
+  const [addProgramOpen, setAddProgramOpen] = useState(false)
+  const [addDepartmentOpen, setAddDepartmentOpen] = useState(false)
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -110,8 +122,11 @@ export function AcademicStructureOverview() {
           <Button variant="outline">
             <Clock3 className="h-4 w-4 mr-2" /> Plan session changeover
           </Button>
-          <Button>
+          <Button onClick={() => setAddProgramOpen(true)}>
             <Sparkles className="h-4 w-4 mr-2" /> Add new program
+          </Button>
+          <Button onClick={() => setAddDepartmentOpen(true)}>
+            <Building className="h-4 w-4 mr-2" /> Add new department
           </Button>
         </div>
       </div>
@@ -293,6 +308,61 @@ export function AcademicStructureOverview() {
           </CardContent>
         </Card>
       </div>
+
+      {addProgramOpen && (
+        <Dialog open={addProgramOpen} onOpenChange={setAddProgramOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Program</DialogTitle>
+              <DialogDescription>Create a new academic program for the structure.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="programName">Program Name</Label>
+                <Input id="programName" placeholder="e.g., Primary Education" />
+              </div>
+              <div>
+                <Label htmlFor="level">Level</Label>
+                <Input id="level" placeholder="e.g., Primary" />
+              </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea id="description" placeholder="Program description" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAddProgramOpen(false)}>Cancel</Button>
+              <Button onClick={() => { /* handle add */ setAddProgramOpen(false) }}>Add Program</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {addDepartmentOpen && (
+        <Dialog open={addDepartmentOpen} onOpenChange={setAddDepartmentOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Department</DialogTitle>
+              <DialogDescription>Create a new department for the academic structure.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="departmentName">Department Name</Label>
+                <Input id="departmentName" placeholder="e.g., Science Department" />
+              </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea id="description" placeholder="Department description" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAddDepartmentOpen(false)}>Cancel</Button>
+              <Button onClick={() => { /* handle add */ setAddDepartmentOpen(false) }}>Add Department</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
     </div>
   )
 }

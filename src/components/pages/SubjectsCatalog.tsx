@@ -1,11 +1,15 @@
 import React, { useMemo, useState } from 'react'
-import { BookOpen, GraduationCap, Layers3, Filter, Download, Sparkles, AlertTriangle } from 'lucide-react'
+import { BookOpen, GraduationCap, Layers3, Filter, Download, Sparkles, AlertTriangle, Plus, X } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
+import { Textarea } from '../ui/textarea'
 
 const subjectStats = [
   { label: 'Subjects catalogued', value: '74', detail: '52 core • 22 elective', icon: BookOpen, color: 'text-blue-600' },
@@ -34,10 +38,39 @@ const departmentFilters = ['All', 'Sciences', 'Humanities', 'Commercial', 'Langu
 
 export function SubjectsCatalog() {
   const [activeDepartment, setActiveDepartment] = useState('All')
+  const [addSubjectOpen, setAddSubjectOpen] = useState(false)
+  const [newSubject, setNewSubject] = useState({
+    code: '',
+    name: '',
+    level: '',
+    type: 'Core' as 'Core' | 'Elective',
+    department: 'Sciences',
+    description: ''
+  })
 
   const filteredSubjects = useMemo(() =>
     activeDepartment === 'All' ? subjects : subjects.filter((subject) => subject.department === activeDepartment),
   [activeDepartment])
+
+  const handleAddSubject = () => {
+    if (!newSubject.code || !newSubject.name || !newSubject.level) {
+      return // Basic validation
+    }
+
+    // Here you would typically save to backend
+    console.log('Adding subject:', newSubject)
+
+    // Reset form and close dialog
+    setNewSubject({
+      code: '',
+      name: '',
+      level: '',
+      type: 'Core',
+      department: 'Sciences',
+      description: ''
+    })
+    setAddSubjectOpen(false)
+  }
 
   return (
     <div className="space-y-6">
@@ -54,9 +87,105 @@ export function SubjectsCatalog() {
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" /> Export CSV
           </Button>
-          <Button>
-            <GraduationCap className="h-4 w-4 mr-2" /> Add subject
-          </Button>
+          <Dialog open={addSubjectOpen} onOpenChange={setAddSubjectOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <GraduationCap className="h-4 w-4 mr-2" /> Add subject
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add New Subject</DialogTitle>
+                <DialogDescription>
+                  Add a new subject to the curriculum catalog.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="subject-code">Subject Code</Label>
+                  <Input
+                    id="subject-code"
+                    placeholder="e.g., MAT-101"
+                    value={newSubject.code}
+                    onChange={(e) => setNewSubject({ ...newSubject, code: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject-name">Subject Name</Label>
+                  <Input
+                    id="subject-name"
+                    placeholder="e.g., Mathematics"
+                    value={newSubject.name}
+                    onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject-level">Level</Label>
+                  <Select value={newSubject.level} onValueChange={(value) => setNewSubject({ ...newSubject, level: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="JSS 1-3">JSS 1-3</SelectItem>
+                      <SelectItem value="JSS 1">JSS 1</SelectItem>
+                      <SelectItem value="JSS 2">JSS 2</SelectItem>
+                      <SelectItem value="JSS 3">JSS 3</SelectItem>
+                      <SelectItem value="SS 1-3">SS 1-3</SelectItem>
+                      <SelectItem value="SS 1">SS 1</SelectItem>
+                      <SelectItem value="SS 2">SS 2</SelectItem>
+                      <SelectItem value="SS 3">SS 3</SelectItem>
+                      <SelectItem value="JSS 2-3">JSS 2-3</SelectItem>
+                      <SelectItem value="SS 1-2">SS 1-2</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject-type">Type</Label>
+                  <Select value={newSubject.type} onValueChange={(value: 'Core' | 'Elective') => setNewSubject({ ...newSubject, type: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Core">Core</SelectItem>
+                      <SelectItem value="Elective">Elective</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject-department">Department</Label>
+                  <Select value={newSubject.department} onValueChange={(value) => setNewSubject({ ...newSubject, department: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sciences">Sciences</SelectItem>
+                      <SelectItem value="Humanities">Humanities</SelectItem>
+                      <SelectItem value="Commercial">Commercial</SelectItem>
+                      <SelectItem value="Languages">Languages</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject-description">Description (Optional)</Label>
+                  <Textarea
+                    id="subject-description"
+                    placeholder="Brief description of the subject"
+                    value={newSubject.description}
+                    onChange={(e) => setNewSubject({ ...newSubject, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddSubjectOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddSubject} disabled={!newSubject.code || !newSubject.name || !newSubject.level}>
+                  Add Subject
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -193,7 +322,7 @@ export function SubjectsCatalog() {
                       <div className="flex items-center gap-2">
                         <span>{subject.resources}</span>
                         {subject.resources === 'Upload' && (
-                          <Button size="xs" variant="outline" className="text-[11px] h-6">Request assets</Button>
+                          <Button size="sm" variant="outline" className="text-[11px] h-6">Request assets</Button>
                         )}
                       </div>
                     </TableCell>

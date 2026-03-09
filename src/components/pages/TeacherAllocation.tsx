@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { UserCheck, AlertTriangle, Clock3, CalendarCheck, Search, Shuffle, Users, BarChart3, Activity } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -6,6 +6,21 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select'
 
 const coverageStats = [
   { label: 'Teacher coverage', value: '91%', detail: '234 / 258 slots assigned', color: 'bg-emerald-500' },
@@ -89,6 +104,7 @@ const substitutionLog = [
 ]
 
 export function TeacherAllocation() {
+  const [assignOpen, setAssignOpen] = useState(false)
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -104,11 +120,57 @@ export function TeacherAllocation() {
           <Button variant="outline">
             <Shuffle className="h-4 w-4 mr-2" /> Auto-balance load
           </Button>
-          <Button>
+          <Button onClick={() => setAssignOpen(true)}>
             <CalendarCheck className="h-4 w-4 mr-2" /> Assign slots
           </Button>
         </div>
       </div>
+
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Assign Teacher Slots</DialogTitle>
+            <DialogDescription>Select teachers for open slots to assign to classes and students.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-gray-100 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Class / Arm</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Assign Teacher</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allocationMatrix.filter(row => row.coverage === 'Open').map((row) => (
+                    <TableRow key={`${row.class}-${row.subject}`}>
+                      <TableCell className="font-semibold text-gray-900">{row.class}</TableCell>
+                      <TableCell>{row.subject}</TableCell>
+                      <TableCell>
+                        <Select>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select teacher" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {teacherCards.map(teacher => (
+                              <SelectItem key={teacher.name} value={teacher.name}>{teacher.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
+            <Button onClick={() => { /* handle assign */ setAssignOpen(false) }}>Assign Slots</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         {coverageStats.map((stat) => (
@@ -122,6 +184,8 @@ export function TeacherAllocation() {
               </div>
             </CardContent>
           </Card>
+        ))}
+      </div>
         ))}
       </div>
 

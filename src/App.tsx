@@ -60,6 +60,7 @@ const ErrorLogs = lazy(() => import('./components/pages/ErrorLogs'));
 const HelpCenter = lazy(() => import('./components/pages/HelpCenter'));
 const SupportTickets = lazy(() => import('./components/pages/SupportTickets'));
 const SuperAdminPortal = lazy(() => import('./components/pages/SuperAdminPortal'));
+const TenantSettings = lazy(() => import('./components/pages/TenantSettings'));
 import { LoginRole } from './components/auth/LoginPanel';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
 import { Button } from './components/ui/button';

@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Users, ClipboardList, Clock3, ArrowRight, MapPin, BookOpen, Upload, FileText, AlertCircle, CheckCircle, QrCode, Share } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Users, ClipboardList, Clock3, ArrowRight, MapPin, BookOpen, Upload, FileText, AlertCircle, CheckCircle, Share, Mail } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -22,7 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table'
-import QRCode from 'qrcode.react'
+import { Lead, Application } from '../types'
+// import QRCode from 'react-qr-code'
 
 const pipeline = [
   {
@@ -32,6 +33,7 @@ const pipeline = [
     items: [
       { name: 'Grace Obi', school: 'Primary 6', source: 'Open day', status: 'New' },
       { name: 'Yakubu Idris', school: 'Primary 5', source: 'Referral', status: 'Contacted' },
+      ...leads.map(l => ({ name: l.studentName, school: l.classInterested, source: l.source, status: 'New' }))
     ],
   },
   {
@@ -109,6 +111,31 @@ export function StudentEnrollment() {
   const [uploadStep, setUploadStep] = useState<'upload' | 'preview' | 'import'>('upload')
   const [qrOpen, setQrOpen] = useState(false)
 
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [applications, setApplications] = useState<Application[]>([])
+
+  useEffect(() => {
+    const loadedLeads = JSON.parse(localStorage.getItem('leads') || '[]').map((l: any) => ({ ...l, createdAt: new Date(l.createdAt) }))
+    const loadedApplications = JSON.parse(localStorage.getItem('applications') || '[]').map((a: any) => ({ ...a, submittedAt: new Date(a.submittedAt), studentInfo: { ...a.studentInfo, dateOfBirth: new Date(a.studentInfo.dateOfBirth) } }))
+    setLeads(loadedLeads)
+    setApplications(loadedApplications)
+  }, [])
+
+  const downloadSampleCSV = () => {
+    const csvContent = `First Name,Last Name,Email,Phone,Date of Birth,Class,Parent Name
+John,Doe,john@example.com,+1234567890,2005-05-15,JSS 1,Jane Doe
+Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'sample_students.csv'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -179,6 +206,9 @@ export function StudentEnrollment() {
                       <li>Include headers in the first row</li>
                     </ul>
                   </div>
+                  <Button variant="outline" onClick={downloadSampleCSV}>
+                    Download Sample CSV
+                  </Button>
                 </div>
               )}
               {uploadStep === 'preview' && (
@@ -265,14 +295,18 @@ export function StudentEnrollment() {
               )}
             </DialogContent>
           </Dialog>
-          <Button>
+          <Button onClick={() => window.open('/apply', '_blank')}>
             <Users className="h-4 w-4 mr-2" />
             New application
           </Button>
-          <Button variant="outline" onClick={() => setQrOpen(true)}>
+          <Button onClick={() => window.open('/inquiry', '_blank')}>
+            <Mail className="h-4 w-4 mr-2" />
+            Inquiry Form
+          </Button>
+          {/* <Button variant="outline" onClick={() => setQrOpen(true)}>
             <QrCode className="h-4 w-4 mr-2" />
             Share Application Form
-          </Button>
+          </Button> */}
         </div>
       </div>
 
@@ -324,6 +358,29 @@ export function StudentEnrollment() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Public Application Form</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-2">Share this link for full enrollment applications:</p>
+            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{window.location.origin}/apply</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/apply`)}>Copy Link</Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Public Inquiry Form</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-2">Share this link for initial interest inquiries:</p>
+            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{window.location.origin}/inquiry</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/inquiry`)}>Copy Link</Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -379,7 +436,7 @@ export function StudentEnrollment() {
         </Card>
       </div>
 
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+      {/* <Dialog open={qrOpen} onOpenChange={setQrOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Share Application Form</DialogTitle>
@@ -388,14 +445,14 @@ export function StudentEnrollment() {
             </DialogDescription>
           </DialogHeader>
           <div className="text-center space-y-4">
-            <QRCode value={window.location.origin + '/apply'} size={200} className="mx-auto" />
+            <QRCode value={window.location.origin + '/apply'} className="mx-auto" />
             <div>
               <p className="text-sm text-gray-600 mb-2">Application URL:</p>
               <p className="text-xs bg-gray-100 p-2 rounded break-all">{window.location.origin + '/apply'}</p>
             </div>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </div>
   )
 }

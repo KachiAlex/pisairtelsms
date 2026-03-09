@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '../ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
+import { DocumentUploadDialog } from './DocumentUploadDialog'
 import { fetchStudentDocuments, StudentDocument } from '../../lib/studentDocumentsClient'
 
 const summaryStats = [
@@ -179,6 +180,7 @@ export function StudentDocuments() {
   const [documents, setDocuments] = useState<StudentDocument[]>(mockDocuments)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -202,16 +204,11 @@ export function StudentDocuments() {
     return () => controller.abort()
   }, [])
 
-  const filteredDocuments = useMemo(() => {
-    return documents.filter((item) => {
-      const matchesSearch =
-        item.student.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.doc.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter
-      const matchesStatus = statusFilter === 'all' || item.status === statusFilter
-      return matchesSearch && matchesCategory && matchesStatus
-    })
-  }, [searchTerm, categoryFilter, statusFilter])
+  const handleUploadComplete = (uploadedFiles: any[]) => {
+    console.log('Upload completed:', uploadedFiles)
+    // Here you would typically update the documents list or trigger a refresh
+    // For now, we'll just log the completion
+  }
 
   return (
     <div className="space-y-6">
@@ -226,7 +223,7 @@ export function StudentDocuments() {
             <RefreshCcw className="h-4 w-4 mr-2" />
             Request updates
           </Button>
-          <Button>
+          <Button onClick={() => setIsUploadDialogOpen(true)}>
             <UploadCloud className="h-4 w-4 mr-2" />
             Upload new scan
           </Button>
@@ -576,6 +573,12 @@ export function StudentDocuments() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <DocumentUploadDialog
+        open={isUploadDialogOpen}
+        onOpenChange={setIsUploadDialogOpen}
+        onUploadComplete={handleUploadComplete}
+      />
     </div>
   )
 }

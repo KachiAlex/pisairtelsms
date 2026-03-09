@@ -3,7 +3,9 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { CheckCircle, Upload } from 'lucide-react'
+import { CheckCircle, Upload, AlertCircle } from 'lucide-react'
+import { Application } from '../types'
+import { createApplication, type ApplicationPayload } from '../../lib/applicationsClient'
 
 export function PublicApplicationForm() {
   const [formData, setFormData] = useState({
@@ -31,16 +33,75 @@ export function PublicApplicationForm() {
   })
 
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Generate tracking ID
-    const trackingId = Math.random().toString(36).substr(2, 9).toUpperCase()
-    updateFormData('trackingId', trackingId)
-    // In real app, submit to API
-    console.log('Application submitted:', { ...formData, trackingId })
-    setSubmitted(true)
-    // Send confirmation email, etc.
+    setLoading(true)
+    setError(null)
+
+    try {
+      const applicationPayload: ApplicationPayload = {
+        fullName: formData.fullName,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        classApplying: formData.classApplying,
+        previousSchool: formData.previousSchool,
+        parentNames: formData.parentNames.filter(name => name.trim() !== ''),
+        phones: formData.phones.filter(phone => phone.trim() !== ''),
+        email: formData.email,
+        address: formData.address,
+        emergencyContacts: formData.emergencyContacts.filter(contact => contact.trim() !== ''),
+        specialNeeds: formData.specialNeeds,
+        transportation: formData.transportation,
+      }
+
+      const createdApplication = await createApplication(applicationPayload)
+
+      // Save to localStorage for demo
+      const application: Application = {
+        id: createdApplication.id || Math.random().toString(36).substr(2, 9).toUpperCase(),
+        leadId: '',
+        studentInfo: {
+          fullName: applicationPayload.fullName,
+          dateOfBirth: new Date(applicationPayload.dateOfBirth),
+          gender: applicationPayload.gender,
+          classApplying: applicationPayload.classApplying,
+          previousSchool: applicationPayload.previousSchool,
+        },
+        parentInfo: {
+          names: applicationPayload.parentNames,
+          phones: applicationPayload.phones,
+          email: applicationPayload.email,
+          address: applicationPayload.address,
+        },
+        documents: {},
+        otherDetails: {
+          emergencyContacts: applicationPayload.emergencyContacts,
+          specialNeeds: applicationPayload.specialNeeds,
+          transportation: applicationPayload.transportation,
+        },
+        submittedAt: new Date(),
+        status: 'submitted',
+        applicationFeePaid: false,
+      }
+      const existing = JSON.parse(localStorage.getItem('applications') || '[]')
+      localStorage.setItem('applications', JSON.stringify([...existing, application]))
+
+      // Update form with tracking ID from database
+      setFormData(prev => ({
+        ...prev,
+        trackingId: createdApplication.trackingId,
+      }))
+
+      setSubmitted(true)
+    } catch (err) {
+      console.error('Error submitting application:', err)
+      setError('Failed to submit application. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const updateFormData = (field: string, value: any) => {
@@ -97,6 +158,13 @@ export function PublicApplicationForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          )}
+
           {/* Student Information */}
           <Card>
             <CardHeader>
@@ -289,8 +357,8 @@ export function PublicApplicationForm() {
           </Card>
 
           <div className="flex justify-center">
-            <Button type="submit" size="lg" className="px-8">
-              Submit Application
+            <Button type="submit" size="lg" className="px-8" disabled={loading}>
+              {loading ? 'Submitting...' : 'Submit Application'}
             </Button>
           </div>
         </form>

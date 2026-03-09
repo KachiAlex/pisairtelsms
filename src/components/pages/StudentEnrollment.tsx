@@ -24,6 +24,7 @@ import {
 } from '../ui/table'
 import { Lead, Application } from '../types'
 // import QRCode from 'react-qr-code'
+import { FORM_URLS } from '../../config'
 
 const pipeline = [
   {
@@ -33,7 +34,7 @@ const pipeline = [
     items: [
       { name: 'Grace Obi', school: 'Primary 6', source: 'Open day', status: 'New' },
       { name: 'Yakubu Idris', school: 'Primary 5', source: 'Referral', status: 'Contacted' },
-      ...leads.map(l => ({ name: l.studentName, school: l.classInterested, source: l.source, status: 'New' }))
+      // leads.map will be computed dynamically inside the component
     ],
   },
   {
@@ -43,6 +44,7 @@ const pipeline = [
     items: [
       { name: 'Farida Ahmed', school: 'Primary 6', source: 'Website form', status: 'Submitted' },
       { name: 'Michelle Nweke', school: 'Primary 6', source: 'Parent portal', status: 'Docs pending' },
+      // applications.map will be computed dynamically inside the component
     ],
   },
   {
@@ -120,6 +122,29 @@ export function StudentEnrollment() {
     setLeads(loadedLeads)
     setApplications(loadedApplications)
   }, [])
+
+  // Compute dynamic pipeline data
+  const dynamicPipeline = pipeline.map(stage => {
+    if (stage.stage === 'Inquiry') {
+      return {
+        ...stage,
+        items: [
+          ...stage.items,
+          ...leads.map(l => ({ name: l.studentName, school: l.classInterested, source: l.source, status: 'New' as const }))
+        ]
+      }
+    }
+    if (stage.stage === 'Application') {
+      return {
+        ...stage,
+        items: [
+          ...stage.items,
+          ...applications.map(a => ({ name: a.studentInfo.fullName, school: a.studentInfo.classApplying, source: 'Online' as const, status: 'Submitted' as const }))
+        ]
+      }
+    }
+    return stage
+  })
 
   const downloadSampleCSV = () => {
     const csvContent = `First Name,Last Name,Email,Phone,Date of Birth,Class,Parent Name
@@ -326,7 +351,7 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
       </div>
 
       <div className="grid gap-4 lg:grid-cols-6">
-        {pipeline.map((column) => (
+        {dynamicPipeline.map((column) => (
           <Card key={column.stage} className="bg-slate-50">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -367,8 +392,8 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-2">Share this link for full enrollment applications:</p>
-            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{window.location.origin}/apply</p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/apply`)}>Copy Link</Button>
+            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{FORM_URLS.application}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(FORM_URLS.application)}>Copy Link</Button>
           </CardContent>
         </Card>
         <Card>
@@ -377,8 +402,8 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-2">Share this link for initial interest inquiries:</p>
-            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{window.location.origin}/inquiry</p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/inquiry`)}>Copy Link</Button>
+            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{FORM_URLS.inquiry}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(FORM_URLS.inquiry)}>Copy Link</Button>
           </CardContent>
         </Card>
       </div>

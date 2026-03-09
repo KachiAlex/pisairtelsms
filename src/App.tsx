@@ -221,6 +221,8 @@ export default function App() {
         return <AuditLogs />;
       case 'import-export':
         return <ImportExport />;
+      case 'tenant-settings':
+        return <TenantSettings tenantId="default" tenantName="Default School" />;
       default:
         return (
           <div className="flex items-center justify-center h-full">

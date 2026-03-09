@@ -207,6 +207,7 @@ const navItems: NavItem[] = [
     children: [
       { id: 'system-settings', label: 'System Settings' },
       { id: 'school-profile', label: 'School Profile' },
+      { id: 'tenant-settings', label: 'Tenant Settings' },
       { id: 'roles-permissions', label: 'Roles & Permissions' },
       { id: 'user-accounts', label: 'User Accounts' },
       { id: 'audit-logs', label: 'Audit Logs' },

@@ -5,6 +5,7 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { CheckCircle } from 'lucide-react'
 import { Lead } from '../types'
+import { createLead } from '../../lib/leadClient'
 
 export function PublicInquiryForm() {
   const [formData, setFormData] = useState({
@@ -18,30 +19,36 @@ export function PublicInquiryForm() {
   })
 
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Generate tracking ID
-    const trackingId = Math.random().toString(36).substr(2, 9).toUpperCase()
-    setFormData(prev => ({ ...prev, trackingId }))
-    // Create lead
-    const lead: Lead = {
-      id: trackingId,
-      studentName: formData.studentName,
-      parentName: formData.parentName,
-      contactDetails: { phone: formData.phone, email: formData.email },
-      classInterested: formData.classInterested,
-      source: formData.source,
-      createdAt: new Date(),
-      status: 'new',
+    setLoading(true)
+    try {
+      // Generate tracking ID
+      const trackingId = Math.random().toString(36).substr(2, 9).toUpperCase()
+      // Create lead payload
+      const leadPayload = {
+        id: trackingId,
+        studentName: formData.studentName,
+        parentName: formData.parentName,
+        contactPhone: formData.phone,
+        contactEmail: formData.email,
+        classInterested: formData.classInterested,
+        source: formData.source,
+        status: 'new',
+      }
+      // Save to cloud
+      await createLead(leadPayload)
+      // Update form with tracking ID
+      setFormData(prev => ({ ...prev, trackingId }))
+      setSubmitted(true)
+    } catch (error) {
+      console.error('Error submitting inquiry:', error)
+      // Handle error - perhaps show error message
+    } finally {
+      setLoading(false)
     }
-    // Save to localStorage
-    const existing = JSON.parse(localStorage.getItem('leads') || '[]')
-    localStorage.setItem('leads', JSON.stringify([...existing, lead]))
-    // In real app, submit to API
-    console.log('Inquiry submitted:', lead)
-    setSubmitted(true)
-    // Send confirmation email, etc.
   }
 
   const updateFormData = (field: string, value: any) => {

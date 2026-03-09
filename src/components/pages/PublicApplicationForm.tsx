@@ -59,36 +59,6 @@ export function PublicApplicationForm() {
 
       const createdApplication = await createApplication(applicationPayload)
 
-      // Save to localStorage for demo
-      const application: Application = {
-        id: createdApplication.id || Math.random().toString(36).substr(2, 9).toUpperCase(),
-        leadId: '',
-        studentInfo: {
-          fullName: applicationPayload.fullName,
-          dateOfBirth: new Date(applicationPayload.dateOfBirth),
-          gender: applicationPayload.gender,
-          classApplying: applicationPayload.classApplying,
-          previousSchool: applicationPayload.previousSchool,
-        },
-        parentInfo: {
-          names: applicationPayload.parentNames,
-          phones: applicationPayload.phones,
-          email: applicationPayload.email,
-          address: applicationPayload.address,
-        },
-        documents: {},
-        otherDetails: {
-          emergencyContacts: applicationPayload.emergencyContacts,
-          specialNeeds: applicationPayload.specialNeeds,
-          transportation: applicationPayload.transportation,
-        },
-        submittedAt: new Date(),
-        status: 'submitted',
-        applicationFeePaid: false,
-      }
-      const existing = JSON.parse(localStorage.getItem('applications') || '[]')
-      localStorage.setItem('applications', JSON.stringify([...existing, application]))
-
       // Update form with tracking ID from database
       setFormData(prev => ({
         ...prev,

@@ -21,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select'
+import { DndContext, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 
 const coverageStats = [
   { label: 'Teacher coverage', value: '91%', detail: '234 / 258 slots assigned', color: 'bg-emerald-500' },
@@ -110,6 +112,18 @@ export function TeacherAllocation() {
   const [editableSlots, setEditableSlots] = useState(
     allocationMatrix.filter(row => row.coverage === 'Open').map((row, index) => ({ ...row, id: index, assignedTeacher: '' }))
   )
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+    if (over) {
+      setEditableSlots(prev => prev.map(r => r.id === over.id ? { ...r, assignedTeacher: active.id } : r))
+    }
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -135,48 +149,51 @@ export function TeacherAllocation() {
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Assign Teacher Slots</DialogTitle>
-            <DialogDescription>Select teachers for open slots to assign to classes and students.</DialogDescription>
+            <DialogDescription>Drag teachers to open slots to assign to classes and students.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-gray-100 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Class / Arm</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Assign Teacher</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {editableSlots.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-semibold text-gray-900">{row.class}</TableCell>
-                      <TableCell>
-                        <Select value={row.subject} onValueChange={(value) => setEditableSlots(prev => prev.map(r => r.id === row.id ? { ...r, subject: value } : r))}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select value={row.assignedTeacher} onValueChange={(value) => setEditableSlots(prev => prev.map(r => r.id === row.id ? { ...r, assignedTeacher: value } : r))}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select teacher" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teacherCards.map(teacher => <SelectItem key={teacher.name} value={teacher.name}>{teacher.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <div className="flex gap-6 h-96">
+              <div className="w-1/3">
+                <h3 className="text-lg font-semibold mb-4">Teachers</h3>
+                <div className="space-y-2 overflow-y-auto h-full">
+                  {teacherCards.map(teacher => {
+                    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: teacher.name })
+                    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
+                    return (
+                      <div
+                        key={teacher.name}
+                        ref={setNodeRef}
+                        style={style}
+                        {...listeners}
+                        {...attributes}
+                        className={`p-3 bg-blue-50 rounded-lg cursor-grab ${isDragging ? 'opacity-50' : ''}`}
+                      >
+                        {teacher.name}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="w-2/3">
+                <h3 className="text-lg font-semibold mb-4">Open Slots</h3>
+                <div className="grid gap-2 overflow-y-auto h-full">
+                  {editableSlots.map(row => {
+                    const { setNodeRef, isOver } = useDroppable({ id: row.id })
+                    return (
+                      <div
+                        key={row.id}
+                        ref={setNodeRef}
+                        className={`p-3 border rounded-lg bg-gray-50 ${isOver ? 'bg-green-100 border-green-300' : ''}`}
+                      >
+                        {row.class} - {row.subject}
+                        {row.assignedTeacher && <div className="mt-2 text-green-600 font-semibold">Assigned: {row.assignedTeacher}</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
+          </DndContext>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
             <Button onClick={() => { /* handle assign */ setAssignOpen(false) }}>Assign Slots</Button>

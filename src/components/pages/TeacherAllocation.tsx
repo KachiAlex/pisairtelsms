@@ -103,8 +103,13 @@ const substitutionLog = [
   },
 ]
 
+const subjects = ['Mathematics', 'Basic Science', 'Chemistry', 'Further Math', 'Accounting', 'English Studies', 'Physics', 'Biology', 'French', 'Commerce']
+
 export function TeacherAllocation() {
   const [assignOpen, setAssignOpen] = useState(false)
+  const [editableSlots, setEditableSlots] = useState(
+    allocationMatrix.filter(row => row.coverage === 'Open').map((row, index) => ({ ...row, id: index, assignedTeacher: '' }))
+  )
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -143,19 +148,26 @@ export function TeacherAllocation() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allocationMatrix.filter(row => row.coverage === 'Open').map((row) => (
-                    <TableRow key={`${row.class}-${row.subject}`}>
+                  {editableSlots.map((row) => (
+                    <TableRow key={row.id}>
                       <TableCell className="font-semibold text-gray-900">{row.class}</TableCell>
-                      <TableCell>{row.subject}</TableCell>
                       <TableCell>
-                        <Select>
+                        <Select value={row.subject} onValueChange={(value) => setEditableSlots(prev => prev.map(r => r.id === row.id ? { ...r, subject: value } : r))}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select value={row.assignedTeacher} onValueChange={(value) => setEditableSlots(prev => prev.map(r => r.id === row.id ? { ...r, assignedTeacher: value } : r))}>
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select teacher" />
                           </SelectTrigger>
                           <SelectContent>
-                            {teacherCards.map(teacher => (
-                              <SelectItem key={teacher.name} value={teacher.name}>{teacher.name}</SelectItem>
-                            ))}
+                            {teacherCards.map(teacher => <SelectItem key={teacher.name} value={teacher.name}>{teacher.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -184,8 +196,6 @@ export function TeacherAllocation() {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
         ))}
       </div>
 

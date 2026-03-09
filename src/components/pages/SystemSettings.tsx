@@ -539,3 +539,4 @@ export function SystemSettings() {
     </div>
   );
 }
+export default SystemSettings;

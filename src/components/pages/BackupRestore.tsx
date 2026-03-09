@@ -208,3 +208,4 @@ export function BackupRestore() {
     </div>
   )
 }
+export default BackupRestore;

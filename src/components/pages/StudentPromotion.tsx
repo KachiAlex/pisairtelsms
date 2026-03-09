@@ -356,3 +356,4 @@ export function StudentPromotion() {
     </div>
   )
 }
+export default StudentPromotion;

@@ -209,3 +209,4 @@ export function PendingApprovals() {
     </div>
   )
 }
+export default PendingApprovals;

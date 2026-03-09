@@ -256,3 +256,4 @@ export function CAConfiguration() {
     </div>
   )
 }
+export default CAConfiguration;

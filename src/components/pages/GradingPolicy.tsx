@@ -269,3 +269,4 @@ export function GradingPolicy() {
     </div>
   )
 }
+export default GradingPolicy;

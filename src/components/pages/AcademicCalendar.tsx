@@ -175,3 +175,4 @@ export function AcademicCalendar() {
     </div>
   )
 }
+export default AcademicCalendar;

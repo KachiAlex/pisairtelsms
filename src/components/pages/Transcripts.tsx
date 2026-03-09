@@ -212,3 +212,4 @@ export function Transcripts() {
     </div>
   )
 }
+export default Transcripts;

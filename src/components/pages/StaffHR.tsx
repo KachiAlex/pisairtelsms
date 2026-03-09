@@ -344,3 +344,4 @@ export function StaffHR() {
     </div>
   )
 }
+export default StaffHR;

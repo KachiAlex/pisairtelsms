@@ -440,3 +440,4 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
     </div>
   )
 }
+export default TimetableScheduling;

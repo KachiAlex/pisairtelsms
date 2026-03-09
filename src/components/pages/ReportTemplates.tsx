@@ -202,3 +202,4 @@ export function ReportTemplates() {
     </div>
   )
 }
+export default ReportTemplates;

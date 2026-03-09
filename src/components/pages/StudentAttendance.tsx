@@ -306,3 +306,4 @@ export function StudentAttendance() {
     </div>
   )
 }
+export default StudentAttendance;

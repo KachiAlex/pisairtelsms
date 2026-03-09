@@ -236,3 +236,4 @@ export default function DashboardLayout() {
     </div>
   );
 }
+export default DashboardLayout;

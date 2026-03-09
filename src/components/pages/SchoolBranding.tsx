@@ -195,3 +195,4 @@ export function SchoolBranding() {
     </div>
   )
 }
+export default SchoolBranding;

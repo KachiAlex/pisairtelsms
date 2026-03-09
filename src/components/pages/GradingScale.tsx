@@ -211,3 +211,4 @@ export function GradingScale() {
     </div>
   )
 }
+export default GradingScale;

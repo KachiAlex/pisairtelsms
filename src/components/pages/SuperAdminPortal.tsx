@@ -326,3 +326,4 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
     </div>
   )
 }
+export default SuperAdminPortal;

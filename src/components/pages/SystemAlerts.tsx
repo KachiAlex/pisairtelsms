@@ -199,3 +199,4 @@ export function SystemAlerts() {
     </div>
   )
 }
+export default SystemAlerts;

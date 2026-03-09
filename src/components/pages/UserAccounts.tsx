@@ -234,3 +234,4 @@ export function UserAccounts() {
     </div>
   )
 }
+export default UserAccounts;

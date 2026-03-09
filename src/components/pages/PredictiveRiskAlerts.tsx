@@ -214,3 +214,4 @@ export function PredictiveRiskAlerts() {
     </div>
   )
 }
+export default PredictiveRiskAlerts;

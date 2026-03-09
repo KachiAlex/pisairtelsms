@@ -215,3 +215,4 @@ export function ExamItemAnalysis() {
     </div>
   )
 }
+export default ExamItemAnalysis;

@@ -236,3 +236,4 @@ export function ResultPublishing() {
     </div>
   )
 }
+export default ResultPublishing;

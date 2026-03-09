@@ -207,3 +207,4 @@ export function LMSIntegration() {
     </div>
   )
 }
+export default LMSIntegration;

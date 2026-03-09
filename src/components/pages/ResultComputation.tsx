@@ -236,3 +236,4 @@ export function ResultComputation() {
     </div>
   )
 }
+export default ResultComputation;

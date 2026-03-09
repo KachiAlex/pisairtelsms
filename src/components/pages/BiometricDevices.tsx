@@ -206,3 +206,4 @@ export function BiometricDevices() {
     </div>
   )
 }
+export default BiometricDevices;

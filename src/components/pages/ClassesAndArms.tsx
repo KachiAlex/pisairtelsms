@@ -277,3 +277,4 @@ export function ClassesAndArms() {
     </div>
   )
 }
+export default ClassesAndArms;

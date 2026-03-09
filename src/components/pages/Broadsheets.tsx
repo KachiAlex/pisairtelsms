@@ -226,3 +226,4 @@ export function Broadsheets() {
     </div>
   )
 }
+export default Broadsheets;

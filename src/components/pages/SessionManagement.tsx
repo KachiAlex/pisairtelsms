@@ -205,3 +205,4 @@ export function SessionManagement() {
     </div>
   )
 }
+export default SessionManagement;

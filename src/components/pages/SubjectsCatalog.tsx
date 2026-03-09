@@ -207,3 +207,4 @@ export function SubjectsCatalog() {
     </div>
   )
 }
+export default SubjectsCatalog;

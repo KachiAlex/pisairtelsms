@@ -215,3 +215,4 @@ export function ResultApproval() {
     </div>
   )
 }
+export default ResultApproval;

@@ -1,45 +1,82 @@
-import React from 'react'
-import { Users, ClipboardList, Clock3, ArrowRight, MapPin, BookOpen } from 'lucide-react'
+import React, { useState } from 'react'
+import { Users, ClipboardList, Clock3, ArrowRight, MapPin, BookOpen, Upload, FileText, AlertCircle, CheckCircle, QrCode, Share } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../ui/dialog'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../ui/table'
+import QRCode from 'qrcode.react'
 
 const pipeline = [
   {
-    stage: 'Leads',
-    description: 'Families showing interest via web forms or events.',
+    stage: 'Inquiry',
+    description: 'Families showing interest via forms, events, calls.',
     count: 23,
     items: [
       { name: 'Grace Obi', school: 'Primary 6', source: 'Open day', status: 'New' },
-      { name: 'Yakubu Idris', school: 'Primary 5', source: 'Referral', status: 'Follow-up' },
+      { name: 'Yakubu Idris', school: 'Primary 5', source: 'Referral', status: 'Contacted' },
     ],
   },
   {
-    stage: 'Applications',
-    description: 'Forms submitted, fees pending or paid.',
+    stage: 'Application',
+    description: 'Official admission forms submitted online.',
+    count: 18,
+    items: [
+      { name: 'Farida Ahmed', school: 'Primary 6', source: 'Website form', status: 'Submitted' },
+      { name: 'Michelle Nweke', school: 'Primary 6', source: 'Parent portal', status: 'Docs pending' },
+    ],
+  },
+  {
+    stage: 'Review',
+    description: 'Admin checks documents, fees, and completeness.',
     count: 14,
     items: [
-      { name: 'Farida Ahmed', school: 'Primary 6', source: 'Agent', status: 'Docs pending' },
-      { name: 'Michelle Nweke', school: 'Primary 6', source: 'Parent portal', status: 'Interview set' },
+      { name: 'Samuel Aluko', school: 'Primary 6', source: 'Portal', status: 'Under review' },
+      { name: 'Ijeoma Uzo', school: 'Primary 5', source: 'Referral', status: 'Approved' },
     ],
   },
   {
-    stage: 'Assessments',
-    description: 'Interviews, placement tests, medicals.',
+    stage: 'Assessment',
+    description: 'Entrance exams, interviews, medical checks.',
     count: 9,
     items: [
-      { name: 'Samuel Aluko', school: 'Primary 6', source: 'Portal', status: 'Medical pending' },
-      { name: 'Ijeoma Uzo', school: 'Primary 5', source: 'Referral', status: 'Offer drafted' },
+      { name: 'Chidera Igwe', school: 'Primary 6', source: 'Portal', status: 'Exam scheduled' },
+      { name: 'Opeoluwa Adeyemi', school: 'Primary 6', source: 'Agent', status: 'Interview set' },
     ],
   },
   {
-    stage: 'Admitted',
-    description: 'Offers accepted, awaiting onboarding.',
+    stage: 'Offer',
+    description: 'Admission offers sent, awaiting acceptance.',
     count: 6,
     items: [
-      { name: 'Chidera Igwe', school: 'Primary 6', source: 'Portal', status: 'Fees paid' },
-      { name: 'Opeoluwa Adeyemi', school: 'Primary 6', source: 'Agent', status: 'Orientation set' },
+      { name: 'Adaeze Nwosu', school: 'Primary 6', source: 'Portal', status: 'Offer sent' },
+      { name: 'Kemi Adebayo', school: 'Primary 6', source: 'Agent', status: 'Accepted' },
+    ],
+  },
+  {
+    stage: 'Enrollment',
+    description: 'Final onboarding: fees, documents, orientation.',
+    count: 4,
+    items: [
+      { name: 'Tunde Bakare', school: 'Primary 6', source: 'Portal', status: 'Fees paid' },
+      { name: 'Ngozi Eze', school: 'Primary 6', source: 'Agent', status: 'Orientation set' },
     ],
   },
 ]
@@ -66,6 +103,12 @@ const analytics = [
 ]
 
 export function StudentEnrollment() {
+  const [batchUploadOpen, setBatchUploadOpen] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [parsedData, setParsedData] = useState<any[]>([])
+  const [uploadStep, setUploadStep] = useState<'upload' | 'preview' | 'import'>('upload')
+  const [qrOpen, setQrOpen] = useState(false)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -79,9 +122,156 @@ export function StudentEnrollment() {
             <ClipboardList className="h-4 w-4 mr-2" />
             Intake checklist
           </Button>
+          <Dialog open={batchUploadOpen} onOpenChange={setBatchUploadOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Batch upload
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl">
+              <DialogHeader>
+                <DialogTitle>Batch Student Upload</DialogTitle>
+                <DialogDescription>
+                  Upload a CSV file with student data to add multiple students at once.
+                </DialogDescription>
+              </DialogHeader>
+              {uploadStep === 'upload' && (
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      Upload student data file
+                    </p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Choose a CSV file containing student information
+                    </p>
+                    <Label htmlFor="file-upload" className="cursor-pointer">
+                      <Button variant="outline">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Choose file
+                      </Button>
+                    </Label>
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setUploadedFile(file)
+                          // Mock parsing - in real app, parse CSV
+                          setParsedData([
+                            { name: 'John Doe', email: 'john@example.com', class: 'JSS 1A', status: 'Valid' },
+                            { name: 'Jane Smith', email: 'jane@example.com', class: 'JSS 1B', status: 'Valid' },
+                          ])
+                          setUploadStep('preview')
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <p className="font-medium mb-2">CSV Format Requirements:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>First Name, Last Name, Email, Phone, Date of Birth, Class, Parent Name</li>
+                      <li>Use comma (,) as delimiter</li>
+                      <li>Include headers in the first row</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {uploadStep === 'preview' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium">Data Preview</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUploadStep('upload')}
+                    >
+                      Upload different file
+                    </Button>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Class</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parsedData.map((student, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{student.name}</TableCell>
+                            <TableCell>{student.email}</TableCell>
+                            <TableCell>{student.class}</TableCell>
+                            <TableCell>
+                              <Badge variant={student.status === 'Valid' ? 'default' : 'destructive'}>
+                                {student.status === 'Valid' ? (
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                ) : (
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                )}
+                                {student.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex justify-between">
+                    <Button variant="outline" onClick={() => setUploadStep('upload')}>
+                      Back
+                    </Button>
+                    <Button onClick={() => setUploadStep('import')}>
+                      Proceed to Import
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {uploadStep === 'import' && (
+                <div className="space-y-4">
+                  <div className="text-center py-8">
+                    <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-medium text-gray-900 mb-2">
+                      Ready to Import
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      {parsedData.length} students will be added to the system.
+                    </p>
+                    <div className="flex gap-4 justify-center">
+                      <Button variant="outline" onClick={() => setUploadStep('preview')}>
+                        Back to Preview
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          // Mock import success
+                          setBatchUploadOpen(false)
+                          setUploadStep('upload')
+                          setUploadedFile(null)
+                          setParsedData([])
+                        }}
+                      >
+                        Import Students
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
           <Button>
             <Users className="h-4 w-4 mr-2" />
             New application
+          </Button>
+          <Button variant="outline" onClick={() => setQrOpen(true)}>
+            <QrCode className="h-4 w-4 mr-2" />
+            Share Application Form
           </Button>
         </div>
       </div>
@@ -101,7 +291,7 @@ export function StudentEnrollment() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-6">
         {pipeline.map((column) => (
           <Card key={column.stage} className="bg-slate-50">
             <CardHeader>
@@ -188,6 +378,25 @@ export function StudentEnrollment() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Share Application Form</DialogTitle>
+            <DialogDescription>
+              Parents can scan this QR code or use the link to access the admission form.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-center space-y-4">
+            <QRCode value={window.location.origin + '/apply'} size={200} className="mx-auto" />
+            <div>
+              <p className="text-sm text-gray-600 mb-2">Application URL:</p>
+              <p className="text-xs bg-gray-100 p-2 rounded break-all">{window.location.origin + '/apply'}</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+export default StudentEnrollment;

@@ -220,3 +220,4 @@ export function OfflineCBTSync() {
     </div>
   )
 }
+export default OfflineCBTSync;

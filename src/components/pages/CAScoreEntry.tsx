@@ -261,3 +261,4 @@ export function CAScoreEntry() {
     </div>
   )
 }
+export default CAScoreEntry;

@@ -263,3 +263,4 @@ export function RolesPermissions() {
     </div>
   )
 }
+export default RolesPermissions;

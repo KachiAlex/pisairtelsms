@@ -579,3 +579,4 @@ export function StudentDocuments() {
     </div>
   )
 }
+export default StudentDocuments;

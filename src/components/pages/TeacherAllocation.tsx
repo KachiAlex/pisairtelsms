@@ -260,3 +260,4 @@ export function TeacherAllocation() {
     </div>
   )
 }
+export default TeacherAllocation;

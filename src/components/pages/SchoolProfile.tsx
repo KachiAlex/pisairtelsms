@@ -264,3 +264,4 @@ export function SchoolProfile() {
     </div>
   )
 }
+export default SchoolProfile;

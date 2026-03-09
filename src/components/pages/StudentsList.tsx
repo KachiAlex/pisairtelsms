@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   Search,
   Filter,
@@ -13,17 +13,18 @@ import {
   MapPin,
   Phone,
   Mail,
+  Upload,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Input } from '../ui/input';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Input } from '../ui/input'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+} from '../ui/dropdown-menu'
 import {
   Table,
   TableBody,
@@ -32,39 +33,106 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 import { Label } from '../ui/label'
+import { BulkImportStudents } from './BulkImportStudents'
 
 interface Student {
-  id: string;
-  admissionNo: string;
-  name: string;
-  class: string;
-  arm: string;
-  gender: string;
-  status: 'Active' | 'Suspended' | 'Graduated';
-  guardian: string;
-  phone: string;
+  id: string
+  admissionNo: string
+  name: string
+  class: string
+  arm: string
+  gender: string
+  status: 'Active' | 'Suspended' | 'Graduated'
+  guardian: string
+  phone: string
 }
 
 const mockStudents: Student[] = [
-  { id: '1', admissionNo: 'SCH/2024/001', name: 'Adewale Johnson', class: 'SS 3', arm: 'A', gender: 'Male', status: 'Active', guardian: 'Mr. Johnson Adewale', phone: '0801-234-5678' },
-  { id: '2', admissionNo: 'SCH/2024/002', name: 'Chioma Okafor', class: 'SS 2', arm: 'B', gender: 'Female', status: 'Active', guardian: 'Mrs. Okafor Grace', phone: '0802-345-6789' },
-  { id: '3', admissionNo: 'SCH/2024/003', name: 'Ibrahim Musa', class: 'SS 3', arm: 'A', gender: 'Male', status: 'Active', guardian: 'Alhaji Musa Ibrahim', phone: '0803-456-7890' },
-  { id: '4', admissionNo: 'SCH/2024/004', name: 'Blessing Eze', class: 'JSS 1', arm: 'C', gender: 'Female', status: 'Active', guardian: 'Mr. Eze Emmanuel', phone: '0804-567-8901' },
-  { id: '5', admissionNo: 'SCH/2024/005', name: 'Oluwaseun Balogun', class: 'SS 1', arm: 'A', gender: 'Male', status: 'Active', guardian: 'Mrs. Balogun Funke', phone: '0805-678-9012' },
-  { id: '6', admissionNo: 'SCH/2023/156', name: 'Fatima Abdullahi', class: 'SS 3', arm: 'B', gender: 'Female', status: 'Active', guardian: 'Dr. Abdullahi Hassan', phone: '0806-789-0123' },
-  { id: '7', admissionNo: 'SCH/2024/007', name: 'Emeka Onyeka', class: 'JSS 2', arm: 'A', gender: 'Male', status: 'Active', guardian: 'Mr. Onyeka Paul', phone: '0807-890-1234' },
-  { id: '8', admissionNo: 'SCH/2024/008', name: 'Aisha Mohammed', class: 'JSS 3', arm: 'B', gender: 'Female', status: 'Active', guardian: 'Mallam Mohammed Sule', phone: '0808-901-2345' },
-];
+  {
+    id: '1',
+    admissionNo: 'SCH/2024/001',
+    name: 'John Doe',
+    class: 'JSS 1',
+    arm: 'A',
+    gender: 'Male',
+    status: 'Active',
+    guardian: 'Jane Doe',
+    phone: '+1234567890',
+  },
+  {
+    id: '2',
+    admissionNo: 'SCH/2024/002',
+    name: 'Jane Smith',
+    class: 'JSS 2',
+    arm: 'B',
+    gender: 'Female',
+    status: 'Active',
+    guardian: 'Bob Smith',
+    phone: '+1234567891',
+  },
+]
 
-export function StudentsList() {
-  const [students] = useState(mockStudents)
+export default function StudentsList() {
+  const [students, setStudents] = useState<Student[]>(mockStudents)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [classFilter, setClassFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | Student['status']>('all')
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false)
+
+  // Add Student form state
+  const [newStudent, setNewStudent] = useState({
+    firstName: '',
+    lastName: '',
+    admissionNo: '',
+    gender: 'Male',
+    class: 'JSS 1',
+    arm: '',
+    guardianName: '',
+    guardianPhone: '',
+  })
+
+  const handleAddStudent = () => {
+    // Generate admission number
+    const nextId = students.length + 1
+    const admissionNo = `SCH/2024/${String(nextId).padStart(3, '0')}`
+
+    // Create new student object
+    const student: Student = {
+      id: nextId.toString(),
+      admissionNo,
+      name: `${newStudent.firstName} ${newStudent.lastName}`,
+      class: newStudent.class,
+      arm: newStudent.arm,
+      gender: newStudent.gender,
+      status: 'Active',
+      guardian: newStudent.guardianName,
+      phone: newStudent.guardianPhone,
+    }
+
+    // Add to students list
+    setStudents(prev => [...prev, student])
+
+    // Reset form and close dialog
+    setNewStudent({
+      firstName: '',
+      lastName: '',
+      admissionNo: '',
+      gender: 'Male',
+      class: 'JSS 1',
+      arm: '',
+      guardianName: '',
+      guardianPhone: '',
+    })
+    setIsAddDialogOpen(false)
+  }
+
+  const handleBulkImport = (importedStudents: Student[]) => {
+    setStudents(prev => [...prev, ...importedStudents])
+  }
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
@@ -109,6 +177,10 @@ export function StudentsList() {
           <Button variant="outline">
             <Download className="w-4 h-4 mr-2" />
             Bulk export
+          </Button>
+          <Button variant="outline" onClick={() => setIsBulkImportOpen(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Import Students
           </Button>
           <Button onClick={() => setIsAddDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
             <UserPlus className="w-4 h-4 mr-2" />
@@ -366,16 +438,27 @@ export function StudentsList() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add New Student</DialogTitle>
+            <DialogDescription>
+              Fill in the student details below. Admission number will be auto-generated.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>First Name</Label>
-                <Input placeholder="Enter first name" />
+                <Input
+                  placeholder="Enter first name"
+                  value={newStudent.firstName}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, firstName: e.target.value }))}
+                />
               </div>
               <div>
                 <Label>Last Name</Label>
-                <Input placeholder="Enter last name" />
+                <Input
+                  placeholder="Enter last name"
+                  value={newStudent.lastName}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, lastName: e.target.value }))}
+                />
               </div>
               <div>
                 <Label>Admission Number</Label>
@@ -383,14 +466,22 @@ export function StudentsList() {
               </div>
               <div>
                 <Label>Gender</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={newStudent.gender}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, gender: e.target.value }))}
+                >
                   <option>Male</option>
                   <option>Female</option>
                 </select>
               </div>
               <div>
                 <Label>Class</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={newStudent.class}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, class: e.target.value }))}
+                >
                   <option>JSS 1</option>
                   <option>JSS 2</option>
                   <option>JSS 3</option>
@@ -401,32 +492,70 @@ export function StudentsList() {
               </div>
               <div>
                 <Label>Arm</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option>A</option>
-                  <option>B</option>
-                  <option>C</option>
-                </select>
+                <Input
+                  list="arm-options"
+                  placeholder="Enter arm (A, B, C, D, etc.)"
+                  className="w-full"
+                  value={newStudent.arm}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, arm: e.target.value }))}
+                />
+                <datalist id="arm-options">
+                  <option value="A" />
+                  <option value="B" />
+                  <option value="C" />
+                  <option value="D" />
+                  <option value="E" />
+                  <option value="F" />
+                  <option value="G" />
+                  <option value="H" />
+                  <option value="I" />
+                  <option value="J" />
+                  <option value="K" />
+                  <option value="L" />
+                  <option value="M" />
+                </datalist>
+                <p className="text-xs text-gray-500 mt-1">
+                  Start typing or select from suggestions. Any custom arm is allowed.
+                </p>
               </div>
               <div>
                 <Label>Guardian Name</Label>
-                <Input placeholder="Enter guardian name" />
+                <Input
+                  placeholder="Enter guardian name"
+                  value={newStudent.guardianName}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, guardianName: e.target.value }))}
+                />
               </div>
               <div>
                 <Label>Guardian Phone</Label>
-                <Input placeholder="Enter phone number" />
+                <Input
+                  placeholder="Enter phone number"
+                  value={newStudent.guardianPhone}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, guardianPhone: e.target.value }))}
+                />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAddStudent}
+              >
                 Add Student
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      <BulkImportStudents
+        open={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        onImport={handleBulkImport}
+        currentStudentCount={students.length}
+      />
     </div>
-  );
+  )
 }

@@ -181,3 +181,4 @@ export function CertificateVerification() {
     </div>
   )
 }
+export default CertificateVerification;

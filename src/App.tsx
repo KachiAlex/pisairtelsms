@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar';
 const Dashboard = lazy(() => import('./components/pages/Dashboard'));
 const StudentsList = lazy(() => import('./components/pages/StudentsList'));
 const StudentEnrollment = lazy(() => import('./components/pages/StudentEnrollment'));
+const PublicApplicationForm = lazy(() => import('./components/pages/PublicApplicationForm'));
 const StudentPromotion = lazy(() => import('./components/pages/StudentPromotion'));
 const StudentDocuments = lazy(() => import('./components/pages/StudentDocuments'));
 const StudentHealth = lazy(() => import('./components/pages/StudentHealth'));
@@ -349,6 +350,7 @@ export default function App() {
         path="/login"
         element={<AccessPortalPage onLoginSuccess={handleLoginSuccess} onBackToMarketing={() => navigate('/')} />}
       />
+      <Route path="/apply" element={<Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense>} />
       <Route path="/tenant" element={tenantShell} />
       <Route path="/super-admin" element={<Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -334,3 +334,4 @@ export default function StudentManagement() {
     </div>
   );
 }
+export default StudentManagement;

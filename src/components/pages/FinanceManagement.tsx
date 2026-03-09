@@ -377,3 +377,4 @@ export function FinanceManagement() {
     </div>
   );
 }
+export default FinanceManagement;

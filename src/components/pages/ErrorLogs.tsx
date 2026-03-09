@@ -181,3 +181,4 @@ export function ErrorLogs() {
     </div>
   )
 }
+export default ErrorLogs;

@@ -296,3 +296,4 @@ export function AcademicStructureOverview() {
     </div>
   )
 }
+export default AcademicStructureOverview;

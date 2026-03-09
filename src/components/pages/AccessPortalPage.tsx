@@ -142,3 +142,4 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
     </div>
   )
 }
+export default AccessPortalPage;

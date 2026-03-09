@@ -539,3 +539,4 @@ export function StudentHealth() {
     </div>
   )
 }
+export default StudentHealth;

@@ -431,3 +431,4 @@ export function ExamManagement() {
     </div>
   );
 }
+export default ExamManagement;

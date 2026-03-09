@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Search,
   Filter,
@@ -36,46 +36,12 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 import { Label } from '../ui/label'
 import { BulkImportStudents } from './BulkImportStudents'
-
-interface Student {
-  id: string
-  admissionNo: string
-  name: string
-  class: string
-  arm: string
-  gender: string
-  status: 'Active' | 'Suspended' | 'Graduated'
-  guardian: string
-  phone: string
-}
-
-const mockStudents: Student[] = [
-  {
-    id: '1',
-    admissionNo: 'SCH/2024/001',
-    name: 'John Doe',
-    class: 'JSS 1',
-    arm: 'A',
-    gender: 'Male',
-    status: 'Active',
-    guardian: 'Jane Doe',
-    phone: '+1234567890',
-  },
-  {
-    id: '2',
-    admissionNo: 'SCH/2024/002',
-    name: 'Jane Smith',
-    class: 'JSS 2',
-    arm: 'B',
-    gender: 'Female',
-    status: 'Active',
-    guardian: 'Bob Smith',
-    phone: '+1234567891',
-  },
-]
+import { fetchStudents, createStudent, createStudents, type Student as StudentType, type StudentPayload } from '../../lib/studentsClient'
 
 export default function StudentsList() {
-  const [students, setStudents] = useState<Student[]>(mockStudents)
+  const [students, setStudents] = useState<StudentType[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -95,43 +61,73 @@ export default function StudentsList() {
     guardianPhone: '',
   })
 
-  const handleAddStudent = () => {
-    // Generate admission number
-    const nextId = students.length + 1
-    const admissionNo = `SCH/2024/${String(nextId).padStart(3, '0')}`
-
-    // Create new student object
-    const student: Student = {
-      id: nextId.toString(),
-      admissionNo,
-      name: `${newStudent.firstName} ${newStudent.lastName}`,
-      class: newStudent.class,
-      arm: newStudent.arm,
-      gender: newStudent.gender,
-      status: 'Active',
-      guardian: newStudent.guardianName,
-      phone: newStudent.guardianPhone,
+  // Load students from database on component mount
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await fetchStudents()
+        setStudents(data)
+      } catch (err) {
+        console.error('Error loading students:', err)
+        setError('Failed to load students. Please try again.')
+      } finally {
+        setLoading(false)
+      }
     }
 
-    // Add to students list
-    setStudents(prev => [...prev, student])
+    loadStudents()
+  }, [])
 
-    // Reset form and close dialog
-    setNewStudent({
-      firstName: '',
-      lastName: '',
-      admissionNo: '',
-      gender: 'Male',
-      class: 'JSS 1',
-      arm: '',
-      guardianName: '',
-      guardianPhone: '',
-    })
-    setIsAddDialogOpen(false)
+  const handleAddStudent = async () => {
+    try {
+      // Generate admission number
+      const nextId = students.length + 1
+      const admissionNo = `SCH/2024/${String(nextId).padStart(3, '0')}`
+
+      const studentPayload: StudentPayload = {
+        admissionNo,
+        name: `${newStudent.firstName} ${newStudent.lastName}`,
+        class: newStudent.class,
+        arm: newStudent.arm,
+        gender: newStudent.gender,
+        status: 'Active',
+        guardian: newStudent.guardianName,
+        phone: newStudent.guardianPhone,
+      }
+
+      const createdStudent = await createStudent(studentPayload)
+
+      // Add to local state
+      setStudents(prev => [...prev, createdStudent])
+
+      // Reset form and close dialog
+      setNewStudent({
+        firstName: '',
+        lastName: '',
+        admissionNo: '',
+        gender: 'Male',
+        class: 'JSS 1',
+        arm: '',
+        guardianName: '',
+        guardianPhone: '',
+      })
+      setIsAddDialogOpen(false)
+    } catch (err) {
+      console.error('Error adding student:', err)
+      setError('Failed to add student. Please try again.')
+    }
   }
 
-  const handleBulkImport = (importedStudents: Student[]) => {
-    setStudents(prev => [...prev, ...importedStudents])
+  const handleBulkImport = async (importedStudents: StudentPayload[]) => {
+    try {
+      const createdStudents = await createStudents(importedStudents)
+      setStudents(prev => [...prev, ...createdStudents])
+    } catch (err) {
+      console.error('Error importing students:', err)
+      setError('Failed to import students. Please try again.')
+    }
   }
 
   const filteredStudents = useMemo(() => {

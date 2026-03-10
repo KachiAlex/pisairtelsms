@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, FileText, Play, Pause, Eye, Settings, AlertCircle, Users, Clock } from 'lucide-react';
+import { Plus, FileText, Play, Pause, Eye, Settings, AlertCircle, Users, Clock, Upload, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -9,6 +9,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 
+interface Question {
+  id: string;
+  text: string;
+  options: string[];
+  correctAnswer: string;
+  difficulty?: string;
+  type: 'objective' | 'truefalse' | 'essay';
+}
+
 interface Exam {
   id: string;
   title: string;
@@ -17,7 +26,7 @@ interface Exam {
   status: 'Draft' | 'Scheduled' | 'Ongoing' | 'Completed';
   date: string;
   duration: string;
-  questions: number;
+  questions: Question[];
   participants: number;
   completed: number;
 }
@@ -31,7 +40,7 @@ const mockExams: Exam[] = [
     status: 'Ongoing',
     date: '2026-02-14',
     duration: '90 mins',
-    questions: 50,
+    questions: [], // Will be populated with actual questions
     participants: 145,
     completed: 87,
   },
@@ -43,7 +52,7 @@ const mockExams: Exam[] = [
     status: 'Scheduled',
     date: '2026-02-16',
     duration: '60 mins',
-    questions: 40,
+    questions: [],
     participants: 178,
     completed: 0,
   },
@@ -55,7 +64,7 @@ const mockExams: Exam[] = [
     status: 'Ongoing',
     date: '2026-02-14',
     duration: '120 mins',
-    questions: 60,
+    questions: [],
     participants: 132,
     completed: 98,
   },
@@ -67,7 +76,7 @@ const mockExams: Exam[] = [
     status: 'Completed',
     date: '2026-02-10',
     duration: '90 mins',
-    questions: 50,
+    questions: [],
     participants: 156,
     completed: 156,
   },
@@ -91,10 +100,10 @@ export function ExamManagement() {
     subject: '',
     class: '',
     duration: '',
-    totalQuestions: '',
     passMark: '',
     examDate: '',
     startTime: '',
+    questions: [] as Question[],
   });
 
   const getStatusColor = (status: string) => {
@@ -123,10 +132,10 @@ export function ExamManagement() {
            examForm.subject &&
            examForm.class &&
            examForm.duration &&
-           examForm.totalQuestions &&
            examForm.passMark &&
            examForm.examDate &&
-           examForm.startTime;
+           examForm.startTime &&
+           examForm.questions.length > 0;
   };
 
   // Handle exam creation
@@ -144,12 +153,15 @@ export function ExamManagement() {
       status: 'Draft',
       date: examForm.examDate,
       duration: `${examForm.duration} mins`,
-      questions: parseInt(examForm.totalQuestions),
+      questions: examForm.questions,
       participants: 0, // Will be assigned when scheduled
       completed: 0,
     };
 
     setExams(prev => [...prev, newExam]);
+
+    // Show success feedback
+    alert(`Exam "${examForm.title}" created successfully! Status: Draft`);
 
     // Reset form and close dialog
     setExamForm({
@@ -157,10 +169,10 @@ export function ExamManagement() {
       subject: '',
       class: '',
       duration: '',
-      totalQuestions: '',
       passMark: '',
       examDate: '',
       startTime: '',
+      questions: [],
     });
     setIsCreateDialogOpen(false);
   };
@@ -182,6 +194,60 @@ export function ExamManagement() {
   const handleAddQuestion = () => {
     // For now, just show an alert. In a real app, this would open a question creation dialog
     alert('Add Question functionality - would open question creation dialog');
+  };
+
+  const downloadSampleCSV = () => {
+    const sampleData = `"Question","OptionA","OptionB","OptionC","OptionD","CorrectAnswer","Difficulty","Type"\n"What is 2+2?","3","4","5","6","B","Easy","Objective"\n"What is the capital of France?","Paris","London","Berlin","Madrid","A","Medium","Objective"\n"Solve for x: 2x + 3 = 7","x = 1","x = 2","x = 3","x = 4","B","Medium","Objective"\n"The sky is blue.","True","False","","","A","Easy","True/False"\n"Water boils at 100°C.","True","False","","","A","Easy","True/False"\n"Explain the process of photosynthesis.","","","","","","Medium","Essay"\n"Describe the water cycle.","","","","","","Medium","Essay"`;
+    const blob = new Blob([sampleData], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sample_questions.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const [importFile, setImportFile] = useState<File | null>(null);
+
+  const handleImport = () => {
+    if (!importFile) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n');
+      const questions: Question[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i].split(',').map(s => s.replace(/"/g, ''));
+        if (row.length >= 7) {
+          let type: 'objective' | 'truefalse' | 'essay' = 'objective';
+          if (row.length >= 8) {
+            const typeStr = row[7].toLowerCase();
+            if (typeStr === 'true/false' || typeStr === 'truefalse') type = 'truefalse';
+            else if (typeStr === 'essay') type = 'essay';
+          }
+          let options = [row[1], row[2], row[3], row[4]];
+          let correctAnswer = row[5];
+          if (type === 'truefalse') {
+            options = ['True', 'False'];
+            if (correctAnswer.toLowerCase() === 'true') correctAnswer = 'A';
+            else if (correctAnswer.toLowerCase() === 'false') correctAnswer = 'B';
+          } else if (type === 'essay') {
+            options = [];
+            correctAnswer = '';
+          }
+          questions.push({
+            id: `q-${Date.now()}-${i}`,
+            text: row[0],
+            options,
+            correctAnswer,
+            difficulty: row[6] || 'Medium',
+            type,
+          });
+        }
+      }
+      setExamForm(prev => ({ ...prev, questions: [...prev.questions, ...questions] }));
+    };
+    reader.readAsText(importFile);
   };
 
   return (
@@ -283,7 +349,7 @@ export function ExamManagement() {
                       </div>
                       <div className="flex items-center gap-1">
                         <FileText className="w-4 h-4" />
-                        <span>{exam.questions} Questions</span>
+                        <span>{exam.questions.length} Questions</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4" />
@@ -395,103 +461,130 @@ export function ExamManagement() {
           <DialogHeader>
             <DialogTitle>Create New Exam</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Exam Title</Label>
-              <Input
-                placeholder="e.g., First Term Examination"
-                value={examForm.title}
-                onChange={(e) => handleFormChange('title', e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <Tabs defaultValue="basic" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsTrigger value="questions">Questions ({examForm.questions.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="basic" className="space-y-4 mt-4">
               <div>
-                <Label>Subject</Label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  value={examForm.subject}
-                  onChange={(e) => handleFormChange('subject', e.target.value)}
-                >
-                  <option value="">Select Subject</option>
-                  <option value="Mathematics">Mathematics</option>
-                  <option value="English Language">English Language</option>
-                  <option value="Physics">Physics</option>
-                  <option value="Chemistry">Chemistry</option>
-                  <option value="Biology">Biology</option>
-                </select>
-              </div>
-              <div>
-                <Label>Class</Label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  value={examForm.class}
-                  onChange={(e) => handleFormChange('class', e.target.value)}
-                >
-                  <option value="">Select Class</option>
-                  <option value="JSS 1">JSS 1</option>
-                  <option value="JSS 2">JSS 2</option>
-                  <option value="JSS 3">JSS 3</option>
-                  <option value="SS 1">SS 1</option>
-                  <option value="SS 2">SS 2</option>
-                  <option value="SS 3">SS 3</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Duration (mins)</Label>
+                <Label>Exam Title</Label>
                 <Input
-                  type="number"
-                  placeholder="90"
-                  value={examForm.duration}
-                  onChange={(e) => handleFormChange('duration', e.target.value)}
+                  placeholder="e.g., First Term Examination"
+                  value={examForm.title}
+                  onChange={(e) => handleFormChange('title', e.target.value)}
                 />
               </div>
-              <div>
-                <Label>Total Questions</Label>
-                <Input
-                  type="number"
-                  placeholder="50"
-                  value={examForm.totalQuestions}
-                  onChange={(e) => handleFormChange('totalQuestions', e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Subject</Label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={examForm.subject}
+                    onChange={(e) => handleFormChange('subject', e.target.value)}
+                  >
+                    <option value="">Select Subject</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="English Language">English Language</option>
+                    <option value="Physics">Physics</option>
+                    <option value="Chemistry">Chemistry</option>
+                    <option value="Biology">Biology</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Class</Label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    value={examForm.class}
+                    onChange={(e) => handleFormChange('class', e.target.value)}
+                  >
+                    <option value="">Select Class</option>
+                    <option value="JSS 1">JSS 1</option>
+                    <option value="JSS 2">JSS 2</option>
+                    <option value="JSS 3">JSS 3</option>
+                    <option value="SS 1">SS 1</option>
+                    <option value="SS 2">SS 2</option>
+                    <option value="SS 3">SS 3</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <Label>Pass Mark (%)</Label>
-                <Input
-                  type="number"
-                  placeholder="40"
-                  value={examForm.passMark}
-                  onChange={(e) => handleFormChange('passMark', e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Duration (mins)</Label>
+                  <Input
+                    type="number"
+                    placeholder="90"
+                    value={examForm.duration}
+                    onChange={(e) => handleFormChange('duration', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Pass Mark (%)</Label>
+                  <Input
+                    type="number"
+                    placeholder="40"
+                    value={examForm.passMark}
+                    onChange={(e) => handleFormChange('passMark', e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Exam Date</Label>
-                <Input
-                  type="date"
-                  value={examForm.examDate}
-                  onChange={(e) => handleFormChange('examDate', e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Exam Date</Label>
+                  <Input
+                    type="date"
+                    value={examForm.examDate}
+                    onChange={(e) => handleFormChange('examDate', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Start Time</Label>
+                  <Input
+                    type="time"
+                    value={examForm.startTime}
+                    onChange={(e) => handleFormChange('startTime', e.target.value)}
+                  />
+                </div>
               </div>
-              <div>
-                <Label>Start Time</Label>
-                <Input
-                  type="time"
-                  value={examForm.startTime}
-                  onChange={(e) => handleFormChange('startTime', e.target.value)}
-                />
+            </TabsContent>
+            <TabsContent value="questions" className="space-y-4 mt-4">
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => document.getElementById('import-file')?.click()}>
+                  <Upload className="h-4 w-4 mr-2" /> Import Questions
+                </Button>
+                <input id="import-file" type="file" accept=".csv" style={{display: 'none'}} onChange={(e) => { setImportFile(e.target.files?.[0] || null); handleImport(); }} />
+                <Button variant="outline" onClick={downloadSampleCSV}>
+                  <Download className="h-4 w-4 mr-2" /> Download Sample
+                </Button>
+                <Button variant="outline" onClick={handleAddQuestion}>
+                  <Plus className="h-4 w-4 mr-2" /> Add Manually
+                </Button>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateExam}>
-                Create Exam
-              </Button>
-            </div>
+              <div className="space-y-2">
+                {examForm.questions.map((q, index) => (
+                  <div key={q.id} className="border p-2 rounded">
+                    <p className="font-medium">{index+1}. {q.text}</p>
+                    <p className="text-sm text-gray-600">Type: {q.type}</p>
+                    {q.options.length > 0 && <p className="text-sm text-gray-600">Options: {q.options.join(', ')}</p>}
+                    {q.correctAnswer && <p className="text-sm text-gray-600">Answer: {q.correctAnswer}</p>}
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => {
+              if (validateForm()) {
+                handleCreateExam();
+              } else {
+                alert('Please fill in all required fields.');
+              }
+            }}>
+              Create Exam
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

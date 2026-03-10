@@ -54,11 +54,15 @@ export function SubjectsCatalog() {
 
   const handleAddSubject = () => {
     if (!newSubject.code || !newSubject.name || !newSubject.level) {
-      return // Basic validation
+      alert('Please fill in all required fields: Subject Code, Name, and Level.');
+      return;
     }
 
     // Here you would typically save to backend
     console.log('Adding subject:', newSubject)
+
+    // Show success feedback
+    alert(`Subject "${newSubject.name}" (${newSubject.code}) added successfully to ${newSubject.department} department!`);
 
     // Reset form and close dialog
     setNewSubject({

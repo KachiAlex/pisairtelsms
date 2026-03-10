@@ -35,9 +35,10 @@ export function GradingPolicy() {
   const [gradeBands, setGradeBands] = useState(defaultGradeBands)
   const [promotionRules, setPromotionRules] = useState(defaultPromotionRules)
   const [hasChanges, setHasChanges] = useState(false)
-  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'published' | 'error'>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [loading, setLoading] = useState(true)
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
 
   // Load grading policy from backend
   useEffect(() => {
@@ -186,13 +187,31 @@ export function GradingPolicy() {
                     <p className="text-xs text-gray-600">Result computation</p>
                   </div>
                 </div>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800 font-medium">⚠️ This action will immediately update grade calculations and promotion decisions for all students.</p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setPublishDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handlePublish}>
-                  Publish Policy
+                <Button onClick={async () => {
+                  setPublishStatus('publishing');
+                  try {
+                    await handlePublish();
+                    setPublishStatus('published');
+                    alert('Grading Policy published successfully! New grade bands and promotion rules are now active.');
+                    setTimeout(() => {
+                      setPublishDialogOpen(false);
+                      setPublishStatus('idle');
+                    }, 2000);
+                  } catch (error) {
+                    setPublishStatus('error');
+                    alert('Failed to publish Grading Policy. Please try again.');
+                    setPublishStatus('idle');
+                  }
+                }} disabled={publishStatus === 'publishing'}>
+                  {publishStatus === 'publishing' ? 'Publishing...' : 'Publish Policy'}
                 </Button>
               </DialogFooter>
             </DialogContent>

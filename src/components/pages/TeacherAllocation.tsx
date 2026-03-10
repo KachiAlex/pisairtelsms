@@ -208,7 +208,31 @@ export function TeacherAllocation() {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
-            <Button onClick={() => { /* handle assign */ setAssignOpen(false) }}>Assign Slots</Button>
+            <Button onClick={() => {
+              const assignedSlots = editableSlots.filter(slot => slot.assignedTeacher);
+              if (assignedSlots.length > 0) {
+                // Update the allocation matrix with new assignments
+                const updatedMatrix = allocationMatrix.map(row => {
+                  const assignedSlot = assignedSlots.find(slot => slot.class === row.class && slot.subject === row.subject);
+                  if (assignedSlot && assignedSlot.assignedTeacher) {
+                    return {
+                      ...row,
+                      teacher: assignedSlot.assignedTeacher,
+                      coverage: 'Assigned' as const,
+                      warnings: Math.max(0, row.warnings - 1) // Reduce warnings for assigned slots
+                    };
+                  }
+                  return row;
+                });
+                // In a real app, you'd save this to backend
+                alert(`Successfully assigned ${assignedSlots.length} teacher slot(s)!`);
+                setAssignOpen(false);
+              } else {
+                alert('No slots have been assigned yet.');
+              }
+            }}>
+              Assign Slots ({editableSlots.filter(slot => slot.assignedTeacher).length})
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

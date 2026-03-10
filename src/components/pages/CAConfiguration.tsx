@@ -21,7 +21,7 @@ export function CAConfiguration() {
   const { tenantId } = useTenant()
   const [weights, setWeights] = useState(defaultWeights)
   const [hasChanges, setHasChanges] = useState(false)
-  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'published' | 'error'>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [loading, setLoading] = useState(true)
 
@@ -242,13 +242,31 @@ export function CAConfiguration() {
                     <p className="text-xs text-gray-600">Results updated</p>
                   </div>
                 </div>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800 font-medium">⚠️ This action will immediately update assessment calculations for all active classes.</p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setPublishDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handlePublish}>
-                  Publish Configuration
+                <Button onClick={async () => {
+                  setPublishStatus('publishing');
+                  try {
+                    await handlePublish();
+                    setPublishStatus('published');
+                    alert('CA Configuration published successfully! Assessment weights have been applied to all classes.');
+                    setTimeout(() => {
+                      setPublishDialogOpen(false);
+                      setPublishStatus('idle');
+                    }, 2000);
+                  } catch (error) {
+                    setPublishStatus('error');
+                    alert('Failed to publish CA Configuration. Please try again.');
+                    setPublishStatus('idle');
+                  }
+                }} disabled={publishStatus === 'publishing'}>
+                  {publishStatus === 'publishing' ? 'Publishing...' : 'Publish Configuration'}
                 </Button>
               </DialogFooter>
             </DialogContent>

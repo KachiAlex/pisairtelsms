@@ -19,84 +19,15 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-const performanceTrend = [
-  { term: 'Term 1', average: 65, passRate: 78 },
-  { term: 'Term 2', average: 68, passRate: 82 },
-  { term: 'Term 3', average: 72, passRate: 85 },
-  { term: 'Term 1', average: 70, passRate: 80 },
-  { term: 'Term 2', average: 73, passRate: 86 },
-];
+const performanceTrend = []
 
-const subjectPerformance = [
-  { subject: 'Mathematics', score: 72 },
-  { subject: 'English', score: 78 },
-  { subject: 'Physics', score: 68 },
-  { subject: 'Chemistry', score: 70 },
-  { subject: 'Biology', score: 75 },
-  { subject: 'Economics', score: 80 },
-];
+const subjectPerformance = []
 
-const attendanceData = [
-  { month: 'Sep', attendance: 92 },
-  { month: 'Oct', attendance: 89 },
-  { month: 'Nov', attendance: 94 },
-  { month: 'Dec', attendance: 87 },
-  { month: 'Jan', attendance: 91 },
-  { month: 'Feb', attendance: 93 },
-];
+const attendanceData = []
 
-const classComparison = [
-  {
-    class: 'JSS 1',
-    Mathematics: 68,
-    English: 72,
-    Science: 70,
-    SocialStudies: 75,
-  },
-  {
-    class: 'JSS 2',
-    Mathematics: 70,
-    English: 74,
-    Science: 72,
-    SocialStudies: 77,
-  },
-  {
-    class: 'JSS 3',
-    Mathematics: 72,
-    English: 76,
-    Science: 74,
-    SocialStudies: 79,
-  },
-  {
-    class: 'SS 1',
-    Mathematics: 65,
-    English: 70,
-    Science: 68,
-    SocialStudies: 72,
-  },
-  {
-    class: 'SS 2',
-    Mathematics: 67,
-    English: 72,
-    Science: 70,
-    SocialStudies: 74,
-  },
-  {
-    class: 'SS 3',
-    Mathematics: 75,
-    English: 80,
-    Science: 78,
-    SocialStudies: 82,
-  },
-];
+const classComparison = []
 
-const topPerformers = [
-  { name: 'Fatima Abdullahi', class: 'SS 3', gpa: 4.85, position: 1 },
-  { name: 'Oluwaseun Balogun', class: 'SS 3', gpa: 4.78, position: 2 },
-  { name: 'Chioma Okafor', class: 'SS 2', gpa: 4.72, position: 3 },
-  { name: 'Adewale Johnson', class: 'SS 3', gpa: 4.65, position: 4 },
-  { name: 'Ibrahim Musa', class: 'SS 2', gpa: 4.58, position: 5 },
-];
+const topPerformers = []
 
 export function AnalyticsDashboard() {
   return (

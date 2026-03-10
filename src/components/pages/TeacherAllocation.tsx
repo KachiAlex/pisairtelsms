@@ -54,88 +54,17 @@ const DroppableSlot = ({ slot }) => {
   )
 }
 
-const coverageStats = [
-  { label: 'Teacher coverage', value: '91%', detail: '234 / 258 slots assigned', color: 'bg-emerald-500' },
-  { label: 'Open periods', value: '19', detail: 'Highest: Chemistry (SS2)', color: 'bg-amber-500' },
-  { label: 'Overload alerts', value: '7', detail: 'More than 28 periods/week', color: 'bg-rose-500' },
-  { label: 'Substitution pool', value: '12', detail: 'Trained for multi-subject coverage', color: 'bg-blue-500' },
-]
+const coverageStats = []
 
-const teacherCards = [
-  {
-    name: 'Mrs. Angela Ojo',
-    subjects: ['Mathematics', 'Further Math'],
-    level: 'SS1-SS3',
-    allocation: 26,
-    contractHours: 28,
-    availability: 'Full',
-    risk: 'Healthy',
-  },
-  {
-    name: 'Mr. Sola Eke',
-    subjects: ['Chemistry'],
-    level: 'SS2-SS3',
-    allocation: 31,
-    contractHours: 28,
-    availability: 'Partial',
-    risk: 'Overload',
-  },
-  {
-    name: 'Ms. Lara Ajayi',
-    subjects: ['English Studies'],
-    level: 'JSS1-JSS3',
-    allocation: 24,
-    contractHours: 28,
-    availability: 'Full',
-    risk: 'Healthy',
-  },
-]
+const teacherCards = []
 
-const allocationMatrix = [
-  { class: 'JSS 1A', subject: 'Mathematics', teacher: 'Mrs. Angela Ojo', coverage: 'Assigned', warnings: 0 },
-  { class: 'JSS 1B', subject: 'Mathematics', teacher: 'Mrs. Angela Ojo', coverage: 'Assigned', warnings: 0 },
-  { class: 'JSS 2A', subject: 'Basic Science', teacher: 'Mr. Idris Lawal', coverage: 'Assigned', warnings: 0 },
-  { class: 'SS 2 Science', subject: 'Chemistry', teacher: 'Mr. Sola Eke', coverage: 'Assigned', warnings: 1 },
-  { class: 'SS 2 Science', subject: 'Further Math', teacher: 'Vacant', coverage: 'Open', warnings: 2 },
-  { class: 'SS 3 Commercial', subject: 'Accounting', teacher: 'Mrs. Ada Enem', coverage: 'Assigned', warnings: 0 },
-]
+const allocationMatrix = []
 
-const openPeriodTimeline = [
-  { day: 'Mon', periods: 4 },
-  { day: 'Tue', periods: 3 },
-  { day: 'Wed', periods: 6 },
-  { day: 'Thu', periods: 4 },
-  { day: 'Fri', periods: 2 },
-]
+const openPeriodTimeline = []
 
-const substitutionLog = [
-  {
-    slot: 'Further Math - SS2 Science',
-    priority: 'High priority',
-    action: 'Awaiting approval to move Ms. Ojo for double periods.',
-    relief: 'Proposed: Mr. Daniel Okon',
-    eta: 'Cleared for Week 8',
-    impacted: ['SS2 Sci A', 'SS2 Sci B'],
-  },
-  {
-    slot: 'Chemistry - SS2 Science',
-    priority: 'High priority',
-    action: 'Substitution plan ready once overload review closes.',
-    relief: 'Relief: Mrs. Amina Bello (part-time)',
-    eta: 'HR onboarding 3 days',
-    impacted: ['Lab block A'],
-  },
-  {
-    slot: 'French - JSS2',
-    priority: 'Medium priority',
-    action: 'Request sent to partner language school.',
-    relief: 'External coach shortlist',
-    eta: 'Demo lesson 18 Feb',
-    impacted: ['JSS2 Arts'],
-  },
-]
+const substitutionLog = []
 
-const subjects = ['Mathematics', 'Basic Science', 'Chemistry', 'Further Math', 'Accounting', 'English Studies', 'Physics', 'Biology', 'French', 'Commerce']
+const subjects = []
 
 export function TeacherAllocation() {
   const [assignOpen, setAssignOpen] = useState(false)

@@ -26,27 +26,7 @@ import { Lead, Application } from '../types'
 // import QRCode from 'react-qr-code'
 import { FORM_URLS } from '../../config'
 
-const pipeline = [
-  {
-    stage: 'Inquiry',
-    description: 'Families showing interest via forms, events, calls.',
-    count: 23,
-    items: [
-      { name: 'Grace Obi', school: 'Primary 6', source: 'Open day', status: 'New' },
-      { name: 'Yakubu Idris', school: 'Primary 5', source: 'Referral', status: 'Contacted' },
-      // leads.map will be computed dynamically inside the component
-    ],
-  },
-  {
-    stage: 'Application',
-    description: 'Official admission forms submitted online.',
-    count: 18,
-    items: [
-      { name: 'Farida Ahmed', school: 'Primary 6', source: 'Website form', status: 'Submitted' },
-      { name: 'Michelle Nweke', school: 'Primary 6', source: 'Parent portal', status: 'Docs pending' },
-      // applications.map will be computed dynamically inside the component
-    ],
-  },
+const pipeline = []
   {
     stage: 'Review',
     description: 'Admin checks documents, fees, and completeness.',

@@ -31,63 +31,9 @@ interface Exam {
   completed: number;
 }
 
-const mockExams: Exam[] = [
-  {
-    id: '1',
-    title: 'First Term Exam',
-    subject: 'Mathematics',
-    class: 'SS 3',
-    status: 'Ongoing',
-    date: '2026-02-14',
-    duration: '90 mins',
-    questions: [], // Will be populated with actual questions
-    participants: 145,
-    completed: 87,
-  },
-  {
-    id: '2',
-    title: 'First Term Exam',
-    subject: 'English Language',
-    class: 'JSS 2',
-    status: 'Scheduled',
-    date: '2026-02-16',
-    duration: '60 mins',
-    questions: [],
-    participants: 178,
-    completed: 0,
-  },
-  {
-    id: '3',
-    title: 'Mid-Term Assessment',
-    subject: 'Physics',
-    class: 'SS 2',
-    status: 'Ongoing',
-    date: '2026-02-14',
-    duration: '120 mins',
-    questions: [],
-    participants: 132,
-    completed: 98,
-  },
-  {
-    id: '4',
-    title: 'First Term Exam',
-    subject: 'Biology',
-    class: 'SS 1',
-    status: 'Completed',
-    date: '2026-02-10',
-    duration: '90 mins',
-    questions: [],
-    participants: 156,
-    completed: 156,
-  },
-];
+const mockExams: Exam[] = []
 
-const liveMonitoring = [
-  { name: 'Adewale Johnson', progress: 75, questionsAnswered: '38/50', timeRemaining: '15 mins', status: 'Active' },
-  { name: 'Chioma Okafor', progress: 90, questionsAnswered: '45/50', timeRemaining: '8 mins', status: 'Active' },
-  { name: 'Ibrahim Musa', progress: 60, questionsAnswered: '30/50', timeRemaining: '25 mins', status: 'Active' },
-  { name: 'Blessing Eze', progress: 45, questionsAnswered: '23/50', timeRemaining: '35 mins', status: 'Idle' },
-];
+const liveMonitoring = []
 
 export function ExamManagement() {
   const [exams, setExams] = useState(mockExams);

@@ -54,12 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const studentsData = await studentsRes.json()
       allStudents = studentsData.data || []
     } else {
-      console.warn('Students API unavailable, using mock data')
-      // Fallback with mock student data
-      allStudents = [
-        { id: 'mock-student-1', name: 'Mock Student 1', class: 'JSS 1', arm: 'A', status: 'Active' },
-        { id: 'mock-student-2', name: 'Mock Student 2', class: 'JSS 2', arm: 'B', status: 'Active' }
-      ]
+      return res.status(503).json({
+        error: 'Students API unavailable',
+        message: 'Cannot retrieve student data for progress calculations'
+      })
     }
 
     if (studentId && typeof studentId === 'string') {
@@ -71,6 +69,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const studentResults = mockExamResults[studentId] || []
+
+      if (studentResults.length === 0) {
+        return res.status(200).json({
+          data: {
+            studentId: student.id,
+            studentName: student.name,
+            class: `${student.class} ${student.arm}`,
+            overallGPA: 0,
+            totalExams: 0,
+            passedExams: 0,
+            failedExams: 0,
+            pendingExams: 0,
+            recentResults: [],
+            subjectPerformance: []
+          },
+          message: `No exam results found for ${student.name}. Please implement exam results API endpoint.`,
+          integrations: {
+            studentsApi: '/api/tenant/students'
+          }
+        })
+      }
 
       // Calculate subject performance
       const subjectMap = new Map<string, ExamResult[]>()
@@ -147,6 +166,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           status: student.status
         }
       })
+
+      if (progressSummaries.length === 0 || progressSummaries.every(p => p.totalExams === 0)) {
+        return res.status(200).json({
+          data: progressSummaries,
+          message: 'No exam results data available. Please implement exam results API endpoint.',
+          integrations: {
+            studentsApi: '/api/tenant/students'
+          }
+        })
+      }
 
       return res.status(200).json({
         data: progressSummaries,

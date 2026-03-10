@@ -7,28 +7,13 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
 
-const serviceMatrix = [
-  { surface: 'Tenant portal', status: 'Operational', latency: '220ms', uptime: 99.92, owners: 'App Platform' },
-  { surface: 'CBT engine', status: 'Watch', latency: '410ms', uptime: 98.44, owners: 'Assessments' },
-  { surface: 'Notifications API', status: 'Degraded', latency: '1.1s', uptime: 96.38, owners: 'Messaging' },
-]
+const serviceMatrix = []
 
-const infrastructureVitals = [
-  { label: 'Database write load', value: 68, icon: Database },
-  { label: 'File store occupancy', value: 74, icon: HardDrive },
-  { label: 'Edge cache hit rate', value: 92, icon: Gauge },
-]
+const infrastructureVitals = []
 
-const incidentTimeline = [
-  { id: 'INC-882', title: 'Parent portal latency', start: '09:12', duration: '18 mins', state: 'Mitigated' },
-  { id: 'INC-877', title: 'CBT sync retries', start: '07:45', duration: '42 mins', state: 'Resolved' },
-]
+const incidentTimeline = []
 
-const dependencyHealth = [
-  { name: 'Email vendor', status: 'Operational', coverage: '100%' },
-  { name: 'SMS aggregator', status: 'Degraded', coverage: '76%' },
-  { name: 'Payment processor', status: 'Operational', coverage: '100%' },
-]
+const dependencyHealth = []
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   Operational: 'default',

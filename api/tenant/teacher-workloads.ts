@@ -50,19 +50,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const studentsData = await studentsRes.json()
       allStudents = studentsData.data || []
     } else {
-      console.warn('Students API unavailable, using mock data')
-      // Fallback with some mock student data
-      allStudents = [
-        { class: 'JSS 1', arm: 'A', name: 'Mock Student 1' },
-        { class: 'JSS 2', arm: 'A', name: 'Mock Student 2' }
-      ]
+      return res.status(503).json({
+        error: 'Students API unavailable',
+        message: 'Cannot retrieve student data for workload calculations'
+      })
     }
 
     if (teacherId && typeof teacherId === 'string') {
       // Get specific teacher workload
       const teacher = mockTeachers.find(t => t.id === teacherId)
       if (!teacher) {
-        return res.status(404).json({ error: 'Teacher not found' })
+        return res.status(404).json({
+          error: 'Teacher not found',
+          message: 'No teacher data available. Please implement teacher API endpoint.'
+        })
       }
 
       const teacherClasses: TeacherClass[] = teacher.classes.map(className => {
@@ -101,6 +102,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     } else {
       // Get all teacher workloads
+      if (mockTeachers.length === 0) {
+        return res.status(200).json({
+          data: [],
+          message: 'No teacher data available. Please implement teacher API endpoint.',
+          integrations: {
+            studentsApi: '/api/tenant/students'
+          }
+        })
+      }
+
       const workloads: TeacherWorkload[] = mockTeachers.map(teacher => {
         const teacherClasses: TeacherClass[] = teacher.classes.map(className => {
           const subject = teacher.subjects[0]

@@ -38,7 +38,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Get specific exam assignment
         const exam = mockExams.find(e => e.id === examId)
         if (!exam) {
-          return res.status(404).json({ error: 'Exam not found' })
+          return res.status(404).json({
+            error: 'Exam not found',
+            message: 'No exam data available. Please implement exam API endpoint.'
+          })
         }
 
         // Call students API to get eligible students
@@ -46,23 +49,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const studentsRes = await fetch(`${baseUrl}/api/tenant/students`)
 
         if (!studentsRes.ok) {
-          console.warn('Students API unavailable, using mock data')
-          // Fallback to mock data if API fails
-          const eligibleStudents = [
-            { id: 'mock-1', name: 'John Doe', class: exam.class, status: 'Active' }
-          ]
-          return res.status(200).json({
-            data: {
-              examId: exam.id,
-              examTitle: exam.title,
-              class: exam.class,
-              subject: exam.subject,
-              eligibleStudents,
-              totalStudents: eligibleStudents.length,
-              assignedStudents: Math.floor(eligibleStudents.length * 0.9),
-              unassignedStudents: Math.ceil(eligibleStudents.length * 0.1)
-            },
-            message: `Exam assignment data for ${exam.title} retrieved successfully (using fallback data)`
+          return res.status(503).json({
+            error: 'Students API unavailable',
+            message: 'Cannot retrieve eligible students for exam assignment'
           })
         }
 
@@ -71,6 +60,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const eligibleStudents = allStudents.filter((student: any) =>
           student.class === exam.class && student.status === 'Active'
         )
+
+        if (eligibleStudents.length === 0) {
+          return res.status(404).json({
+            error: 'No eligible students found',
+            message: `No active students found for class ${exam.class}`
+          })
+        }
 
         const assignment: ExamAssignment = {
           examId: exam.id,
@@ -92,6 +88,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
       } else {
         // Get all exam assignments
+        if (mockExams.length === 0) {
+          return res.status(200).json({
+            data: [],
+            message: 'No exam data available. Please implement exam API endpoint.',
+            integrations: {
+              studentsApi: '/api/tenant/students'
+            }
+          })
+        }
+
         const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
         const studentsRes = await fetch(`${baseUrl}/api/tenant/students`)
 

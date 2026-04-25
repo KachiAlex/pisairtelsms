@@ -1,309 +1,207 @@
 import React, { useState, useEffect } from 'react'
-import {
-  Users,
-  Briefcase,
-  UserPlus,
-  ClipboardCheck,
-  Clock4,
-  AlertTriangle,
-  Shield,
-  Award,
-  TrendingUp,
-} from 'lucide-react'
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Button } from '../ui/button'
-import { Badge } from '../ui/badge'
+import { Users, UserCheck, Clock, DollarSign, TrendingUp, Briefcase } from 'lucide-react'
+import { Card, CardContent } from '../ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { Progress } from '../ui/progress'
+import StaffDirectory from './staff/StaffDirectory'
+import StaffAttendance from './staff/StaffAttendance'
+import LeaveManagement from './staff/LeaveManagement'
+import PayrollManagement from './staff/PayrollManagement'
 
 interface Staff {
   id: string
   name: string
-  role: string
   department: string
   status: 'active' | 'inactive' | 'on_leave'
-  email: string
-  phone: string
-  hireDate: string
-  createdAt: string
-  updatedAt: string
+  salary?: number
 }
 
 export function StaffHR() {
-  const [staffRecords, setStaffRecords] = useState<Staff[]>([])
+  const [staff, setStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
-    const fetchStaffData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await fetch('/api/tenant/staff')
-        if (!response.ok) {
-          throw new Error('Failed to fetch staff records')
-        }
-        const result = await response.json()
-        setStaffRecords(result.data || [])
-      } catch (err) {
-        console.error('Error fetching staff:', err)
-        setError(err instanceof Error ? err.message : 'Failed to fetch staff records')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchStaffData()
+    fetch('/api/tenant/staff', { headers: { 'x-tenant-id': 'default-tenant' } })
+      .then(r => r.json())
+      .then(d => setStaff(d.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
-  // Compute statistics from fetched data
-  const totalStaff = staffRecords.length
-  const departmentDistribution: Record<string, number> = {}
-  const inactiveStaff = staffRecords.filter(s => s.status === 'inactive').length
-  const onLeaveStaff = staffRecords.filter(s => s.status === 'on_leave').length
-  
-  staffRecords.forEach((staff) => {
-    departmentDistribution[staff.department] = (departmentDistribution[staff.department] || 0) + 1
-  })
+  const totalStaff = staff.length
+  const activeStaff = staff.filter(s => s.status === 'active').length
+  const onLeave = staff.filter(s => s.status === 'on_leave').length
+  const inactive = staff.filter(s => s.status === 'inactive').length
 
-  // Convert to percentage-based distribution for display
-  const headcountDistribution = Object.entries(departmentDistribution)
-    .map(([label, count]) => ({
-      label,
-      value: totalStaff > 0 ? Math.round((count / totalStaff) * 100) : 0,
-      count,
-    }))
+  const deptMap: Record<string, number> = {}
+  staff.forEach(s => { deptMap[s.department] = (deptMap[s.department] || 0) + 1 })
+  const deptDistribution = Object.entries(deptMap)
+    .map(([dept, count]) => ({ dept, count, pct: totalStaff > 0 ? Math.round((count / totalStaff) * 100) : 0 }))
     .sort((a, b) => b.count - a.count)
 
-  const summaryStats = [
-    {
-      label: 'Total staff',
-      value: totalStaff.toString(),
-      detail: `${inactiveStaff} inactive`,
-      tone: 'text-blue-600',
-      icon: Users,
-    },
-    {
-      label: 'Open roles',
-      value: inactiveStaff.toString(),
-      detail: 'Unfilled positions',
-      tone: 'text-amber-600',
-      icon: Briefcase,
-    },
-    {
-      label: 'On leave',
-      value: onLeaveStaff.toString(),
-      detail: 'Currently absent',
-      tone: 'text-emerald-600',
-      icon: UserPlus,
-    },
-    {
-      label: 'Active staff',
-      value: (totalStaff - inactiveStaff - onLeaveStaff).toString(),
-      detail: 'Available now',
-      tone: 'text-purple-600',
-      icon: Clock4,
-    },
+  const stats = [
+    { label: 'Total Staff', value: totalStaff, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Active', value: activeStaff, icon: UserCheck, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'On Leave', value: onLeave, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+    { label: 'Inactive', value: inactive, icon: Briefcase, color: 'text-red-600', bg: 'bg-red-50' },
   ]
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Tenant HR</p>
-            <h1 className="text-2xl font-bold text-gray-900">Staff & HR workspace</h1>
-            <p className="text-sm text-gray-600">Monitor hiring, onboarding flows, leave coverage, and compliance guardrails.</p>
-          </div>
-        </div>
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <p className="text-red-700">{error}</p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Tenant HR</p>
-          <h1 className="text-2xl font-bold text-gray-900">Staff & HR workspace</h1>
-          <p className="text-sm text-gray-600">Monitor hiring, onboarding flows, leave coverage, and compliance guardrails.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <UserPlus className="h-4 w-4 mr-2" /> Issue offer
-          </Button>
-          <Button variant="outline">
-            <ClipboardCheck className="h-4 w-4 mr-2" /> Bulk approvals
-          </Button>
-          <Button>
-            <TrendingUp className="h-4 w-4 mr-2" /> Publish headcount report
-          </Button>
-        </div>
+      {/* Header */}
+      <div>
+        <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">HR Management</p>
+        <h1 className="text-2xl font-bold text-gray-900">Staff & HR</h1>
+        <p className="text-sm text-gray-600 mt-1">Manage staff records, attendance, leave, and payroll</p>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        {summaryStats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <Card key={stat.label}>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="rounded-full bg-blue-50 p-3 text-blue-600">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500">{stat.label}</p>
-                  <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                  <p className={`text-xs mt-1 ${stat.tone}`}>{stat.detail}</p>
-                </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="directory">Staff Directory</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="leave">Leave</TabsTrigger>
+          <TabsTrigger value="payroll">Payroll</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {stats.map(stat => {
+              const Icon = stat.icon
+              return (
+                <Card key={stat.label}>
+                  <CardContent className="flex items-center gap-4 p-4">
+                    <div className={`rounded-full ${stat.bg} p-3`}>
+                      <Icon className={`h-5 w-5 ${stat.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">{stat.label}</p>
+                      <p className="text-3xl font-bold text-gray-900">
+                        {loading ? '—' : stat.value}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* Department Distribution */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Department Distribution</h3>
+                {loading ? (
+                  <div className="animate-pulse space-y-3">
+                    {[1, 2, 3].map(i => <div key={i} className="h-8 bg-gray-200 rounded" />)}
+                  </div>
+                ) : deptDistribution.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No staff data yet</p>
+                ) : (
+                  <div className="space-y-4">
+                    {deptDistribution.map(d => (
+                      <div key={d.dept}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-gray-900">{d.dept}</span>
+                          <span className="text-gray-500">{d.pct}% ({d.count})</span>
+                        </div>
+                        <Progress value={d.pct} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          )
-        })}
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Onboarding runway</CardTitle>
-            <CardDescription>Track new hires through provisioning milestones</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-center py-8 text-center">
-              <div>
-                <UserPlus className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">No onboarding data yet.</p>
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Staff Status Breakdown</h3>
+                {loading ? (
+                  <div className="animate-pulse space-y-3">
+                    {[1, 2, 3].map(i => <div key={i} className="h-8 bg-gray-200 rounded" />)}
+                  </div>
+                ) : totalStaff === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No staff data yet</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-green-700">Active</span>
+                        <span className="text-gray-500">{totalStaff > 0 ? Math.round((activeStaff / totalStaff) * 100) : 0}% ({activeStaff})</span>
+                      </div>
+                      <Progress value={totalStaff > 0 ? (activeStaff / totalStaff) * 100 : 0} className="[&>div]:bg-green-500" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-yellow-700">On Leave</span>
+                        <span className="text-gray-500">{totalStaff > 0 ? Math.round((onLeave / totalStaff) * 100) : 0}% ({onLeave})</span>
+                      </div>
+                      <Progress value={totalStaff > 0 ? (onLeave / totalStaff) * 100 : 0} className="[&>div]:bg-yellow-500" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-red-700">Inactive</span>
+                        <span className="text-gray-500">{totalStaff > 0 ? Math.round((inactive / totalStaff) * 100) : 0}% ({inactive})</span>
+                      </div>
+                      <Progress value={totalStaff > 0 ? (inactive / totalStaff) * 100 : 0} className="[&>div]:bg-red-500" />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Actions */}
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <button onClick={() => setActiveTab('directory')} className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors">
+                  <Users className="w-6 h-6 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-700">Add Staff</span>
+                </button>
+                <button onClick={() => setActiveTab('attendance')} className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors">
+                  <UserCheck className="w-6 h-6 text-green-600" />
+                  <span className="text-sm font-medium text-gray-700">Mark Attendance</span>
+                </button>
+                <button onClick={() => setActiveTab('leave')} className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:bg-yellow-50 hover:border-yellow-300 transition-colors">
+                  <Clock className="w-6 h-6 text-yellow-600" />
+                  <span className="text-sm font-medium text-gray-700">Leave Request</span>
+                </button>
+                <button onClick={() => setActiveTab('payroll')} className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-colors">
+                  <DollarSign className="w-6 h-6 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-700">Run Payroll</span>
+                </button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Headcount mix</CardTitle>
-            <CardDescription>Departmental allocation snapshot</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {headcountDistribution.map((item) => (
-              <div key={item.label}>
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium text-gray-900">{item.label}</p>
-                  <span className="text-xs text-gray-500">{item.value}% ({item.count})</span>
-                </div>
-                <Progress value={item.value} className="mt-2" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+        {/* Staff Directory Tab */}
+        <TabsContent value="directory" className="space-y-4">
+          <StaffDirectory />
+        </TabsContent>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Leave & coverage planner</CardTitle>
-            <CardDescription>Ensure no classes are unattended</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-center py-8 text-center">
-              <div>
-                <Clock4 className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">No leave data yet.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Attendance Tab */}
+        <TabsContent value="attendance" className="space-y-4">
+          <StaffAttendance />
+        </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance focus</CardTitle>
-            <CardDescription>Live view of review cycle guardrails</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-center py-8 text-center">
-              <div>
-                <TrendingUp className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">No performance data yet.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Leave Tab */}
+        <TabsContent value="leave" className="space-y-4">
+          <LeaveManagement />
+        </TabsContent>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-600" />
-              Compliance campaigns
-            </CardTitle>
-            <CardDescription>Automated attestations & training</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-center py-8 text-center">
-              <div>
-                <Shield className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">No compliance data yet.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="h-5 w-5 text-purple-600" />
-              Recognition queue
-            </CardTitle>
-            <CardDescription>Nomination and kudos backlog</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-xl border border-gray-200 p-3">
-              <p className="font-semibold text-gray-900">STEM Excellence Spotlight</p>
-              <p className="text-xs text-gray-500">Voting closes in 2 days</p>
-              <Button variant="ghost" size="sm" className="text-blue-600 mt-2">
-                Review nominations
-              </Button>
-            </div>
-            <div className="rounded-xl border border-gray-200 p-3">
-              <p className="font-semibold text-gray-900">Guardian kudos feed</p>
-              <p className="text-xs text-gray-500">12 shout-outs pending verification</p>
-              <Button variant="ghost" size="sm" className="text-blue-600 mt-2">
-                Moderate feed
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Incident log
-            </CardTitle>
-            <CardDescription>Keep tabs on HR escalations</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-center py-8 text-center">
-              <div>
-                <AlertTriangle className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">No incidents logged yet.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Payroll Tab */}
+        <TabsContent value="payroll" className="space-y-4">
+          <PayrollManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
-export default StaffHR;
+
+export default StaffHR

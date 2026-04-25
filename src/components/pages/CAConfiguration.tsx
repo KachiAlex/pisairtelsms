@@ -21,6 +21,7 @@ export function CAConfiguration() {
   const { tenantId } = useTenant()
   const [weights, setWeights] = useState(defaultWeights)
   const [hasChanges, setHasChanges] = useState(false)
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
   const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'published' | 'error'>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [loading, setLoading] = useState(true)

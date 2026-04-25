@@ -9,7 +9,7 @@ interface TenantContextType {
   loading: boolean
 }
 
-const TenantContext = createContext<TenantContextType | undefined>(undefined)
+export const TenantContext = createContext<TenantContextType | undefined>(undefined)
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [tenantId, setTenantId] = useState<string | null>(null)

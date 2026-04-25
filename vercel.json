@@ -20,6 +20,13 @@
     { "src": "/api/tenant/timetable/conflicts", "dest": "/api/tenant/timetable/conflicts.ts" },
     { "src": "/api/tenant/timetable/change-requests", "dest": "/api/tenant/timetable/change-requests.ts" },
     { "src": "/api/tenant/timetable/publish", "dest": "/api/tenant/timetable/publish.ts" },
+    { "src": "/api/tenant/finance/fee-structures", "dest": "/api/tenant/finance/fee-structures.ts" },
+    { "src": "/api/tenant/finance/fee-assignments", "dest": "/api/tenant/finance/fee-assignments.ts" },
+    { "src": "/api/tenant/finance/payments", "dest": "/api/tenant/finance/payments.ts" },
+    { "src": "/api/tenant/finance/payment-plans", "dest": "/api/tenant/finance/payment-plans.ts" },
+    { "src": "/api/tenant/finance/reconciliation", "dest": "/api/tenant/finance/reconciliation.ts" },
+    { "src": "/api/tenant/finance/reports", "dest": "/api/tenant/finance/reports.ts" },
+    { "src": "/api/tenant/finance/audit-log", "dest": "/api/tenant/finance/audit-log.ts" },
     { "src": "/(.*)", "dest": "/" }
   ]
 }

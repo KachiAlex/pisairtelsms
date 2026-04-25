@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, AlertCircle, Download, Send, Search, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -14,6 +14,13 @@ import {
   TableRow,
 } from '../ui/table';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import Dashboard from './finance/Dashboard';
+import FeeStructureConfig from './finance/FeeStructureConfig';
+import StudentAccounts from './finance/StudentAccounts';
+import PaymentProcessing from './finance/PaymentProcessing';
+import Reconciliation from './finance/Reconciliation';
+import ReportViewer from './finance/ReportViewer';
+import AuditLog from './finance/AuditLog';
 
 interface FeeRecord {
   id: string;
@@ -53,6 +60,7 @@ export function FinanceManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
     fetchFeeRecords();
@@ -114,6 +122,19 @@ export function FinanceManagement() {
   const totalExpected = feeRecords.reduce((sum, record) => sum + record.amount, 0);
   const totalCollected = feeRecords.reduce((sum, record) => sum + record.paid, 0);
   const totalOutstanding = totalExpected - totalCollected;
+
+  const handleRecordPayment = () => {
+    setActiveTab('payments');
+  };
+
+  const handleSendReminder = () => {
+    // This would open a reminder dialog
+    console.log('Send reminder clicked');
+  };
+
+  const handleViewDefaulters = () => {
+    setActiveTab('reports');
+  };
 
   return (
     <div className="space-y-6">
@@ -274,150 +295,55 @@ export function FinanceManagement() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="fee-records" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="fee-records">Fee Records</TabsTrigger>
-          <TabsTrigger value="transactions">Recent Transactions</TabsTrigger>
-          <TabsTrigger value="structure">Fee Structure</TabsTrigger>
+      {/* Tab Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="fee-config">Fee Config</TabsTrigger>
+          <TabsTrigger value="student-accounts">Student Accounts</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
+          <TabsTrigger value="audit">Audit Log</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="fee-records" className="space-y-4">
-          {/* Search */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search by student name or admission number..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Fee Records Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Student Fee Records ({filteredRecords.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student Name</TableHead>
-                      <TableHead>Admission No</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Fee Type</TableHead>
-                      <TableHead className="text-right">Total Amount</TableHead>
-                      <TableHead className="text-right">Paid</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Last Payment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredRecords.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium">{record.studentName}</TableCell>
-                        <TableCell>{record.admissionNo}</TableCell>
-                        <TableCell>{record.class}</TableCell>
-                        <TableCell>{record.feeType}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(record.amount)}</TableCell>
-                        <TableCell className="text-right text-green-600">{formatCurrency(record.paid)}</TableCell>
-                        <TableCell className="text-right text-red-600">{formatCurrency(record.balance)}</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(record.status)}>{getStatusLabel(record.status)}</Badge>
-                        </TableCell>
-                        <TableCell>{record.lastPaymentDate ? new Date(record.lastPaymentDate).toLocaleDateString() : 'N/A'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard" className="space-y-4">
+          <Dashboard
+            onRecordPayment={handleRecordPayment}
+            onSendReminder={handleSendReminder}
+            onViewDefaulters={handleViewDefaulters}
+          />
         </TabsContent>
 
-        <TabsContent value="transactions" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Transactions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction ID</TableHead>
-                      <TableHead>Student Name</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Payment Method</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Time</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">{transaction.id}</TableCell>
-                        <TableCell>{transaction.student}</TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">
-                          {formatCurrency(transaction.amount)}
-                        </TableCell>
-                        <TableCell>{transaction.method}</TableCell>
-                        <TableCell>{transaction.date}</TableCell>
-                        <TableCell>{transaction.time}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Fee Config Tab */}
+        <TabsContent value="fee-config" className="space-y-4">
+          <FeeStructureConfig />
         </TabsContent>
 
-        <TabsContent value="structure" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { class: 'JSS 1', tuition: 120000, development: 20000, exam: 15000 },
-              { class: 'JSS 2', tuition: 120000, development: 20000, exam: 15000 },
-              { class: 'JSS 3', tuition: 130000, development: 20000, exam: 15000 },
-              { class: 'SS 1', tuition: 150000, development: 25000, exam: 20000 },
-              { class: 'SS 2', tuition: 150000, development: 25000, exam: 20000 },
-              { class: 'SS 3', tuition: 160000, development: 25000, exam: 20000 },
-            ].map((fee, index) => (
-              <Card key={index}>
-                <CardHeader>
-                  <CardTitle>{fee.class}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Tuition Fee</span>
-                      <span className="font-medium">{formatCurrency(fee.tuition)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Development Levy</span>
-                      <span className="font-medium">{formatCurrency(fee.development)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Exam Fee</span>
-                      <span className="font-medium">{formatCurrency(fee.exam)}</span>
-                    </div>
-                    <div className="pt-2 border-t flex justify-between">
-                      <span className="font-semibold">Total</span>
-                      <span className="font-bold text-blue-600">
-                        {formatCurrency(fee.tuition + fee.development + fee.exam)}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        {/* Student Accounts Tab */}
+        <TabsContent value="student-accounts" className="space-y-4">
+          <StudentAccounts />
+        </TabsContent>
+
+        {/* Payments Tab */}
+        <TabsContent value="payments" className="space-y-4">
+          <PaymentProcessing />
+        </TabsContent>
+
+        {/* Reconciliation Tab */}
+        <TabsContent value="reconciliation" className="space-y-4">
+          <Reconciliation />
+        </TabsContent>
+
+        {/* Reports Tab */}
+        <TabsContent value="reports" className="space-y-4">
+          <ReportViewer />
+        </TabsContent>
+
+        {/* Audit Log Tab */}
+        <TabsContent value="audit" className="space-y-4">
+          <AuditLog />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Calculator, Activity, AlertTriangle, PlayCircle, Cpu, Database, ShieldCheck, RefreshCcw, Gauge } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -45,6 +45,48 @@ const statusBadges: Record<string, { text: string; variant: 'default' | 'seconda
 }
 
 export function ResultComputation() {
+  const [isComputing, setIsComputing] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleTriggerRecompute = async () => {
+    setIsComputing(true)
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      alert('Full recompute triggered successfully! Processing will begin in the background.')
+    } catch (error) {
+      alert('Failed to trigger recompute. Please try again.')
+    } finally {
+      setIsComputing(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      alert('Pipeline status refreshed!')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleGuardrailSettings = () => {
+    alert('Opening guardrail settings...\n\nYou can configure:\n- Score drift thresholds\n- Missing CA handlers\n- Double entry detection rules')
+  }
+
+  const handleBuildScenario = () => {
+    alert('Opening scenario builder...\n\nCreate what-if scenarios to model:\n- CA weight changes\n- Score corrections\n- Cohort merges')
+  }
+
+  const handleGuardrailCatalog = () => {
+    alert('Guardrail Catalog:\n\n1. Score drift monitor - Flags >12% variance\n2. Missing CA handler - Uses class mean\n3. Double entry detector - Stops duplicates\n\nAll guardrails are currently active.')
+  }
+
+  const handleAllocateCompute = () => {
+    alert('Allocating additional compute resources...\n\nThis will increase processing speed for the current queue.')
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -54,11 +96,11 @@ export function ResultComputation() {
           <p className="text-sm text-gray-600">Orchestrate score aggregation, detect anomalies, and run what-if simulations safely.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleGuardrailSettings}>
             <Gauge className="h-4 w-4 mr-2" /> Guardrail settings
           </Button>
-          <Button>
-            <PlayCircle className="h-4 w-4 mr-2" /> Trigger full recompute
+          <Button onClick={handleTriggerRecompute} disabled={isComputing}>
+            <PlayCircle className="h-4 w-4 mr-2" /> {isComputing ? 'Computing...' : 'Trigger full recompute'}
           </Button>
         </div>
       </div>
@@ -101,8 +143,8 @@ export function ResultComputation() {
               <CardTitle>Compute pipeline</CardTitle>
               <CardDescription>Live status across the orchestration layers.</CardDescription>
             </div>
-            <Button variant="ghost" size="sm">
-              <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
+            <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCcw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -136,7 +178,7 @@ export function ResultComputation() {
                 <p className="text-sm text-gray-500">{scenario.impact}</p>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={handleBuildScenario}>
               <Calculator className="h-4 w-4 mr-2" /> Build new scenario
             </Button>
           </CardContent>
@@ -194,7 +236,7 @@ export function ResultComputation() {
                 <Badge variant={guard.status === 'No alert' ? 'secondary' : 'warning'}>{guard.status}</Badge>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="w-full">
+            <Button variant="ghost" size="sm" className="w-full" onClick={handleGuardrailCatalog}>
               <ShieldCheck className="h-4 w-4 mr-2" /> Guardrail catalog
             </Button>
           </CardContent>
@@ -227,7 +269,7 @@ export function ResultComputation() {
               </div>
               <Progress value={41} />
             </div>
-            <Button className="w-full">
+            <Button className="w-full" onClick={handleAllocateCompute}>
               <Cpu className="h-4 w-4 mr-2" /> Allocate more compute
             </Button>
           </CardContent>

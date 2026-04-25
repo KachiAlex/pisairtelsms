@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Rocket, Globe, Smartphone, Share2, Bell, Upload, AlertTriangle, CalendarClock, CheckCircle2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -54,6 +54,41 @@ const severityVariant: Record<string, 'warning' | 'destructive' | 'secondary'> =
 }
 
 export function ResultPublishing() {
+  const [launching, setLaunching] = useState(false)
+
+  const handlePublishingCalendar = () => {
+    alert('Publishing Calendar:\n\n- JSS 2: Today 6 PM\n- SS 1 Science: Tomorrow 10 AM\n- Primary 5: Awaiting approval\n\nYou can reschedule releases here.')
+  }
+
+  const handleLaunchRelease = async () => {
+    setLaunching(true)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      alert('Release launched successfully!\n\n1,842 guardians notified via:\n- Portal (72%)\n- Email (61%)\n- SMS (48%)')
+    } finally {
+      setLaunching(false)
+    }
+  }
+
+  const handleUpdateAssets = () => {
+    alert('Opening asset manager...\n\nYou can upload:\n- Notification templates\n- Portal banners\n- FAQ documents\n- Support scripts')
+  }
+
+  const handleAdjustRouting = () => {
+    alert('Adjusting notification routing...\n\nYou can:\n- Enable/disable channels\n- Set delivery priorities\n- Configure fallback routes')
+  }
+
+  const handleLogIncident = () => {
+    alert('Opening incident logger...\n\nReport issues affecting:\n- Portal availability\n- SMS delivery\n- Email delivery\n- Print fulfillment')
+  }
+
+  const handlePreviewNotice = () => {
+    alert('Preview: Early Access Notice\n\n"Guidance counselors can now preview results. Full guardian access begins at 6 PM."')
+  }
+
+  const handleEnablePreRelease = () => {
+    alert('Pre-release access enabled!\n\nGuidance counselors now have 1-hour early access before guardians.')
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -63,11 +98,11 @@ export function ResultPublishing() {
           <p className="text-sm text-gray-600">Coordinate portal pushes, guardian communications, and contingency workflows per cohort.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handlePublishingCalendar}>
             <CalendarClock className="h-4 w-4 mr-2" /> Publishing calendar
           </Button>
-          <Button>
-            <Rocket className="h-4 w-4 mr-2" /> Launch next release
+          <Button onClick={handleLaunchRelease} disabled={launching}>
+            <Rocket className="h-4 w-4 mr-2" /> {launching ? 'Launching...' : 'Launch next release'}
           </Button>
         </div>
       </div>
@@ -154,7 +189,7 @@ export function ResultPublishing() {
                 <Badge variant={statusVariant[item.status]}>{item.status}</Badge>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="w-full">
+            <Button variant="ghost" size="sm" className="w-full" onClick={handleUpdateAssets}>
               <Upload className="h-4 w-4 mr-2" /> Update assets
             </Button>
           </CardContent>
@@ -178,7 +213,7 @@ export function ResultPublishing() {
                 <Progress value={channel.usage} className="mt-2" />
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={handleAdjustRouting}>
               <Share2 className="h-4 w-4 mr-2" /> Adjust routing
             </Button>
           </CardContent>
@@ -201,7 +236,7 @@ export function ResultPublishing() {
               <p className="text-xs text-gray-400">ETA: {incident.eta}</p>
             </div>
           ))}
-          <Button variant="outline" size="sm" className="w-full">
+          <Button variant="outline" size="sm" className="w-full" onClick={handleLogIncident}>
             <AlertTriangle className="h-4 w-4 mr-2" /> Log incident
           </Button>
         </CardContent>

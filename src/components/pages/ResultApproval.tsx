@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { CheckCircle2, ShieldCheck, AlertTriangle, Stamp, Send, Layers, CalendarClock, UserCheck } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -46,6 +46,33 @@ const severityVariant: Record<string, 'warning' | 'destructive' | 'secondary'> =
 }
 
 export function ResultApproval() {
+  const [approving, setApproving] = useState(false)
+
+  const handleApprovalPolicy = () => {
+    alert('Approval Policy Settings:\n\n- Require class teacher sign-off\n- HOD moderation mandatory\n- Academic director approval\n- Principal final seal\n\nYou can customize these layers.')
+  }
+
+  const handleApproveAll = async () => {
+    setApproving(true)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      alert('All ready cohorts have been approved!\n\n5 cohorts moved to next stage.')
+    } finally {
+      setApproving(false)
+    }
+  }
+
+  const handleUpdateWorkflow = () => {
+    alert('Opening workflow editor...\n\nYou can:\n- Add/remove approval stages\n- Set SLA timelines\n- Configure escalation rules\n- Assign approvers')
+  }
+
+  const handleOpenEscalation = () => {
+    alert('Opening escalation form...\n\nReport new issues or blockers that need immediate attention.')
+  }
+
+  const handleDispatchBriefing = () => {
+    alert('Dispatching briefing pack to Principal...\n\nIncludes:\n- Summary PDF\n- Broadsheet snapshot\n- Approval checklist\n\nEmail sent successfully!')
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -55,11 +82,11 @@ export function ResultApproval() {
           <p className="text-sm text-gray-600">Route cohorts through layered approvals, manage escalations, and keep leadership in sync.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleApprovalPolicy}>
             <ShieldCheck className="h-4 w-4 mr-2" /> Approval policy
           </Button>
-          <Button>
-            <CheckCircle2 className="h-4 w-4 mr-2" /> Approve all ready cohorts
+          <Button onClick={handleApproveAll} disabled={approving}>
+            <CheckCircle2 className="h-4 w-4 mr-2" /> {approving ? 'Approving...' : 'Approve all ready cohorts'}
           </Button>
         </div>
       </div>
@@ -149,7 +176,7 @@ export function ResultApproval() {
                 </div>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="w-full">
+            <Button variant="ghost" size="sm" className="w-full" onClick={handleUpdateWorkflow}>
               <Layers className="h-4 w-4 mr-2" /> Update workflow
             </Button>
           </CardContent>
@@ -171,7 +198,7 @@ export function ResultApproval() {
                 <p className="text-xs text-gray-400">Raised {issue.submitted}</p>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={handleOpenEscalation}>
               <AlertTriangle className="h-4 w-4 mr-2" /> Open escalation
             </Button>
           </CardContent>
@@ -208,7 +235,7 @@ export function ResultApproval() {
             Principal seal required for <span className="font-semibold">2 cohorts</span>. Send briefing pack with summary PDF and broadsheet snapshot.
           </p>
         </div>
-        <Button size="sm">
+        <Button size="sm" onClick={handleDispatchBriefing}>
           <Send className="h-4 w-4 mr-2" /> Dispatch briefing
         </Button>
       </div>

@@ -1,0 +1,17 @@
+{
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/tenant/students", "dest": "/api/tenant/students.ts" },
+    { "src": "/api/tenant/applications", "dest": "/api/tenant/applications.ts" },
+    { "src": "/api/tenant/integrated-dashboard", "dest": "/api/tenant/integrated-dashboard.ts" },
+    { "src": "/api/tenant/results", "dest": "/api/tenant/results.ts" },
+    { "src": "/api/tenant/finance", "dest": "/api/tenant/finance.ts" },
+    { "src": "/api/tenant/staff", "dest": "/api/tenant/staff.ts" },
+    { "src": "/api/tenant/attendance", "dest": "/api/tenant/attendance.ts" },
+    { "src": "/api/tenant/communication", "dest": "/api/tenant/communication.ts" },
+    { "src": "/api/tenant/promotion-rules", "dest": "/api/tenant/promotion-rules.ts" },
+    { "src": "/api/tenant/ca-config", "dest": "/api/tenant/ca-config.ts" },
+    { "src": "/api/tenant/lead", "dest": "/api/tenant/lead.ts" },
+    { "src": "/(.*)", "dest": "/" }
+  ]
+}

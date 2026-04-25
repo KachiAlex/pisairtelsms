@@ -1,0 +1,73 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createLead, fetchLeads } from './_lib/lead'
+
+function methodNotAllowed(res: VercelResponse) {
+  res.setHeader('Allow', 'GET,POST')
+  return res.status(405).json({ error: 'Method not allowed' })
+}
+
+function parseBody(req: VercelRequest) {
+  if (!req.body) return null
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body)
+    } catch {
+      return null
+    }
+  }
+  return req.body
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'GET') {
+    try {
+      const leads = await fetchLeads()
+      return res.status(200).json({ data: leads })
+    } catch (error) {
+      console.error('Error fetching leads:', error)
+      return res.status(500).json({ error: 'Failed to fetch leads' })
+    }
+  }
+
+  if (req.method === 'POST') {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' })
+    }
+
+    const { studentName, parentName, contactPhone, contactEmail, classInterested, source, status } = body
+
+    const missingFields: string[] = []
+    if (!studentName) missingFields.push('studentName')
+    if (!parentName) missingFields.push('parentName')
+    if (!contactPhone) missingFields.push('contactPhone')
+    if (!contactEmail) missingFields.push('contactEmail')
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        details: Object.fromEntries(missingFields.map(f => [f, `${f} is required`])),
+      })
+    }
+
+    try {
+      const id = `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const result = await createLead({
+        id,
+        studentName,
+        parentName,
+        contactPhone,
+        contactEmail,
+        classInterested: classInterested || '',
+        source: source || 'website',
+        status: status || 'new',
+      })
+      return res.status(201).json({ data: result })
+    } catch (error) {
+      console.error('Error creating lead:', error)
+      return res.status(500).json({ error: 'Failed to create lead' })
+    }
+  }
+
+  return methodNotAllowed(res)
+}

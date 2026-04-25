@@ -11,6 +11,7 @@ import {
   upsertSuperAdminAccount,
   verifySuperAdminAccount,
 } from '../../lib/superAdminClient'
+import { setAuthInStorage } from '../../lib/auth'
 
 export type LoginRole = 'tenant-admin' | 'super-admin'
 
@@ -91,6 +92,14 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
         setIsVerifying(true)
         const verifiedAccount = await verifySuperAdminAccount(normalizedInputEmail, password)
         setStoredAccount(verifiedAccount)
+        
+        // Save auth token for super admin
+        setAuthInStorage({
+          token: `super-admin-${Date.now()}`,
+          tenantId: 'super-admin',
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        })
+        
         onLogin('super-admin')
         return
       } catch (verifyError) {
@@ -102,6 +111,13 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
         setIsVerifying(false)
       }
     }
+
+    // Save auth token for tenant admin
+    setAuthInStorage({
+      token: `tenant-admin-${Date.now()}`,
+      tenantId: email.trim().toLowerCase(),
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    })
 
     onLogin('tenant-admin')
   }

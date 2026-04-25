@@ -33,24 +33,14 @@ export function ProtectedRoute({
 
   // Check if requiredRole is specified and validate it
   if (requiredRole) {
-    // Parse the token to extract the role
-    // JWT tokens have 3 parts separated by dots: header.payload.signature
-    try {
-      const parts = auth.token.split('.')
-      if (parts.length !== 3) {
-        return <Navigate to="/unauthorized" />
-      }
+    // Map tenantId to role
+    let userRole = 'tenant_admin' // default role
+    if (auth.tenantId === 'super-admin') {
+      userRole = 'super_admin'
+    }
 
-      // Decode the payload (second part)
-      const payload = JSON.parse(atob(parts[1]))
-      const tokenRole = payload.role
-
-      // If the token role doesn't match the required role, redirect to unauthorized
-      if (tokenRole !== requiredRole) {
-        return <Navigate to="/unauthorized" />
-      }
-    } catch {
-      // If we can't parse the token, redirect to unauthorized
+    // If the user role doesn't match the required role, redirect to unauthorized
+    if (userRole !== requiredRole) {
       return <Navigate to="/unauthorized" />
     }
   }

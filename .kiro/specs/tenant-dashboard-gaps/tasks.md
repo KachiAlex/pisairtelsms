@@ -356,6 +356,54 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Verify StudentEnrollment loads real applications from applications API
     - Confirm no component renders hardcoded mock data for primary data sources
 
+- [x] 7. Phase 7 — Communication Hub Tabs & APIs
+  - [x] 7.1 Implement Bulk Notifications API (`api/tenant/bulk-notifications.ts`)
+    - Create the file with a `VercelHandler` default export using `@vercel/node`
+    - Auto-create the `bulk_notifications` table if it does not exist
+    - GET: return all bulk notifications ordered by `created_at` DESC
+    - POST: validate required fields (`title`, `message`, `channels`, `recipientCount`), insert record with status `scheduled`, return 201
+    - PUT: accept `id` in body; update `status` and `deliveryStatus`; return updated record; return 404 if not found
+    - _Requirements: 11.7_
+
+  - [x] 7.2 Implement Parent Messages API (`api/tenant/parent-messages.ts`)
+    - Create the file with a `VercelHandler` default export using `@vercel/node`
+    - Auto-create the `parent_messages` table if it does not exist
+    - GET: accept optional `studentName`, `status` query params; return matching messages ordered by `created_at` DESC
+    - POST: validate required fields (`parentName`, `studentName`, `message`); insert record with status `sent`; return 201
+    - PUT: accept `id` in body; update `status` and optionally add `reply` to replies array; return updated record; return 404 if not found
+    - _Requirements: 11.8_
+
+  - [x] 7.3 Implement Communication Logs API (`api/tenant/communication-logs.ts`)
+    - Create the file with a `VercelHandler` default export using `@vercel/node`
+    - Auto-create the `communication_logs` table if it does not exist
+    - GET: accept optional `type`, `channel`, `status`, `recipient`, `startDate`, `endDate` query params; return matching logs ordered by `sent_at` DESC, limit 100
+    - POST: validate required fields (`type`, `recipient`, `channel`); insert record; return 201
+    - PUT: accept `id` in body; update `status`, `deliveredAt`, `readAt`; return updated record; return 404 if not found
+    - _Requirements: 11.9_
+
+  - [x] 7.4 Update `src/components/pages/CommunicationHub.tsx` with four tabs
+    - Implement tab structure: Announcements, Bulk Notifications, Parent Messaging, Communication Logs
+    - On mount, fetch all four data sources in parallel
+    - Announcements tab: display summary stats (total sent, pending, total, alerts escalated) and recent announcements table with broadcast composer
+    - Bulk Notifications tab: display summary stats (scheduled, sent, failed) and notifications table
+    - Parent Messaging tab: display summary stats (total messages, unread, replied) and messages table
+    - Communication Logs tab: display summary stats (sent, delivered, read, failed) and logs table
+    - Each tab shows empty state when no data available
+    - _Requirements: 11.5, 11.6, 11.7, 11.8, 11.9_
+
+  - [x] 7.5 Wire all three new Communication Hub API routes in `vercel.json`
+    - Add `/api/tenant/bulk-notifications` → `/api/tenant/bulk-notifications.ts`
+    - Add `/api/tenant/parent-messages` → `/api/tenant/parent-messages.ts`
+    - Add `/api/tenant/communication-logs` → `/api/tenant/communication-logs.ts`
+    - _Requirements: 11.7, 11.8, 11.9_
+
+  - [x] 7.6 Final checkpoint — Verify Communication Hub integration
+    - Run `tsc --noEmit` and confirm zero type errors
+    - Verify CommunicationHub component fetches all four data sources on mount
+    - Verify all four tabs render correctly with empty states
+    - Confirm all API routes are wired in vercel.json
+    - _Requirements: 11.5–11.9_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP

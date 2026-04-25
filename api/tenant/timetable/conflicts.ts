@@ -10,26 +10,31 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { method, query } = req
-  const id = query.id as string | undefined
-  const action = query.action as string | undefined
+  try {
+    const { method, query } = req
+    const id = query.id as string | undefined
+    const action = query.action as string | undefined
 
-  if (method === 'GET') {
-    const status = query.status as string | undefined
-    const severity = query.severity as string | undefined
-    const entityType = query.entityType as string | undefined
-    return res.status(200).json({ data: getConflicts(TENANT_ID, status, severity, entityType) })
+    if (method === 'GET') {
+      const status = query.status as string | undefined
+      const severity = query.severity as string | undefined
+      const entityType = query.entityType as string | undefined
+      return res.status(200).json({ data: getConflicts(TENANT_ID, status, severity, entityType) })
+    }
+
+    // POST /conflicts?id=xxx&action=resolve
+    if (method === 'POST' && id && action === 'resolve') {
+      const body = parseBody(req)
+      const resolutionNotes = body?.resolutionNotes || ''
+      const updated = resolveConflict(id, resolutionNotes)
+      if (!updated) return res.status(404).json({ error: 'Conflict not found' })
+      return res.status(200).json({ data: updated })
+    }
+
+    res.setHeader('Allow', 'GET,POST')
+    return res.status(405).json({ error: 'Method not allowed' })
+  } catch (error) {
+    console.error('Conflicts API error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
   }
-
-  // POST /conflicts?id=xxx&action=resolve
-  if (method === 'POST' && id && action === 'resolve') {
-    const body = parseBody(req)
-    const resolutionNotes = body?.resolutionNotes || ''
-    const updated = resolveConflict(id, resolutionNotes)
-    if (!updated) return res.status(404).json({ error: 'Conflict not found' })
-    return res.status(200).json({ data: updated })
-  }
-
-  res.setHeader('Allow', 'GET,POST')
-  return res.status(405).json({ error: 'Method not allowed' })
 }

@@ -1,0 +1,7 @@
+{
+  "specType": "feature",
+  "workflowType": "requirements-first",
+  "featureName": "student-portal",
+  "displayName": "Student Portal",
+  "description": "Read-only student portal for viewing academic progress, attendance, timetable, fees, and communications"
+}

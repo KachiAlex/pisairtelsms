@@ -1,19 +1,5 @@
-import { sql } from '@vercel/postgres'
-
-// Internal DB row type — snake_case
-export interface ApplicationRow {
-  id: string
-  student_name: string
-  parent_name: string
-  contact_phone: string
-  contact_email: string
-  class_applying: string
-  status: string
-  academic_session: string | null
-  source: string | null
-  created_at: Date
-  updated_at: Date
-}
+// Mock in-memory storage for applications (for development/demo purposes)
+const applicationsStore: Map<string, ApplicationDTO> = new Map();
 
 // DTO for API responses — camelCase
 export interface ApplicationDTO {
@@ -40,45 +26,64 @@ export interface ApplicationPayload {
   source?: string
 }
 
-function rowToDTO(row: ApplicationRow): ApplicationDTO {
-  return {
-    id: row.id,
-    studentName: row.student_name,
-    parentName: row.parent_name,
-    contactPhone: row.contact_phone,
-    contactEmail: row.contact_email,
-    classApplying: row.class_applying,
-    status: row.status as ApplicationDTO['status'],
-    academicSession: row.academic_session,
-    source: row.source,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
-  }
-}
-
-export async function ensureApplicationsTable(): Promise<void> {
-  try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS applications (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        student_name VARCHAR(255) NOT NULL,
-        parent_name VARCHAR(255) NOT NULL,
-        contact_phone VARCHAR(50) NOT NULL,
-        contact_email VARCHAR(255) NOT NULL,
-        class_applying VARCHAR(50) NOT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'pending'
-          CHECK (status IN ('pending', 'reviewing', 'approved', 'rejected')),
-        academic_session VARCHAR(20),
-        source VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-    await sql`
-      CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status)
-    `
-  } catch (error) {
-    console.error('Error ensuring applications table:', error)
+// Initialize with sample data
+function initializeSampleData() {
+  if (applicationsStore.size === 0) {
+    const sampleApplications: ApplicationDTO[] = [
+      {
+        id: 'app_1',
+        studentName: 'Amara Okonkwo',
+        parentName: 'Mr. Okonkwo',
+        contactPhone: '+234801111111',
+        contactEmail: 'amara@example.com',
+        classApplying: 'JSS 1',
+        status: 'pending',
+        academicSession: '2025/2026',
+        source: 'Online Form',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'app_2',
+        studentName: 'Emeka Nwosu',
+        parentName: 'Mrs. Nwosu',
+        contactPhone: '+234802222222',
+        contactEmail: 'emeka@example.com',
+        classApplying: 'JSS 1',
+        status: 'reviewing',
+        academicSession: '2025/2026',
+        source: 'Online Form',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'app_3',
+        studentName: 'Zainab Hassan',
+        parentName: 'Mr. Hassan',
+        contactPhone: '+234803333333',
+        contactEmail: 'zainab@example.com',
+        classApplying: 'JSS 2',
+        status: 'approved',
+        academicSession: '2025/2026',
+        source: 'Referral',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'app_4',
+        studentName: 'Chidi Eze',
+        parentName: 'Mr. Eze',
+        contactPhone: '+234804444444',
+        contactEmail: 'chidi@example.com',
+        classApplying: 'JSS 1',
+        status: 'pending',
+        academicSession: '2025/2026',
+        source: 'Online Form',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+    sampleApplications.forEach(a => applicationsStore.set(a.id, a));
   }
 }
 
@@ -87,76 +92,73 @@ export async function fetchApplications(
   academicSession?: string
 ): Promise<ApplicationDTO[]> {
   try {
-    await ensureApplicationsTable()
-
-    let rows: ApplicationRow[]
-
-    if (status && academicSession) {
-      const result = await sql<ApplicationRow>`
-        SELECT * FROM applications
-        WHERE status = ${status} AND academic_session = ${academicSession}
-        ORDER BY created_at DESC
-      `
-      rows = result.rows
-    } else if (status) {
-      const result = await sql<ApplicationRow>`
-        SELECT * FROM applications
-        WHERE status = ${status}
-        ORDER BY created_at DESC
-      `
-      rows = result.rows
-    } else if (academicSession) {
-      const result = await sql<ApplicationRow>`
-        SELECT * FROM applications
-        WHERE academic_session = ${academicSession}
-        ORDER BY created_at DESC
-      `
-      rows = result.rows
-    } else {
-      const result = await sql<ApplicationRow>`
-        SELECT * FROM applications ORDER BY created_at DESC
-      `
-      rows = result.rows
+    initializeSampleData();
+    
+    let filtered = Array.from(applicationsStore.values());
+    
+    if (status) {
+      filtered = filtered.filter(a => a.status === status);
     }
-
-    return rows.map(rowToDTO)
+    if (academicSession) {
+      filtered = filtered.filter(a => a.academicSession === academicSession);
+    }
+    
+    return filtered.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   } catch (error) {
-    console.error('Error fetching applications:', error)
-    return []
+    console.error('Error fetching applications:', error);
+    return [];
   }
 }
 
 export async function createApplication(payload: ApplicationPayload): Promise<ApplicationDTO> {
-  await ensureApplicationsTable()
-
-  const result = await sql<ApplicationRow>`
-    INSERT INTO applications (student_name, parent_name, contact_phone, contact_email, class_applying, academic_session, source)
-    VALUES (
-      ${payload.studentName},
-      ${payload.parentName},
-      ${payload.contactPhone},
-      ${payload.contactEmail},
-      ${payload.classApplying},
-      ${payload.academicSession ?? null},
-      ${payload.source ?? null}
-    )
-    RETURNING *
-  `
-  return rowToDTO(result.rows[0])
+  try {
+    initializeSampleData();
+    
+    const id = `app_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+    
+    const application: ApplicationDTO = {
+      id,
+      ...payload,
+      status: 'pending',
+      academicSession: payload.academicSession || null,
+      source: payload.source || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    
+    applicationsStore.set(id, application);
+    return application;
+  } catch (error) {
+    console.error('Error creating application:', error);
+    throw new Error('Failed to create application');
+  }
 }
 
 export async function updateApplicationStatus(
   id: string,
   status: ApplicationDTO['status']
 ): Promise<ApplicationDTO | null> {
-  await ensureApplicationsTable()
-
-  const result = await sql<ApplicationRow>`
-    UPDATE applications
-    SET status = ${status}, updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `
-  if (result.rows.length === 0) return null
-  return rowToDTO(result.rows[0])
+  try {
+    initializeSampleData();
+    
+    const existing = applicationsStore.get(id);
+    if (!existing) {
+      return null;
+    }
+    
+    const updated: ApplicationDTO = {
+      ...existing,
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+    
+    applicationsStore.set(id, updated);
+    return updated;
+  } catch (error) {
+    console.error('Error updating application status:', error);
+    throw new Error('Failed to update application status');
+  }
 }

@@ -5,7 +5,6 @@ import FeeStructureConfig from './finance/FeeStructureConfig';
 import StudentAccounts from './finance/StudentAccounts';
 import PaymentProcessing from './finance/PaymentProcessing';
 import Reconciliation from './finance/Reconciliation';
-import ReportViewer from './finance/ReportViewer';
 import AuditLog from './finance/AuditLog';
 import OutstandingFees from './finance/OutstandingFees';
 import InvoiceManagement from './finance/InvoiceManagement';
@@ -13,12 +12,9 @@ import FinancialReports from './finance/FinancialReports';
 
 export function FinanceManagement() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [feeConfigSubTab, setFeeConfigSubTab] = useState('structures');
-  const [paymentsSubTab, setPaymentsSubTab] = useState('single');
 
   const handleRecordPayment = () => {
-    setActiveTab('payments');
-    setPaymentsSubTab('single');
+    setActiveTab('payments-single');
   };
 
   const handleSendReminder = () => {
@@ -33,10 +29,12 @@ export function FinanceManagement() {
     <div className="space-y-6">
       {/* Main Tab Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-12 gap-1">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="fee-config">Fee Config</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="fee-structures">Fee Structures</TabsTrigger>
+          <TabsTrigger value="fee-assignments">Fee Assignments</TabsTrigger>
+          <TabsTrigger value="payments-single">Record Payment</TabsTrigger>
+          <TabsTrigger value="payments-bulk">Bulk Upload</TabsTrigger>
           <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
@@ -53,69 +51,48 @@ export function FinanceManagement() {
           />
         </TabsContent>
 
-        {/* Fee Config Tab with Sub-tabs */}
-        <TabsContent value="fee-config">
-          <Tabs value={feeConfigSubTab} onValueChange={setFeeConfigSubTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="structures">Fee Structures</TabsTrigger>
-              <TabsTrigger value="assignments">Fee Assignments</TabsTrigger>
-              <TabsTrigger value="history">History</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="structures" className="space-y-4">
-              <FeeStructureConfig />
-            </TabsContent>
-
-            <TabsContent value="assignments" className="space-y-4">
-              <StudentAccounts />
-            </TabsContent>
-
-            <TabsContent value="history" className="space-y-4">
-              <div className="text-center text-gray-500 py-8">Fee Structure History</div>
-            </TabsContent>
-          </Tabs>
+        {/* Fee Structures Tab */}
+        <TabsContent value="fee-structures" className="space-y-4">
+          <FeeStructureConfig />
         </TabsContent>
 
-        {/* Payments Tab with Sub-tabs */}
-        <TabsContent value="payments">
-          <Tabs value={paymentsSubTab} onValueChange={setPaymentsSubTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="single">Record Payment</TabsTrigger>
-              <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
-            </TabsList>
+        {/* Fee Assignments Tab */}
+        <TabsContent value="fee-assignments" className="space-y-4">
+          <StudentAccounts />
+        </TabsContent>
 
-            <TabsContent value="single" className="space-y-4">
-              <PaymentProcessing />
-            </TabsContent>
+        {/* Record Payment Tab */}
+        <TabsContent value="payments-single" className="space-y-4">
+          <PaymentProcessing />
+        </TabsContent>
 
-            <TabsContent value="bulk" className="space-y-4">
-              <PaymentProcessing />
-            </TabsContent>
-          </Tabs>
+        {/* Bulk Upload Tab */}
+        <TabsContent value="payments-bulk" className="space-y-4">
+          <PaymentProcessing />
         </TabsContent>
 
         {/* Outstanding Fees Tab */}
-        <TabsContent value="outstanding">
+        <TabsContent value="outstanding" className="space-y-4">
           <OutstandingFees />
         </TabsContent>
 
         {/* Invoices Tab */}
-        <TabsContent value="invoices">
+        <TabsContent value="invoices" className="space-y-4">
           <InvoiceManagement />
         </TabsContent>
 
         {/* Reconciliation Tab */}
-        <TabsContent value="reconciliation">
+        <TabsContent value="reconciliation" className="space-y-4">
           <Reconciliation />
         </TabsContent>
 
         {/* Financial Reports Tab */}
-        <TabsContent value="financial-reports">
+        <TabsContent value="financial-reports" className="space-y-4">
           <FinancialReports />
         </TabsContent>
 
         {/* Audit Log Tab */}
-        <TabsContent value="audit">
+        <TabsContent value="audit" className="space-y-4">
           <AuditLog />
         </TabsContent>
       </Tabs>

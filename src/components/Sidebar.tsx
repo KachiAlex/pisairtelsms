@@ -103,12 +103,13 @@ const navItems: NavItem[] = [
   },
   {
     id: 'timetable',
-    label: 'Timetable',
+    label: 'Timetable & Scheduling',
     icon: <Calendar className="w-5 h-5" />,
     children: [
-      { id: 'class-timetable', label: 'Class Timetable' },
-      { id: 'teacher-timetable', label: 'Teacher Timetable' },
-      { id: 'exam-timetable', label: 'Exam Schedule' },
+      { id: 'timetable-configure', label: 'Configure' },
+      { id: 'timetable-class', label: 'Class Timetable' },
+      { id: 'timetable-teacher', label: 'Teacher Timetable' },
+      { id: 'timetable-exam', label: 'Exam Schedule' },
     ]
   },
   {

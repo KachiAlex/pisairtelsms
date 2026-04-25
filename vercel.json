@@ -12,6 +12,14 @@
     { "src": "/api/tenant/promotion-rules", "dest": "/api/tenant/promotion-rules.ts" },
     { "src": "/api/tenant/ca-config", "dest": "/api/tenant/ca-config.ts" },
     { "src": "/api/tenant/lead", "dest": "/api/tenant/lead.ts" },
+    { "src": "/api/tenant/timetable/calendar", "dest": "/api/tenant/timetable/calendar.ts" },
+    { "src": "/api/tenant/timetable/time-slots", "dest": "/api/tenant/timetable/time-slots.ts" },
+    { "src": "/api/tenant/timetable/class-schedules", "dest": "/api/tenant/timetable/class-schedules.ts" },
+    { "src": "/api/tenant/timetable/teacher-schedules", "dest": "/api/tenant/timetable/teacher-schedules.ts" },
+    { "src": "/api/tenant/timetable/exam-schedules", "dest": "/api/tenant/timetable/exam-schedules.ts" },
+    { "src": "/api/tenant/timetable/conflicts", "dest": "/api/tenant/timetable/conflicts.ts" },
+    { "src": "/api/tenant/timetable/change-requests", "dest": "/api/tenant/timetable/change-requests.ts" },
+    { "src": "/api/tenant/timetable/publish", "dest": "/api/tenant/timetable/publish.ts" },
     { "src": "/(.*)", "dest": "/" }
   ]
 }

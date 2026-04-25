@@ -102,14 +102,17 @@ export default function App() {
         return <StudentHealth />;
       case 'student-attendance':
         return <StudentAttendance />;
-      case 'class-timetable':
-      case 'teacher-timetable':
-      case 'exam-timetable':
+      case 'timetable-configure':
+      case 'timetable-class':
+      case 'timetable-teacher':
+      case 'timetable-exam':
         return <TimetableScheduling
           initialView={
-            activePage === 'teacher-timetable'
+            activePage === 'timetable-configure'
+              ? 'configure'
+              : activePage === 'timetable-teacher'
               ? 'teacher'
-              : activePage === 'exam-timetable'
+              : activePage === 'timetable-exam'
               ? 'exam'
               : 'class'
           }

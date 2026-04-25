@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   CalendarClock,
   AlertTriangle,
@@ -11,6 +11,7 @@ import {
   Clock4,
   ArrowLeft,
   ArrowRight,
+  Settings,
 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -25,11 +26,15 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table'
+import { ConfigureTab } from './timetable/ConfigureTab'
+import { ClassTimetableTab } from './timetable/ClassTimetableTab'
+import { TeacherTimetableTab } from './timetable/TeacherTimetableTab'
+import { ExamScheduleTab } from './timetable/ExamScheduleTab'
 
 const dayHeaders = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const
 
 type DayName = (typeof dayHeaders)[number]
-type TimetableView = 'class' | 'teacher' | 'exam'
+type TimetableView = 'configure' | 'class' | 'teacher' | 'exam'
 
 type Severity = 'high' | 'medium' | 'low'
 
@@ -207,18 +212,60 @@ interface TimetableSchedulingProps {
 
 export function TimetableScheduling({ initialView = 'class' }: TimetableSchedulingProps) {
   const [activeView, setActiveView] = useState<TimetableView>(initialView)
-  const [selectedEntity, setSelectedEntity] = useState(() => viewConfigs[initialView].entities[0].id)
+  const [selectedEntity, setSelectedEntity] = useState(() => {
+    const cfg = viewConfigs[initialView as Exclude<TimetableView, 'configure'>]
+    return cfg ? cfg.entities[0].id : ''
+  })
   const [weekOffset, setWeekOffset] = useState(0)
+  const [liveConflicts, setLiveConflicts] = useState<ConflictItem[]>([])
+  const [liveRequests, setLiveRequests] = useState<TimetableRequest[]>([])
+  const [publishStatus, setPublishStatus] = useState<{
+    readinessPct?: number
+    openConflicts?: number
+    classScheduleCount?: number
+    lastPublishedAt?: string | null
+    canPublish?: boolean
+  }>({})
 
-  const config = viewConfigs[activeView]
+  const config = activeView !== 'configure' ? viewConfigs[activeView as Exclude<TimetableView, 'configure'>] : null
 
-  const visibleSchedule = useMemo(() => schedules[activeView], [activeView])
-  const conflicts = useMemo(() => conflictsByView[activeView], [activeView])
-  const requests = useMemo(() => requestQueue[activeView], [activeView])
+  const visibleSchedule = useMemo(() => activeView !== 'configure' ? schedules[activeView as Exclude<TimetableView, 'configure'>] : [], [activeView])
+
+  useEffect(() => {
+    async function fetchLiveData() {
+      try {
+        const [conflictsRes, requestsRes, publishRes] = await Promise.all([
+          fetch('/api/tenant/timetable/conflicts?status=open'),
+          fetch('/api/tenant/timetable/change-requests'),
+          fetch('/api/tenant/timetable/publish'),
+        ])
+        const conflictsData = await conflictsRes.json()
+        const requestsData = await requestsRes.json()
+        const publishData = await publishRes.json()
+        const rawConflicts = conflictsData.data || []
+        const rawRequests = requestsData.data || []
+        setLiveConflicts(rawConflicts.map((c: { id: string; conflictType: string; owner: string; impact: string; severity: Severity }) => ({
+          id: c.id, type: c.conflictType, owner: c.owner, impact: c.impact, severity: c.severity,
+        })))
+        setLiveRequests(rawRequests.map((r: { id: string; requesterName: string; changeDescription: string; sla: string; status: RequestStatus }) => ({
+          id: r.id, requester: r.requesterName, item: r.changeDescription, sla: r.sla, status: r.status,
+        })))
+        setPublishStatus(publishData.data || {})
+      } catch {
+        // fall back to hardcoded data silently
+      }
+    }
+    fetchLiveData()
+  }, [activeView])
+
+  const conflicts = liveConflicts.length > 0 ? liveConflicts : (activeView !== 'configure' ? conflictsByView[activeView as Exclude<TimetableView, 'configure'>] : [])
+  const requests = liveRequests.length > 0 ? liveRequests : (activeView !== 'configure' ? requestQueue[activeView as Exclude<TimetableView, 'configure'>] : [])
 
   const handleViewChange = (view: TimetableView) => {
     setActiveView(view)
-    setSelectedEntity(viewConfigs[view].entities[0].id)
+    if (view !== 'configure') {
+      setSelectedEntity(viewConfigs[view as Exclude<TimetableView, 'configure'>].entities[0].id)
+    }
     setWeekOffset(0)
   }
 
@@ -230,7 +277,7 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Operations</p>
           <h1 className="text-2xl font-bold text-gray-900">Timetable & Scheduling</h1>
-          <p className="text-sm text-gray-600">{config.description}</p>
+          <p className="text-sm text-gray-600">{config?.description}</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button variant="outline">
@@ -246,13 +293,14 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(['class', 'teacher', 'exam'] as TimetableView[]).map((view) => (
+        {(['configure', 'class', 'teacher', 'exam'] as TimetableView[]).map((view) => (
           <Button
             key={view}
             variant={activeView === view ? 'default' : 'outline'}
             onClick={() => handleViewChange(view)}
             className={activeView === view ? 'bg-blue-600 text-white' : ''}
           >
+            {view === 'configure' && <><Settings className="h-4 w-4 mr-2" />Configure</>}
             {view === 'class' && 'Class view'}
             {view === 'teacher' && 'Teacher view'}
             {view === 'exam' && 'Exam view'}
@@ -260,7 +308,13 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
         ))}
       </div>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+      {activeView === 'configure' && <ConfigureTab />}
+
+      {activeView === 'class' && <ClassTimetableTab />}
+
+      {activeView === 'teacher' && <TeacherTimetableTab />}
+
+      {activeView === 'exam' && <ExamScheduleTab />}
         {config.stats.map((stat) => (
           <Card key={stat.label}>
             <CardContent className="p-4">
@@ -379,8 +433,25 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
                 <p className="text-xs text-amber-600 mt-1">{request.sla}</p>
               </div>
             ))}
-            <Button variant="outline" className="w-full text-sm">
-              View workflow board
+            <Button
+              variant="outline"
+              className="w-full text-sm"
+              onClick={async () => {
+                const desc = prompt('Describe the change you need:')
+                if (!desc) return
+                await fetch('/api/tenant/timetable/change-requests', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ requesterId: 'admin', requesterName: 'Admin', entityType: activeView, entityId: selectedEntity, changeDescription: desc, sla: 'No SLA set' }),
+                })
+                const res = await fetch('/api/tenant/timetable/change-requests')
+                const data = await res.json()
+                setLiveRequests((data.data || []).map((r: { id: string; requesterName: string; changeDescription: string; sla: string; status: RequestStatus }) => ({
+                  id: r.id, requester: r.requesterName, item: r.changeDescription, sla: r.sla, status: r.status,
+                })))
+              }}
+            >
+              + Submit change request
             </Button>
           </CardContent>
         </Card>
@@ -413,25 +484,61 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarClock className="h-5 w-5 text-blue-600" />
-              Publishing milestones
+              Publishing status
             </CardTitle>
             <CardDescription>Measure readiness before guardians receive schedules</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            {publishingMilestones.map((milestone) => (
-              <div key={milestone.label}>
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-semibold text-gray-900">{milestone.label}</p>
-                  <span className="text-xs text-gray-500">{milestone.value}%</span>
-                </div>
-                <Progress value={milestone.value} className="mt-2" />
+            <div>
+              <div className="flex items-center justify-between text-sm mb-1">
+                <p className="font-semibold text-gray-900">Overall readiness</p>
+                <span className="text-xs text-gray-500">{publishStatus.readinessPct ?? 82}%</span>
               </div>
-            ))}
+              <Progress value={publishStatus.readinessPct ?? 82} className="mt-2" />
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Open conflicts</span>
+              <span className={`font-semibold ${(publishStatus.openConflicts ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                {publishStatus.openConflicts ?? conflicts.length}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Class schedules</span>
+              <span className="font-semibold text-gray-900">{publishStatus.classScheduleCount ?? '—'}</span>
+            </div>
+            {publishStatus.lastPublishedAt && (
+              <p className="text-xs text-gray-400">Last published: {new Date(publishStatus.lastPublishedAt).toLocaleDateString()}</p>
+            )}
             <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-sm text-blue-700">
               <p className="font-semibold">Ready to publish?</p>
-              <p className="text-xs text-blue-600 mt-1">Notify guardians once draft hits 95% readiness and conflicts are cleared.</p>
-              <Button className="mt-3 w-full" variant="default">
-                <Users className="h-4 w-4 mr-2" /> Send guardian preview
+              <p className="text-xs text-blue-600 mt-1">
+                {(publishStatus.openConflicts ?? 0) > 0
+                  ? `Resolve ${publishStatus.openConflicts} conflict(s) before publishing.`
+                  : 'All conflicts resolved. You can publish now.'}
+              </p>
+              <Button
+                className="mt-3 w-full"
+                variant="default"
+                disabled={!publishStatus.canPublish}
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/tenant/timetable/publish', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ scheduleType: 'all', publishedBy: 'admin' }),
+                    })
+                    const data = await res.json()
+                    if (!res.ok) { alert(data.error || 'Failed to publish'); return }
+                    alert('Schedules published successfully!')
+                    const statusRes = await fetch('/api/tenant/timetable/publish/status')
+                    const statusData = await statusRes.json()
+                    setPublishStatus(statusData.data || {})
+                  } catch {
+                    alert('Network error')
+                  }
+                }}
+              >
+                <Users className="h-4 w-4 mr-2" /> Publish schedules
               </Button>
             </div>
           </CardContent>

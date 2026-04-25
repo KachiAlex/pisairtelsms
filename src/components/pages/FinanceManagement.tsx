@@ -14,35 +14,33 @@ import FinancialReports from './finance/FinancialReports';
 export function FinanceManagement() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [feeConfigSubTab, setFeeConfigSubTab] = useState('structures');
+  const [paymentsSubTab, setPaymentsSubTab] = useState('single');
 
   const handleRecordPayment = () => {
     setActiveTab('payments');
+    setPaymentsSubTab('single');
   };
 
   const handleSendReminder = () => {
-    // This would open a reminder dialog
     console.log('Send reminder clicked');
   };
 
   const handleViewDefaulters = () => {
-    setActiveTab('reports');
+    setActiveTab('financial-reports');
   };
 
   return (
     <div className="space-y-6">
-
-      {/* Tab Navigation */}
+      {/* Main Tab Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="fee-config">Fee Config</TabsTrigger>
-          <TabsTrigger value="student-accounts">Student Accounts</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
           <TabsTrigger value="financial-reports">Financial Reports</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
         </TabsList>
 
@@ -73,20 +71,27 @@ export function FinanceManagement() {
             </TabsContent>
 
             <TabsContent value="history" className="space-y-4">
-              {/* Fee Structure History component */}
-              <div className="text-center text-gray-500">Fee Structure History</div>
+              <div className="text-center text-gray-500 py-8">Fee Structure History</div>
             </TabsContent>
           </Tabs>
         </TabsContent>
 
-        {/* Student Accounts Tab */}
-        <TabsContent value="student-accounts" className="space-y-4">
-          <StudentAccounts />
-        </TabsContent>
-
-        {/* Payments Tab */}
+        {/* Payments Tab with Sub-tabs */}
         <TabsContent value="payments" className="space-y-4">
-          <PaymentProcessing />
+          <Tabs value={paymentsSubTab} onValueChange={setPaymentsSubTab} className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="single">Record Payment</TabsTrigger>
+              <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="single" className="space-y-4">
+              <PaymentProcessing />
+            </TabsContent>
+
+            <TabsContent value="bulk" className="space-y-4">
+              <PaymentProcessing />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {/* Outstanding Fees Tab */}
@@ -107,11 +112,6 @@ export function FinanceManagement() {
         {/* Financial Reports Tab */}
         <TabsContent value="financial-reports" className="space-y-4">
           <FinancialReports />
-        </TabsContent>
-
-        {/* Reports Tab */}
-        <TabsContent value="reports" className="space-y-4">
-          <ReportViewer />
         </TabsContent>
 
         {/* Audit Log Tab */}

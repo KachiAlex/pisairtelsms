@@ -24,7 +24,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Verify POST returns 201 on valid payload and 400 with field-level errors when any required field is missing
     - _Requirements: 2.2, 2.5, 2.6_
 
-  - [ ]* 1.4 Write property test for Lead creation validation
+  - [x]* 1.4 Write property test for Lead creation validation
     - **Property 5: Lead Creation Validation**
     - For any lead payload missing any of `studentName`, `parentName`, `contactPhone`, `contactEmail`, the handler must return HTTP 400 with field-level error details
     - **Property 6: Lead Persistence Round Trip**
@@ -47,7 +47,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Do not import the frontend `Student` type into the API layer
     - _Requirements: 12.4_
 
-  - [ ]* 1.8 Write unit tests for `rowToStudent` conversion
+  - [x]* 1.8 Write unit tests for `rowToStudent` conversion
     - Test that every field maps correctly from snake_case DB row to camelCase frontend type
     - Test that optional fields (`created_at`, `updated_at`) are preserved
     - _Requirements: 12.4_
@@ -65,7 +65,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Return 400 with validation error when `ca_score` or `exam_score` is outside 0–100
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [ ]* 2.2 Write property tests for Results API
+  - [x]* 2.2 Write property tests for Results API
     - **Property 7: Score Total Computation** — For any `ca_score` and `exam_score`, `total_score` must equal their sum
     - **Property 8: Score Validation** — For any score outside 0–100, the API must return HTTP 400
     - **Property 9: Score Query Filtering** — For any combination of `studentId`, `academicSession`, `term`, only matching records are returned
@@ -78,7 +78,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - POST (payment): accept `fee_record_id`, `amount_paid`, `payment_method`, `transaction_ref`; update `paid` and `balance` on the fee record
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
-  - [ ]* 2.4 Write property test for Finance API
+  - [x]* 2.4 Write property test for Finance API
     - **Property 15: Payment Balance Update** — For any fee record and any payment amount, after the POST `balance` must equal `amount - paid`
     - **Validates: Requirements 8.4**
 
@@ -89,7 +89,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - POST: validate required fields (`name`, `role`, `department`, `hire_date`), insert record, return 201
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-  - [ ]* 2.6 Write property test for Staff API ordering
+  - [x]* 2.6 Write property test for Staff API ordering
     - **Property 16: Staff Ordering** — For any set of staff records, the GET response must be ordered by `hire_date` descending
     - **Validates: Requirements 9.3**
 
@@ -101,7 +101,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Return 400 when any record has a future `date`
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.6_
 
-  - [ ]* 2.8 Write property tests for Attendance API
+  - [x]* 2.8 Write property tests for Attendance API
     - **Property 18: Attendance Query Filtering** — For any combination of `class`, `date`, `term`, only matching records are returned
     - **Property 19: Attendance Batch Upsert** — For any batch of records, the returned count must equal the number of records in the batch
     - **Property 20: Attendance Future Date Validation** — For any record with a future date, the API must return HTTP 400
@@ -114,7 +114,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - POST: validate required fields (`title`, `body`, `audience`, `status`); insert record; return 201
     - _Requirements: 11.1, 11.2, 11.3, 11.4_
 
-  - [ ]* 2.10 Write property tests for Communication API
+  - [x]* 2.10 Write property tests for Communication API
     - **Property 21: Announcement Ordering** — For any set of announcements, the GET response must be ordered by `sent_at` descending
     - **Property 22: Announcement Persistence Round Trip** — For any valid announcement payload, POST returns 201 and subsequent GET returns the same data
     - **Validates: Requirements 11.3, 11.4**
@@ -127,7 +127,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Use `VercelRequest` and `VercelResponse` from `@vercel/node`
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-  - [ ]* 2.12 Write property tests for Promotion Rules API
+  - [x]* 2.12 Write property tests for Promotion Rules API
     - **Property 23: Promotion Rule Retrieval** — For any tenant, GET returns all active and inactive rules for that tenant
     - **Property 24: Promotion Rule Update** — For any rule with a valid id and updated fields, PUT returns the updated record
     - **Validates: Requirements 5.2, 5.3**
@@ -146,7 +146,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Implement `isTokenExpired(token: string): boolean` — checks `expiresAt` timestamp
     - _Requirements: 7.3, 7.4, 7.5, 7.6_
 
-  - [ ]* 3.2 Write unit tests for auth token utilities
+  - [x]* 3.2 Write unit tests for auth token utilities
     - Test `isTokenExpired` returns true for past timestamps and false for future timestamps
     - Test `getAuthFromStorage` returns null when localStorage is empty or contains invalid data
     - Test `clearAuthFromStorage` removes all auth keys
@@ -176,7 +176,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - On click, call `clearAuthFromStorage()` and navigate to `/login`
     - _Requirements: 7.5_
 
-  - [ ]* 3.7 Write unit tests for `ProtectedRoute` component
+  - [x]* 3.7 Write unit tests for `ProtectedRoute` component
     - Test redirect to `/login` when no token is present
     - Test redirect to `/login` when token is expired
     - Test children render when valid token is present
@@ -199,7 +199,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Render enrollment trend as a Recharts `LineChart`, fee collection as a `PieChart`, academic performance as a `BarChart`
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.6_
 
-  - [ ]* 4.2 Write property tests for Dashboard data rendering
+  - [x]* 4.2 Write property tests for Dashboard data rendering
     - **Property 2: Dashboard Section Rendering** — For any valid `DashboardStats` object, all sections render with correct data values
     - **Property 3: Empty State Display** — For any `DashboardStats` with empty/zero section data, a contextual empty-state message is displayed
     - **Validates: Requirements 1.1, 1.4, 1.6**
@@ -213,7 +213,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Display a loading indicator and disable the bulk promotion button while fetching
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-  - [ ]* 4.4 Write property tests for StudentPromotion data derivation
+  - [x]* 4.4 Write property tests for StudentPromotion data derivation
     - **Property 10: StudentPromotion Data Derivation** — For any set of score records, `averageScore` and `attendance` are derived from fetched data, not hardcoded values
     - **Property 11: Promotion Rule Application** — For any student scores and any set of promotion rules, the correct recommended action (promote/repeat/review/hold) is computed
     - **Validates: Requirements 4.2, 4.5**
@@ -227,7 +227,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Remove `localStorage` as the primary data source (may be used only as fallback cache)
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-  - [ ]* 4.6 Write property tests for StudentEnrollment pipeline
+  - [x]* 4.6 Write property tests for StudentEnrollment pipeline
     - **Property 12: Enrollment Pipeline Status Mapping** — For any set of applications, each status maps to the correct pipeline stage
     - **Property 13: Enrollment Pipeline Distribution** — For any set of applications, the count in each column badge equals the number of applications in that stage
     - **Validates: Requirements 6.1, 6.2, 6.4**
@@ -239,7 +239,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Display an error state with a retry option if the Finance API is unavailable
     - _Requirements: 8.5, 8.6, 8.7_
 
-  - [ ]* 4.8 Write property test for Finance total computation
+  - [x]* 4.8 Write property test for Finance total computation
     - **Property 14: Finance Total Computation** — For any set of fee records, `totalExpected = totalCollected + totalOutstanding`
     - **Validates: Requirements 8.6**
 
@@ -249,7 +249,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Compute total staff count, open roles count, and department distribution from the fetched records
     - _Requirements: 9.5, 9.6_
 
-  - [ ]* 4.10 Write property test for StaffHR statistics computation
+  - [x]* 4.10 Write property test for StaffHR statistics computation
     - **Property 17: Staff Statistics Computation** — For any set of staff records, total count, open roles count, and department distribution are computed from the fetched data
     - **Validates: Requirements 9.6**
 
@@ -263,7 +263,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - On new announcement submission, POST to the Communication API and optimistically add the announcement to the list
     - _Requirements: 11.5, 11.6_
 
-  - [ ]* 4.13 Write property test for Dashboard data aggregation
+  - [x]* 4.13 Write property test for Dashboard data aggregation
     - **Property 1: Dashboard Data Aggregation** — For any valid set of upstream API data, the Integrated Dashboard API aggregates them into a single `DashboardStats` object with correct totals
     - **Validates: Requirements 1.5**
 

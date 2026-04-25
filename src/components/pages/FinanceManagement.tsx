@@ -54,7 +54,7 @@ export function FinanceManagement() {
         </TabsContent>
 
         {/* Fee Config Tab with Sub-tabs */}
-        <TabsContent value="fee-config" className="space-y-4">
+        <TabsContent value="fee-config">
           <Tabs value={feeConfigSubTab} onValueChange={setFeeConfigSubTab} className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="structures">Fee Structures</TabsTrigger>
@@ -77,7 +77,7 @@ export function FinanceManagement() {
         </TabsContent>
 
         {/* Payments Tab with Sub-tabs */}
-        <TabsContent value="payments" className="space-y-4">
+        <TabsContent value="payments">
           <Tabs value={paymentsSubTab} onValueChange={setPaymentsSubTab} className="space-y-4">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="single">Record Payment</TabsTrigger>
@@ -95,27 +95,27 @@ export function FinanceManagement() {
         </TabsContent>
 
         {/* Outstanding Fees Tab */}
-        <TabsContent value="outstanding" className="space-y-4">
+        <TabsContent value="outstanding">
           <OutstandingFees />
         </TabsContent>
 
         {/* Invoices Tab */}
-        <TabsContent value="invoices" className="space-y-4">
+        <TabsContent value="invoices">
           <InvoiceManagement />
         </TabsContent>
 
         {/* Reconciliation Tab */}
-        <TabsContent value="reconciliation" className="space-y-4">
+        <TabsContent value="reconciliation">
           <Reconciliation />
         </TabsContent>
 
         {/* Financial Reports Tab */}
-        <TabsContent value="financial-reports" className="space-y-4">
+        <TabsContent value="financial-reports">
           <FinancialReports />
         </TabsContent>
 
         {/* Audit Log Tab */}
-        <TabsContent value="audit" className="space-y-4">
+        <TabsContent value="audit">
           <AuditLog />
         </TabsContent>
       </Tabs>

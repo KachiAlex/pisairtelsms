@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getOpenConflictCount } from './_lib/conflicts'
-import { getClassSchedules } from './_lib/class-schedules'
-import { getExamSchedules } from './_lib/exam-schedules'
+import { getOpenConflictCount } from './_lib/conflicts.js'
+import { getClassSchedules } from './_lib/class-schedules.js'
+import { getExamSchedules } from './_lib/exam-schedules.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

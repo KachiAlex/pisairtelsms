@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getTeacherSchedules, getTeacherScheduleById, updateTeacherSchedule } from './_lib/teacher-schedules'
+import { getTeacherSchedules, getTeacherScheduleById, updateTeacherSchedule } from './_lib/teacher-schedules.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

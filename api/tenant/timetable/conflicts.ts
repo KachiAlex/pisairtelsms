@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getConflicts, resolveConflict } from './_lib/conflicts'
+import { getConflicts, resolveConflict } from './_lib/conflicts.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

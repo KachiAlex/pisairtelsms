@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   getClassSchedules, getClassScheduleById, createClassSchedule,
   addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, isTeacherAvailable,
-} from './_lib/class-schedules'
+} from './_lib/class-schedules.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

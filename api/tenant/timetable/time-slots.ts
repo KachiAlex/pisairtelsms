@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot, timeSlotsOverlap } from './_lib/time-slots'
+import { getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot, timeSlotsOverlap } from './_lib/time-slots.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getChangeRequests, createChangeRequest, updateChangeRequest, type ChangeRequestStatus } from './_lib/change-requests'
+import { getChangeRequests, createChangeRequest, updateChangeRequest, type ChangeRequestStatus } from './_lib/change-requests.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

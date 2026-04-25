@@ -3,7 +3,7 @@ import {
   getTerms, createTerm, updateTerm, deleteTerm, termsOverlap,
   getHolidays, createHoliday, updateHoliday, deleteHoliday,
   getExamPeriods, createExamPeriod, updateExamPeriod, deleteExamPeriod,
-} from './_lib/calendar'
+} from './_lib/calendar.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

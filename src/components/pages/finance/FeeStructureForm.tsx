@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Plus } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { FeeItemsTable } from './FeeItemsTable';
+import { financeApiGet, financeApiPost, financeApiPut } from '../../../lib/financeApi';
 
 interface FeeItem {
   id?: string;
@@ -73,7 +74,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
     if (!structure?.id) return;
 
     try {
-      const response = await fetch(`/api/tenant/finance/fee-structures/${structure.id}`);
+      const response = await financeApiGet(`/api/tenant/finance/fee-structures/${structure.id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch fee structure details');
       }
@@ -193,13 +194,9 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
 
       const method = structure?.id ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = method === 'PUT'
+        ? await financeApiPut(url, payload)
+        : await financeApiPost(url, payload);
 
       if (!response.ok) {
         const errorData = await response.json();

@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../ui/dialog';
 import { FeeStructureForm } from './FeeStructureForm';
 import { FeeStructureHistory } from './FeeStructureHistory';
+import { financeApiGet, financeApiDelete } from '../../../lib/financeApi';
 
 interface FeeStructure {
   id: string;
@@ -48,7 +49,7 @@ export function FeeStructureConfig({ onClose }: FeeStructureConfigProps) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/tenant/finance/fee-structures');
+      const response = await financeApiGet('/api/tenant/finance/fee-structures');
       if (!response.ok) {
         throw new Error('Failed to fetch fee structures');
       }
@@ -68,9 +69,7 @@ export function FeeStructureConfig({ onClose }: FeeStructureConfigProps) {
     }
 
     try {
-      const response = await fetch(`/api/tenant/finance/fee-structures/${id}`, {
-        method: 'DELETE',
-      });
+      const response = await financeApiDelete(`/api/tenant/finance/fee-structures/${id}`);
 
       if (!response.ok) {
         throw new Error('Failed to delete fee structure');

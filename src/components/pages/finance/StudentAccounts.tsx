@@ -17,6 +17,7 @@ import { FeeLedger } from './FeeLedger';
 import { QuickActions } from './QuickActions';
 import { FeeAdjustmentForm } from './FeeAdjustmentForm';
 import { ExemptionManagement } from './ExemptionManagement';
+import { financeApiGet } from '../../../lib/financeApi';
 
 interface Student {
   id: string;
@@ -76,7 +77,7 @@ export function StudentAccounts({
       setStudents(studentsData.data || []);
 
       // Fetch fee assignments for all students
-      const feesResponse = await fetch('/api/tenant/finance/fee-assignments');
+      const feesResponse = await financeApiGet('/api/tenant/finance/fee-assignments');
       if (!feesResponse.ok) {
         throw new Error('Failed to fetch fee assignments');
       }

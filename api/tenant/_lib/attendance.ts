@@ -1,4 +1,5 @@
-import { sql } from '@vercel/postgres'
+// In-memory mock storage for attendance records
+const attendanceStore = new Map<string, AttendanceRecord>()
 
 export interface AttendanceRecord {
   id: string
@@ -20,50 +21,39 @@ export interface AttendancePayload {
   term: string
 }
 
-interface AttendanceRow {
-  id: string
-  student_id: string
-  class: string
-  date: Date
-  status: string
-  academic_session: string
-  term: string
-  created_at: Date
-}
+// Initialize with sample attendance data
+function initializeMockData() {
+  if (attendanceStore.size > 0) return
 
-function rowToAttendance(row: AttendanceRow): AttendanceRecord {
-  return {
-    id: row.id,
-    studentId: row.student_id,
-    class: row.class,
-    date: row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date),
-    status: row.status as AttendanceRecord['status'],
-    academicSession: row.academic_session,
-    term: row.term,
-    createdAt: row.created_at.toISOString(),
-  }
-}
+  const students = ['STU001', 'STU002', 'STU003', 'STU004', 'STU005']
+  const classes = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2']
+  const statuses: Array<'present' | 'absent' | 'late'> = ['present', 'absent', 'late']
+  const today = new Date()
 
-export async function ensureAttendanceTable(): Promise<void> {
-  try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS attendance_records (
-        id TEXT PRIMARY KEY,
-        student_id TEXT NOT NULL,
-        class TEXT NOT NULL,
-        date DATE NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'late')),
-        academic_session TEXT NOT NULL,
-        term TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(student_id, date)
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON attendance_records(student_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_attendance_class_date ON attendance_records(class, date)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_attendance_session_term ON attendance_records(academic_session, term)`
-  } catch (error) {
-    console.error('Error ensuring attendance_records table:', error)
+  let id = 1
+  for (let i = 0; i < 30; i++) {
+    const date = new Date(today)
+    date.setDate(date.getDate() - i)
+    const dateStr = date.toISOString().split('T')[0]
+
+    for (const studentId of students) {
+      const classIdx = Math.floor(Math.random() * classes.length)
+      const status = statuses[Math.floor(Math.random() * statuses.length)]
+
+      const record: AttendanceRecord = {
+        id: `att_${id}`,
+        studentId,
+        class: classes[classIdx],
+        date: dateStr,
+        status,
+        academicSession: '2024/2025',
+        term: '1',
+        createdAt: new Date().toISOString(),
+      }
+
+      attendanceStore.set(`${studentId}_${dateStr}`, record)
+      id++
+    }
   }
 }
 
@@ -74,52 +64,44 @@ export async function fetchAttendance(
   startDate?: string,
   endDate?: string
 ): Promise<AttendanceRecord[]> {
-  await ensureAttendanceTable()
-  try {
-    if (className && date) {
-      const result = await sql<AttendanceRow>`
-        SELECT * FROM attendance_records WHERE class = ${className} AND date = ${date} ORDER BY created_at DESC
-      `
-      return result.rows.map(rowToAttendance)
-    } else if (className && startDate && endDate) {
-      const result = await sql<AttendanceRow>`
-        SELECT * FROM attendance_records
-        WHERE class = ${className} AND date >= ${startDate} AND date <= ${endDate}
-        ORDER BY date DESC
-      `
-      return result.rows.map(rowToAttendance)
-    } else if (className && term) {
-      const result = await sql<AttendanceRow>`
-        SELECT * FROM attendance_records WHERE class = ${className} AND term = ${term} ORDER BY date DESC
-      `
-      return result.rows.map(rowToAttendance)
-    } else if (className) {
-      const result = await sql<AttendanceRow>`
-        SELECT * FROM attendance_records WHERE class = ${className} ORDER BY date DESC
-      `
-      return result.rows.map(rowToAttendance)
-    } else {
-      const result = await sql<AttendanceRow>`SELECT * FROM attendance_records ORDER BY date DESC`
-      return result.rows.map(rowToAttendance)
-    }
-  } catch (error) {
-    console.error('Error fetching attendance:', error)
-    return []
+  initializeMockData()
+
+  let records = Array.from(attendanceStore.values())
+
+  if (className) {
+    records = records.filter(r => r.class === className)
   }
+
+  if (date) {
+    records = records.filter(r => r.date === date)
+  }
+
+  if (term) {
+    records = records.filter(r => r.term === term)
+  }
+
+  if (startDate && endDate) {
+    records = records.filter(r => r.date >= startDate && r.date <= endDate)
+  }
+
+  return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 }
 
 export async function upsertAttendanceBatch(records: AttendancePayload[]): Promise<number> {
-  await ensureAttendanceTable()
+  initializeMockData()
+
   let count = 0
   for (const record of records) {
-    const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    await sql`
-      INSERT INTO attendance_records (id, student_id, class, date, status, academic_session, term)
-      VALUES (${id}, ${record.studentId}, ${record.class}, ${record.date}, ${record.status}, ${record.academicSession}, ${record.term})
-      ON CONFLICT (student_id, date)
-      DO UPDATE SET status = EXCLUDED.status, class = EXCLUDED.class, academic_session = EXCLUDED.academic_session, term = EXCLUDED.term
-    `
+    const key = `${record.studentId}_${record.date}`
+    const id = attendanceStore.has(key) ? attendanceStore.get(key)!.id : `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    attendanceStore.set(key, {
+      id,
+      ...record,
+      createdAt: new Date().toISOString(),
+    })
     count++
   }
+
   return count
 }

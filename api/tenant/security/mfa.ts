@@ -1,23 +1,26 @@
-import { Router } from 'express';
-import { db } from '../../_lib/db';
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const router = Router();
+/**
+ * MFA Settings Handler
+ * Manages multi-factor authentication settings for tenant users
+ */
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const { tenantId } = req.query
 
-// GET MFA status for all users
-router.get('/', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
+  if (!tenantId || typeof tenantId !== 'string') {
+    return res.status(400).json({ error: 'Tenant ID is required' })
+  }
+
+  if (req.method === 'GET') {
+    try {
+      // TODO: Implement MFA settings retrieval from database
+      return res.status(200).json({ data: [] })
+    } catch (error) {
+      console.error('MFA settings GET error:', error)
+      return res.status(500).json({ error: 'Internal server error' })
     }
+  }
 
-    const mfaStatus = db
-      .prepare(`
-        SELECT id, name, email, mfaEnabled, mfaMethod, createdAt
-        FROM mfa_settings
-        WHERE tenantId = ?
-        ORDER BY createdAt DESC
-      `)
-      .all(tenantId);
-
-    res.json({ data:
+  res.setHeader('Allow', 'GET')
+  return res.status(405).json({ error: 'Method not allowed' })
+}

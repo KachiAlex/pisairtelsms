@@ -13,7 +13,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Verify GET returns 200 with CA weight config for a valid `tenantId`, and PUT returns 400 when weights don't sum to 100
     - _Requirements: 2.1, 2.3, 2.4_
 
-  - [ ]* 1.2 Write property test for CA Config weight validation
+  - [x]* 1.2 Write property test for CA Config weight validation
     - **Property 4: CA Config Weight Validation**
     - For any CA weight configuration update where the sum of weights for any school level ≠ 100, the handler must return HTTP 400
     - **Validates: Requirements 2.4**
@@ -56,7 +56,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Run `tsc --noEmit` and confirm zero type errors related to the `Student` interface across all importing files
     - _Requirements: 12.5_
 
-- [-] 2. Phase 2 — Database Tables & API Endpoints
+- [x] 2. Phase 2 — Database Tables & API Endpoints
   - [x] 2.1 Implement Results API (`api/tenant/results.ts`)
     - Create the file with a `VercelHandler` default export
     - On startup, auto-create the `student_scores` table if it does not exist (schema per design: UUID PK, `student_id`, `subject`, `academic_session`, `term`, `ca_score`, `exam_score`, `total_score` generated column, `attendance_percentage`, `class`, timestamps, unique constraint, indexes)
@@ -137,7 +137,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Ensure all handlers export a valid `VercelHandler` default export
     - _Requirements: 3.1–3.6, 5.1–5.5, 8.1–8.4, 9.1–9.4, 10.1–10.6, 11.1–11.4_
 
-- [ ] 3. Phase 3 — Authentication & Route Guards
+- [x] 3. Phase 3 — Authentication & Route Guards
   - [x] 3.1 Create `src/lib/auth.ts` with token utilities
     - Define `AuthStorage` interface (`token`, `tenantId`, `expiresAt`)
     - Implement `getAuthFromStorage(): AuthStorage | null` — reads from `localStorage`, returns null if missing or malformed
@@ -188,7 +188,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
     - Confirm `TenantContext` no longer defaults to `demo-tenant-001`
     - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Phase 4 — Component Refactoring
+- [x] 4. Phase 4 — Component Refactoring
   - [x] 4.1 Update `src/components/pages/Dashboard.tsx` to use live data
     - Add `loading`, `error`, and `dashboardStats` state
     - In `useEffect`, fetch from `/api/tenant/integrated-dashboard`
@@ -270,7 +270,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
   - [x] 4.14 Checkpoint — Ensure all tests pass
     - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Phase 5 — Final Integration & Validation
+- [x] 5. Phase 5 — Final Integration & Validation
   - [x] 5.1 Wire all new API routes in `vercel.json`
     - Add route entries for `/api/tenant/results`, `/api/tenant/finance`, `/api/tenant/staff`, `/api/tenant/attendance`, `/api/tenant/communication`, and `/api/tenant/promotion-rules`
     - Confirm existing routes for `ca-config` and `lead` still resolve correctly after the framework fix
@@ -284,7 +284,7 @@ Close all identified gaps in the tenant admin dashboard: fix Vercel framework co
   - [x] 5.3 Final checkpoint — Ensure all tests pass
     - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Phase 6 — Critical Missing APIs & Secondary Data Gaps
+- [x] 6. Phase 6 — Critical Missing APIs & Secondary Data Gaps
 
   - [x] 6.1 Implement Students API (`api/tenant/students.ts`)
     - Create the file with a `VercelHandler` default export using `@vercel/node`

@@ -6,7 +6,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
 
 ## Tasks
 
-- [ ] 1. Phase 1 — Database Tables & API Foundation
+- [x] 1. Phase 1 — Database Tables & API Foundation
 
   - [x] 1.1 Implement Calendar API (`api/tenant/timetable/calendar.ts`)
     - Auto-create `school_terms`, `holidays`, and `exam_periods` tables on startup
@@ -89,7 +89,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Run `tsc --noEmit` and confirm zero errors across all new API files
     - _Requirements: 10.8_
 
-- [ ] 2. Phase 2 — Sidebar Navigation Consolidation
+- [x] 2. Phase 2 — Sidebar Navigation Consolidation
 
   - [x] 2.1 Update `src/components/Sidebar.tsx` to consolidate timetable navigation
     - Replace the 3 separate timetable menu items (`class-timetable`, `teacher-timetable`, `exam-timetable`) with a single `timetable` parent item
@@ -105,7 +105,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Remove old `class-timetable`, `teacher-timetable`, `exam-timetable` case entries
     - _Requirements: 9.3–9.6_
 
-- [ ] 3. Phase 3 — Configure Tab (Calendar & Time Slots)
+- [x] 3. Phase 3 — Configure Tab (Calendar & Time Slots)
 
   - [x] 3.1 Create `src/components/pages/timetable/ConfigureTab.tsx`
     - Two-section layout: "School Calendar" and "Time Slots & Breaks"
@@ -142,7 +142,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Color-code break slots differently from teaching slots
     - _Requirements: 2.1–2.7_
 
-- [ ] 4. Phase 4 — Class Timetable Builder
+- [x] 4. Phase 4 — Class Timetable Builder
 
   - [x] 4.1 Refactor `src/components/pages/TimetableScheduling.tsx` into `TimetableHub`
     - Extend `TimetableView` type to include `'configure'`
@@ -171,7 +171,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Pass selected term and class as props
     - _Requirements: 9.4_
 
-- [ ] 5. Phase 5 — Teacher Timetable View
+- [x] 5. Phase 5 — Teacher Timetable View
 
   - [x] 5.1 Create `src/components/pages/timetable/TeacherTimetableTab.tsx`
     - Replace hardcoded `schedules.teacher` data with API fetch from `/api/tenant/timetable/teacher-schedules`
@@ -185,7 +185,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Render `<TeacherTimetableTab />` when `activeView === 'teacher'`
     - _Requirements: 9.5_
 
-- [ ] 6. Phase 6 — Exam Schedule Builder
+- [x] 6. Phase 6 — Exam Schedule Builder
 
   - [x] 6.1 Create `src/components/pages/timetable/ExamScheduleTab.tsx`
     - Replace hardcoded `schedules.exam` data with API fetch from `/api/tenant/timetable/exam-schedules`
@@ -219,7 +219,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Render `<ExamScheduleTab />` when `activeView === 'exam'`
     - _Requirements: 9.6_
 
-- [ ] 7. Phase 7 — Live Conflict Detection & Change Requests
+- [x] 7. Phase 7 — Live Conflict Detection & Change Requests
 
   - [x] 7.1 Replace hardcoded `conflictsByView` with live API data
     - Fetch conflicts from `/api/tenant/timetable/conflicts` on mount and on schedule changes
@@ -235,7 +235,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Show empty state when queue is empty
     - _Requirements: 7.1–7.9_
 
-- [ ] 8. Phase 8 — Publishing Workflow
+- [x] 8. Phase 8 — Publishing Workflow
 
   - [x] 8.1 Replace hardcoded `publishingMilestones` with live publishing status
     - Fetch publishing status from `/api/tenant/timetable/publish/status` on mount
@@ -245,7 +245,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - Show success toast on successful publish
     - _Requirements: 8.1–8.6_
 
-- [ ] 9. Phase 9 — Final Integration & Validation
+- [x] 9. Phase 9 — Final Integration & Validation
 
   - [x] 9.1 Checkpoint — Verify zero TypeScript errors
     - Run `tsc --noEmit` and confirm zero errors across all new and modified files

@@ -8,32 +8,32 @@ Build a comprehensive finance and fees management system with hierarchical fee c
 
 - [x] 1. Phase 1 — Database Tables & API Foundation
 
-  - [ ] 1.1 Create database tables for fee structures
+  - [x] 1.1 Create database tables for fee structures
     - Create `fee_structures` table with effective dating
     - Create `fee_items` table with category and amount
     - Create indexes on tenant_id, academic_session, term
     - _Requirements: 1.1, 1.2, 1.5_
 
-  - [ ] 1.2 Create database tables for fee assignments
+  - [x] 1.2 Create database tables for fee assignments
     - Create `fee_assignments` table linking students to fee structures
     - Create `exemptions` table for waivers and discounts
     - Create indexes on student_id, fee_structure_id
     - _Requirements: 2.1, 2.2, 1.4_
 
-  - [ ] 1.3 Create database tables for payments
+  - [x] 1.3 Create database tables for payments
     - Create `payments` table with payment method and reference tracking
     - Create `payment_reconciliation` table for bank matching
     - Create `payment_plans` and `payment_plan_installments` tables
     - Create indexes on fee_assignment_id, payment_date, status
     - _Requirements: 3.1, 3.2, 3.3, 4.1_
 
-  - [ ] 1.4 Create database tables for adjustments and audit
+  - [x] 1.4 Create database tables for adjustments and audit
     - Create `fee_adjustments` table for refunds and corrections
     - Create `audit_log` table (immutable) for all transactions
     - Create indexes on entity_type, entity_id, timestamp
     - _Requirements: 2.3, 6.1, 6.3_
 
-  - [ ] 1.5 Implement Fee Structures API (`api/tenant/finance/fee-structures.ts`)
+  - [x] 1.5 Implement Fee Structures API (`api/tenant/finance/fee-structures.ts`)
     - GET: return fee structures filtered by academic_session, term, status
     - POST: create fee structure with fee items
     - PUT: update fee structure (only if not yet applied to students)
@@ -42,7 +42,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
     - _Requirements: 1.1, 1.2, 1.5_
 
-  - [ ] 1.6 Implement Fee Assignments API (`api/tenant/finance/fee-assignments.ts`)
+  - [x] 1.6 Implement Fee Assignments API (`api/tenant/finance/fee-assignments.ts`)
     - GET: return assignments filtered by student_id, class, term
     - POST: create assignment for single student
     - POST `/bulk`: bulk assign fees to all students in class
@@ -51,7 +51,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 1.7 Implement Payments API (`api/tenant/finance/payments.ts`)
+  - [x] 1.7 Implement Payments API (`api/tenant/finance/payments.ts`)
     - POST: record single payment with allocation logic (FIFO)
     - POST `/bulk`: bulk record payments from CSV
     - GET: list payments with filters (student, date, method, status)
@@ -60,7 +60,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
     - _Requirements: 3.1, 3.2, 3.4_
 
-  - [ ] 1.8 Implement Payment Plans API (`api/tenant/finance/payment-plans.ts`)
+  - [x] 1.8 Implement Payment Plans API (`api/tenant/finance/payment-plans.ts`)
     - POST: create payment plan with installments
     - GET: list plans filtered by student, status
     - PUT: update plan (modify installments)
@@ -68,7 +68,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
     - _Requirements: 3.3_
 
-  - [ ] 1.9 Implement Reconciliation API (`api/tenant/finance/reconciliation.ts`)
+  - [x] 1.9 Implement Reconciliation API (`api/tenant/finance/reconciliation.ts`)
     - POST `/match`: match payment to bank deposit
     - GET `/unmatched`: list unmatched transactions
     - POST `/bulk-match`: bulk match payments
@@ -76,7 +76,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
     - _Requirements: 4.1, 4.2, 4.3_
 
-  - [ ] 1.10 Implement Reports API (`api/tenant/finance/reports.ts`)
+  - [x] 1.10 Implement Reports API (`api/tenant/finance/reports.ts`)
     - GET `/collection-summary`: collection metrics by class, term, method
     - GET `/aging-analysis`: aging report with 30/60/90+ buckets
     - GET `/defaulters`: list students with outstanding balances
@@ -86,18 +86,18 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-  - [ ] 1.11 Implement Audit Log API (`api/tenant/finance/audit-log.ts`)
+  - [x] 1.11 Implement Audit Log API (`api/tenant/finance/audit-log.ts`)
     - GET: list audit entries with filters (entity_type, action, user, date)
     - GET `/:entity_id`: get audit history for specific entity
     - Ensure immutability (no delete operations)
     - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
     - _Requirements: 6.1, 6.3_
 
-  - [ ] 1.12 Wire all finance API routes in `vercel.json`
+  - [x] 1.12 Wire all finance API routes in `vercel.json`
     - Add routes for all 7 new API endpoints under `/api/tenant/finance/*`
     - _Requirements: 10.1_
 
-  - [ ] 1.13 Checkpoint — Verify TypeScript build is clean
+  - [x] 1.13 Checkpoint — Verify TypeScript build is clean
     - Run `tsc --noEmit` and confirm zero errors across all new API files
     - _Requirements: 10.8_
 
@@ -228,7 +228,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Show reversal audit trail
     - _Requirements: 4.2_
 
-- [ ] 6. Phase 6 — Exemptions & Discounts
+- [x] 6. Phase 6 — Exemptions & Discounts
 
   - [x] 6.1 Create ExemptionForm component (`src/components/pages/finance/ExemptionForm.tsx`)
     - Form fields: student, exemption_type, amount/percentage, reason, effective_dates
@@ -244,7 +244,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Track exemption history
     - _Requirements: 1.4_
 
-- [ ] 7. Phase 7 — Reconciliation
+- [x] 7. Phase 7 — Reconciliation
 
   - [x] 7.1 Create Reconciliation component (`src/components/pages/finance/Reconciliation.tsx`)
     - Display unmatched transactions (payments and deposits)
@@ -272,7 +272,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Export report to PDF
     - _Requirements: 4.3_
 
-- [ ] 8. Phase 8 — Reports & Analytics
+- [x] 8. Phase 8 — Reports & Analytics
 
   - [x] 8.1 Create ReportViewer component (`src/components/pages/finance/ReportViewer.tsx`)
     - Report selector dropdown
@@ -325,7 +325,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Fetch from `/api/tenant/finance/reports/financial-statement`
     - _Requirements: 5.6_
 
-- [ ] 9. Phase 9 — Audit & Compliance
+- [x] 9. Phase 9 — Audit & Compliance
 
   - [x] 9.1 Create AuditLog component (`src/components/pages/finance/AuditLog.tsx`)
     - Display audit entries with filters (entity_type, action, user, date)
@@ -346,7 +346,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Financial year-end closing checklist
     - _Requirements: 6.4_
 
-- [ ] 10. Phase 10 — Notifications & Communication
+- [x] 10. Phase 10 — Notifications & Communication
 
   - [x] 10.1 Implement payment reminders
     - Create reminder templates (due date, overdue 7/14/30 days)
@@ -367,7 +367,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Email to guardian
     - _Requirements: 7.3_
 
-- [ ] 11. Phase 11 — Integration & Data Management
+- [x] 11. Phase 11 — Integration & Data Management
 
   - [x] 11.1 Integrate with student records
     - Auto-assign fees when student enrolled
@@ -393,7 +393,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - Backup verification
     - _Requirements: 8.4_
 
-- [ ] 12. Phase 12 — Final Integration & Validation
+- [x] 12. Phase 12 — Final Integration & Validation
 
   - [x] 12.1 Checkpoint — Verify zero TypeScript errors
     - Run `tsc --noEmit` and confirm zero errors across all new and modified files

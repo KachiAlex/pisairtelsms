@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchStudents, createStudent, updateStudent, deleteStudent, type StudentPayload } from './_lib/students'
+import { fetchStudents, createStudent, updateStudent, deleteStudent, type StudentPayload } from './_lib/students.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')

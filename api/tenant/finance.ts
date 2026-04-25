@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchFeeRecords, createFeeRecord, recordPayment, type FeeRecordPayload, type PaymentPayload } from './_lib/finance'
+import { fetchFeeRecords, createFeeRecord, recordPayment, type FeeRecordPayload, type PaymentPayload } from './_lib/finance.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchAttendance, upsertAttendanceBatch, type AttendancePayload } from './_lib/attendance'
+import { fetchAttendance, upsertAttendanceBatch, type AttendancePayload } from './_lib/attendance.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')

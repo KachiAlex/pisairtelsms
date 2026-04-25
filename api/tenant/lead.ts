@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createLead, fetchLeads } from './_lib/lead'
+import { createLead, fetchLeads } from './_lib/lead.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')

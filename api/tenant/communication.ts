@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchAnnouncements, createAnnouncement, type AnnouncementPayload } from './_lib/communication'
+import { fetchAnnouncements, createAnnouncement, type AnnouncementPayload } from './_lib/communication.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')

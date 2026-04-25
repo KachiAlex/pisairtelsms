@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getTenantCAConfig, updateTenantCAConfig } from './_lib/ca-config'
+import { getTenantCAConfig, updateTenantCAConfig } from './_lib/ca-config.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,PUT')

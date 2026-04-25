@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchScores, createScore, type ScorePayload } from './_lib/results'
+import { fetchScores, createScore, type ScorePayload } from './_lib/results.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')

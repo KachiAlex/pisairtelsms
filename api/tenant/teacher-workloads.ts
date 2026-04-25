@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchStudents } from './_lib/students'
+import { fetchStudents } from './_lib/students.js'
 
 // Mock teacher data - in real app this would come from teacher API
 interface Teacher {

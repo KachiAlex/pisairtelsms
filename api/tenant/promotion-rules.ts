@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getPromotionRules, updatePromotionRule } from './_lib/promotion-rules'
+import { getPromotionRules, updatePromotionRule } from './_lib/promotion-rules.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,PUT')

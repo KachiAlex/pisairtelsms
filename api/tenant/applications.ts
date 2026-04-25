@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchApplications, createApplication, updateApplicationStatus, type ApplicationPayload } from './_lib/applications'
+import { fetchApplications, createApplication, updateApplicationStatus, type ApplicationPayload } from './_lib/applications.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT')

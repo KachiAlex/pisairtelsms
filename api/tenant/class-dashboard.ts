@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchStudents } from './_lib/students'
-import { fetchApplications } from './_lib/applications'
+import { fetchStudents } from './_lib/students.js'
+import { fetchApplications } from './_lib/applications.js'
 
 // Mock exam data - in real app this would come from exam API
 interface Exam {

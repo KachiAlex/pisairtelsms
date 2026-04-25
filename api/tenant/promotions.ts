@@ -9,7 +9,7 @@ import {
   type PromotionRecord,
   type PromotionPayload,
   type PromotionRule
-} from './_lib/promotions'
+} from './_lib/promotions.js'
 
 interface ApiResponse<T> {
   data?: T

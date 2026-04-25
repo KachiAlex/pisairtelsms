@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchStaff, createStaffMember, type StaffPayload } from './_lib/staff'
+import { fetchStaff, createStaffMember, type StaffPayload } from './_lib/staff.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')

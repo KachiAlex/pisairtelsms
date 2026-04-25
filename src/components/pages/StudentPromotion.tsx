@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useContext } from 'react'
 import {
   Users,
   GraduationCap,
@@ -30,6 +30,7 @@ import {
   Calendar,
   BookOpen,
 } from 'lucide-react'
+import { TenantContext } from '../../contexts/TenantContext'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -88,6 +89,8 @@ interface StudentWithPerformance extends StudentType {
 }
 
 export function StudentPromotion() {
+  const { tenantId } = useContext(TenantContext) || { tenantId: '' }
+  
   // Filter states
   const [academicSession, setAcademicSession] = useState('2024/2025')
   const [term, setTerm] = useState('Third Term')
@@ -173,7 +176,7 @@ export function StudentPromotion() {
         setPromotionRecords(records)
 
         // Load promotion rules
-        const rules = await fetchPromotionRules()
+        const rules = await fetchPromotionRules(tenantId)
         setPromotionRules(rules)
 
       } catch (err) {

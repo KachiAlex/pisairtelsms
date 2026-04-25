@@ -111,8 +111,9 @@ export async function updatePromotionRecord(id: string, updates: Partial<Promoti
   return result.data
 }
 
-export async function fetchPromotionRules(): Promise<PromotionRule[]> {
-  const response = await fetch('/api/tenant/promotion-rules')
+export async function fetchPromotionRules(tenantId: string): Promise<PromotionRule[]> {
+  const params = new URLSearchParams({ tenantId })
+  const response = await fetch(`/api/tenant/promotion-rules?${params.toString()}`)
   const result = await parseResponse<PromotionRule[]>(response)
   return result.data ?? []
 }

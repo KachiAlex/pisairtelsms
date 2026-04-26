@@ -157,7 +157,7 @@ Build a read-only student portal where students can view their academic progress
   - [x] 10.4 Create change password form
   - [x] 10.5 Create login history section
 
-- [ ] 11. Phase 11 — Final Integration & Validation
+- [-] 11. Phase 11 — Final Integration & Validation
 
   - [ ] 11.1 Checkpoint — Verify zero TypeScript errors
     - Run `tsc --noEmit` and confirm zero errors across all new and modified files

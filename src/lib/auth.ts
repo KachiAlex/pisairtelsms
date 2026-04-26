@@ -10,6 +10,8 @@ export interface AuthStorage {
   token: string
   tenantId: string
   expiresAt: number
+  role?: 'super_admin' | 'tenant_admin' | 'student' | 'staff' | 'parent'
+  userId?: string
 }
 
 const AUTH_STORAGE_KEY = 'auth'

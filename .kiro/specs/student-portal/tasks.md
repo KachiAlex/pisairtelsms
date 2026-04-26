@@ -106,249 +106,56 @@ Build a read-only student portal where students can view their academic progress
     - Run `tsc --noEmit` and confirm zero errors across all new API files
     - _Requirements: 2.1_
 
-- [ ] 3. Phase 3 — Dashboard Component
+- [x] 3. Phase 3 — Dashboard Component
 
-  - [ ] 3.1 Create `StudentDashboard` component (`src/components/pages/student/StudentDashboard.tsx`)
-    - Fetch data from `/api/student/dashboard` on mount
-    - Display student name, admission number, class, arm
-    - Show 4 metric cards: GPA, Attendance %, Next Exam, Fee Balance
-    - Show 5 recent announcements
-    - Show 5 recent messages
-    - Loading skeletons while fetching
-    - Error states with retry buttons
-    - _Requirements: 2.1, 2.2_
+  - [x] 3.1 Create `StudentDashboard` component (`src/components/pages/student/StudentDashboard.tsx`)
+  - [x] 3.2 Create metric card component
+  - [x] 3.3 Create announcements section
+  - [x] 3.4 Create messages section
 
-  - [ ] 3.2 Create metric card component
-    - Display metric name, value, icon, trend (if applicable)
-    - Color-code based on status (green for good, amber for warning, red for critical)
-    - _Requirements: 2.1_
+- [x] 4. Phase 4 — Results Component
 
-  - [ ] 3.3 Create announcements section
-    - Display title, date, preview text
-    - Click to expand full announcement
-    - Show "View All" link to announcements page
-    - _Requirements: 2.2_
+  - [x] 4.1 Create `MyResults` component (`src/components/pages/student/MyResults.tsx`)
+  - [x] 4.2 Create results table component
+  - [x] 4.3 Create result slip PDF generator
 
-  - [ ] 3.4 Create messages section
-    - Display sender, subject, date, read status
-    - Show unread count badge
-    - Click to expand message
-    - Show "View All" link to messages page
-    - _Requirements: 2.2_
+- [x] 5. Phase 5 — Attendance Component
 
-- [ ] 4. Phase 4 — Results Component
+  - [x] 5.1 Create `MyAttendance` component (`src/components/pages/student/MyAttendance.tsx`)
+  - [x] 5.2 Create attendance statistics component
 
-  - [ ] 4.1 Create `MyResults` component (`src/components/pages/student/MyResults.tsx`)
-    - Fetch data from `/api/student/results` on mount
-    - Filter by academic session and term (dropdowns)
-    - Display results table: Subject, CA Score, Exam Score, Total Score, Attendance %
-    - Show average score and class average
-    - Download result slip button
-    - Empty state if no results
-    - _Requirements: 3.1, 3.2_
+- [x] 6. Phase 6 — Timetable Component
 
-  - [ ] 4.2 Create results table component
-    - Sortable columns
-    - Highlight top and bottom performers
-    - Show comparison to class average
-    - _Requirements: 3.1_
+  - [x] 6.1 Create `MyTimetable` component (`src/components/pages/student/MyTimetable.tsx`)
+  - [x] 6.2 Create timetable grid component
+  - [x] 6.3 Create exam schedule section
 
-  - [ ] 4.3 Create result slip PDF generator
-    - Include school letterhead, student info, all scores
-    - Show average score and class average
-    - Include school stamp/signature area
-    - Download as PDF
-    - _Requirements: 3.2_
+- [x] 7. Phase 7 — Fees Component
 
-- [ ] 5. Phase 5 — Attendance Component
+  - [x] 7.1 Create `MyFees` component (`src/components/pages/student/MyFees.tsx`)
+  - [x] 7.2 Create fee summary card
+  - [x] 7.3 Create payment history table
 
-  - [ ] 5.1 Create `MyAttendance` component (`src/components/pages/student/MyAttendance.tsx`)
-    - Fetch data from `/api/student/attendance` on mount
-    - Filter by date range (date picker)
-    - Display attendance records: Date, Subject, Status, Reason
-    - Show attendance percentage and statistics
-    - Highlight absences and late arrivals
-    - Empty state if no records
-    - _Requirements: 4.1, 4.2_
+- [x] 8. Phase 8 — Communications Component
 
-  - [ ] 5.2 Create attendance statistics component
-    - Show total present, absent, late, excused
-    - Show attendance percentage
-    - Show trend (improving/declining)
-    - _Requirements: 4.1_
+  - [x] 8.1 Create `Communications` component (`src/components/pages/student/Communications.tsx`)
+  - [x] 8.2 Create announcements list component
+  - [x] 8.3 Create announcement detail view
 
-  - [ ] 5.3 Create attendance calendar view (optional)
-    - Show month calendar with attendance status per day
-    - Color-code: green (present), red (absent), yellow (late), gray (no class)
-    - Click day to see details
-    - _Requirements: 4.2*_
+- [x] 9. Phase 9 — Messages Component
 
-- [ ] 6. Phase 6 — Timetable Component
+  - [x] 9.1 Create `Messages` component (`src/components/pages/student/Messages.tsx`)
+  - [x] 9.2 Create messages list component
+  - [x] 9.3 Create message detail view
+  - [x] 9.4 Create reply form
 
-  - [ ] 6.1 Create `MyTimetable` component (`src/components/pages/student/MyTimetable.tsx`)
-    - Fetch data from `/api/student/timetable` on mount
-    - Display weekly grid: Mon-Fri columns, time slots rows
-    - Show subject, teacher, room per cell
-    - Highlight current day
-    - Show exam schedule separately
-    - Download timetable button
-    - _Requirements: 5.1, 5.2_
+- [x] 10. Phase 10 — Profile Component
 
-  - [ ] 6.2 Create timetable grid component
-    - Responsive grid layout
-    - Color-code subjects
-    - Show teacher name and room
-    - Highlight current time slot
-    - _Requirements: 5.1_
-
-  - [ ] 6.3 Create exam schedule section
-    - Display exam list: Subject, Date, Time, Room, Duration
-    - Sort by date
-    - Show countdown to next exam
-    - _Requirements: 5.2_
-
-  - [ ] 6.4 Create timetable PDF generator
-    - Include school letterhead, student info, timetable grid
-    - Include exam schedule
-    - Include holidays and term dates
-    - Download as PDF
-    - _Requirements: 5.2_
-
-- [ ] 7. Phase 7 — Fees Component
-
-  - [ ] 7.1 Create `MyFees` component (`src/components/pages/student/MyFees.tsx`)
-    - Fetch data from `/api/student/fees` on mount
-    - Display fee summary: Total Fees, Paid Amount, Balance, Status
-    - Show payment history table: Date, Amount, Method, Reference, Receipt
-    - Show payment plan if applicable
-    - Highlight overdue amounts
-    - Download receipt button per payment
-    - _Requirements: 6.1, 6.2_
-
-  - [ ] 7.2 Create fee summary card
-    - Show total fees, paid, balance
-    - Color-code status (green for paid, amber for partial, red for unpaid)
-    - Show payment due date
-    - _Requirements: 6.1_
-
-  - [ ] 7.3 Create payment history table
-    - Columns: Date, Amount, Method, Reference, Receipt
-    - Download receipt button per row
-    - Show payment plan details if applicable
-    - _Requirements: 6.2_
-
-  - [ ] 7.4 Create receipt PDF generator
-    - Include school letterhead, student info, payment details
-    - Include receipt number, date, amount, method
-    - Include school stamp/signature area
-    - Download as PDF
-    - _Requirements: 6.2_
-
-  - [ ] 7.5 Create online payment button (optional)
-    - Link to payment gateway (if enabled)
-    - Show payment methods available
-    - _Requirements: 6.3*_
-
-- [ ] 8. Phase 8 — Communications Component
-
-  - [ ] 8.1 Create `Communications` component (`src/components/pages/student/Communications.tsx`)
-    - Fetch announcements from `/api/student/announcements` on mount
-    - Display announcements list: Title, Date, Preview
-    - Click to expand full announcement
-    - Search and filter options
-    - Pagination (10 per page)
-    - Empty state if no announcements
-    - _Requirements: 7.1_
-
-  - [ ] 8.2 Create announcements list component
-    - Display title, date, sender, preview text
-    - Click to expand full announcement
-    - Show "View All" link
-    - _Requirements: 7.1_
-
-  - [ ] 8.3 Create announcement detail view
-    - Display full announcement with formatting
-    - Show date, sender, audience
-    - Back button to list
-    - _Requirements: 7.1_
-
-- [ ] 9. Phase 9 — Messages Component
-
-  - [ ] 9.1 Create `Messages` component (`src/components/pages/student/Messages.tsx`)
-    - Fetch messages from `/api/student/messages` on mount
-    - Display messages list: Sender, Subject, Date, Read Status
-    - Click to expand message
-    - Mark as read/unread toggle
-    - Reply button opens reply form
-    - Search and filter options
-    - Pagination (20 per page)
-    - Empty state if no messages
-    - _Requirements: 7.2_
-
-  - [ ] 9.2 Create messages list component
-    - Display sender, subject, date, read status
-    - Highlight unread messages
-    - Show unread count badge
-    - Click to expand message
-    - _Requirements: 7.2_
-
-  - [ ] 9.3 Create message detail view
-    - Display full message with formatting
-    - Show sender, subject, date, body
-    - Show replies if any
-    - Reply button opens reply form
-    - Mark as read/unread toggle
-    - Back button to list
-    - _Requirements: 7.2_
-
-  - [ ] 9.4 Create reply form
-    - Text area for reply
-    - Submit button
-    - POST to `/api/student/messages/:id/reply`
-    - Show success message
-    - Refresh message detail
-    - _Requirements: 7.2_
-
-- [ ] 10. Phase 10 — Profile Component
-
-  - [ ] 10.1 Create `Profile` component (`src/components/pages/student/Profile.tsx`)
-    - Fetch profile from `/api/student/profile` on mount
-    - Display personal information: Name, Admission Number, Class, Arm, Gender
-    - Display contact information: Email, Phone
-    - Display guardian information: Name, Phone
-    - Edit button for email and phone
-    - Change password form
-    - Show login history (last 5 logins)
-    - Logout all sessions button
-    - _Requirements: 8.1_
-
-  - [ ] 10.2 Create profile information section
-    - Display read-only fields
-    - Edit button opens edit form
-    - _Requirements: 8.1_
-
-  - [ ] 10.3 Create edit profile form
-    - Form fields: Email, Phone
-    - Validation: valid email, valid phone format
-    - Submit button
-    - PUT to `/api/student/profile`
-    - Show success message
-    - Refresh profile
-    - _Requirements: 8.1_
-
-  - [ ] 10.4 Create change password form
-    - Form fields: Current Password, New Password, Confirm Password
-    - Validation: password strength, passwords match
-    - Submit button
-    - POST to `/api/student/profile/change-password`
-    - Show success message
-    - Clear form
-    - _Requirements: 8.1_
-
-  - [ ] 10.5 Create login history section
-    - Display last 5 logins: Date, Time, Device, IP Address
-    - Logout all sessions button
-    - _Requirements: 8.1*_
+  - [x] 10.1 Create `Profile` component (`src/components/pages/student/Profile.tsx`)
+  - [x] 10.2 Create profile information section
+  - [x] 10.3 Create edit profile form
+  - [x] 10.4 Create change password form
+  - [x] 10.5 Create login history section
 
 - [ ] 11. Phase 11 — Final Integration & Validation
 

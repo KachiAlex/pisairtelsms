@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, Suspense, lazy } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   BookOpen,
@@ -17,10 +17,17 @@ import {
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
 
+const StudentDashboard = lazy(() => import('../pages/student/StudentDashboard').then(m => ({ default: m.StudentDashboard })))
+const MyResults = lazy(() => import('../pages/student/MyResults').then(m => ({ default: m.MyResults })))
+const MyAttendance = lazy(() => import('../pages/student/MyAttendance').then(m => ({ default: m.MyAttendance })))
+const MyTimetable = lazy(() => import('../pages/student/MyTimetable').then(m => ({ default: m.MyTimetable })))
+const MyFees = lazy(() => import('../pages/student/MyFees').then(m => ({ default: m.MyFees })))
+const Communications = lazy(() => import('../pages/student/Communications').then(m => ({ default: m.Communications })))
+const Messages = lazy(() => import('../pages/student/Messages').then(m => ({ default: m.Messages })))
+const Profile = lazy(() => import('../pages/student/Profile').then(m => ({ default: m.Profile })))
+
 interface StudentLayoutProps {
-  children: React.ReactNode
-  activePage: string
-  onNavigate: (page: string) => void
+  children?: React.ReactNode
 }
 
 const navItems = [
@@ -33,14 +40,54 @@ const navItems = [
   { id: 'profile', label: 'Profile', icon: User },
 ]
 
-export function StudentLayout({ children, activePage, onNavigate }: StudentLayoutProps) {
+export function StudentLayout({ children }: StudentLayoutProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const auth = getAuthFromStorage()
+
+  // Extract current page from URL path
+  const pathSegments = location.pathname.split('/')
+  const currentPage = pathSegments[2] || 'dashboard'
+
+  const handleNavigate = (page: string) => {
+    navigate(`/student/${page}`)
+    setIsSidebarOpen(false)
+  }
 
   const handleSignOut = () => {
     clearAuthFromStorage()
     navigate('/login')
+  }
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <StudentDashboard />
+      case 'results':
+        return <MyResults />
+      case 'attendance':
+        return <MyAttendance />
+      case 'timetable':
+        return <MyTimetable />
+      case 'fees':
+        return <MyFees />
+      case 'communications':
+        return <Communications />
+      case 'messages':
+        return <Messages />
+      case 'profile':
+        return <Profile />
+      default:
+        return (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Page Coming Soon</h2>
+              <p className="text-gray-600">This page is currently under development.</p>
+            </div>
+          </div>
+        )
+    }
   }
 
   return (
@@ -84,14 +131,11 @@ export function StudentLayout({ children, activePage, onNavigate }: StudentLayou
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = activePage === item.id
+            const isActive = currentPage === item.id
             return (
               <button
                 key={item.id}
-                onClick={() => {
-                  onNavigate(item.id)
-                  setIsSidebarOpen(false)
-                }}
+                onClick={() => handleNavigate(item.id)}
                 className={`
                   w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                   ${isActive
@@ -134,7 +178,7 @@ export function StudentLayout({ children, activePage, onNavigate }: StudentLayou
             </Button>
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                {navItems.find(n => n.id === activePage)?.label ?? 'Student Portal'}
+                {navItems.find(n => n.id === currentPage)?.label ?? 'Student Portal'}
               </p>
               <p className="text-xs text-gray-500">2024/2025 Academic Session</p>
             </div>
@@ -158,7 +202,9 @@ export function StudentLayout({ children, activePage, onNavigate }: StudentLayou
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {children}
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-pulse text-gray-500">Loading...</div></div>}>
+            {renderPage()}
+          </Suspense>
         </main>
       </div>
     </div>

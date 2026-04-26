@@ -6,7 +6,7 @@ Build a read-only student portal where students can view their academic progress
 
 ## Tasks
 
-- [ ] 1. Phase 1 — Authentication & Layout Foundation
+- [x] 1. Phase 1 — Authentication & Layout Foundation
 
   - [x] 1.1 Extend auth system to support student role
     - Add `role` field to JWT token (values: 'super_admin', 'tenant_admin', 'student', 'staff', 'parent')

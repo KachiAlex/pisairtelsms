@@ -40,49 +40,49 @@ Build a read-only student portal where students can view their academic progress
     - Redirect to `/student/dashboard` on success
     - _Requirements: 1.1_
 
-- [ ] 2. Phase 2 — Student-Specific APIs
+- [x] 2. Phase 2 — Student-Specific APIs
 
-  - [ ] 2.1 Implement Student Dashboard API (`api/student/dashboard.ts`)
+  - [x] 2.1 Implement Student Dashboard API (`api/student/dashboard.ts`)
     - GET: aggregate student data (metrics, recent announcements, recent messages)
     - Return: { student, metrics, recentAnnouncements, recentMessages }
     - Validate studentId from JWT token
     - _Requirements: 2.1_
 
-  - [ ] 2.2 Implement Student Results API (`api/student/results.ts`)
+  - [x] 2.2 Implement Student Results API (`api/student/results.ts`)
     - GET: return student scores filtered by academicSession, term
     - Query params: academicSession, term
     - Return: { results, averageScore, classAverage }
     - Validate studentId from JWT token
     - _Requirements: 3.1_
 
-  - [ ] 2.3 Implement Student Attendance API (`api/student/attendance.ts`)
+  - [x] 2.3 Implement Student Attendance API (`api/student/attendance.ts`)
     - GET: return student attendance records filtered by date range
     - Query params: startDate, endDate
     - Return: { records, attendancePercent, totalPresent, totalAbsent, totalLate }
     - Validate studentId from JWT token
     - _Requirements: 4.1_
 
-  - [ ] 2.4 Implement Student Timetable API (`api/student/timetable.ts`)
+  - [x] 2.4 Implement Student Timetable API (`api/student/timetable.ts`)
     - GET: return student class schedule and exam schedule
     - Query params: termId
     - Return: { schedule, examSchedule }
     - Validate studentId from JWT token
     - _Requirements: 5.1_
 
-  - [ ] 2.5 Implement Student Fees API (`api/student/fees.ts`)
+  - [x] 2.5 Implement Student Fees API (`api/student/fees.ts`)
     - GET: return student fee summary and payment history
     - Return: { summary, payments, paymentPlan }
     - Validate studentId from JWT token
     - _Requirements: 6.1_
 
-  - [ ] 2.6 Implement Student Announcements API (`api/student/announcements.ts`)
+  - [x] 2.6 Implement Student Announcements API (`api/student/announcements.ts`)
     - GET: return school announcements (public audience)
     - Query params: limit, offset
     - Return: { announcements }
     - No studentId filtering (all students see same announcements)
     - _Requirements: 7.1_
 
-  - [ ] 2.7 Implement Student Messages API (`api/student/messages.ts`)
+  - [x] 2.7 Implement Student Messages API (`api/student/messages.ts`)
     - GET: return student messages
     - Query params: limit, offset
     - POST `/:id/reply`: add reply to message
@@ -91,18 +91,18 @@ Build a read-only student portal where students can view their academic progress
     - Validate studentId from JWT token
     - _Requirements: 7.2_
 
-  - [ ] 2.8 Implement Student Profile API (`api/student/profile.ts`)
+  - [x] 2.8 Implement Student Profile API (`api/student/profile.ts`)
     - GET: return student profile information
     - PUT: update email and phone
     - POST `/change-password`: change password
     - Validate studentId from JWT token
     - _Requirements: 8.1_
 
-  - [ ] 2.9 Wire all student API routes in `vercel.json`
+  - [x] 2.9 Wire all student API routes in `vercel.json`
     - Add routes for all 8 new API endpoints under `/api/student/*`
     - _Requirements: 2.1_
 
-  - [ ] 2.10 Checkpoint — Verify TypeScript build is clean
+  - [x] 2.10 Checkpoint — Verify TypeScript build is clean
     - Run `tsc --noEmit` and confirm zero errors across all new API files
     - _Requirements: 2.1_
 

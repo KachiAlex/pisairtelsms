@@ -1,11 +1,12 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Shield, Sparkles, Building2, ArrowRight, Globe, Radio } from 'lucide-react'
 
 import { Button } from '../ui/button'
 import { Card, CardContent } from '../ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { LoginPanel, LoginRole } from '../auth/LoginPanel'
+import { StudentLoginPage } from '../auth/StudentLoginPage'
 
 interface AccessPortalPageProps {
   onLoginSuccess: (role: LoginRole) => void
@@ -45,6 +46,12 @@ const loginFeatures = [
 ]
 
 export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPortalPageProps) {
+  const navigate = useNavigate();
+  const [showStudentLogin, setShowStudentLogin] = useState(false);
+
+  const handleStudentLoginSuccess = () => {
+    navigate('/student/dashboard');
+  };
   return (
     <div className="relative min-h-screen bg-slate-950 text-white">
       <div className="absolute inset-0 overflow-hidden">
@@ -81,10 +88,19 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
               Tenant administrators manage day-to-day school operations while super admins oversee compliance, provisioning, and billing signals across the entire Scholix platform footprint.
             </p>
 
-            <Tabs defaultValue="tenant" className="space-y-6">
+            <Tabs defaultValue="tenant" className="space-y-6" onValueChange={(value) => {
+              if (value === 'student') {
+                setShowStudentLogin(true);
+              } else {
+                setShowStudentLogin(false);
+              }
+            }}>
               <TabsList className="bg-white/10 p-1">
                 <TabsTrigger value="tenant" className="flex-1">
                   School & network admins
+                </TabsTrigger>
+                <TabsTrigger value="student">
+                  Students
                 </TabsTrigger>
                 <TabsTrigger value="super">
                   Scholix super admin
@@ -105,6 +121,17 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
                 <Button size="lg" className="bg-white text-slate-900 hover:bg-white/90">
                   Get started
                 </Button>
+              </TabsContent>
+              <TabsContent value="student" className="space-y-4">
+                <Card className="border-white/10 bg-white/5 text-white">
+                  <CardContent className="flex items-start gap-4 p-5">
+                    <Radio className="h-6 w-6 text-green-200" />
+                    <div>
+                      <p className="text-sm font-semibold">View Your Academic Progress</p>
+                      <p className="text-sm text-white/70">Access your results, attendance, timetable, fees, and communications in one place.</p>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
               <TabsContent value="super" className="space-y-4">
                 {superAdminHighlights.map((highlight) => (
@@ -135,7 +162,14 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
                 </div>
               ))}
             </div>
-            <LoginPanel onLogin={onLoginSuccess} />
+            {showStudentLogin ? (
+              <StudentLoginPage 
+                onLoginSuccess={handleStudentLoginSuccess}
+                onBackToPortalSelection={() => setShowStudentLogin(false)}
+              />
+            ) : (
+              <LoginPanel onLogin={onLoginSuccess} />
+            )}
           </div>
         </div>
       </div>

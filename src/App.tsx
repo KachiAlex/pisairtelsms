@@ -64,6 +64,8 @@ const SuperAdminPortal = lazy(() => import('./components/pages/SuperAdminPortal'
 const TenantSettings = lazy(() => import('./components/pages/TenantSettings'));
 import { LoginRole } from './components/auth/LoginPanel';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
+import { StudentLayout } from './components/layouts/StudentLayout';
 import { clearAuthFromStorage } from './lib/auth';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
 import { Button } from './components/ui/button';
@@ -368,6 +370,7 @@ export default function App() {
         <Route path="/inquiry" element={<Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense>} />
         <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant_admin">{tenantShell}</ProtectedRoute>} />
         <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense></ProtectedRoute>} />
+        <Route path="/student/*" element={<RoleBasedRoute allowedRoles={['student']}><StudentLayout /></RoleBasedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </TenantProvider>

@@ -8,32 +8,32 @@ Build a read-only student portal where students can view their academic progress
 
 - [ ] 1. Phase 1 — Authentication & Layout Foundation
 
-  - [ ] 1.1 Extend auth system to support student role
+  - [x] 1.1 Extend auth system to support student role
     - Add `role` field to JWT token (values: 'super_admin', 'tenant_admin', 'student', 'staff', 'parent')
     - Update `AuthStorage` interface to include `role`
     - Update login endpoint to return role based on user type
     - _Requirements: 1.1_
 
-  - [ ] 1.2 Create `RoleBasedRoute` component
+  - [x] 1.2 Create `RoleBasedRoute` component
     - Extend `ProtectedRoute` to validate role
     - Accept `allowedRoles` prop (array of roles)
     - Redirect to `/unauthorized` if role not allowed
     - _Requirements: 1.1_
 
-  - [ ] 1.3 Create `StudentLayout` component
+  - [x] 1.3 Create `StudentLayout` component
     - Simplified sidebar with 7 menu items: Dashboard, Results, Attendance, Timetable, Fees, Communications, Profile
     - Header with student name and logout button
     - Mobile hamburger menu
     - Responsive design (mobile-first)
     - _Requirements: 1.1_
 
-  - [ ] 1.4 Update `src/App.tsx` with student routes
+  - [x] 1.4 Update `src/App.tsx` with student routes
     - Add `/student` route with `RoleBasedRoute` (allowedRoles: ['student'])
     - Map sub-routes: `/student/dashboard`, `/student/results`, etc.
     - Render `StudentLayout` as wrapper
     - _Requirements: 1.1_
 
-  - [ ] 1.5 Create student login page
+  - [x] 1.5 Create student login page
     - Form fields: admission number, password
     - Submit to existing login endpoint with `userType='student'`
     - Store JWT token with role='student'

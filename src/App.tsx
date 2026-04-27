@@ -67,6 +67,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
 import { StudentLayout } from './components/layouts/StudentLayout';
 import { StaffLayout } from './components/layouts/StaffLayout';
+import { ParentLoginPage } from './components/auth/ParentLoginPage';
 import { clearAuthFromStorage } from './lib/auth';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
 import { UnauthorizedPage } from './components/pages/UnauthorizedPage';
@@ -375,6 +376,8 @@ export default function App() {
         <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense></ProtectedRoute>} />
         <Route path="/student/*" element={<RoleBasedRoute allowedRoles={['student']}><StudentLayout /></RoleBasedRoute>} />
         <Route path="/staff/*" element={<RoleBasedRoute allowedRoles={['staff']}><StaffLayout /></RoleBasedRoute>} />
+        <Route path="/parent/login" element={<ParentLoginPage />} />
+        <Route path="/parent/*" element={<RoleBasedRoute allowedRoles={['parent']} redirectTo="/parent/login"><Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>Parent Portal Coming Soon</Suspense></RoleBasedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </TenantProvider>

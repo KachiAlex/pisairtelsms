@@ -82,17 +82,16 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const content = event.target?.result as string
-        const lines = content.split('\n').filter(line => line.trim())
-        
-        // Parse CSV or JSON format
         let questions: any[] = []
         
         if (file.name.endsWith('.json')) {
+          const content = event.target?.result as string
           questions = JSON.parse(content)
         } else if (file.name.endsWith('.csv')) {
+          const content = event.target?.result as string
+          const lines = content.split('\n').filter(line => line.trim())
           // Parse CSV: question,optionA,optionB,optionC,optionD,correctAnswer
           questions = lines.slice(1).map((line, idx) => {
             const [question, optionA, optionB, optionC, optionD, correctAnswer] = line.split(',').map(s => s.trim())
@@ -104,6 +103,26 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
               marks: 1,
             }
           })
+        } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+          // Parse Excel file using dynamic import
+          const arrayBuffer = event.target?.result as ArrayBuffer
+          const { read, utils } = await import('xlsx')
+          const workbook = read(arrayBuffer, { type: 'array' })
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+          const data = utils.sheet_to_json(worksheet)
+          
+          questions = data.map((row: any, idx: number) => ({
+            id: `q${idx + 1}`,
+            question: row.question || row.Question || '',
+            options: [
+              row.optionA || row.OptionA || row.Option_A || '',
+              row.optionB || row.OptionB || row.Option_B || '',
+              row.optionC || row.OptionC || row.Option_C || '',
+              row.optionD || row.OptionD || row.Option_D || '',
+            ],
+            correctAnswer: parseInt(row.correctAnswer || row.CorrectAnswer || row.Correct_Answer || '0') || 0,
+            marks: parseInt(row.marks || row.Marks || '1') || 1,
+          }))
         }
         
         if (questions.length === 0) {
@@ -114,10 +133,15 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
         setImportedQuestions(questions)
         setError(null)
       } catch (err) {
-        setError('Failed to parse file. Ensure it\'s valid JSON or CSV format.')
+        setError('Failed to parse file. Ensure it\'s valid JSON, CSV, or Excel format.')
       }
     }
-    reader.readAsText(file)
+    
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      reader.readAsArrayBuffer(file)
+    } else {
+      reader.readAsText(file)
+    }
   }
 
   return (
@@ -160,13 +184,13 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
                 <Label className="text-xs font-semibold text-blue-900">Import Questions (CBT)</Label>
               </div>
               <p className="text-xs text-blue-700 mb-3">
-                Upload a JSON or CSV file with exam questions. CSV format: question,optionA,optionB,optionC,optionD,correctAnswer
+                Upload a JSON, CSV, or Excel file with exam questions. CSV format: question,optionA,optionB,optionC,optionD,correctAnswer
               </p>
               <div className="flex gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".json,.csv"
+                  accept=".json,.csv,.xlsx,.xls"
                   onChange={handleFileImport}
                   className="hidden"
                 />

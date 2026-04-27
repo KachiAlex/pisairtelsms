@@ -3,10 +3,10 @@ import { Users, UserCheck, Clock, DollarSign, TrendingUp, Briefcase } from 'luci
 import { Card, CardContent } from '../ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { Progress } from '../ui/progress'
-import StaffDirectory from './staff/StaffDirectory'
-import StaffAttendance from './staff/StaffAttendance'
-import LeaveManagement from './staff/LeaveManagement'
-import PayrollManagement from './staff/PayrollManagement'
+import { StaffDirectory } from './staff/StaffDirectory'
+import { StaffAttendance } from './staff/StaffAttendance'
+import { LeaveManagement } from './staff/LeaveManagement'
+import { PayrollManagement } from './staff/PayrollManagement'
 
 interface Staff {
   id: string

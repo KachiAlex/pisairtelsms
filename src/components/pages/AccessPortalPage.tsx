@@ -7,6 +7,7 @@ import { Card, CardContent } from '../ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { LoginPanel, LoginRole } from '../auth/LoginPanel'
 import { StudentLoginPage } from '../auth/StudentLoginPage'
+import { StaffLoginPage } from '../auth/StaffLoginPage'
 
 interface AccessPortalPageProps {
   onLoginSuccess: (role: LoginRole) => void
@@ -48,9 +49,14 @@ const loginFeatures = [
 export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPortalPageProps) {
   const navigate = useNavigate();
   const [showStudentLogin, setShowStudentLogin] = useState(false);
+  const [showStaffLogin, setShowStaffLogin] = useState(false);
 
   const handleStudentLoginSuccess = () => {
     navigate('/student/dashboard');
+  };
+
+  const handleStaffLoginSuccess = () => {
+    navigate('/staff/dashboard');
   };
   return (
     <div className="relative min-h-screen bg-slate-950 text-white">
@@ -91,8 +97,13 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
             <Tabs defaultValue="tenant" className="space-y-6" onValueChange={(value) => {
               if (value === 'student') {
                 setShowStudentLogin(true);
+                setShowStaffLogin(false);
+              } else if (value === 'staff') {
+                setShowStaffLogin(true);
+                setShowStudentLogin(false);
               } else {
                 setShowStudentLogin(false);
+                setShowStaffLogin(false);
               }
             }}>
               <TabsList className="bg-white/10 p-1">
@@ -101,6 +112,9 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
                 </TabsTrigger>
                 <TabsTrigger value="student">
                   Students
+                </TabsTrigger>
+                <TabsTrigger value="staff">
+                  Staff
                 </TabsTrigger>
                 <TabsTrigger value="super">
                   Scholix super admin
@@ -129,6 +143,17 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
                     <div>
                       <p className="text-sm font-semibold">View Your Academic Progress</p>
                       <p className="text-sm text-white/70">Access your results, attendance, timetable, fees, and communications in one place.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              <TabsContent value="staff" className="space-y-4">
+                <Card className="border-white/10 bg-white/5 text-white">
+                  <CardContent className="flex items-start gap-4 p-5">
+                    <Radio className="h-6 w-6 text-blue-200" />
+                    <div>
+                      <p className="text-sm font-semibold">Manage Your Teaching & Admin Tasks</p>
+                      <p className="text-sm text-white/70">Access your timetable, mark attendance, manage leave, view payslips, and communicate with parents.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -166,6 +191,11 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
               <StudentLoginPage 
                 onLoginSuccess={handleStudentLoginSuccess}
                 onBackToPortalSelection={() => setShowStudentLogin(false)}
+              />
+            ) : showStaffLogin ? (
+              <StaffLoginPage 
+                onLoginSuccess={handleStaffLoginSuccess}
+                onBackToPortalSelection={() => setShowStaffLogin(false)}
               />
             ) : (
               <LoginPanel onLogin={onLoginSuccess} />

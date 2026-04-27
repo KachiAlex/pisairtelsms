@@ -1,303 +1,410 @@
-import React, { useState, useEffect } from 'react'
-import { Plus, CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card'
+import React, { useEffect, useState } from 'react'
+import { AlertCircle, Plus } from 'lucide-react'
 import { Button } from '../../ui/button'
-import { Input } from '../../ui/input'
-import { Badge } from '../../ui/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog'
-import { Label } from '../../ui/label'
 
 interface LeaveRequest {
   id: string
-  staffId: string
-  staffName: string
   leaveType: string
   startDate: string
   endDate: string
-  days: number
   reason: string
   status: 'pending' | 'approved' | 'rejected'
-  approvedBy?: string
   createdAt: string
+  approvedBy?: string
+  approvalDate?: string
 }
 
-interface Staff {
-  id: string
-  name: string
+interface LeaveBalance {
+  leaveType: string
+  totalDays: number
+  usedDays: number
+  remainingDays: number
 }
 
-const LEAVE_TYPES = ['Annual Leave', 'Sick Leave', 'Maternity Leave', 'Paternity Leave', 'Study Leave', 'Emergency Leave', 'Unpaid Leave']
+interface LeaveData {
+  requests: LeaveRequest[]
+  balance: LeaveBalance[]
+}
 
 export function LeaveManagement() {
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([])
-  const [staff, setStaff] = useState<Staff[]>([])
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<LeaveData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [success, setSuccess] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
-    staffId: '', leaveType: '', startDate: '', endDate: '', reason: ''
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  const [formData, setFormData] = useState({
+    leaveType: '',
+    startDate: '',
+    endDate: '',
+    reason: '',
   })
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const auth = localStorage.getItem('auth')
+  const token = auth ? JSON.parse(auth).token : null
+
+  // Fetch leave data
   useEffect(() => {
-    fetchLeaves()
-    fetchStaff()
-  }, [])
+    const fetchLeaveData = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
 
-  const fetchLeaves = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/tenant/staff?resource=leave', { headers: { 'x-tenant-id': 'default-tenant' } })
-      if (!res.ok) throw new Error('Failed to fetch leave requests')
-      const data = await res.json()
-      setLeaves(data.data || [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch leave requests')
-    } finally {
-      setLoading(false)
+        if (!token) {
+          setError('Not authenticated')
+          return
+        }
+
+        const response = await fetch('/api/staff/leave', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch leave data')
+        }
+
+        const leaveData = await response.json()
+        setData(leaveData)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'An error occurred'
+        setError(message)
+        console.error('Error fetching leave data:', err)
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }
 
-  const fetchStaff = async () => {
-    try {
-      const res = await fetch('/api/tenant/staff', { headers: { 'x-tenant-id': 'default-tenant' } })
-      const data = await res.json()
-      setStaff(data.data || [])
-    } catch (err) {
-      console.error('Failed to fetch staff')
+    fetchLeaveData()
+  }, [token])
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {}
+
+    if (!formData.leaveType) errors.leaveType = 'Leave type is required'
+    if (!formData.startDate) errors.startDate = 'Start date is required'
+    if (!formData.endDate) errors.endDate = 'End date is required'
+    if (!formData.reason) errors.reason = 'Reason is required'
+
+    if (formData.startDate && formData.endDate) {
+      if (new Date(formData.startDate) > new Date(formData.endDate)) {
+        errors.dateRange = 'Start date must be before or equal to end date'
+      }
     }
+
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
   }
 
-  const calcDays = (start: string, end: string) => {
-    if (!start || !end) return 0
-    const diff = new Date(end).getTime() - new Date(start).getTime()
-    return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1)
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-  const handleSubmit = async () => {
-    if (!form.staffId || !form.leaveType || !form.startDate || !form.endDate) return
-    setSaving(true)
+    if (!validateForm()) return
+
     try {
-      const selectedStaff = staff.find(s => s.id === form.staffId)
-      const days = calcDays(form.startDate, form.endDate)
-      await fetch('/api/tenant/staff?resource=leave', {
+      setIsSubmitting(true)
+      setError(null)
+
+      if (!token) {
+        setError('Not authenticated')
+        return
+      }
+
+      const response = await fetch('/api/staff/leave', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
-        body: JSON.stringify({
-          staffId: form.staffId,
-          staffName: selectedStaff?.name || '',
-          leaveType: form.leaveType,
-          startDate: form.startDate,
-          endDate: form.endDate,
-          days,
-          reason: form.reason,
-          status: 'pending',
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to submit leave request')
+      }
+
+      setSuccess('Leave request submitted successfully')
+      setFormData({
+        leaveType: '',
+        startDate: '',
+        endDate: '',
+        reason: '',
       })
       setShowForm(false)
-      setForm({ staffId: '', leaveType: '', startDate: '', endDate: '', reason: '' })
-      fetchLeaves()
-    } catch (err) {
-      alert('Failed to submit leave request')
-    } finally {
-      setSaving(false)
-    }
-  }
 
-  const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
-    try {
-      await fetch(`/api/tenant/staff?resource=leave&id=${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
-        body: JSON.stringify({ status, approvedBy: 'Admin' }),
+      // Refresh data
+      const refreshResponse = await fetch('/api/staff/leave', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       })
-      fetchLeaves()
+      if (refreshResponse.ok) {
+        const leaveData = await refreshResponse.json()
+        setData(leaveData)
+      }
     } catch (err) {
-      alert('Failed to update leave status')
+      const message = err instanceof Error ? err.message : 'An error occurred'
+      setError(message)
+      console.error('Error submitting leave request:', err)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const filtered = filterStatus === 'all' ? leaves : leaves.filter(l => l.status === filterStatus)
+  const calculateDays = (startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return 0
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  }
 
-  const pendingCount = leaves.filter(l => l.status === 'pending').length
-  const approvedCount = leaves.filter(l => l.status === 'approved').length
-  const rejectedCount = leaves.filter(l => l.status === 'rejected').length
-
-  const statusColor = (s: string) => s === 'approved' ? 'bg-green-100 text-green-800' : s === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
-
-  return (
-    <div className="space-y-4">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <Clock className="w-8 h-8 text-yellow-500" />
-            <div>
-              <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <CheckCircle className="w-8 h-8 text-green-500" />
-            <div>
-              <p className="text-sm text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <XCircle className="w-8 h-8 text-red-500" />
-            <div>
-              <p className="text-sm text-gray-600">Rejected</p>
-              <p className="text-2xl font-bold text-red-600">{rejectedCount}</p>
-            </div>
-          </CardContent>
-        </Card>
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 animate-pulse rounded-lg bg-gray-200" />
+        <div className="h-96 animate-pulse rounded-lg bg-gray-200" />
       </div>
+    )
+  }
 
-      {/* Filters + Add */}
-      <Card>
-        <CardContent className="p-4 flex gap-3">
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-            <option value="all">All Requests</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Request
-          </Button>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-700">{error}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {loading ? (
-        <Card><CardContent className="p-8 text-center animate-pulse">Loading leave requests...</CardContent></Card>
-      ) : (
-        <Card>
-          <CardHeader><CardTitle>Leave Requests ({filtered.length})</CardTitle></CardHeader>
-          <CardContent>
-            {filtered.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No leave requests found</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Staff Name</TableHead>
-                      <TableHead>Leave Type</TableHead>
-                      <TableHead>Start Date</TableHead>
-                      <TableHead>End Date</TableHead>
-                      <TableHead>Days</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map(l => (
-                      <TableRow key={l.id}>
-                        <TableCell className="font-medium">{l.staffName}</TableCell>
-                        <TableCell>{l.leaveType}</TableCell>
-                        <TableCell>{new Date(l.startDate).toLocaleDateString()}</TableCell>
-                        <TableCell>{new Date(l.endDate).toLocaleDateString()}</TableCell>
-                        <TableCell>{l.days}</TableCell>
-                        <TableCell className="max-w-32 truncate">{l.reason}</TableCell>
-                        <TableCell>
-                          <Badge className={statusColor(l.status)}>
-                            {l.status.charAt(0).toUpperCase() + l.status.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {l.status === 'pending' && (
-                            <div className="flex gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => updateStatus(l.id, 'approved')}>
-                                <CheckCircle className="w-4 h-4 text-green-600" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => updateStatus(l.id, 'rejected')}>
-                                <XCircle className="w-4 h-4 text-red-600" />
-                              </Button>
-                            </div>
-                          )}
-                          {l.status !== 'pending' && <span className="text-xs text-gray-500">{l.approvedBy || '—'}</span>}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* New Leave Request Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>New Leave Request</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label>Staff Member *</Label>
-              <select value={form.staffId} onChange={e => setForm(f => ({ ...f, staffId: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Select staff member</option>
-                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Leave Type *</Label>
-              <select value={form.leaveType} onChange={e => setForm(f => ({ ...f, leaveType: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Select leave type</option>
-                {LEAVE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Date *</Label>
-                <Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
-              </div>
-              <div>
-                <Label>End Date *</Label>
-                <Input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
-              </div>
-            </div>
-            {form.startDate && form.endDate && (
-              <p className="text-sm text-blue-600">{calcDays(form.startDate, form.endDate)} day(s)</p>
-            )}
-            <div>
-              <Label>Reason</Label>
-              <textarea
-                value={form.reason}
-                onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                rows={3}
-                placeholder="Reason for leave..."
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={saving || !form.staffId || !form.leaveType || !form.startDate || !form.endDate}>
-              {saving ? 'Submitting...' : 'Submit Request'}
+  if (error && !data) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+        <div className="flex items-start gap-4">
+          <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="font-semibold text-red-900">Error Loading Leave Data</h3>
+            <p className="mt-1 text-sm text-red-800">{error}</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => window.location.reload()}
+            >
+              Try Again
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
+        <p className="text-gray-600">No data available</p>
+      </div>
+    )
+  }
+
+  const filteredRequests = data.requests.filter(
+    (req) => statusFilter === 'all' || req.status === statusFilter
+  )
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 text-green-800'
+      case 'rejected':
+        return 'bg-red-100 text-red-800'
+      case 'pending':
+        return 'bg-amber-100 text-amber-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+
+      {success && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+          <p className="text-sm text-green-800">{success}</p>
+        </div>
+      )}
+
+      {/* Leave Balance */}
+      {data.balance.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Leave Balance</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {data.balance.map((balance) => (
+              <div key={balance.leaveType} className="border border-gray-200 rounded-lg p-4">
+                <p className="font-semibold text-gray-900">{balance.leaveType}</p>
+                <div className="mt-3 space-y-1 text-sm">
+                  <p className="text-gray-600">Total: {balance.totalDays} days</p>
+                  <p className="text-gray-600">Used: {balance.usedDays} days</p>
+                  <p className="font-semibold text-blue-600">Remaining: {balance.remainingDays} days</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* New Leave Request Form */}
+      {!showForm && (
+        <Button
+          onClick={() => setShowForm(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          New Leave Request
+        </Button>
+      )}
+
+      {showForm && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Submit Leave Request</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Leave Type</label>
+              <select
+                value={formData.leaveType}
+                onChange={(e) => setFormData({ ...formData, leaveType: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+              >
+                <option value="">Select leave type</option>
+                <option value="Annual">Annual Leave</option>
+                <option value="Sick">Sick Leave</option>
+                <option value="Casual">Casual Leave</option>
+                <option value="Maternity">Maternity Leave</option>
+              </select>
+              {formErrors.leaveType && (
+                <p className="text-sm text-red-600 mt-1">{formErrors.leaveType}</p>
+              )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+                />
+                {formErrors.startDate && (
+                  <p className="text-sm text-red-600 mt-1">{formErrors.startDate}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+                />
+                {formErrors.endDate && (
+                  <p className="text-sm text-red-600 mt-1">{formErrors.endDate}</p>
+                )}
+              </div>
+            </div>
+
+            {formData.startDate && formData.endDate && (
+              <p className="text-sm text-gray-600">
+                Duration: {calculateDays(formData.startDate, formData.endDate)} days
+              </p>
+            )}
+
+            {formErrors.dateRange && (
+              <p className="text-sm text-red-600">{formErrors.dateRange}</p>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+              <textarea
+                value={formData.reason}
+                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                rows={4}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+                placeholder="Enter reason for leave"
+              />
+              {formErrors.reason && (
+                <p className="text-sm text-red-600 mt-1">{formErrors.reason}</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Request'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowForm(false)
+                  setFormData({ leaveType: '', startDate: '', endDate: '', reason: '' })
+                  setFormErrors({})
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Leave Requests List */}
+      <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Leave Requests</h2>
+
+        {/* Status Filter */}
+        <div className="mb-4 flex gap-2">
+          {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === status
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {filteredRequests.length === 0 ? (
+          <p className="text-gray-600 text-center py-4">No leave requests</p>
+        ) : (
+          <div className="space-y-3">
+            {filteredRequests.map((request) => (
+              <div key={request.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900">{request.leaveType}</p>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(request.status)}`}>
+                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {request.startDate} to {request.endDate}
+                    </p>
+                    <p className="text-sm text-gray-600">Reason: {request.reason}</p>
+                    <p className="text-xs text-gray-500 mt-2">Submitted: {request.createdAt}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
-
-export default LeaveManagement

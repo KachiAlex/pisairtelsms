@@ -30,6 +30,18 @@
     { "src": "/api/tenant/finance/reconciliation", "dest": "/api/tenant/finance/reconciliation.ts" },
     { "src": "/api/tenant/finance/reports", "dest": "/api/tenant/finance/reports.ts" },
     { "src": "/api/tenant/finance/audit-log", "dest": "/api/tenant/finance/audit-log.ts" },
+    { "src": "/api/staff/dashboard", "dest": "/api/staff/dashboard.ts" },
+    { "src": "/api/staff/timetable", "dest": "/api/staff/timetable.ts" },
+    { "src": "/api/staff/classes", "dest": "/api/staff/classes.ts" },
+    { "src": "/api/staff/classes/([^/]+)/students", "dest": "/api/staff/classes/$1/students.ts" },
+    { "src": "/api/staff/students/([^/]+)", "dest": "/api/staff/students/$1.ts" },
+    { "src": "/api/staff/attendance", "dest": "/api/staff/attendance.ts" },
+    { "src": "/api/staff/leave", "dest": "/api/staff/leave.ts" },
+    { "src": "/api/staff/payslips", "dest": "/api/staff/payslips.ts" },
+    { "src": "/api/staff/announcements", "dest": "/api/staff/announcements.ts" },
+    { "src": "/api/staff/messages", "dest": "/api/staff/messages.ts" },
+    { "src": "/api/staff/messages/([^/]+)/read", "dest": "/api/staff/messages/$1/read.ts" },
+    { "src": "/api/staff/profile", "dest": "/api/staff/profile.ts" },
     { "src": "/(.*)", "dest": "/" }
   ]
 }

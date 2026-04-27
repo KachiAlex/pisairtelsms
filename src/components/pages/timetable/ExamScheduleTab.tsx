@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, RefreshCcw, Building2, UserCheck } from 'lucide-react'
+import { RefreshCcw, Building2, UserCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Badge } from '../../ui/badge'
-import { ExamEntryModal } from './ExamEntryModal'
 import { HallAssignmentPanel } from './HallAssignmentPanel'
 import { InvigilatorAssignmentPanel } from './InvigilatorAssignmentPanel'
 
@@ -42,7 +41,6 @@ export function ExamScheduleTab() {
   const [exams, setExams] = useState<ExamSchedule[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showAddModal, setShowAddModal] = useState(false)
   const [expandedExam, setExpandedExam] = useState<string | null>(null)
 
   useEffect(() => {
@@ -91,9 +89,6 @@ export function ExamScheduleTab() {
         </Select>
         <Button variant="outline" size="sm" onClick={loadExams}>
           <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
-        <Button size="sm" onClick={() => setShowAddModal(true)} disabled={!selectedPeriod}>
-          <Plus className="h-4 w-4 mr-1" /> Add Exam
         </Button>
       </div>
 
@@ -159,14 +154,6 @@ export function ExamScheduleTab() {
             </Card>
           ))}
         </div>
-      )}
-
-      {showAddModal && selectedPeriod && (
-        <ExamEntryModal
-          examPeriodId={selectedPeriod}
-          onSaved={() => { setShowAddModal(false); loadExams() }}
-          onClose={() => setShowAddModal(false)}
-        />
       )}
     </div>
   )

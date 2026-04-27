@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { BarChart3, Filter, RefreshCcw, AlertTriangle, Target, Layers, Atom, ClipboardCheck } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -6,30 +6,6 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
-
-const itemHighlights = [
-  { code: 'MTH-22-Q18', difficulty: 0.42, discrimination: 0.68, flagged: 'Stable', responses: 864 },
-  { code: 'PHY-11-Q05', difficulty: 0.83, discrimination: 0.22, flagged: 'Low disc', responses: 752 },
-  { code: 'ENG-33-Q09', difficulty: 0.57, discrimination: 0.61, flagged: 'Stable', responses: 902 },
-]
-
-const distractorStats = [
-  { code: 'CHE-09-Q14', distractor: 'B', picks: 41, quality: 'Spike' },
-  { code: 'GEO-04-Q02', distractor: 'D', picks: 12, quality: 'Weak' },
-  { code: 'BIO-15-Q11', distractor: 'C', picks: 63, quality: 'Healthy' },
-]
-
-const blueprintCoverage = [
-  { strand: 'Quantitative Reasoning', coverage: 78 },
-  { strand: 'Applied Sciences', coverage: 62 },
-  { strand: 'Language Skills', coverage: 91 },
-]
-
-const anchorStability = [
-  { anchor: 'Anchor Set A', drift: '0.28σ', status: 'Within band' },
-  { anchor: 'Anchor Set B', drift: '0.72σ', status: 'Review' },
-  { anchor: 'Anchor Set C', drift: '0.11σ', status: 'Within band' },
-]
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destructive'> = {
   Stable: 'default',
@@ -42,6 +18,58 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destr
 }
 
 export function ExamItemAnalysis() {
+  const [items, setItems] = useState<any[]>([])
+  const [distractors, setDistractors] = useState<any[]>([])
+  const [blueprints, setBlueprints] = useState<any[]>([])
+  const [anchors, setAnchors] = useState<any[]>([])
+  const [statistics, setStatistics] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedExam, setSelectedExam] = useState('exam-001')
+
+  const tenantId = 'default-tenant'
+
+  useEffect(() => {
+    fetchData()
+  }, [selectedExam])
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      const [itemsRes, distractorsRes, blueprintsRes, anchorsRes, statsRes] = await Promise.all([
+        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=items`),
+        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=distractors`),
+        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=blueprints`),
+        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=anchors`),
+        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=statistics`),
+      ])
+
+      if (!itemsRes.ok || !distractorsRes.ok || !blueprintsRes.ok || !anchorsRes.ok || !statsRes.ok) {
+        throw new Error('Failed to fetch data')
+      }
+
+      const itemsData = await itemsRes.json()
+      const distractorsData = await distractorsRes.json()
+      const blueprintsData = await blueprintsRes.json()
+      const anchorsData = await anchorsRes.json()
+      const statsData = await statsRes.json()
+
+      setItems(itemsData.data || [])
+      setDistractors(distractorsData.data || [])
+      setBlueprints(blueprintsData.data || [])
+      setAnchors(anchorsData.data || [])
+      setStatistics(statsData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading...</div>
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -51,7 +79,7 @@ export function ExamItemAnalysis() {
           <p className="text-sm text-gray-600">Inspect item difficulty drift, distractor performance, and blueprint coverage before high-stakes sittings.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={fetchData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Recompute indices
           </Button>
           <Button>
@@ -60,33 +88,39 @@ export function ExamItemAnalysis() {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Items analyzed</p>
-            <p className="text-3xl font-semibold text-gray-900">1,240</p>
-            <p className="text-xs text-gray-500">Across 14 papers</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.itemsAnalyzed || 0}</p>
+            <p className="text-xs text-gray-500">Across papers</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Flagged variance</p>
-            <p className="text-3xl font-semibold text-amber-600">4.8%</p>
+            <p className="text-3xl font-semibold text-amber-600">{statistics?.flaggedVariance || 0}%</p>
             <p className="text-xs text-gray-500">Need psychometric review</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Anchor stability</p>
-            <p className="text-3xl font-semibold text-emerald-600">92%</p>
+            <p className="text-3xl font-semibold text-emerald-600">{statistics?.anchorStability || 0}</p>
             <p className="text-xs text-gray-500">Within tolerance</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Blueprint coverage</p>
-            <p className="text-3xl font-semibold text-gray-900">88%</p>
-            <p className="text-xs text-gray-500">Target ≥ 90%</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Avg success rate</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.averageSuccessRate || 0}%</p>
+            <p className="text-xs text-gray-500">Student performance</p>
           </CardContent>
         </Card>
       </div>
@@ -100,25 +134,31 @@ export function ExamItemAnalysis() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Item code</TableHead>
-                <TableHead>Difficulty (p)</TableHead>
+                <TableHead>Item Code</TableHead>
+                <TableHead>Difficulty</TableHead>
                 <TableHead>Discrimination</TableHead>
                 <TableHead>Responses</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {itemHighlights.map((item) => (
-                <TableRow key={item.code}>
-                  <TableCell className="font-medium text-gray-900">{item.code}</TableCell>
-                  <TableCell>{(item.difficulty * 100).toFixed(0)}%</TableCell>
-                  <TableCell>{item.discrimination.toFixed(2)}</TableCell>
-                  <TableCell>{item.responses.toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[item.flagged] || 'secondary'}>{item.flagged}</Badge>
-                  </TableCell>
+              {items.length > 0 ? (
+                items.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium text-gray-900">{item.itemCode}</TableCell>
+                    <TableCell>{(item.difficulty * 100).toFixed(1)}%</TableCell>
+                    <TableCell>{(item.discrimination * 100).toFixed(1)}%</TableCell>
+                    <TableCell>{item.responses}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant[item.flagged] || 'secondary'}>{item.flagged}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500">No items found</TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -127,45 +167,47 @@ export function ExamItemAnalysis() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Distractor diagnostics</CardTitle>
-            <CardDescription>Spot answer choices that attract abnormal picks.</CardDescription>
+            <CardTitle>Distractor analysis</CardTitle>
+            <CardDescription>Distractor quality and pick rates.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {distractorStats.map((entry) => (
-              <div key={entry.code} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">{entry.code}</p>
-                  <p className="text-sm text-gray-500">Distractor {entry.distractor} • {entry.picks} picks</p>
+            {distractors.length > 0 ? (
+              distractors.slice(0, 5).map((d) => (
+                <div key={d.id} className="rounded-lg border border-gray-100 p-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium text-gray-900">{d.itemCode} - {d.distractor}</p>
+                      <p className="text-sm text-gray-500">{d.picks} picks</p>
+                    </div>
+                    <Badge variant={statusVariant[d.quality] || 'secondary'}>{d.quality}</Badge>
+                  </div>
                 </div>
-                <Badge variant={statusVariant[entry.quality] || 'secondary'}>{entry.quality}</Badge>
-              </div>
-            ))}
-            <Button variant="ghost" size="sm" className="w-full">
-              <BarChart3 className="h-4 w-4 mr-2" /> View IRT chart
-            </Button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No distractor data</p>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Blueprint coverage</CardTitle>
-            <CardDescription>Distribution across curriculum strands.</CardDescription>
+            <CardDescription>Content strand coverage analysis.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {blueprintCoverage.map((strand) => (
-              <div key={strand.strand} className="rounded-2xl border border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-gray-900">{strand.strand}</p>
-                  <span className="text-sm text-gray-500">{strand.coverage}%</span>
+            {blueprints.length > 0 ? (
+              blueprints.map((b) => (
+                <div key={b.id}>
+                  <div className="flex justify-between mb-2">
+                    <p className="text-sm font-medium text-gray-900">{b.strand}</p>
+                    <p className="text-sm text-gray-500">{b.coverage}%</p>
+                  </div>
+                  <Progress value={b.coverage} />
                 </div>
-                <div className="mt-2">
-                  <Progress value={strand.coverage} />
-                </div>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" className="w-full">
-              <Layers className="h-4 w-4 mr-2" /> Edit blueprint
-            </Button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No blueprint data</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -173,45 +215,37 @@ export function ExamItemAnalysis() {
       <Card>
         <CardHeader>
           <CardTitle>Anchor stability</CardTitle>
-          <CardDescription>Monitor drift for linked test forms.</CardDescription>
+          <CardDescription>Equating anchor performance across test forms.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {anchorStability.map((anchor) => (
-            <div key={anchor.anchor} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">{anchor.anchor}</p>
-                <p className="text-sm text-gray-500">Drift {anchor.drift}</p>
-              </div>
-              <Badge variant={statusVariant[anchor.status] || 'secondary'}>{anchor.status}</Badge>
-            </div>
-          ))}
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Anchor Set</TableHead>
+                <TableHead>Drift</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {anchors.length > 0 ? (
+                anchors.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="font-medium text-gray-900">{a.anchor}</TableCell>
+                    <TableCell>{a.drift}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant[a.status] || 'secondary'}>{a.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-gray-500">No anchor data</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5" />
-          <p>Physics item PHY-11-Q05 has low discrimination. Flag for content review before adopting in March session.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Target className="h-4 w-4 mr-2" /> Assign reviewer
-          </Button>
-          <Button size="sm">
-            <ClipboardCheck className="h-4 w-4 mr-2" /> Approve replacement
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-slate-200 bg-white p-4 text-sm text-gray-700">
-        <div className="flex items-center gap-3">
-          <Atom className="h-5 w-5 text-slate-500" />
-          <p>Need deeper psychometric modeling? Export calibrated parameters to the research workspace.</p>
-        </div>
-        <Button variant="outline" size="sm">
-          <Layers className="h-4 w-4 mr-2" /> Export IRT params
-        </Button>
-      </div>
     </div>
   )
 }

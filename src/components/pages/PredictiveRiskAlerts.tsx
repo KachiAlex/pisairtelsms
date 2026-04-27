@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Activity, AlertOctagon, ShieldCheck, BellRing, TrendingUp, RefreshCcw, Zap, Eye, MapPin } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -7,39 +7,69 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
 
-const riskFeed = [
-  { id: 'RISK-441', surface: 'Exam malpractice', signal: 'Coordinated device tamper', likelihood: 'High', eta: '< 24 hrs', owner: 'Security' },
-  { id: 'RISK-435', surface: 'Fee default', signal: 'Bulk auto-debit failures', likelihood: 'Medium', eta: '48 hrs', owner: 'Finance' },
-  { id: 'RISK-429', surface: 'Attendance anomaly', signal: 'Portal spoof attempts', likelihood: 'Low', eta: '72 hrs', owner: 'Operations' },
-]
-
-const modelPerformance = [
-  { model: 'Exam integrity', precision: 0.81, recall: 0.69 },
-  { model: 'Finance risk', precision: 0.76, recall: 0.71 },
-  { model: 'Attendance spoof', precision: 0.72, recall: 0.64 },
-]
-
-const mitigationPlaybooks = [
-  { title: 'Device tamper lockdown', steps: 6, coverage: 78, status: 'Ready' },
-  { title: 'Guardian notification burst', steps: 4, coverage: 63, status: 'Needs update' },
-  { title: 'CBT hall sweep', steps: 5, coverage: 90, status: 'Ready' },
-]
-
-const signalClusters = [
-  { cluster: 'Access anomalies', confidence: 86, incidents: 12 },
-  { cluster: 'Financial anomalies', confidence: 72, incidents: 9 },
-  { cluster: 'Attendance gaps', confidence: 64, incidents: 7 },
-]
-
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destructive'> = {
   High: 'destructive',
   Medium: 'warning',
   Low: 'secondary',
   Ready: 'default',
   'Needs update': 'warning',
+  increasing: 'destructive',
+  stable: 'default',
+  decreasing: 'default',
 }
 
 export function PredictiveRiskAlerts() {
+  const [alerts, setAlerts] = useState<any[]>([])
+  const [models, setModels] = useState<any[]>([])
+  const [playbooks, setPlaybooks] = useState<any[]>([])
+  const [clusters, setClusters] = useState<any[]>([])
+  const [statistics, setStatistics] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const tenantId = 'default-tenant'
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      const [alertsRes, modelsRes, playbooksRes, clustersRes, statsRes] = await Promise.all([
+        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=alerts`),
+        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=models`),
+        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=playbooks`),
+        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=clusters`),
+        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=statistics`),
+      ])
+
+      if (!alertsRes.ok || !modelsRes.ok || !playbooksRes.ok || !clustersRes.ok || !statsRes.ok) {
+        throw new Error('Failed to fetch data')
+      }
+
+      const alertsData = await alertsRes.json()
+      const modelsData = await modelsRes.json()
+      const playbooksData = await playbooksRes.json()
+      const clustersData = await clustersRes.json()
+      const statsData = await statsRes.json()
+
+      setAlerts(alertsData.data || [])
+      setModels(modelsData.data || [])
+      setPlaybooks(playbooksData.data || [])
+      setClusters(clustersData.data || [])
+      setStatistics(statsData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading...</div>
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -49,42 +79,48 @@ export function PredictiveRiskAlerts() {
           <p className="text-sm text-gray-600">Surface early-warning signals across academics, finance, and operations to act before incidents escalate.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <RefreshCcw className="h-4 w-4 mr-2" /> Refresh signals
+          <Button variant="outline" onClick={fetchData}>
+            <RefreshCcw className="h-4 w-4 mr-2" /> Refresh alerts
           </Button>
           <Button>
-            <BellRing className="h-4 w-4 mr-2" /> Broadcast alert
+            <Eye className="h-4 w-4 mr-2" /> View details
           </Button>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Active alerts</p>
-            <p className="text-3xl font-semibold text-gray-900">12</p>
-            <p className="text-xs text-gray-500">5 critical</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.activeAlerts || 0}</p>
+            <p className="text-xs text-gray-500">Requiring attention</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Median lead time</p>
-            <p className="text-3xl font-semibold text-emerald-600">36h</p>
-            <p className="text-xs text-gray-500">Ahead of incident</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Critical alerts</p>
+            <p className="text-3xl font-semibold text-red-600">{statistics?.criticalAlerts || 0}</p>
+            <p className="text-xs text-gray-500">High likelihood</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Playbooks ready</p>
-            <p className="text-3xl font-semibold text-gray-900">9</p>
-            <p className="text-xs text-gray-500">Across 3 domains</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Avg risk score</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.averageRiskScore || 0}</p>
+            <p className="text-xs text-gray-500">0-1 scale</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Automation coverage</p>
-            <p className="text-3xl font-semibold text-amber-600">74%</p>
-            <p className="text-xs text-gray-500">Requires manual for 3 alerts</p>
+            <p className="text-3xl font-semibold text-emerald-600">{statistics?.automationCoverage || 0}%</p>
+            <p className="text-xs text-gray-500">Playbooks ready</p>
           </CardContent>
         </Card>
       </div>
@@ -92,33 +128,37 @@ export function PredictiveRiskAlerts() {
       <Card>
         <CardHeader>
           <CardTitle>Risk feed</CardTitle>
-          <CardDescription>Model severity, ownership, and expected time-to-impact.</CardDescription>
+          <CardDescription>Active risk signals ranked by likelihood and impact.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
                 <TableHead>Surface</TableHead>
                 <TableHead>Signal</TableHead>
                 <TableHead>Likelihood</TableHead>
-                <TableHead>Lead time</TableHead>
+                <TableHead>ETA</TableHead>
                 <TableHead>Owner</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {riskFeed.map((risk) => (
-                <TableRow key={risk.id}>
-                  <TableCell className="font-medium text-gray-900">{risk.id}</TableCell>
-                  <TableCell>{risk.surface}</TableCell>
-                  <TableCell>{risk.signal}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[risk.likelihood] || 'secondary'}>{risk.likelihood}</Badge>
-                  </TableCell>
-                  <TableCell>{risk.eta}</TableCell>
-                  <TableCell>{risk.owner}</TableCell>
+              {alerts.length > 0 ? (
+                alerts.map((alert) => (
+                  <TableRow key={alert.id}>
+                    <TableCell className="font-medium text-gray-900">{alert.surface}</TableCell>
+                    <TableCell>{alert.signal}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant[alert.likelihood] || 'secondary'}>{alert.likelihood}</Badge>
+                    </TableCell>
+                    <TableCell>{alert.eta}</TableCell>
+                    <TableCell>{alert.owner}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500">No active alerts</TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -128,45 +168,57 @@ export function PredictiveRiskAlerts() {
         <Card>
           <CardHeader>
             <CardTitle>Model performance</CardTitle>
-            <CardDescription>Precision vs recall for each risk domain.</CardDescription>
+            <CardDescription>ML model accuracy metrics.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {modelPerformance.map((model) => (
-              <div key={model.model} className="rounded-2xl border border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-gray-900">{model.model}</p>
-                  <span className="text-sm text-gray-500">Precision {(model.precision * 100).toFixed(0)}%</span>
+          <CardContent className="space-y-4">
+            {models.length > 0 ? (
+              models.map((m) => (
+                <div key={m.id} className="rounded-lg border border-gray-100 p-3">
+                  <p className="font-medium text-gray-900">{m.model}</p>
+                  <div className="mt-2 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Precision:</span>
+                      <span className="font-medium">{(m.precision * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Recall:</span>
+                      <span className="font-medium">{(m.recall * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">F1 Score:</span>
+                      <span className="font-medium">{(m.f1Score * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-2">
-                  <Progress value={model.precision * 100} />
-                  <p className="text-xs text-gray-500 mt-1">Recall {(model.recall * 100).toFixed(0)}%</p>
-                </div>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" className="w-full">
-              <Activity className="h-4 w-4 mr-2" /> Download evaluation
-            </Button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No model data</p>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Mitigation playbooks</CardTitle>
-            <CardDescription>Prepared responses mapped to each risk surface.</CardDescription>
+            <CardDescription>Automated response workflows.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mitigationPlaybooks.map((playbook) => (
-              <div key={playbook.title} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">{playbook.title}</p>
-                  <p className="text-sm text-gray-500">{playbook.steps} steps • {playbook.coverage}% coverage</p>
+            {playbooks.length > 0 ? (
+              playbooks.map((p) => (
+                <div key={p.id} className="rounded-lg border border-gray-100 p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="font-medium text-gray-900">{p.title}</p>
+                    <Badge variant={statusVariant[p.status] || 'secondary'}>{p.status}</Badge>
+                  </div>
+                  <div className="text-sm text-gray-600 mb-2">
+                    {p.steps} steps • {p.coverage}% coverage
+                  </div>
+                  <Progress value={p.coverage} />
                 </div>
-                <Badge variant={statusVariant[playbook.status] || 'secondary'}>{playbook.status}</Badge>
-              </div>
-            ))}
-            <Button variant="ghost" size="sm" className="w-full">
-              <ShieldCheck className="h-4 w-4 mr-2" /> Update playbooks
-            </Button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No playbooks</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -174,43 +226,39 @@ export function PredictiveRiskAlerts() {
       <Card>
         <CardHeader>
           <CardTitle>Signal clusters</CardTitle>
-          <CardDescription>Grouped anomalies feeding predictive pipelines.</CardDescription>
+          <CardDescription>Grouped anomalies and incident patterns.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          {signalClusters.map((cluster) => (
-            <div key={cluster.cluster} className="rounded-2xl border border-gray-100 p-4">
-              <p className="font-medium text-gray-900">{cluster.cluster}</p>
-              <p className="text-sm text-gray-500">Confidence {cluster.confidence}%</p>
-              <p className="text-xs text-gray-400">{cluster.incidents} incidents linked</p>
-            </div>
-          ))}
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Cluster</TableHead>
+                <TableHead>Confidence</TableHead>
+                <TableHead>Incidents</TableHead>
+                <TableHead>Trend</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {clusters.length > 0 ? (
+                clusters.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium text-gray-900">{c.cluster}</TableCell>
+                    <TableCell>{c.confidence}%</TableCell>
+                    <TableCell>{c.incidents}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant[c.trend] || 'secondary'}>{c.trend}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-gray-500">No clusters found</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-900">
-        <div className="flex items-center gap-3">
-          <AlertOctagon className="h-5 w-5" />
-          <p>RISK-441 predicted tamper zone near Annex Hall. Dispatch patrol and switch to offline CBT watchlist.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <MapPin className="h-4 w-4 mr-2" /> View map
-          </Button>
-          <Button size="sm">
-            <Zap className="h-4 w-4 mr-2" /> Trigger automation
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-slate-200 bg-white p-4 text-sm text-gray-700">
-        <div className="flex items-center gap-3">
-          <Eye className="h-5 w-5 text-slate-500" />
-          <p>Need human review? Escalate alerts directly to the command center with context and recommended actions.</p>
-        </div>
-        <Button variant="outline" size="sm">
-          <BellRing className="h-4 w-4 mr-2" /> Escalate to command
-        </Button>
-      </div>
     </div>
   )
 }

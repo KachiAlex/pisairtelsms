@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Laptop2, WifiOff, RefreshCcw, Activity, AlertTriangle, HardDriveDownload, Shield, Plug, Server } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -7,36 +7,65 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
 
-const deviceSyncQueue = [
-  { id: 'CBT-021', lab: 'ICT Lab A', status: 'Syncing', papers: 6, bandwidth: '18 Mbps', eta: '04:12 PM' },
-  { id: 'CBT-017', lab: 'Annex Hall', status: 'Waiting', papers: 4, bandwidth: 'Pending', eta: 'Queue slot 3' },
-  { id: 'CBT-013', lab: 'Mobile Cart', status: 'Success', papers: 3, bandwidth: '12 Mbps', eta: 'Completed' },
-]
-
-const packageHealth = [
-  { id: 'Mathematics Paper 2', size: '420 MB', checksum: 'Verified', attempts: 1 },
-  { id: 'Biology Practical', size: '615 MB', checksum: 'Retry needed', attempts: 3 },
-  { id: 'Civic Education', size: '210 MB', checksum: 'Verified', attempts: 1 },
-]
-
-const networkFallbacks = [
-  { region: 'Main campus', medium: 'Fiber', status: 'Stable', coverage: 100 },
-  { region: 'Annex', medium: 'Microwave', status: 'Degraded', coverage: 68 },
-  { region: 'Rural center', medium: '4G failover', status: 'Offline', coverage: 12 },
-]
-
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destructive'> = {
-  Syncing: 'default',
-  Success: 'default',
-  Waiting: 'secondary',
-  Stable: 'default',
-  Degraded: 'warning',
-  Offline: 'destructive',
-  'Retry needed': 'warning',
-  Verified: 'default',
+  syncing: 'default',
+  success: 'default',
+  waiting: 'secondary',
+  stable: 'default',
+  degraded: 'warning',
+  offline: 'destructive',
+  retry_needed: 'warning',
+  verified: 'default',
 }
 
 export function OfflineCBTSync() {
+  const [devices, setDevices] = useState<any[]>([])
+  const [packages, setPackages] = useState<any[]>([])
+  const [fallbacks, setFallbacks] = useState<any[]>([])
+  const [statistics, setStatistics] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const tenantId = 'default-tenant' // In real app, get from context
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      const [devicesRes, packagesRes, fallbacksRes, statsRes] = await Promise.all([
+        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=devices`),
+        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=packages`),
+        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=fallbacks`),
+        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=statistics`),
+      ])
+
+      if (!devicesRes.ok || !packagesRes.ok || !fallbacksRes.ok || !statsRes.ok) {
+        throw new Error('Failed to fetch data')
+      }
+
+      const devicesData = await devicesRes.json()
+      const packagesData = await packagesRes.json()
+      const fallbacksData = await fallbacksRes.json()
+      const statsData = await statsRes.json()
+
+      setDevices(devicesData.data || [])
+      setPackages(packagesData.data || [])
+      setFallbacks(fallbacksData.data || [])
+      setStatistics(statsData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading...</div>
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -46,7 +75,7 @@ export function OfflineCBTSync() {
           <p className="text-sm text-gray-600">Manage package distribution, device readiness, and failover rails before the exam window.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={fetchData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Rescan devices
           </Button>
           <Button>
@@ -55,33 +84,39 @@ export function OfflineCBTSync() {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Devices ready</p>
-            <p className="text-3xl font-semibold text-gray-900">46</p>
-            <p className="text-xs text-gray-500">of 52 provisioned</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.devicesReady || 0}</p>
+            <p className="text-xs text-gray-500">of {statistics?.devicesTotal || 0} provisioned</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Sync freshness</p>
-            <p className="text-3xl font-semibold text-emerald-600">92%</p>
+            <p className="text-3xl font-semibold text-emerald-600">{statistics?.syncFreshness || 0}%</p>
             <p className="text-xs text-gray-500">&lt; 12 hrs old</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Packages pending</p>
-            <p className="text-3xl font-semibold text-amber-600">3</p>
+            <p className="text-3xl font-semibold text-amber-600">{statistics?.packagesPending || 0}</p>
             <p className="text-xs text-gray-500">Need checksum validation</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Fallback drills</p>
-            <p className="text-3xl font-semibold text-gray-900">2</p>
-            <p className="text-xs text-gray-500">Scheduled this week</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Conflicts pending</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.conflictsPending || 0}</p>
+            <p className="text-xs text-gray-500">Awaiting resolution</p>
           </CardContent>
         </Card>
       </div>
@@ -104,18 +139,24 @@ export function OfflineCBTSync() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {deviceSyncQueue.map((device) => (
-                <TableRow key={device.id}>
-                  <TableCell className="font-medium text-gray-900">{device.id}</TableCell>
-                  <TableCell>{device.lab}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[device.status] || 'secondary'}>{device.status}</Badge>
-                  </TableCell>
-                  <TableCell>{device.papers}</TableCell>
-                  <TableCell>{device.bandwidth}</TableCell>
-                  <TableCell>{device.eta}</TableCell>
+              {devices.length > 0 ? (
+                devices.map((device) => (
+                  <TableRow key={device.id}>
+                    <TableCell className="font-medium text-gray-900">{device.deviceId}</TableCell>
+                    <TableCell>{device.lab}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant[device.status] || 'secondary'}>{device.status}</Badge>
+                    </TableCell>
+                    <TableCell>{device.papers}</TableCell>
+                    <TableCell>{device.bandwidth || 'N/A'}</TableCell>
+                    <TableCell>{device.eta || 'Pending'}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-gray-500">No devices found</TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -128,16 +169,20 @@ export function OfflineCBTSync() {
             <CardDescription>Checksum verification and retry counts.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {packageHealth.map((pkg) => (
-              <div key={pkg.id} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">{pkg.id}</p>
-                  <p className="text-sm text-gray-500">Size {pkg.size}</p>
-                  <p className="text-xs text-gray-400">Attempts {pkg.attempts}</p>
+            {packages.length > 0 ? (
+              packages.map((pkg) => (
+                <div key={pkg.id} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900">{pkg.examId}</p>
+                    <p className="text-sm text-gray-500">Size {pkg.size}</p>
+                    <p className="text-xs text-gray-400">Attempts {pkg.attempts}</p>
+                  </div>
+                  <Badge variant={statusVariant[pkg.status] || 'secondary'}>{pkg.status}</Badge>
                 </div>
-                <Badge variant={statusVariant[pkg.checksum] || 'secondary'}>{pkg.checksum}</Badge>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No packages found</p>
+            )}
             <Button variant="ghost" size="sm" className="w-full">
               <Shield className="h-4 w-4 mr-2" /> View manifest
             </Button>
@@ -150,21 +195,25 @@ export function OfflineCBTSync() {
             <CardDescription>Coverage of offline-first rails per location.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {networkFallbacks.map((fallback) => (
-              <div key={fallback.region} className="rounded-2xl border border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{fallback.region}</p>
-                    <p className="text-sm text-gray-500">Medium: {fallback.medium}</p>
+            {fallbacks.length > 0 ? (
+              fallbacks.map((fallback) => (
+                <div key={fallback.id} className="rounded-2xl border border-gray-100 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{fallback.region}</p>
+                      <p className="text-sm text-gray-500">Medium: {fallback.medium}</p>
+                    </div>
+                    <Badge variant={statusVariant[fallback.status] || 'secondary'}>{fallback.status}</Badge>
                   </div>
-                  <Badge variant={statusVariant[fallback.status] || 'secondary'}>{fallback.status}</Badge>
+                  <div className="mt-3">
+                    <Progress value={fallback.coverage} />
+                    <p className="text-xs text-gray-500 mt-1">{fallback.coverage}% coverage</p>
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <Progress value={fallback.coverage} />
-                  <p className="text-xs text-gray-500 mt-1">{fallback.coverage}% coverage</p>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No fallbacks configured</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -211,7 +260,7 @@ export function OfflineCBTSync() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-slate-200 bg-white p-4 text-sm text-gray-700">
         <div className="flex items-center gap-3">
           <WifiOff className="h-5 w-5 text-slate-500" />
-          <p>Need to keep devices offline after sync? Toggle watch mode so clients don’t pull live updates mid-session.</p>
+          <p>Need to keep devices offline after sync? Toggle watch mode so clients don't pull live updates mid-session.</p>
         </div>
         <Button variant="outline" size="sm">
           <Server className="h-4 w-4 mr-2" /> Configure watch mode

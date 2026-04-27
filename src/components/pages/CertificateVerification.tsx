@@ -1,34 +1,10 @@
-import React from 'react'
-import { BadgeCheck, ShieldCheck, RefreshCcw, Search, HardDriveDownload, Share2, AlertTriangle, Fingerprint } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { BadgeCheck, ShieldCheck, RefreshCcw, Search, HardDriveDownload, Share2, AlertTriangle, Fingerprint, Trash2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
-
-const verificationFeed = [
-  { id: 'CERT-8821', holder: 'Oluwatobi A.', credential: 'WAEC 2024', status: 'Validated', method: 'QR', latency: '3.2s' },
-  { id: 'CERT-8817', holder: 'Fatima L.', credential: 'Junior NECO 2023', status: 'Manual review', method: 'Registry API', latency: 'Pending' },
-  { id: 'CERT-8813', holder: 'Daniel O.', credential: 'Mock Exams 2025', status: 'Rejected', method: 'Bulk CSV', latency: '1.2s' },
-]
-
-const registryIntegrations = [
-  { provider: 'WAEC digital vault', status: 'Live', uptime: 99.6, coverage: '2015-2025' },
-  { provider: 'NECO records', status: 'Sync lag', uptime: 94.2, coverage: '2016-2024' },
-  { provider: 'State internal board', status: 'Offline', uptime: 0, coverage: 'Scheduled' },
-]
-
-const fraudSignals = [
-  { flag: 'QR reuse detected', severity: 'High', volume: 3 },
-  { flag: 'Manual tamper edits', severity: 'Medium', volume: 5 },
-  { flag: 'Duplicate registry hits', severity: 'Low', volume: 11 },
-]
-
-const issuanceStats = [
-  { label: 'Certificates issued (YTD)', value: '1,482' },
-  { label: 'Validation success', value: '96%' },
-  { label: 'Blockchain anchor', value: '78%' },
-]
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destructive'> = {
   Validated: 'default',
@@ -43,65 +19,205 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destr
 }
 
 export function CertificateVerification() {
+  const [verifications, setVerifications] = useState<any[]>([])
+  const [registries, setRegistries] = useState<any[]>([])
+  const [fraudSignals, setFraudSignals] = useState<any[]>([])
+  const [statistics, setStatistics] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [certificateCode, setCertificateCode] = useState('')
+  const [verifyResult, setVerifyResult] = useState<any>(null)
+
+  const tenantId = 'default-tenant'
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      const [verificationsRes, registriesRes, fraudRes, statsRes] = await Promise.all([
+        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=verifications`),
+        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=registries`),
+        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=fraud-signals`),
+        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=statistics`),
+      ])
+
+      if (!verificationsRes.ok || !registriesRes.ok || !fraudRes.ok || !statsRes.ok) {
+        throw new Error('Failed to fetch data')
+      }
+
+      const verificationsData = await verificationsRes.json()
+      const registriesData = await registriesRes.json()
+      const fraudData = await fraudRes.json()
+      const statsData = await statsRes.json()
+
+      setVerifications(verificationsData.data || [])
+      setRegistries(registriesData.data || [])
+      setFraudSignals(fraudData.data || [])
+      setStatistics(statsData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerify = async () => {
+    if (!certificateCode.trim()) {
+      setError('Please enter a certificate code')
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&code=${certificateCode}`, {
+        method: 'GET',
+      })
+
+      if (!res.ok) {
+        throw new Error('Certificate not found or invalid')
+      }
+
+      const result = await res.json()
+      setVerifyResult(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Verification failed')
+      setVerifyResult(null)
+    }
+  }
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading...</div>
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Advanced Features</p>
           <h1 className="text-2xl font-bold text-gray-900">Certificate verification</h1>
-          <p className="text-sm text-gray-600">Validate issued credentials across QR, blockchain, and registry APIs with tamper-proof evidence.</p>
+          <p className="text-sm text-gray-600">Verify certificate authenticity, detect fraud signals, and manage revocations.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <RefreshCcw className="h-4 w-4 mr-2" /> Sync registries
+          <Button variant="outline" onClick={fetchData}>
+            <RefreshCcw className="h-4 w-4 mr-2" /> Refresh data
           </Button>
           <Button>
-            <BadgeCheck className="h-4 w-4 mr-2" /> Issue certificate
+            <HardDriveDownload className="h-4 w-4 mr-2" /> Export report
           </Button>
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        {issuanceStats.map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-wide text-gray-500">{stat.label}</p>
-              <p className="text-3xl font-semibold text-gray-900">{stat.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Certificates issued</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.certificatesIssued || 0}</p>
+            <p className="text-xs text-gray-500">Year to date</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Certificates revoked</p>
+            <p className="text-3xl font-semibold text-red-600">{statistics?.certificatesRevoked || 0}</p>
+            <p className="text-xs text-gray-500">Invalidated</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Validation success</p>
+            <p className="text-3xl font-semibold text-emerald-600">{statistics?.validationSuccess || 0}%</p>
+            <p className="text-xs text-gray-500">Verified certificates</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Blockchain anchor</p>
+            <p className="text-3xl font-semibold text-gray-900">{statistics?.blockchainAnchor || 0}</p>
+            <p className="text-xs text-gray-500">Immutable records</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
         <CardHeader>
+          <CardTitle>Verify certificate</CardTitle>
+          <CardDescription>Enter certificate code to verify authenticity.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Enter certificate code (e.g., CERT-...)"
+              value={certificateCode}
+              onChange={(e) => setCertificateCode(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Button onClick={handleVerify}>
+              <Search className="h-4 w-4 mr-2" /> Verify
+            </Button>
+          </div>
+
+          {verifyResult && (
+            <div className="rounded-lg bg-green-50 p-4 border border-green-200">
+              <div className="flex items-start gap-3">
+                <BadgeCheck className="h-5 w-5 text-green-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-green-900">Certificate verified</p>
+                  <div className="mt-2 space-y-1 text-sm text-green-800">
+                    <p>Code: {verifyResult.certificateCode}</p>
+                    <p>Student ID: {verifyResult.studentId}</p>
+                    <p>Exam ID: {verifyResult.examId}</p>
+                    <p>Issued: {new Date(verifyResult.issuedAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Verification feed</CardTitle>
-          <CardDescription>Recent checks with method, latency, and outcome.</CardDescription>
+          <CardDescription>Recent certificate verification records.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Request ID</TableHead>
+                <TableHead>Certificate</TableHead>
                 <TableHead>Holder</TableHead>
                 <TableHead>Credential</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Method</TableHead>
-                <TableHead>Latency</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {verificationFeed.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="font-medium text-gray-900">{entry.id}</TableCell>
-                  <TableCell>{entry.holder}</TableCell>
-                  <TableCell>{entry.credential}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[entry.status] || 'secondary'}>{entry.status}</Badge>
-                  </TableCell>
-                  <TableCell>{entry.method}</TableCell>
-                  <TableCell>{entry.latency}</TableCell>
+              {verifications.length > 0 ? (
+                verifications.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell className="font-medium text-gray-900">{v.certificateCode}</TableCell>
+                    <TableCell>{v.holder}</TableCell>
+                    <TableCell>{v.credential}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant[v.status] || 'secondary'}>{v.status}</Badge>
+                    </TableCell>
+                    <TableCell>{v.method}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500">No verifications found</TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -111,72 +227,49 @@ export function CertificateVerification() {
         <Card>
           <CardHeader>
             <CardTitle>Registry integrations</CardTitle>
-            <CardDescription>Uptime posture and coverage windows.</CardDescription>
+            <CardDescription>External registry connection status.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {registryIntegrations.map((registry) => (
-              <div key={registry.provider} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">{registry.provider}</p>
-                  <p className="text-sm text-gray-500">Coverage {registry.coverage}</p>
+            {registries.length > 0 ? (
+              registries.map((r) => (
+                <div key={r.id} className="rounded-lg border border-gray-100 p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="font-medium text-gray-900">{r.provider}</p>
+                    <Badge variant={statusVariant[r.status] || 'secondary'}>{r.status}</Badge>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <p>Uptime: {r.uptime}%</p>
+                    <p>Coverage: {r.coverage}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <Badge variant={statusVariant[registry.status] || 'secondary'}>{registry.status}</Badge>
-                  {registry.uptime > 0 && <p className="text-xs text-gray-400 mt-1">{registry.uptime}% uptime</p>}
-                </div>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" className="w-full">
-              <ShieldCheck className="h-4 w-4 mr-2" /> Manage credentials
-            </Button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No registries configured</p>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Fraud signals</CardTitle>
-            <CardDescription>High-risk patterns observed in the past 7 days.</CardDescription>
+            <CardDescription>Detected anomalies and suspicious patterns.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {fraudSignals.map((signal) => (
-              <div key={signal.flag} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">{signal.flag}</p>
-                  <p className="text-sm text-gray-500">{signal.volume} detections</p>
+            {fraudSignals.length > 0 ? (
+              fraudSignals.map((f) => (
+                <div key={f.id} className="rounded-lg border border-gray-100 p-3 flex items-start justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{f.flag}</p>
+                    <p className="text-sm text-gray-600">{f.volume} incidents</p>
+                  </div>
+                  <Badge variant={statusVariant[f.severity] || 'secondary'}>{f.severity}</Badge>
                 </div>
-                <Badge variant={statusVariant[signal.severity] || 'secondary'}>{signal.severity}</Badge>
-              </div>
-            ))}
-            <Button variant="ghost" size="sm" className="w-full">
-              <Search className="h-4 w-4 mr-2" /> Open investigation
-            </Button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No fraud signals detected</p>
+            )}
           </CardContent>
         </Card>
-      </div>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5" />
-          <p>NECO registry sync lag detected. Queue blockchain anchors as backup until API latency normalizes.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <HardDriveDownload className="h-4 w-4 mr-2" /> Export anchor hashes
-          </Button>
-          <Button size="sm">
-            <Share2 className="h-4 w-4 mr-2" /> Notify registrars
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-slate-200 bg-white p-4 text-sm text-gray-700">
-        <div className="flex items-center gap-3">
-          <Fingerprint className="h-5 w-5 text-slate-500" />
-          <p>Need paper trail? Download signed PDFs with embedded QR seals and verification metadata.</p>
-        </div>
-        <Button variant="outline" size="sm">
-          <Search className="h-4 w-4 mr-2" /> Retrieve dossier
-        </Button>
       </div>
     </div>
   )

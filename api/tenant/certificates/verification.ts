@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 interface VerificationRecord {
   id: string;
@@ -42,14 +43,36 @@ interface IssuanceRecord {
   examId: string;
   issuedAt: Date;
   blockchainAnchor?: string;
+  revoked: boolean;
+  revokedAt?: Date;
+  revokedReason?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface AuditLog {
+  id: string;
+  tenantId: string;
+  certificateCode: string;
+  action: 'issued' | 'verified' | 'revoked' | 'manual_review';
+  actor: string;
+  details: string;
+  createdAt: Date;
 }
 
 const verifications: VerificationRecord[] = [];
 const registries: RegistryIntegration[] = [];
 const fraudSignals: FraudSignal[] = [];
 const issuances: IssuanceRecord[] = [];
+const auditLogs: AuditLog[] = [];
+
+// Certificate code generation with checksum
+const generateCertificateCode = (): string => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const checksum = crypto.createHash('md5').update(`${timestamp}${random}`).digest('hex').substring(0, 4).toUpperCase();
+  return `CERT-${timestamp}-${random}-${checksum}`;
+};
 
 export const certificateVerificationApi = {
   // List verification records
@@ -88,6 +111,18 @@ export const certificateVerificationApi = {
     };
 
     verifications.push(verification);
+    
+    // Log audit
+    auditLogs.push({
+      id: uuidv4(),
+      tenantId,
+      certificateCode: payload.certificateCode,
+      action: 'verified',
+      actor: 'system',
+      details: `Certificate verified via ${payload.method}`,
+      createdAt: new Date(),
+    });
+
     return verification;
   },
 
@@ -95,8 +130,8 @@ export const certificateVerificationApi = {
   verifyCertificate: (tenantId: string, certificateCode: string) => {
     if (!tenantId || !certificateCode) throw new Error('Missing required fields');
 
-    const issuance = issuances.find(i => i.tenantId === tenantId && i.certificateCode === certificateCode);
-    if (!issuance) throw new Error('Certificate not found');
+    const issuance = issuances.find(i => i.tenantId === tenantId && i.certificateCode === certificateCode && !i.revoked);
+    if (!issuance) throw new Error('Certificate not found or revoked');
 
     return {
       valid: true,
@@ -167,13 +202,13 @@ export const certificateVerificationApi = {
     return signal;
   },
 
-  // Issue certificate
+  // Issue certificate with generated code
   issueCertificate: (tenantId: string, payload: { studentId: string; examId: string; blockchainAnchor?: string }) => {
     if (!tenantId || !payload.studentId || !payload.examId) {
       throw new Error('Missing required fields');
     }
 
-    const certificateCode = `CERT-${uuidv4().substring(0, 8).toUpperCase()}`;
+    const certificateCode = generateCertificateCode();
 
     const issuance: IssuanceRecord = {
       id: uuidv4(),
@@ -183,24 +218,81 @@ export const certificateVerificationApi = {
       examId: payload.examId,
       issuedAt: new Date(),
       blockchainAnchor: payload.blockchainAnchor,
+      revoked: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     issuances.push(issuance);
+
+    // Log audit
+    auditLogs.push({
+      id: uuidv4(),
+      tenantId,
+      certificateCode,
+      action: 'issued',
+      actor: 'system',
+      details: `Certificate issued to student ${payload.studentId}`,
+      createdAt: new Date(),
+    });
+
     return issuance;
   },
 
-  // Get issuance statistics
+  // Revoke certificate
+  revokeCertificate: (tenantId: string, certificateCode: string, payload: { reason: string; actor: string }) => {
+    if (!tenantId || !certificateCode) throw new Error('Missing required fields');
+
+    const issuance = issuances.find(i => i.tenantId === tenantId && i.certificateCode === certificateCode);
+    if (!issuance) throw new Error('Certificate not found');
+
+    issuance.revoked = true;
+    issuance.revokedAt = new Date();
+    issuance.revokedReason = payload.reason;
+    issuance.updatedAt = new Date();
+
+    // Log audit
+    auditLogs.push({
+      id: uuidv4(),
+      tenantId,
+      certificateCode,
+      action: 'revoked',
+      actor: payload.actor,
+      details: `Certificate revoked: ${payload.reason}`,
+      createdAt: new Date(),
+    });
+
+    return issuance;
+  },
+
+  // List audit logs
+  listAuditLogs: (tenantId: string, filters?: { certificateCode?: string; limit?: number; offset?: number }) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const { certificateCode, limit = 50, offset = 0 } = filters || {};
+
+    let filtered = auditLogs.filter(l => l.tenantId === tenantId);
+    if (certificateCode) filtered = filtered.filter(l => l.certificateCode === certificateCode);
+
+    const data = filtered
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(offset, offset + limit);
+
+    return { data, total: filtered.length };
+  },
+
+  // Get verification statistics
   getStatistics: (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
 
     const tenantIssuances = issuances.filter(i => i.tenantId === tenantId);
     const tenantVerifications = verifications.filter(v => v.tenantId === tenantId);
     const validatedCount = tenantVerifications.filter(v => v.status === 'validated').length;
+    const revokedCount = tenantIssuances.filter(i => i.revoked).length;
 
     return {
       certificatesIssued: tenantIssuances.length,
+      certificatesRevoked: revokedCount,
       validationSuccess: tenantVerifications.length > 0 ? ((validatedCount / tenantVerifications.length) * 100).toFixed(0) : '0',
       blockchainAnchor: tenantIssuances.filter(i => i.blockchainAnchor).length,
     };

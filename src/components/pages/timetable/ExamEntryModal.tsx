@@ -86,11 +86,16 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
     reader.onload = (event) => {
       try {
         let questions: any[] = []
-        const result = event.target?.result as string
+        let result = event.target?.result as string
         
         if (file.name.endsWith('.json')) {
           questions = JSON.parse(result)
         } else if (file.name.endsWith('.csv')) {
+          // Remove BOM (Byte Order Mark) if present - common in Excel-converted CSVs
+          if (result.charCodeAt(0) === 0xFEFF) {
+            result = result.slice(1)
+          }
+          
           const lines = result.split('\n').filter(line => line.trim())
           if (lines.length < 2) {
             setError('CSV file must have a header row and at least one data row')
@@ -99,7 +104,12 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
           
           // Parse CSV: question,optionA,optionB,optionC,optionD,correctAnswer
           questions = lines.slice(1).map((line, idx) => {
-            const parts = line.split(',').map(s => s.trim())
+            // Handle quoted fields and clean up the line
+            const parts = line
+              .split(',')
+              .map(s => s.trim().replace(/^"|"$/g, '')) // Remove surrounding quotes
+              .filter(s => s) // Remove empty parts
+            
             if (parts.length < 6) {
               throw new Error(`Row ${idx + 2} has insufficient columns. Expected 6 columns (question, optionA, optionB, optionC, optionD, correctAnswer)`)
             }
@@ -137,7 +147,7 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
       setError('Failed to read file. Please try again.')
     }
     
-    reader.readAsText(file)
+    reader.readAsText(file, 'UTF-8')
     
     // Reset the input so the same file can be imported again
     e.target.value = ''

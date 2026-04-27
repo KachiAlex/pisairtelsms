@@ -196,17 +196,17 @@ This document outlines all implementation tasks for the Parent Portal feature. T
 
 ### 4.1 Create ParentDashboard Component
 - [x] Build dashboard layout with key metrics cards
-- [ ] Display child info card (name, admission number, class)
-- [ ] Display metrics (attendance %, GPA, outstanding fees, next exam)
-- [ ] Display recent grades section (5 items)
-- [ ] Display recent announcements section (5 items)
-- [ ] Display upcoming events section (5 items)
-- [ ] Display active alerts section (color-coded by severity)
-- [ ] Add loading skeletons for each section
-- [ ] Add error states with retry buttons
-- [ ] Implement responsive design
-- [ ] Create unit tests for component rendering
-- [ ] **Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 14.1, 14.2, 14.3**
+- [x] Display child info card (name, admission number, class)
+- [x] Display metrics (attendance %, GPA, outstanding fees, next exam)
+- [x] Display recent grades section (5 items)
+- [x] Display recent announcements section (5 items)
+- [x] Display upcoming events section (5 items)
+- [x] Display active alerts section (color-coded by severity)
+- [x] Add loading skeletons for each section
+- [x] Add error states with retry buttons
+- [x] Implement responsive design
+- [x] Create unit tests for component rendering
+- [x] **Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 14.1, 14.2, 14.3**
 
 ### 4.2 Create AcademicProgress Component
 - [x] Build academic progress page layout
@@ -279,19 +279,19 @@ This document outlines all implementation tasks for the Parent Portal feature. T
 - [x] **Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 14.1, 14.2, 14.3**
 
 ### 4.7 Create FeeManagement Component
-- [ ] Build fees page layout
-- [ ] Display fee summary card (total, paid, outstanding, due date)
-- [ ] Display fee structure breakdown by item
-- [ ] Display payment history table (date, amount, method, receipt)
-- [ ] Display payment plans section with installment tracking
-- [ ] Display exemptions and discounts
-- [ ] Add online payment button (if enabled)
-- [ ] Add download receipt button per payment
-- [ ] Add overdue amount highlighting
-- [ ] Add empty state if no fees
-- [ ] Implement responsive design
-- [ ] Create unit tests for component rendering
-- [ ] **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 14.1, 14.2, 14.3**
+- [x] Build fees page layout
+- [x] Display fee summary card (total, paid, outstanding, due date)
+- [x] Display fee structure breakdown by item
+- [x] Display payment history table (date, amount, method, receipt)
+- [x] Display payment plans section with installment tracking
+- [x] Display exemptions and discounts
+- [x] Add online payment button (if enabled)
+- [x] Add download receipt button per payment
+- [x] Add overdue amount highlighting
+- [x] Add empty state if no fees
+- [x] Implement responsive design
+- [x] Create unit tests for component rendering
+- [x] **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 14.1, 14.2, 14.3**
 
 ### 4.8 Create Timetable Component
 - [x] Build timetable page layout

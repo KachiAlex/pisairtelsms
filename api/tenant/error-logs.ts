@@ -32,9 +32,19 @@ interface ErrorHeatmap {
   updatedAt: Date;
 }
 
+interface ErrorNotification {
+  id: string;
+  tenantId: string;
+  errorLogId: string;
+  message: string;
+  sent: boolean;
+  createdAt: Date;
+}
+
 const errorLogs: ErrorLog[] = [];
 const environments: EnvironmentCoverage[] = [];
 const heatmaps: ErrorHeatmap[] = [];
+const notifications: ErrorNotification[] = [];
 
 export const errorLogsApi = {
   // List error logs
@@ -172,6 +182,74 @@ export const errorLogsApi = {
       alertsFiring: highSeverity + mediumSeverity,
       suppressedNoise: '73%',
       totalErrors: tenantLogs.length,
+    };
+  },
+
+  // Get error trend analysis
+  getErrorTrends: (tenantId: string, days: number = 7) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    const tenantLogs = errorLogs.filter(
+      l => l.tenantId === tenantId && l.createdAt >= cutoffDate
+    );
+
+    const trends = {
+      high: tenantLogs.filter(l => l.severity === 'high').length,
+      medium: tenantLogs.filter(l => l.severity === 'medium').length,
+      low: tenantLogs.filter(l => l.severity === 'low').length,
+      total: tenantLogs.length,
+    };
+
+    return trends;
+  },
+
+  // Send error notification
+  sendErrorNotification: (tenantId: string, errorLogId: string, message: string) => {
+    if (!tenantId || !errorLogId) throw new Error('Missing required fields');
+
+    const notification: ErrorNotification = {
+      id: uuidv4(),
+      tenantId,
+      errorLogId,
+      message,
+      sent: true,
+      createdAt: new Date(),
+    };
+
+    notifications.push(notification);
+    return notification;
+  },
+
+  // Get error notifications
+  getNotifications: (tenantId: string, filters?: { limit?: number; offset?: number }) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const { limit = 50, offset = 0 } = filters || {};
+
+    const filtered = notifications.filter(n => n.tenantId === tenantId);
+    const data = filtered
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(offset, offset + limit);
+
+    return { data, total: filtered.length };
+  },
+
+  // Export error logs
+  exportLogs: (tenantId: string, filters?: { severity?: string; service?: string }) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    let filtered = errorLogs.filter(l => l.tenantId === tenantId);
+    if (filters?.severity) filtered = filtered.filter(l => l.severity === filters.severity);
+    if (filters?.service) filtered = filtered.filter(l => l.service === filters.service);
+
+    return {
+      exportId: uuidv4(),
+      totalRecords: filtered.length,
+      data: filtered,
+      exportedAt: new Date(),
     };
   },
 };

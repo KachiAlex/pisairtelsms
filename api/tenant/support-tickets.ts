@@ -10,6 +10,7 @@ interface SupportTicket {
   sla: string;
   channel: string;
   status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  assignedTo?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,10 +45,20 @@ interface TicketComment {
   updatedAt: Date;
 }
 
+interface TicketAssignment {
+  id: string;
+  ticketId: string;
+  assignedTo: string;
+  assignedBy: string;
+  assignedAt: Date;
+  createdAt: Date;
+}
+
 const tickets: SupportTicket[] = [];
 const agents: AgentStatus[] = [];
 const rules: AutomationRule[] = [];
 const comments: TicketComment[] = [];
+const assignments: TicketAssignment[] = [];
 
 export const supportTicketsApi = {
   // List support tickets
@@ -217,6 +228,109 @@ export const supportTicketsApi = {
       breachesToday: tenantTickets.filter(t => t.sla.includes('breached')).length,
       avgHandleTime: '28m',
     };
+  },
+
+  // Assign ticket to agent
+  assignTicket: (tenantId: string, ticketId: string, assignedTo: string, assignedBy: string) => {
+    if (!tenantId || !ticketId || !assignedTo) throw new Error('Missing required fields');
+
+    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
+    if (!ticket) throw new Error('Ticket not found');
+
+    ticket.assignedTo = assignedTo;
+    ticket.updatedAt = new Date();
+
+    const assignment: TicketAssignment = {
+      id: uuidv4(),
+      ticketId,
+      assignedTo,
+      assignedBy,
+      assignedAt: new Date(),
+      createdAt: new Date(),
+    };
+
+    assignments.push(assignment);
+    return { ticket, assignment };
+  },
+
+  // Get ticket assignment history
+  getAssignmentHistory: (tenantId: string, ticketId: string) => {
+    if (!tenantId || !ticketId) throw new Error('Missing required fields');
+
+    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
+    if (!ticket) throw new Error('Ticket not found');
+
+    return assignments
+      .filter(a => a.ticketId === ticketId)
+      .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime());
+  },
+
+  // Get tickets by status
+  getTicketsByStatus: (tenantId: string, status: string, filters?: { limit?: number; offset?: number }) => {
+    if (!tenantId || !status) throw new Error('Missing required fields');
+
+    const { limit = 50, offset = 0 } = filters || {};
+
+    const filtered = tickets.filter(t => t.tenantId === tenantId && t.status === status);
+    const data = filtered
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(offset, offset + limit);
+
+    return { data, total: filtered.length };
+  },
+
+  // Get tickets by priority
+  getTicketsByPriority: (tenantId: string, priority: string, filters?: { limit?: number; offset?: number }) => {
+    if (!tenantId || !priority) throw new Error('Missing required fields');
+
+    const { limit = 50, offset = 0 } = filters || {};
+
+    const filtered = tickets.filter(t => t.tenantId === tenantId && t.priority === priority);
+    const data = filtered
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(offset, offset + limit);
+
+    return { data, total: filtered.length };
+  },
+
+  // Get tickets assigned to agent
+  getTicketsByAssignee: (tenantId: string, assignedTo: string, filters?: { limit?: number; offset?: number }) => {
+    if (!tenantId || !assignedTo) throw new Error('Missing required fields');
+
+    const { limit = 50, offset = 0 } = filters || {};
+
+    const filtered = tickets.filter(t => t.tenantId === tenantId && t.assignedTo === assignedTo);
+    const data = filtered
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(offset, offset + limit);
+
+    return { data, total: filtered.length };
+  },
+
+  // Close ticket
+  closeTicket: (tenantId: string, ticketId: string) => {
+    if (!tenantId || !ticketId) throw new Error('Missing required fields');
+
+    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
+    if (!ticket) throw new Error('Ticket not found');
+
+    ticket.status = 'closed';
+    ticket.updatedAt = new Date();
+
+    return ticket;
+  },
+
+  // Reopen ticket
+  reopenTicket: (tenantId: string, ticketId: string) => {
+    if (!tenantId || !ticketId) throw new Error('Missing required fields');
+
+    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
+    if (!ticket) throw new Error('Ticket not found');
+
+    ticket.status = 'open';
+    ticket.updatedAt = new Date();
+
+    return ticket;
   },
 };
 

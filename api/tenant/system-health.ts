@@ -43,10 +43,23 @@ interface DependencyHealth {
   updatedAt: Date;
 }
 
+interface HealthHistory {
+  id: string;
+  tenantId: string;
+  timestamp: Date;
+  overallStatus: string;
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+  uptime: number;
+  createdAt: Date;
+}
+
 const services: ServiceStatus[] = [];
 const vitals: InfrastructureVital[] = [];
 const incidents: IncidentRecord[] = [];
 const dependencies: DependencyHealth[] = [];
+const healthHistory: HealthHistory[] = [];
 
 export const systemHealthApi = {
   // List service status
@@ -203,6 +216,116 @@ export const systemHealthApi = {
       slaConverage: avgUptime,
       upcomingMaintenance: 2,
     };
+  },
+
+  // Get health check status
+  getHealthCheck: (tenantId: string) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const tenantServices = services.filter(s => s.tenantId === tenantId);
+    const tenantVitals = vitals.filter(v => v.tenantId === tenantId);
+    
+    const allOperational = tenantServices.every(s => s.status === 'operational');
+    const vitalsHealthy = tenantVitals.every(v => v.value <= v.threshold);
+
+    return {
+      status: allOperational && vitalsHealthy ? 'healthy' : 'degraded',
+      timestamp: new Date(),
+      services: tenantServices,
+      vitals: tenantVitals,
+    };
+  },
+
+  // Record health history
+  recordHealthHistory: (tenantId: string, payload: { cpuUsage: number; memoryUsage: number; diskUsage: number; uptime: number }) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const tenantServices = services.filter(s => s.tenantId === tenantId);
+    const allOperational = tenantServices.every(s => s.status === 'operational');
+
+    const record: HealthHistory = {
+      id: uuidv4(),
+      tenantId,
+      timestamp: new Date(),
+      overallStatus: allOperational ? 'operational' : 'degraded',
+      cpuUsage: payload.cpuUsage,
+      memoryUsage: payload.memoryUsage,
+      diskUsage: payload.diskUsage,
+      uptime: payload.uptime,
+      createdAt: new Date(),
+    };
+
+    healthHistory.push(record);
+    return record;
+  },
+
+  // Get health history
+  getHealthHistory: (tenantId: string, filters?: { limit?: number; offset?: number }) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const { limit = 100, offset = 0 } = filters || {};
+
+    const filtered = healthHistory.filter(h => h.tenantId === tenantId);
+    const data = filtered
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(offset, offset + limit);
+
+    return { data, total: filtered.length };
+  },
+
+  // Get resource usage metrics
+  getResourceMetrics: (tenantId: string) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const tenantHistory = healthHistory.filter(h => h.tenantId === tenantId);
+    
+    if (tenantHistory.length === 0) {
+      return {
+        cpu: { current: 0, average: 0, peak: 0 },
+        memory: { current: 0, average: 0, peak: 0 },
+        disk: { current: 0, average: 0, peak: 0 },
+      };
+    }
+
+    const latest = tenantHistory[0];
+    const cpuValues = tenantHistory.map(h => h.cpuUsage);
+    const memoryValues = tenantHistory.map(h => h.memoryUsage);
+    const diskValues = tenantHistory.map(h => h.diskUsage);
+
+    return {
+      cpu: {
+        current: latest.cpuUsage,
+        average: (cpuValues.reduce((a, b) => a + b, 0) / cpuValues.length).toFixed(1),
+        peak: Math.max(...cpuValues),
+      },
+      memory: {
+        current: latest.memoryUsage,
+        average: (memoryValues.reduce((a, b) => a + b, 0) / memoryValues.length).toFixed(1),
+        peak: Math.max(...memoryValues),
+      },
+      disk: {
+        current: latest.diskUsage,
+        average: (diskValues.reduce((a, b) => a + b, 0) / diskValues.length).toFixed(1),
+        peak: Math.max(...diskValues),
+      },
+    };
+  },
+
+  // Calculate uptime percentage
+  calculateUptime: (tenantId: string, days: number = 30) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    const tenantHistory = healthHistory.filter(
+      h => h.tenantId === tenantId && h.timestamp >= cutoffDate
+    );
+
+    if (tenantHistory.length === 0) return 100;
+
+    const operationalCount = tenantHistory.filter(h => h.overallStatus === 'operational').length;
+    return ((operationalCount / tenantHistory.length) * 100).toFixed(2);
   },
 };
 

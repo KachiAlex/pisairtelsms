@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { RefreshCcw, Building2, UserCheck } from 'lucide-react'
+import { RefreshCcw, Building2, UserCheck, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Badge } from '../../ui/badge'
 import { HallAssignmentPanel } from './HallAssignmentPanel'
 import { InvigilatorAssignmentPanel } from './InvigilatorAssignmentPanel'
+import { ExamEntryModal } from './ExamEntryModal'
 
 export interface ExamSchedule {
   id: string
@@ -42,6 +43,7 @@ export function ExamScheduleTab() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedExam, setExpandedExam] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   useEffect(() => {
     fetch('/api/tenant/timetable/calendar?resource=exam-periods')
@@ -78,18 +80,38 @@ export function ExamScheduleTab() {
     }
   }
 
+  const handleExamCreate = async (examData: any) => {
+    try {
+      const res = await fetch('/api/tenant/timetable/exam-schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(examData),
+      })
+      if (res.ok) {
+        loadExams()
+      }
+    } catch (err) {
+      setError('Failed to create exam')
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
         <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
           <SelectTrigger className="w-56"><SelectValue placeholder="Select exam period" /></SelectTrigger>
           <SelectContent>
             {examPeriods.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={loadExams}>
-          <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={loadExams}>
+            <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
+          <Button size="sm" onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="h-4 w-4 mr-1" /> Add Exam
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -155,6 +177,14 @@ export function ExamScheduleTab() {
           ))}
         </div>
       )}
+
+      <ExamEntryModal 
+        open={showAddModal} 
+        onOpenChange={setShowAddModal}
+        onExamCreate={handleExamCreate}
+      />
     </div>
   )
 }
+
+export default ExamScheduleTab

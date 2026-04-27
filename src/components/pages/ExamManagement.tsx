@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { ExamEntryModal } from './timetable/ExamEntryModal';
 
 interface Question {
   id: string;
@@ -38,6 +39,7 @@ const liveMonitoring = []
 export function ExamManagement() {
   const [exams, setExams] = useState(mockExams);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   // Form state for creating exam
   const [examForm, setExamForm] = useState({
@@ -203,6 +205,13 @@ export function ExamManagement() {
           <h1 className="text-2xl font-bold text-gray-900">CBT & Examination Management</h1>
           <p className="text-sm text-gray-600 mt-1">Create, schedule and monitor computer-based tests</p>
         </div>
+        <Button 
+          onClick={() => setIsCreateDialogOpen(true)}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Create Exam
+        </Button>
       </div>
 
       {/* Stats */}
@@ -396,11 +405,27 @@ export function ExamManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* Create Exam Dialog */}
-      <Dialog open={false} onOpenChange={() => {}}>
-        <DialogContent className="max-w-2xl">
-        </DialogContent>
-      </Dialog>
+      {/* Create Exam Modal */}
+      <ExamEntryModal 
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onExamCreate={(examData) => {
+          const newExam: Exam = {
+            id: `exam-${Date.now()}`,
+            title: examData.subject,
+            subject: examData.subject,
+            class: 'All Classes',
+            status: 'Draft',
+            date: examData.examDate,
+            duration: `${examData.durationMinutes} mins`,
+            questions: examData.questions || [],
+            participants: 0,
+            completed: 0,
+          };
+          setExams(prev => [...prev, newExam]);
+          setIsCreateDialogOpen(false);
+        }}
+      />
 
       {/* Monitor Exam Dialog */}
       <Dialog open={!!selectedExam} onOpenChange={() => setSelectedExam(null)}>

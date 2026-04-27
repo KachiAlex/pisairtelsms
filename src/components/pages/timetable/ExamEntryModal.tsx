@@ -86,60 +86,37 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
     reader.onload = (event) => {
       try {
         let questions: any[] = []
-        const result = event.target?.result
+        const result = event.target?.result as string
         
         if (file.name.endsWith('.json')) {
-          const content = result as string
-          questions = JSON.parse(content)
+          questions = JSON.parse(result)
         } else if (file.name.endsWith('.csv')) {
-          const content = result as string
-          const lines = content.split('\n').filter(line => line.trim())
+          const lines = result.split('\n').filter(line => line.trim())
+          if (lines.length < 2) {
+            setError('CSV file must have a header row and at least one data row')
+            return
+          }
+          
           // Parse CSV: question,optionA,optionB,optionC,optionD,correctAnswer
           questions = lines.slice(1).map((line, idx) => {
             const parts = line.split(',').map(s => s.trim())
+            if (parts.length < 6) {
+              throw new Error(`Row ${idx + 2} has insufficient columns. Expected 6 columns (question, optionA, optionB, optionC, optionD, correctAnswer)`)
+            }
             return {
               id: `q${idx + 1}`,
               question: parts[0] || '',
               options: [parts[1] || '', parts[2] || '', parts[3] || '', parts[4] || ''],
-              correctAnswer: parseInt(parts[5]) || 0,
+              correctAnswer: Math.min(parseInt(parts[5]) || 0, 3),
               marks: 1,
             }
           })
         } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-          // For Excel, we need to handle it differently
-          import('xlsx').then(({ read, utils }) => {
-            try {
-              const arrayBuffer = result as ArrayBuffer
-              const workbook = read(arrayBuffer, { type: 'array' })
-              const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-              const data = utils.sheet_to_json(worksheet)
-              
-              const parsedQuestions = data.map((row: any, idx: number) => ({
-                id: `q${idx + 1}`,
-                question: row.question || row.Question || '',
-                options: [
-                  row.optionA || row.OptionA || row.Option_A || '',
-                  row.optionB || row.OptionB || row.Option_B || '',
-                  row.optionC || row.OptionC || row.Option_C || '',
-                  row.optionD || row.OptionD || row.Option_D || '',
-                ],
-                correctAnswer: parseInt(row.correctAnswer || row.CorrectAnswer || row.Correct_Answer || '0') || 0,
-                marks: parseInt(row.marks || row.Marks || '1') || 1,
-              }))
-              
-              if (parsedQuestions.length === 0) {
-                setError('No valid questions found in file')
-                return
-              }
-              
-              setImportedQuestions(parsedQuestions)
-              setError(null)
-            } catch (err) {
-              setError('Failed to parse Excel file. Ensure it\'s a valid Excel format.')
-            }
-          }).catch(() => {
-            setError('Failed to load Excel parser. Please try a CSV or JSON file instead.')
-          })
+          // For Excel files, we'll need to use a library or convert to CSV first
+          setError('Excel import requires converting to CSV first. Please save your Excel file as CSV and try again.')
+          return
+        } else {
+          setError('Unsupported file format. Please use JSON or CSV files.')
           return
         }
         
@@ -152,7 +129,7 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
         setError(null)
       } catch (err) {
         console.error('File import error:', err)
-        setError('Failed to parse file. Ensure it\'s valid JSON, CSV, or Excel format.')
+        setError(`Failed to parse file: ${err instanceof Error ? err.message : 'Invalid format'}`)
       }
     }
     
@@ -160,11 +137,10 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
       setError('Failed to read file. Please try again.')
     }
     
-    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-      reader.readAsArrayBuffer(file)
-    } else {
-      reader.readAsText(file)
-    }
+    reader.readAsText(file)
+    
+    // Reset the input so the same file can be imported again
+    e.target.value = ''
   }
 
   return (
@@ -216,12 +192,16 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
                   accept=".json,.csv,.xlsx,.xls"
                   onChange={handleFileImport}
                   className="hidden"
+                  aria-label="Import exam questions file"
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    fileInputRef.current?.click()
+                  }}
                   className="flex-1"
                 >
                   <Upload className="h-3.5 w-3.5 mr-1" />

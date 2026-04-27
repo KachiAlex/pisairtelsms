@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
-interface LinkedChild {
+interface Child {
   id: string
   name: string
   admissionNumber: string
@@ -9,68 +9,48 @@ interface LinkedChild {
 }
 
 interface ParentContextType {
-  selectedChild: LinkedChild | null
-  linkedChildren: LinkedChild[]
-  selectChild: (child: LinkedChild) => void
-  isLoading: boolean
+  selectedChild: Child | null
+  setSelectedChild: (child: Child) => void
+  children: Child[]
+  setChildren: (children: Child[]) => void
 }
 
 const ParentContext = createContext<ParentContextType | undefined>(undefined)
 
-export function ParentContextProvider({ children }: { children: React.ReactNode }) {
-  const [selectedChild, setSelectedChild] = useState<LinkedChild | null>(null)
-  const [linkedChildren, setLinkedChildren] = useState<LinkedChild[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+export function ParentContextProvider({ children: childrenProp }: { children: React.ReactNode }) {
+  const [selectedChild, setSelectedChildState] = useState<Child | null>(null)
+  const [children, setChildrenState] = useState<Child[]>([])
 
-  // Load children from localStorage on mount
+  // Load selected child from localStorage on mount
   useEffect(() => {
-    const loadChildren = async () => {
+    const stored = localStorage.getItem('selectedChild')
+    if (stored) {
       try {
-        // Get auth token to extract childrenIds
-        const authStr = localStorage.getItem('auth')
-        if (!authStr) {
-          setIsLoading(false)
-          return
-        }
-
-        const auth = JSON.parse(authStr)
-        const childrenIds = auth.childrenIds || []
-
-        // For now, use mock data - in production, fetch from API
-        const mockChildren: LinkedChild[] = childrenIds.map((id: string, index: number) => ({
-          id,
-          name: `Child ${index + 1}`,
-          admissionNumber: `ADM-${id.slice(0, 6).toUpperCase()}`,
-          class: `Class ${index + 1}`,
-          arm: 'A',
-        }))
-
-        setLinkedChildren(mockChildren)
-
-        // Load selected child from localStorage or default to first
-        const savedChildId = localStorage.getItem('selectedChildId')
-        const childToSelect = mockChildren.find(c => c.id === savedChildId) || mockChildren[0]
-        if (childToSelect) {
-          setSelectedChild(childToSelect)
-        }
-      } catch (error) {
-        console.error('Failed to load children:', error)
-      } finally {
-        setIsLoading(false)
+        setSelectedChildState(JSON.parse(stored))
+      } catch (e) {
+        console.error('Failed to parse stored child:', e)
       }
     }
-
-    loadChildren()
   }, [])
 
-  const selectChild = (child: LinkedChild) => {
-    setSelectedChild(child)
-    localStorage.setItem('selectedChildId', child.id)
+  // Persist selected child to localStorage
+  const setSelectedChild = (child: Child) => {
+    setSelectedChildState(child)
+    localStorage.setItem('selectedChild', JSON.stringify(child))
+  }
+
+  // Persist children list
+  const setChildren = (newChildren: Child[]) => {
+    setChildrenState(newChildren)
+    // If no child is selected and we have children, select the first one
+    if (!selectedChild && newChildren.length > 0) {
+      setSelectedChild(newChildren[0])
+    }
   }
 
   return (
-    <ParentContext.Provider value={{ selectedChild, linkedChildren, selectChild, isLoading }}>
-      {children}
+    <ParentContext.Provider value={{ selectedChild, setSelectedChild, children, setChildren }}>
+      {childrenProp}
     </ParentContext.Provider>
   )
 }

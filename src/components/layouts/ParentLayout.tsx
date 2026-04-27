@@ -1,4 +1,4 @@
-import React, { useState, Suspense, lazy } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Menu,
@@ -6,24 +6,25 @@ import {
   Bell,
   LogOut,
   ChevronDown,
-  GraduationCap,
+  Briefcase,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
-import { useParentContext } from '../../contexts/ParentContext'
-import { ParentNavigation } from '../parent/ParentNavigation'
 import { Button } from '../ui/button'
+import { ParentNavigation } from '../parent/ParentNavigation'
+import { useParentContext } from '../../contexts/ParentContext'
 
-const ParentDashboard = lazy(() => import('../pages/parent/ParentDashboard').then(m => ({ default: m.ParentDashboard })))
-const AcademicProgress = lazy(() => import('../pages/parent/AcademicProgress').then(m => ({ default: m.AcademicProgress })))
-const AttendanceTracking = lazy(() => import('../pages/parent/AttendanceTracking').then(m => ({ default: m.AttendanceTracking })))
-const BehavioralReports = lazy(() => import('../pages/parent/BehavioralReports').then(m => ({ default: m.BehavioralReports })))
-const Communications = lazy(() => import('../pages/parent/Communications').then(m => ({ default: m.Communications })))
-const TeacherMessages = lazy(() => import('../pages/parent/TeacherMessages').then(m => ({ default: m.TeacherMessages })))
-const FeeManagement = lazy(() => import('../pages/parent/FeeManagement').then(m => ({ default: m.FeeManagement })))
-const Timetable = lazy(() => import('../pages/parent/Timetable').then(m => ({ default: m.Timetable })))
-const HealthWellness = lazy(() => import('../pages/parent/HealthWellness').then(m => ({ default: m.HealthWellness })))
-const Notifications = lazy(() => import('../pages/parent/Notifications').then(m => ({ default: m.Notifications })))
-const ParentProfile = lazy(() => import('../pages/parent/ParentProfile').then(m => ({ default: m.ParentProfile })))
+// Lazy load page components
+const ParentDashboard = React.lazy(() => import('../pages/parent/ParentDashboard').then(m => ({ default: m.ParentDashboard })))
+const AcademicProgress = React.lazy(() => import('../pages/parent/AcademicProgress').then(m => ({ default: m.AcademicProgress })))
+const AttendanceTracking = React.lazy(() => import('../pages/parent/AttendanceTracking').then(m => ({ default: m.AttendanceTracking })))
+const BehavioralReports = React.lazy(() => import('../pages/parent/BehavioralReports').then(m => ({ default: m.BehavioralReports })))
+const Communications = React.lazy(() => import('../pages/parent/Communications').then(m => ({ default: m.Communications })))
+const TeacherMessages = React.lazy(() => import('../pages/parent/TeacherMessages').then(m => ({ default: m.TeacherMessages })))
+const FeeManagement = React.lazy(() => import('../pages/parent/FeeManagement').then(m => ({ default: m.FeeManagement })))
+const Timetable = React.lazy(() => import('../pages/parent/Timetable').then(m => ({ default: m.Timetable })))
+const HealthWellness = React.lazy(() => import('../pages/parent/HealthWellness').then(m => ({ default: m.HealthWellness })))
+const Notifications = React.lazy(() => import('../pages/parent/Notifications').then(m => ({ default: m.Notifications })))
+const ParentProfile = React.lazy(() => import('../pages/parent/ParentProfile').then(m => ({ default: m.ParentProfile })))
 
 interface ParentLayoutProps {
   children?: React.ReactNode
@@ -34,24 +35,71 @@ export function ParentLayout({ children }: ParentLayoutProps) {
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isChildSelectorOpen, setIsChildSelectorOpen] = useState(false)
-  const { selectedChild, linkedChildren, selectChild, isLoading } = useParentContext()
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const auth = getAuthFromStorage()
+  const { selectedChild, setSelectedChild, children: linkedChildren, setChildren } = useParentContext()
 
   // Extract current page from URL path
   const pathSegments = location.pathname.split('/')
   const currentPage = pathSegments[2] || 'dashboard'
+
+  // Load children on mount
+  useEffect(() => {
+    const loadChildren = async () => {
+      try {
+        const response = await fetch('/api/parent/children', {
+          headers: {
+            'Authorization': `Bearer ${auth?.token}`,
+          },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setChildren(data.children || [])
+        }
+      } catch (error) {
+        console.error('Failed to load children:', error)
+      }
+    }
+
+    if (auth?.token) {
+      loadChildren()
+    }
+  }, [auth?.token, setChildren])
+
+  // Load unread notifications count
+  useEffect(() => {
+    const loadNotificationCount = async () => {
+      try {
+        const response = await fetch('/api/parent/notifications?limit=1', {
+          headers: {
+            'Authorization': `Bearer ${auth?.token}`,
+          },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setUnreadNotifications(data.unreadCount || 0)
+        }
+      } catch (error) {
+        console.error('Failed to load notification count:', error)
+      }
+    }
+
+    if (auth?.token) {
+      loadNotificationCount()
+      // Refresh every 30 seconds
+      const interval = setInterval(loadNotificationCount, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [auth?.token])
 
   const handleNavigate = (page: string) => {
     navigate(`/parent/${page}`)
     setIsSidebarOpen(false)
   }
 
-  const handleSelectChild = (childId: string) => {
-    const child = linkedChildren.find(c => c.id === childId)
-    if (child) {
-      selectChild(child)
-      setIsChildSelectorOpen(false)
-    }
+  const handleSelectChild = (child: any) => {
+    setSelectedChild(child)
+    setIsChildSelectorOpen(false)
   }
 
   const handleSignOut = () => {
@@ -87,22 +135,12 @@ export function ParentLayout({ children }: ParentLayoutProps) {
         return (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Coming Soon</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Page Coming Soon</h2>
               <p className="text-gray-600">This page is currently under development.</p>
             </div>
           </div>
         )
     }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-pulse text-gray-500">Loading...</div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -125,7 +163,7 @@ export function ParentLayout({ children }: ParentLayoutProps) {
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-white" />
+              <Briefcase className="w-5 h-5 text-white" />
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900">ScholarX</p>
@@ -172,60 +210,75 @@ export function ParentLayout({ children }: ParentLayoutProps) {
             </Button>
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                Parent Portal
+                {selectedChild?.name || 'Parent Portal'}
               </p>
-              <p className="text-xs text-gray-500">2024/2025 Academic Session</p>
+              <p className="text-xs text-gray-500">
+                {selectedChild?.class ? `Class ${selectedChild.class}${selectedChild.arm ? selectedChild.arm : ''}` : 'Select a child'}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Child Selector */}
-            {linkedChildren.length > 0 && (
-              <div className="relative">
-                <button
-                  onClick={() => setIsChildSelectorOpen(!isChildSelectorOpen)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
-                >
-                  <span className="hidden sm:inline">{selectedChild?.name || 'Select Child'}</span>
-                  <span className="sm:hidden">{selectedChild?.name?.split(' ')[0] || 'Child'}</span>
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-
-                {/* Child Selector Dropdown */}
-                {isChildSelectorOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-40">
-                    {linkedChildren.map((child) => (
-                      <button
-                        key={child.id}
-                        onClick={() => handleSelectChild(child.id)}
-                        className={`
-                          w-full text-left px-4 py-2.5 text-sm transition-colors
-                          ${selectedChild?.id === child.id
-                            ? 'bg-blue-50 text-blue-700 font-medium'
-                            : 'text-gray-700 hover:bg-gray-50'
-                          }
-                          ${linkedChildren.indexOf(child) !== linkedChildren.length - 1 ? 'border-b border-gray-100' : ''}
-                        `}
-                      >
-                        <div className="font-medium">{child.name}</div>
-                        <div className="text-xs text-gray-500">{child.admissionNumber}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Notification Bell */}
-            <Button variant="ghost" size="icon" className="relative">
+          <div className="flex items-center gap-2">
+            {/* Notifications */}
+            <Button variant="ghost" size="icon" className="relative" onClick={() => handleNavigate('notifications')}>
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              {unreadNotifications > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              )}
             </Button>
 
-            {/* Parent Info */}
-            <div className="flex items-center gap-2 pl-4 border-l border-gray-200">
+            {/* Child Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setIsChildSelectorOpen(!isChildSelectorOpen)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+              >
+                <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                  {selectedChild?.name?.charAt(0) || 'C'}
+                </div>
+                <span className="text-sm font-medium text-gray-700 hidden sm:inline max-w-[100px] truncate">
+                  {selectedChild?.name || 'Select Child'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-gray-500" />
+              </button>
+
+              {/* Child Selector Dropdown */}
+              {isChildSelectorOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-40">
+                  <div className="p-2 max-h-64 overflow-y-auto">
+                    {linkedChildren.length > 0 ? (
+                      linkedChildren.map((child) => (
+                        <button
+                          key={child.id}
+                          onClick={() => handleSelectChild(child)}
+                          className={`
+                            w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
+                            ${selectedChild?.id === child.id
+                              ? 'bg-blue-50 text-blue-700 font-medium'
+                              : 'text-gray-700 hover:bg-gray-100'
+                            }
+                          `}
+                        >
+                          <p className="font-medium">{child.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {child.class}{child.arm ? child.arm : ''} • {child.admissionNumber}
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-2 text-sm text-gray-500">No children linked</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Profile */}
+            <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-xs font-bold text-white">P</span>
+                <span className="text-white text-xs font-bold">P</span>
               </div>
               <div className="hidden sm:block">
                 <p className="text-xs font-medium text-gray-900">Parent</p>
@@ -237,9 +290,16 @@ export function ParentLayout({ children }: ParentLayoutProps) {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-pulse text-gray-500">Loading...</div></div>}>
-            {renderPage()}
-          </Suspense>
+          <React.Suspense fallback={
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading...</p>
+              </div>
+            </div>
+          }>
+            {children || renderPage()}
+          </React.Suspense>
         </main>
       </div>
     </div>

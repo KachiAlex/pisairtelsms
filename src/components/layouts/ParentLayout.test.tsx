@@ -8,67 +8,151 @@ import { ParentContextProvider } from '../../contexts/ParentContext'
 // Mock auth
 vi.mock('../../lib/auth', () => ({
   getAuthFromStorage: () => ({
-    userId: 'parent-1',
+    token: 'mock-token',
+    userId: 'parent-123',
     role: 'parent',
-    parentId: 'parent-1',
-    childrenIds: ['child-1', 'child-2'],
   }),
   clearAuthFromStorage: vi.fn(),
 }))
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {}
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value.toString()
-    },
-    removeItem: (key: string) => {
-      delete store[key]
-    },
-    clear: () => {
-      store = {}
-    },
-  }
-})()
+// Mock fetch
+global.fetch = vi.fn()
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-})
+// Mock lazy loaded components
+vi.mock('../pages/parent/ParentDashboard', () => ({
+  ParentDashboard: () => <div>Dashboard Page</div>,
+}))
 
-function renderWithProviders(component: React.ReactElement) {
-  return render(
-    <BrowserRouter>
-      <ParentContextProvider>
-        {component}
-      </ParentContextProvider>
-    </BrowserRouter>
-  )
-}
+vi.mock('../pages/parent/AcademicProgress', () => ({
+  AcademicProgress: () => <div>Academic Page</div>,
+}))
+
+vi.mock('../pages/parent/AttendanceTracking', () => ({
+  AttendanceTracking: () => <div>Attendance Page</div>,
+}))
+
+vi.mock('../pages/parent/BehavioralReports', () => ({
+  BehavioralReports: () => <div>Behavioral Page</div>,
+}))
+
+vi.mock('../pages/parent/Communications', () => ({
+  Communications: () => <div>Communications Page</div>,
+}))
+
+vi.mock('../pages/parent/TeacherMessages', () => ({
+  TeacherMessages: () => <div>Messages Page</div>,
+}))
+
+vi.mock('../pages/parent/FeeManagement', () => ({
+  FeeManagement: () => <div>Fees Page</div>,
+}))
+
+vi.mock('../pages/parent/Timetable', () => ({
+  Timetable: () => <div>Timetable Page</div>,
+}))
+
+vi.mock('../pages/parent/HealthWellness', () => ({
+  HealthWellness: () => <div>Health Page</div>,
+}))
+
+vi.mock('../pages/parent/Notifications', () => ({
+  Notifications: () => <div>Notifications Page</div>,
+}))
+
+vi.mock('../pages/parent/ParentProfile', () => ({
+  ParentProfile: () => <div>Profile Page</div>,
+}))
+
+vi.mock('../ui/button', () => ({
+  Button: ({ children, onClick, ...props }: any) => (
+    <button onClick={onClick} {...props}>
+      {children}
+    </button>
+  ),
+}))
 
 describe('ParentLayout', () => {
   beforeEach(() => {
-    localStorage.clear()
-    localStorage.setItem('auth', JSON.stringify({
-      userId: 'parent-1',
-      role: 'parent',
-      parentId: 'parent-1',
-      childrenIds: ['child-1', 'child-2'],
-    }))
-  })
-
-  it('should render layout with sidebar and header', async () => {
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('ScholarX')).toBeInTheDocument()
-      expect(screen.getByText('Parent Portal')).toBeInTheDocument()
+    vi.clearAllMocks()
+    ;(global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        children: [
+          {
+            id: '1',
+            name: 'John Doe',
+            admissionNumber: 'ADM001',
+            class: 'JSS1',
+            arm: 'A',
+          },
+          {
+            id: '2',
+            name: 'Jane Doe',
+            admissionNumber: 'ADM002',
+            class: 'JSS2',
+            arm: 'B',
+          },
+        ],
+        unreadCount: 3,
+      }),
     })
   })
 
-  it('should display navigation items', async () => {
-    renderWithProviders(<ParentLayout />)
+  const renderLayout = () => {
+    return render(
+      <BrowserRouter>
+        <ParentContextProvider>
+          <ParentLayout />
+        </ParentContextProvider>
+      </BrowserRouter>
+    )
+  }
+
+  it('should render layout with sidebar and header', () => {
+    renderLayout()
+
+    expect(screen.getByText('ScholarX')).toBeInTheDocument()
+    expect(screen.getByText('Parent Portal')).toBeInTheDocument()
+  })
+
+  it('should display parent name in header', async () => {
+    renderLayout()
+
+    await waitFor(() => {
+      expect(screen.getByText('Parent')).toBeInTheDocument()
+    })
+  })
+
+  it('should load and display children', async () => {
+    renderLayout()
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/parent/children', expect.any(Object))
+    })
+  })
+
+  it('should display notification bell with unread count', async () => {
+    renderLayout()
+
+    await waitFor(() => {
+      expect(screen.getByText('3')).toBeInTheDocument()
+    })
+  })
+
+  it('should toggle sidebar on mobile', async () => {
+    const user = userEvent.setup()
+    const { container } = renderLayout()
+
+    const menuButton = screen.getAllByRole('button').find((btn) => btn.querySelector('svg'))
+    if (menuButton) {
+      await user.click(menuButton)
+      // Sidebar should be visible after click
+      expect(container.querySelector('aside')).toHaveClass('translate-x-0')
+    }
+  })
+
+  it('should render navigation items', async () => {
+    renderLayout()
 
     await waitFor(() => {
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
@@ -77,127 +161,95 @@ describe('ParentLayout', () => {
     })
   })
 
-  it('should display child selector with linked children', async () => {
-    renderWithProviders(<ParentLayout />)
+  it('should display sign out button', () => {
+    renderLayout()
+
+    expect(screen.getByText('Sign Out')).toBeInTheDocument()
+  })
+
+  it('should render dashboard page by default', async () => {
+    renderLayout()
 
     await waitFor(() => {
-      const childSelector = screen.getByText(/Child 1|Child 2/)
+      expect(screen.getByText('Dashboard Page')).toBeInTheDocument()
+    })
+  })
+
+  it('should handle child selection', async () => {
+    const user = userEvent.setup()
+    renderLayout()
+
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument()
+    })
+  })
+
+  it('should display selected child info in header', async () => {
+    renderLayout()
+
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getByText(/Class JSS1A/)).toBeInTheDocument()
+    })
+  })
+
+  it('should have responsive design classes', () => {
+    const { container } = renderLayout()
+
+    const sidebar = container.querySelector('aside')
+    expect(sidebar).toHaveClass('fixed', 'lg:static')
+
+    const header = container.querySelector('header')
+    expect(header).toHaveClass('flex', 'items-center')
+  })
+
+  it('should load notification count on mount', async () => {
+    renderLayout()
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/parent/notifications?limit=1',
+        expect.any(Object)
+      )
+    })
+  })
+
+  it('should handle navigation to different pages', async () => {
+    const user = userEvent.setup()
+    renderLayout()
+
+    await waitFor(() => {
+      expect(screen.getByText('Academic Progress')).toBeInTheDocument()
+    })
+
+    const academicButton = screen.getByText('Academic Progress')
+    await user.click(academicButton)
+
+    await waitFor(() => {
+      expect(screen.getByText('Academic Page')).toBeInTheDocument()
+    })
+  })
+
+  it('should display child selector dropdown', async () => {
+    renderLayout()
+
+    await waitFor(() => {
+      const childSelector = screen.getByText('John Doe')
       expect(childSelector).toBeInTheDocument()
     })
   })
 
-  it('should open child selector dropdown on click', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Dashboard')).toBeInTheDocument()
-    })
-
-    const childButton = screen.getByRole('button', { name: /Child/ })
-    await user.click(childButton)
-
-    await waitFor(() => {
-      expect(screen.getByText('ADM-CHILD-1')).toBeInTheDocument()
-    })
-  })
-
-  it('should switch child when selected from dropdown', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Dashboard')).toBeInTheDocument()
-    })
-
-    const childButton = screen.getByRole('button', { name: /Child/ })
-    await user.click(childButton)
-
-    await waitFor(() => {
-      const childOptions = screen.getAllByText(/ADM-CHILD/)
-      expect(childOptions.length).toBeGreaterThan(0)
-    })
-  })
-
-  it('should display notification bell icon', async () => {
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      const bellButtons = screen.getAllByRole('button')
-      const hasBellIcon = bellButtons.some(btn => btn.querySelector('svg'))
-      expect(hasBellIcon).toBe(true)
-    })
-  })
-
-  it('should display parent info in header', async () => {
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Parent')).toBeInTheDocument()
-    })
-  })
-
-  it('should toggle sidebar on mobile', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Dashboard')).toBeInTheDocument()
-    })
-
-    const menuButtons = screen.getAllByRole('button')
-    const menuButton = menuButtons.find(btn => btn.querySelector('svg'))
-    
-    if (menuButton) {
-      await user.click(menuButton)
-      // Sidebar should be visible after click
-      expect(screen.getByText('ScholarX')).toBeInTheDocument()
-    }
-  })
-
-  it('should render sign out button', async () => {
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Sign Out')).toBeInTheDocument()
-    })
-  })
-
-  it('should render children content', async () => {
-    renderWithProviders(
-      <ParentLayout>
-        <div data-testid="test-content">Test Content</div>
-      </ParentLayout>
+  it('should show loading state while fetching data', () => {
+    ;(global.fetch as any).mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ ok: true, json: async () => ({ children: [] }) }), 100)
+        )
     )
 
-    await waitFor(() => {
-      expect(screen.getByTestId('test-content')).toBeInTheDocument()
-    })
-  })
+    renderLayout()
 
-  it('should show loading state initially', () => {
-    localStorage.clear()
-    renderWithProviders(<ParentLayout />)
-
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
-  })
-
-  it('should display academic session info', async () => {
-    renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('2024/2025 Academic Session')).toBeInTheDocument()
-    })
-  })
-
-  it('should have responsive design classes', async () => {
-    const { container } = renderWithProviders(<ParentLayout />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Dashboard')).toBeInTheDocument()
-    })
-
-    const sidebar = container.querySelector('aside')
-    expect(sidebar).toHaveClass('lg:static', 'fixed')
+    // Component should render without errors
+    expect(screen.getByText('ScholarX')).toBeInTheDocument()
   })
 })

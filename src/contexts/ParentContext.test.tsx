@@ -24,21 +24,43 @@ Object.defineProperty(window, 'localStorage', {
 })
 
 function TestComponent() {
-  const { selectedChild, linkedChildren, selectChild, isLoading } = useParentContext()
+  const { selectedChild, setSelectedChild, children, setChildren } = useParentContext()
   return (
     <div>
-      <div data-testid="loading">{isLoading ? 'loading' : 'loaded'}</div>
-      <div data-testid="selected-child">{selectedChild?.name || 'none'}</div>
-      <div data-testid="children-count">{linkedChildren.length}</div>
-      {linkedChildren.map((child) => (
-        <button
-          key={child.id}
-          data-testid={`child-${child.id}`}
-          onClick={() => selectChild(child)}
-        >
-          {child.name}
-        </button>
-      ))}
+      <div data-testid="selected-child">{selectedChild?.name || 'None'}</div>
+      <div data-testid="children-count">{children.length}</div>
+      <button
+        onClick={() =>
+          setSelectedChild({
+            id: '1',
+            name: 'John Doe',
+            admissionNumber: 'ADM001',
+            class: 'JSS1',
+          })
+        }
+      >
+        Select Child
+      </button>
+      <button
+        onClick={() =>
+          setChildren([
+            {
+              id: '1',
+              name: 'John Doe',
+              admissionNumber: 'ADM001',
+              class: 'JSS1',
+            },
+            {
+              id: '2',
+              name: 'Jane Doe',
+              admissionNumber: 'ADM002',
+              class: 'JSS2',
+            },
+          ])
+        }
+      >
+        Set Children
+      </button>
     </div>
   )
 }
@@ -46,85 +68,79 @@ function TestComponent() {
 describe('ParentContext', () => {
   beforeEach(() => {
     localStorage.clear()
-    vi.clearAllMocks()
   })
 
-  it('should provide context with default values', async () => {
-    localStorage.setItem('auth', JSON.stringify({
-      userId: 'parent-1',
-      role: 'parent',
-      parentId: 'parent-1',
-      childrenIds: ['child-1', 'child-2'],
-    }))
-
+  it('should provide context with initial values', () => {
     render(
       <ParentContextProvider>
         <TestComponent />
       </ParentContextProvider>
     )
 
-    await waitFor(() => {
-      expect(screen.getByTestId('loading')).toHaveTextContent('loaded')
-    })
-
-    expect(screen.getByTestId('children-count')).toHaveTextContent('2')
+    expect(screen.getByTestId('selected-child')).toHaveTextContent('None')
+    expect(screen.getByTestId('children-count')).toHaveTextContent('0')
   })
 
-  it('should load children from auth token', async () => {
-    localStorage.setItem('auth', JSON.stringify({
-      userId: 'parent-1',
-      role: 'parent',
-      parentId: 'parent-1',
-      childrenIds: ['child-1', 'child-2', 'child-3'],
-    }))
-
+  it('should set selected child', async () => {
     render(
       <ParentContextProvider>
         <TestComponent />
       </ParentContextProvider>
     )
 
+    const button = screen.getByText('Select Child')
+    button.click()
+
     await waitFor(() => {
-      expect(screen.getByTestId('children-count')).toHaveTextContent('3')
+      expect(screen.getByTestId('selected-child')).toHaveTextContent('John Doe')
     })
   })
 
-  it('should select first child by default', async () => {
-    localStorage.setItem('auth', JSON.stringify({
-      userId: 'parent-1',
-      role: 'parent',
-      parentId: 'parent-1',
-      childrenIds: ['child-1', 'child-2'],
-    }))
-
+  it('should persist selected child to localStorage', async () => {
     render(
       <ParentContextProvider>
         <TestComponent />
       </ParentContextProvider>
     )
 
+    const button = screen.getByText('Select Child')
+    button.click()
+
     await waitFor(() => {
-      expect(screen.getByTestId('selected-child')).toHaveTextContent('Child 1')
+      const stored = localStorage.getItem('selectedChild')
+      expect(stored).toBeTruthy()
+      const parsed = JSON.parse(stored!)
+      expect(parsed.name).toBe('John Doe')
     })
   })
 
-  it('should restore selected child from localStorage', async () => {
-    localStorage.setItem('auth', JSON.stringify({
-      userId: 'parent-1',
-      role: 'parent',
-      parentId: 'parent-1',
-      childrenIds: ['child-1', 'child-2'],
-    }))
-    localStorage.setItem('selectedChildId', 'child-2')
-
+  it('should set children list', async () => {
     render(
       <ParentContextProvider>
         <TestComponent />
       </ParentContextProvider>
     )
 
+    const button = screen.getByText('Set Children')
+    button.click()
+
     await waitFor(() => {
-      expect(screen.getByTestId('selected-child')).toHaveTextContent('Child 2')
+      expect(screen.getByTestId('children-count')).toHaveTextContent('2')
+    })
+  })
+
+  it('should auto-select first child when setting children', async () => {
+    render(
+      <ParentContextProvider>
+        <TestComponent />
+      </ParentContextProvider>
+    )
+
+    const button = screen.getByText('Set Children')
+    button.click()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-child')).toHaveTextContent('John Doe')
     })
   })
 
@@ -138,17 +154,21 @@ describe('ParentContext', () => {
     consoleError.mockRestore()
   })
 
-  it('should handle missing auth token gracefully', async () => {
+  it('should load selected child from localStorage on mount', () => {
+    const child = {
+      id: '1',
+      name: 'John Doe',
+      admissionNumber: 'ADM001',
+      class: 'JSS1',
+    }
+    localStorage.setItem('selectedChild', JSON.stringify(child))
+
     render(
       <ParentContextProvider>
         <TestComponent />
       </ParentContextProvider>
     )
 
-    await waitFor(() => {
-      expect(screen.getByTestId('loading')).toHaveTextContent('loaded')
-    })
-
-    expect(screen.getByTestId('children-count')).toHaveTextContent('0')
+    expect(screen.getByTestId('selected-child')).toHaveTextContent('John Doe')
   })
 })

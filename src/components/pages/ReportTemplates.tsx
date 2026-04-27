@@ -1,5 +1,5 @@
-import React from 'react'
-import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Settings, Palette } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Settings, Palette, Loader, AlertCircle } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -7,12 +7,7 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { Progress } from '../ui/progress'
-
-const templateCatalog = [
-  { id: 'TMP-01', name: 'Classic Term Report', audience: 'Parents', format: 'PDF + Portal', updated: 'Today', status: 'Live' },
-  { id: 'TMP-02', name: 'Transcript Export', audience: 'Universities', format: 'PDF + XML', updated: 'Yesterday', status: 'Live' },
-  { id: 'TMP-03', name: 'Teacher Advisory Pack', audience: 'Internal', format: 'Portal', updated: 'Mon', status: 'Draft' },
-]
+import { Input } from '../ui/input'
 
 const layoutBlocks = [
   { label: 'Hero / Cover', components: ['Student avatar', 'School crest', 'Term summary'], editable: true },
@@ -40,6 +35,68 @@ const statusVariant: Record<string, 'default' | 'secondary'> = {
 }
 
 export function ReportTemplates() {
+  const [templates, setTemplates] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
+  const loadTemplates = () => {
+    try {
+      setLoading(true)
+      // TODO: Replace with actual API call
+      // const result = reportTemplatesApi.list('tenant-1')
+      const result = {
+        data: [
+          { id: 'TMP-01', name: 'Classic Term Report', audience: 'parents', format: 'PDF + Portal', version: 1, status: 'live', updatedAt: new Date() },
+          { id: 'TMP-02', name: 'Transcript Export', audience: 'universities', format: 'PDF + XML', version: 1, status: 'live', updatedAt: new Date() },
+        ],
+        total: 2,
+      }
+      setTemplates(result.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load templates')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateTemplate = async () => {
+    if (!newTemplateName.trim()) return
+    try {
+      setCreating(true)
+      // TODO: Replace with actual API call
+      // const template = reportTemplatesApi.create('tenant-1', 'user-1', { name: newTemplateName, audience: 'internal', format: 'PDF' })
+      const template = {
+        id: `TMP-${Date.now()}`,
+        name: newTemplateName,
+        audience: 'internal',
+        format: 'PDF',
+        version: 1,
+        status: 'draft',
+        updatedAt: new Date(),
+      }
+      setTemplates([template, ...templates])
+      setNewTemplateName('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create template')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -58,6 +115,13 @@ export function ReportTemplates() {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-900 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-4">
@@ -65,7 +129,7 @@ export function ReportTemplates() {
               <Layers className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Active templates</p>
-            <p className="text-3xl font-semibold text-gray-900">3</p>
+            <p className="text-3xl font-semibold text-gray-900">{templates.filter(t => t.status === 'live').length}</p>
             <p className="text-xs text-gray-500">Grouped by audience</p>
           </CardContent>
         </Card>
@@ -74,9 +138,9 @@ export function ReportTemplates() {
             <div className="rounded-full bg-emerald-50 text-emerald-600 w-10 h-10 flex items-center justify-center">
               <Share2 className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Distribution coverage</p>
-            <p className="text-3xl font-semibold text-gray-900">98%</p>
-            <p className="text-xs text-gray-500">Email + portal + print</p>
+            <p className="text-xs text-gray-500 mt-3">Total templates</p>
+            <p className="text-3xl font-semibold text-gray-900">{templates.length}</p>
+            <p className="text-xs text-gray-500">All versions</p>
           </CardContent>
         </Card>
         <Card>
@@ -84,9 +148,9 @@ export function ReportTemplates() {
             <div className="rounded-full bg-purple-50 text-purple-600 w-10 h-10 flex items-center justify-center">
               <PenSquare className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Pending edits</p>
-            <p className="text-3xl font-semibold text-gray-900">4 blocks</p>
-            <p className="text-xs text-gray-500">Awaiting design approval</p>
+            <p className="text-xs text-gray-500 mt-3">Draft templates</p>
+            <p className="text-3xl font-semibold text-gray-900">{templates.filter(t => t.status === 'draft').length}</p>
+            <p className="text-xs text-gray-500">Awaiting review</p>
           </CardContent>
         </Card>
         <Card>
@@ -111,33 +175,51 @@ export function ReportTemplates() {
             <Download className="h-4 w-4 mr-2" /> Export list
           </Button>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Audience</TableHead>
-                <TableHead>Format</TableHead>
-                <TableHead>Last updated</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {templateCatalog.map((template) => (
-                <TableRow key={template.id}>
-                  <TableCell className="font-medium text-gray-900">{template.id}</TableCell>
-                  <TableCell>{template.name}</TableCell>
-                  <TableCell>{template.audience}</TableCell>
-                  <TableCell>{template.format}</TableCell>
-                  <TableCell>{template.updated}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[template.status] || 'secondary'}>{template.status}</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="New template name..."
+              value={newTemplateName}
+              onChange={(e) => setNewTemplateName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateTemplate()}
+            />
+            <Button onClick={handleCreateTemplate} disabled={creating || !newTemplateName.trim()}>
+              {creating ? <Loader className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            </Button>
+          </div>
+          {templates.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Audience</TableHead>
+                    <TableHead>Format</TableHead>
+                    <TableHead>Version</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {templates.map((template) => (
+                    <TableRow key={template.id}>
+                      <TableCell className="font-medium text-gray-900">{template.name}</TableCell>
+                      <TableCell>{template.audience}</TableCell>
+                      <TableCell>{template.format}</TableCell>
+                      <TableCell>v{template.version}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant[template.status] || 'secondary'}>{template.status}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No templates yet. Create one to get started.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -193,10 +275,10 @@ export function ReportTemplates() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
         <div className="flex items-center gap-3">
           <Eye className="h-5 w-5" />
-          <p>Preview the new guardian template before the PTA town hall to avoid surprise branding issues.</p>
+          <p>Create and manage report templates to customize academic reports for different audiences.</p>
         </div>
         <Button size="sm">
-          <FileText className="h-4 w-4 mr-2" /> Launch preview
+          <FileText className="h-4 w-4 mr-2" /> Learn more
         </Button>
       </div>
     </div>

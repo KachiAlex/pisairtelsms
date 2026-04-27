@@ -1,40 +1,17 @@
-import React from 'react'
-import { Scale, Edit3, Save, ShieldCheck, Calculator, AlertTriangle, FileText, ArrowUpWideNarrow } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Scale, Edit3, Save, ShieldCheck, Calculator, AlertTriangle, FileText, ArrowUpWideNarrow, Loader } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
-
-const gradingBands = [
-  { grade: 'A1', range: '80 - 100', remark: 'Distinction', weight: '4.0', color: 'text-emerald-600' },
-  { grade: 'B2', range: '70 - 79', remark: 'Very Good', weight: '3.6', color: 'text-emerald-500' },
-  { grade: 'B3', range: '65 - 69', remark: 'Good', weight: '3.2', color: 'text-emerald-500' },
-  { grade: 'C4', range: '60 - 64', remark: 'Credit', weight: '3.0', color: 'text-amber-500' },
-  { grade: 'C5', range: '55 - 59', remark: 'Credit', weight: '2.8', color: 'text-amber-500' },
-  { grade: 'C6', range: '50 - 54', remark: 'Satisfactory', weight: '2.5', color: 'text-amber-600' },
-  { grade: 'D7', range: '45 - 49', remark: 'Pass', weight: '2.0', color: 'text-rose-500' },
-  { grade: 'E8', range: '40 - 44', remark: 'Marginal', weight: '1.5', color: 'text-rose-500' },
-  { grade: 'F9', range: '0 - 39', remark: 'Fail', weight: '0.0', color: 'text-rose-600' },
-]
+import { Input } from '../ui/input'
 
 const equivalencySets = [
   { id: 'WAEC', status: 'Live', description: 'Nigeria senior secondary examinations equivalence', coverage: 100 },
   { id: 'Cambridge', status: 'Draft', description: 'IGCSE/A-Level translation for transcripts', coverage: 72 },
   { id: 'Local Primary', status: 'Live', description: 'Primary bands for term reports', coverage: 94 },
-]
-
-const policyRules = [
-  { label: 'Minimum pass mark', value: '45%', owner: 'Academics', status: 'Active' },
-  { label: 'Distinction threshold', value: '80%', owner: 'Academic Board', status: 'Active' },
-  { label: 'Remediation trigger', value: 'Average < 50%', owner: 'Student Support', status: 'Active' },
-]
-
-const auditFeed = [
-  { id: 'AUD-982', actor: 'QA Desk', event: 'Adjusted C5 range to start @55', time: 'Today 08:14' },
-  { id: 'AUD-979', actor: 'Academic Director', event: 'Published Cambridge equivalence draft', time: 'Yesterday' },
-  { id: 'AUD-974', actor: 'System', event: 'Synced grading weights to computation engine', time: 'Mon' },
 ]
 
 const statusVariant: Record<string, 'default' | 'secondary'> = {
@@ -43,6 +20,78 @@ const statusVariant: Record<string, 'default' | 'secondary'> = {
 }
 
 export function GradingScale() {
+  const [scales, setScales] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [newScaleName, setNewScaleName] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    loadScales()
+  }, [])
+
+  const loadScales = () => {
+    try {
+      setLoading(true)
+      // TODO: Replace with actual API call
+      // const result = gradingScalesApi.list('tenant-1')
+      const result = {
+        data: [
+          {
+            id: 'GS-01',
+            name: 'Primary Grading Scale',
+            type: 'primary',
+            version: 1,
+            status: 'live',
+            bands: [],
+            createdAt: new Date(),
+          },
+        ],
+        total: 1,
+      }
+      setScales(result.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load grading scales')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateScale = async () => {
+    if (!newScaleName.trim()) return
+    try {
+      setCreating(true)
+      // TODO: Replace with actual API call
+      // const scale = gradingScalesApi.create('tenant-1', 'user-1', { name: newScaleName, type: 'primary', bands: [] })
+      const scale = {
+        id: `GS-${Date.now()}`,
+        name: newScaleName,
+        type: 'primary',
+        version: 1,
+        status: 'draft',
+        bands: [],
+        createdAt: new Date(),
+      }
+      setScales([scale, ...scales])
+      setNewScaleName('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create scale')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  const liveScales = scales.filter(s => s.status === 'live')
+  const draftScales = scales.filter(s => s.status === 'draft')
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -67,8 +116,8 @@ export function GradingScale() {
             <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
               <Scale className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Grade bands</p>
-            <p className="text-3xl font-semibold text-gray-900">9</p>
+            <p className="text-xs text-gray-500 mt-3">Grading scales</p>
+            <p className="text-3xl font-semibold text-gray-900">{scales.length}</p>
             <p className="text-xs text-gray-500">Primary + Secondary</p>
           </CardContent>
         </Card>
@@ -77,9 +126,9 @@ export function GradingScale() {
             <div className="rounded-full bg-emerald-50 text-emerald-600 w-10 h-10 flex items-center justify-center">
               <Calculator className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">GPA weight model</p>
-            <p className="text-3xl font-semibold text-gray-900">4.0</p>
-            <p className="text-xs text-gray-500">Weighted per subject credits</p>
+            <p className="text-xs text-gray-500 mt-3">Live scales</p>
+            <p className="text-3xl font-semibold text-gray-900">{liveScales.length}</p>
+            <p className="text-xs text-gray-500">Active in use</p>
           </CardContent>
         </Card>
         <Card>
@@ -87,9 +136,9 @@ export function GradingScale() {
             <div className="rounded-full bg-purple-50 text-purple-600 w-10 h-10 flex items-center justify-center">
               <ShieldCheck className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Policy version</p>
-            <p className="text-3xl font-semibold text-gray-900">v3.1</p>
-            <p className="text-xs text-gray-500">Effective Feb 2026</p>
+            <p className="text-xs text-gray-500 mt-3">Draft scales</p>
+            <p className="text-3xl font-semibold text-gray-900">{draftScales.length}</p>
+            <p className="text-xs text-gray-500">Awaiting review</p>
           </CardContent>
         </Card>
         <Card>
@@ -98,38 +147,62 @@ export function GradingScale() {
               <AlertTriangle className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Open alerts</p>
-            <p className="text-3xl font-semibold text-rose-600">1</p>
-            <p className="text-xs text-gray-500">Cambridge mapping needs review</p>
+            <p className="text-3xl font-semibold text-rose-600">0</p>
+            <p className="text-xs text-gray-500">All systems normal</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Grade bands</CardTitle>
-          <CardDescription>Used on report cards, transcripts, and analytics.</CardDescription>
+          <CardTitle>Grading scales</CardTitle>
+          <CardDescription>Manage all grading scales and versions.</CardDescription>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Grade</TableHead>
-                <TableHead>Range</TableHead>
-                <TableHead>Remark</TableHead>
-                <TableHead>GPA weight</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {gradingBands.map((band) => (
-                <TableRow key={band.grade}>
-                  <TableCell className={`font-semibold ${band.color}`}>{band.grade}</TableCell>
-                  <TableCell>{band.range}</TableCell>
-                  <TableCell>{band.remark}</TableCell>
-                  <TableCell>{band.weight}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="New scale name..."
+              value={newScaleName}
+              onChange={(e) => setNewScaleName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateScale()}
+            />
+            <Button onClick={handleCreateScale} disabled={creating || !newScaleName.trim()}>
+              {creating ? <Loader className="h-4 w-4 animate-spin" /> : <Scale className="h-4 w-4" />}
+            </Button>
+          </div>
+          {scales.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Version</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {scales.map((scale) => (
+                    <TableRow key={scale.id}>
+                      <TableCell className="font-medium text-gray-900">{scale.name}</TableCell>
+                      <TableCell>{scale.type}</TableCell>
+                      <TableCell>v{scale.version}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant[scale.status] || 'secondary'}>{scale.status}</Badge>
+                      </TableCell>
+                      <TableCell>{new Date(scale.createdAt).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Scale className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No grading scales yet. Create one to get started.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -162,15 +235,27 @@ export function GradingScale() {
             <CardDescription>Guardrails consumed by result computation.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {policyRules.map((rule) => (
-              <div key={rule.label} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{rule.label}</p>
-                  <p className="text-sm text-gray-500">{rule.value}</p>
-                </div>
-                <Badge variant="secondary">Owner: {rule.owner}</Badge>
+            <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900">Minimum pass mark</p>
+                <p className="text-sm text-gray-500">45%</p>
               </div>
-            ))}
+              <Badge variant="secondary">Owner: Academics</Badge>
+            </div>
+            <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900">Distinction threshold</p>
+                <p className="text-sm text-gray-500">80%</p>
+              </div>
+              <Badge variant="secondary">Owner: Academic Board</Badge>
+            </div>
+            <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900">Remediation trigger</p>
+                <p className="text-sm text-gray-500">Average &lt; 50%</p>
+              </div>
+              <Badge variant="secondary">Owner: Student Support</Badge>
+            </div>
             <Button variant="ghost" size="sm" className="w-full">
               <Scale className="h-4 w-4 mr-2" /> Edit policy
             </Button>
@@ -184,15 +269,13 @@ export function GradingScale() {
           <CardDescription>Every grading scale change is logged with actor context.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {auditFeed.map((entry) => (
-            <div key={entry.id} className="rounded-2xl border border-gray-100 p-3 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">{entry.actor}</p>
-                <p className="text-sm text-gray-500">{entry.event}</p>
-              </div>
-              <p className="text-xs text-gray-400">{entry.time}</p>
+          <div className="rounded-2xl border border-gray-100 p-3 flex items-center justify-between">
+            <div>
+              <p className="font-medium text-gray-900">System</p>
+              <p className="text-sm text-gray-500">Grading scales initialized</p>
             </div>
-          ))}
+            <p className="text-xs text-gray-400">Today</p>
+          </div>
           <Button variant="ghost" size="sm" className="w-full">
             <FileText className="h-4 w-4 mr-2" /> Export change log
           </Button>
@@ -202,10 +285,10 @@ export function GradingScale() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900">
         <div className="flex items-center gap-3">
           <AlertTriangle className="h-5 w-5" />
-          <p>Cambridge mapping coverage is 72%. Finish the remaining subjects before transcript season.</p>
+          <p>Create and configure grading scales to manage academic performance standards.</p>
         </div>
         <Button size="sm">
-          <ShieldCheck className="h-4 w-4 mr-2" /> Assign reviewer
+          <ShieldCheck className="h-4 w-4 mr-2" /> Learn more
         </Button>
       </div>
     </div>

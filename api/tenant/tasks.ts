@@ -1,167 +1,178 @@
-import { Router } from 'express';
-import { db } from '../_lib/db';
+import { v4 as uuidv4 } from 'uuid';
 
-const router = Router();
+interface TaskRecord {
+  id: string;
+  tenantId: string;
+  title: string;
+  description?: string;
+  status: 'open' | 'in_progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
+  assignedTo?: string;
+  createdBy: string;
+  dueDate?: Date;
+  completedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-// GET all tasks for tenant
-router.get('/', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
+interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  text: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const tasks: TaskRecord[] = [];
+const comments: TaskComment[] = [];
+
+export const tasksApi = {
+  // List tasks
+  list: (tenantId: string, filters?: { status?: string; assignedTo?: string; priority?: string; limit?: number; offset?: number }) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const { status, assignedTo, priority, limit = 50, offset = 0 } = filters || {};
+
+    let filtered = tasks.filter(t => t.tenantId === tenantId);
+    if (status) filtered = filtered.filter(t => t.status === status);
+    if (assignedTo) filtered = filtered.filter(t => t.assignedTo === assignedTo);
+    if (priority) filtered = filtered.filter(t => t.priority === priority);
+
+    const data = filtered
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(offset, offset + limit);
+
+    return { data, total: filtered.length };
+  },
+
+  // Create task
+  create: (tenantId: string, userId: string, payload: { title: string; description?: string; assignedTo?: string; priority?: string; dueDate?: string }) => {
+    if (!tenantId || !userId || !payload.title) {
+      throw new Error('Missing required fields');
     }
 
-    const tasks = db
-      .prepare('SELECT * FROM tasks WHERE tenantId = ? ORDER BY dueDate ASC, createdAt DESC')
-      .all(tenantId);
-
-    res.json({ data: tasks });
-  } catch (error) {
-    console.error('Error fetching tasks:', error);
-    res.status(500).json({ error: 'Failed to fetch tasks' });
-  }
-});
-
-// GET single task
-router.get('/:id', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
-
-    const task = db
-      .prepare('SELECT * FROM tasks WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId);
-
-    if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-
-    res.json({ data: task });
-  } catch (error) {
-    console.error('Error fetching task:', error);
-    res.status(500).json({ error: 'Failed to fetch task' });
-  }
-});
-
-// POST create task
-router.post('/', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
-
-    const { title, description, assignedTo, priority, status, dueDate, dependencies } = req.body;
-
-    if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
-
-    const id = `task_${Date.now()}`;
-    const now = new Date().toISOString();
-
-    db.prepare(`
-      INSERT INTO tasks (id, tenantId, title, description, assignedTo, priority, status, dueDate, dependencies, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
+    const task: TaskRecord = {
+      id: uuidv4(),
       tenantId,
-      title,
-      description || '',
-      assignedTo || null,
-      priority || 'Medium',
-      status || 'Not Started',
-      dueDate || null,
-      dependencies ? JSON.stringify(dependencies) : JSON.stringify([]),
-      now,
-      now
-    );
+      title: payload.title,
+      description: payload.description,
+      status: 'open',
+      priority: (payload.priority || 'medium') as any,
+      assignedTo: payload.assignedTo,
+      createdBy: userId,
+      dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-    const task = db
-      .prepare('SELECT * FROM tasks WHERE id = ?')
-      .get(id);
+    tasks.push(task);
+    return task;
+  },
 
-    res.status(201).json({ data: task });
-  } catch (error) {
-    console.error('Error creating task:', error);
-    res.status(500).json({ error: 'Failed to create task' });
-  }
-});
+  // Get task by ID
+  getById: (tenantId: string, id: string) => {
+    const task = tasks.find(t => t.id === id && t.tenantId === tenantId);
+    if (!task) throw new Error('Task not found');
 
-// PUT update task
-router.put('/:id', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
+    const taskComments = comments
+      .filter(c => c.taskId === id)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return { ...task, comments: taskComments };
+  },
+
+  // Update task
+  update: (tenantId: string, id: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignedTo?: string; dueDate?: string }) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const task = tasks.find(t => t.id === id && t.tenantId === tenantId);
+    if (!task) throw new Error('Task not found');
+
+    if (payload.title) task.title = payload.title;
+    if (payload.description) task.description = payload.description;
+    if (payload.status) {
+      task.status = payload.status as any;
+      if (payload.status === 'completed') {
+        task.completedAt = new Date();
+      }
+    }
+    if (payload.priority) task.priority = payload.priority as any;
+    if (payload.assignedTo !== undefined) task.assignedTo = payload.assignedTo;
+    if (payload.dueDate) task.dueDate = new Date(payload.dueDate);
+
+    task.updatedAt = new Date();
+    return task;
+  },
+
+  // Delete task
+  delete: (tenantId: string, id: string) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
+
+    const index = tasks.findIndex(t => t.id === id && t.tenantId === tenantId);
+    if (index === -1) throw new Error('Task not found');
+
+    const deleted = tasks.splice(index, 1)[0];
+    return deleted;
+  },
+
+  // Add comment to task
+  addComment: (tenantId: string, userId: string, taskId: string, text: string) => {
+    if (!tenantId || !userId || !text) {
+      throw new Error('Missing required fields');
     }
 
-    const { title, description, assignedTo, priority, status, dueDate, dependencies } = req.body;
+    const task = tasks.find(t => t.id === taskId && t.tenantId === tenantId);
+    if (!task) throw new Error('Task not found');
 
-    const task = db
-      .prepare('SELECT * FROM tasks WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId);
+    const comment: TaskComment = {
+      id: uuidv4(),
+      taskId,
+      userId,
+      text,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-    if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
+    comments.push(comment);
+    return comment;
+  },
 
-    const now = new Date().toISOString();
+  // Get task comments
+  getComments: (tenantId: string, taskId: string) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
 
-    db.prepare(`
-      UPDATE tasks
-      SET title = ?, description = ?, assignedTo = ?, priority = ?, status = ?, dueDate = ?, dependencies = ?, updatedAt = ?
-      WHERE id = ? AND tenantId = ?
-    `).run(
-      title || task.title,
-      description !== undefined ? description : task.description,
-      assignedTo !== undefined ? assignedTo : task.assignedTo,
-      priority || task.priority,
-      status || task.status,
-      dueDate !== undefined ? dueDate : task.dueDate,
-      dependencies ? JSON.stringify(dependencies) : task.dependencies,
-      now,
-      req.params.id,
-      tenantId
-    );
+    const task = tasks.find(t => t.id === taskId && t.tenantId === tenantId);
+    if (!task) throw new Error('Task not found');
 
-    const updated = db
-      .prepare('SELECT * FROM tasks WHERE id = ?')
-      .get(req.params.id);
+    return comments
+      .filter(c => c.taskId === taskId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  },
 
-    res.json({ data: updated });
-  } catch (error) {
-    console.error('Error updating task:', error);
-    res.status(500).json({ error: 'Failed to update task' });
-  }
-});
+  // Get task statistics
+  getStatistics: (tenantId: string) => {
+    if (!tenantId) throw new Error('Missing tenant ID');
 
-// DELETE task
-router.delete('/:id', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantTasks = tasks.filter(t => t.tenantId === tenantId);
+    return {
+      total: tenantTasks.length,
+      open: tenantTasks.filter(t => t.status === 'open').length,
+      inProgress: tenantTasks.filter(t => t.status === 'in_progress').length,
+      completed: tenantTasks.filter(t => t.status === 'completed').length,
+      byPriority: {
+        high: tenantTasks.filter(t => t.priority === 'high').length,
+        medium: tenantTasks.filter(t => t.priority === 'medium').length,
+        low: tenantTasks.filter(t => t.priority === 'low').length,
+      },
+    };
+  },
+};
 
-    const task = db
-      .prepare('SELECT * FROM tasks WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId);
+export default tasksApi;
 
-    if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
 
-    db.prepare('DELETE FROM tasks WHERE id = ? AND tenantId = ?')
-      .run(req.params.id, tenantId);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting task:', error);
-    res.status(500).json({ error: 'Failed to delete task' });
-  }
-});
-
-export default router;
+// Get task statistics (for compatibility with existing code)
+export const getStatistics = (tenantId: string) => {
+  return tasksApi.getStatistics(tenantId);
+};

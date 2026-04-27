@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { MessageSquare, Search, Filter, Download, AlertCircle } from 'lucide-react'
-import { useParentContext } from '../../contexts/ParentContext'
-import { getAuthFromStorage } from '../../lib/auth'
+import { useParentContext } from '../../../contexts/ParentContext'
+import { getAuthFromStorage } from '../../../lib/auth'
 
 interface Announcement {
   id: string

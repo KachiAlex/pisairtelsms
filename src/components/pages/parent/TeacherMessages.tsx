@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Send, MessageCircle, Search, AlertCircle, Paperclip } from 'lucide-react'
-import { useParentContext } from '../../contexts/ParentContext'
-import { getAuthFromStorage } from '../../lib/auth'
+import { useParentContext } from '../../../contexts/ParentContext'
+import { getAuthFromStorage } from '../../../lib/auth'
 
 interface Message {
   id: string

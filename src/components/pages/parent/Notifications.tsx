@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Bell, Trash2, AlertCircle, Mail, MessageSquare, Settings } from 'lucide-react'
-import { useParentContext } from '../../contexts/ParentContext'
-import { getAuthFromStorage } from '../../lib/auth'
+import { useParentContext } from '../../../contexts/ParentContext'
+import { getAuthFromStorage } from '../../../lib/auth'
 
 interface Notification {
   id: string

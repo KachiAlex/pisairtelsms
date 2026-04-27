@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Heart, AlertCircle, Download } from 'lucide-react'
-import { useParentContext } from '../../contexts/ParentContext'
-import { getAuthFromStorage } from '../../lib/auth'
+import { useParentContext } from '../../../contexts/ParentContext'
+import { getAuthFromStorage } from '../../../lib/auth'
 
 interface HealthData {
   medicalHistory: Array<{ date: string; condition: string; treatment: string }>

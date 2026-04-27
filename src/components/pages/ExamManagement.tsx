@@ -37,7 +37,6 @@ const liveMonitoring = []
 
 export function ExamManagement() {
   const [exams, setExams] = useState(mockExams);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
 
   // Form state for creating exam
@@ -204,10 +203,6 @@ export function ExamManagement() {
           <h1 className="text-2xl font-bold text-gray-900">CBT & Examination Management</h1>
           <p className="text-sm text-gray-600 mt-1">Create, schedule and monitor computer-based tests</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Create Exam
-        </Button>
       </div>
 
       {/* Stats */}
@@ -402,136 +397,8 @@ export function ExamManagement() {
       </Tabs>
 
       {/* Create Exam Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog open={false} onOpenChange={() => {}}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create New Exam</DialogTitle>
-          </DialogHeader>
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">Basic Info</TabsTrigger>
-              <TabsTrigger value="questions">Questions ({examForm.questions.length})</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="space-y-4 mt-4">
-              <div>
-                <Label>Exam Title</Label>
-                <Input
-                  placeholder="e.g., First Term Examination"
-                  value={examForm.title}
-                  onChange={(e) => handleFormChange('title', e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Subject</Label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    value={examForm.subject}
-                    onChange={(e) => handleFormChange('subject', e.target.value)}
-                  >
-                    <option value="">Select Subject</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="English Language">English Language</option>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Biology">Biology</option>
-                  </select>
-                </div>
-                <div>
-                  <Label>Class</Label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    value={examForm.class}
-                    onChange={(e) => handleFormChange('class', e.target.value)}
-                  >
-                    <option value="">Select Class</option>
-                    <option value="JSS 1">JSS 1</option>
-                    <option value="JSS 2">JSS 2</option>
-                    <option value="JSS 3">JSS 3</option>
-                    <option value="SS 1">SS 1</option>
-                    <option value="SS 2">SS 2</option>
-                    <option value="SS 3">SS 3</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Duration (mins)</Label>
-                  <Input
-                    type="number"
-                    placeholder="90"
-                    value={examForm.duration}
-                    onChange={(e) => handleFormChange('duration', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Pass Mark (%)</Label>
-                  <Input
-                    type="number"
-                    placeholder="40"
-                    value={examForm.passMark}
-                    onChange={(e) => handleFormChange('passMark', e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Exam Date</Label>
-                  <Input
-                    type="date"
-                    value={examForm.examDate}
-                    onChange={(e) => handleFormChange('examDate', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Start Time</Label>
-                  <Input
-                    type="time"
-                    value={examForm.startTime}
-                    onChange={(e) => handleFormChange('startTime', e.target.value)}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-            <TabsContent value="questions" className="space-y-4 mt-4">
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => document.getElementById('import-file')?.click()}>
-                  <Upload className="h-4 w-4 mr-2" /> Import Questions
-                </Button>
-                <input id="import-file" type="file" accept=".csv" style={{display: 'none'}} onChange={(e) => { setImportFile(e.target.files?.[0] || null); handleImport(); }} />
-                <Button variant="outline" onClick={downloadSampleCSV}>
-                  <Download className="h-4 w-4 mr-2" /> Download Sample
-                </Button>
-                <Button variant="outline" onClick={handleAddQuestion}>
-                  <Plus className="h-4 w-4 mr-2" /> Add Manually
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {examForm.questions.map((q, index) => (
-                  <div key={q.id} className="border p-2 rounded">
-                    <p className="font-medium">{index+1}. {q.text}</p>
-                    <p className="text-sm text-gray-600">Type: {q.type}</p>
-                    {q.options.length > 0 && <p className="text-sm text-gray-600">Options: {q.options.join(', ')}</p>}
-                    {q.correctAnswer && <p className="text-sm text-gray-600">Answer: {q.correctAnswer}</p>}
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => {
-              if (validateForm()) {
-                handleCreateExam();
-              } else {
-                alert('Please fill in all required fields.');
-              }
-            }}>
-              Create Exam
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
 

@@ -82,47 +82,65 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = async (event) => {
+    
+    reader.onload = (event) => {
       try {
         let questions: any[] = []
+        const result = event.target?.result
         
         if (file.name.endsWith('.json')) {
-          const content = event.target?.result as string
+          const content = result as string
           questions = JSON.parse(content)
         } else if (file.name.endsWith('.csv')) {
-          const content = event.target?.result as string
+          const content = result as string
           const lines = content.split('\n').filter(line => line.trim())
           // Parse CSV: question,optionA,optionB,optionC,optionD,correctAnswer
           questions = lines.slice(1).map((line, idx) => {
-            const [question, optionA, optionB, optionC, optionD, correctAnswer] = line.split(',').map(s => s.trim())
+            const parts = line.split(',').map(s => s.trim())
             return {
               id: `q${idx + 1}`,
-              question,
-              options: [optionA, optionB, optionC, optionD],
-              correctAnswer: parseInt(correctAnswer) || 0,
+              question: parts[0] || '',
+              options: [parts[1] || '', parts[2] || '', parts[3] || '', parts[4] || ''],
+              correctAnswer: parseInt(parts[5]) || 0,
               marks: 1,
             }
           })
         } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-          // Parse Excel file using dynamic import
-          const arrayBuffer = event.target?.result as ArrayBuffer
-          const { read, utils } = await import('xlsx')
-          const workbook = read(arrayBuffer, { type: 'array' })
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-          const data = utils.sheet_to_json(worksheet)
-          
-          questions = data.map((row: any, idx: number) => ({
-            id: `q${idx + 1}`,
-            question: row.question || row.Question || '',
-            options: [
-              row.optionA || row.OptionA || row.Option_A || '',
-              row.optionB || row.OptionB || row.Option_B || '',
-              row.optionC || row.OptionC || row.Option_C || '',
-              row.optionD || row.OptionD || row.Option_D || '',
-            ],
-            correctAnswer: parseInt(row.correctAnswer || row.CorrectAnswer || row.Correct_Answer || '0') || 0,
-            marks: parseInt(row.marks || row.Marks || '1') || 1,
-          }))
+          // For Excel, we need to handle it differently
+          import('xlsx').then(({ read, utils }) => {
+            try {
+              const arrayBuffer = result as ArrayBuffer
+              const workbook = read(arrayBuffer, { type: 'array' })
+              const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+              const data = utils.sheet_to_json(worksheet)
+              
+              const parsedQuestions = data.map((row: any, idx: number) => ({
+                id: `q${idx + 1}`,
+                question: row.question || row.Question || '',
+                options: [
+                  row.optionA || row.OptionA || row.Option_A || '',
+                  row.optionB || row.OptionB || row.Option_B || '',
+                  row.optionC || row.OptionC || row.Option_C || '',
+                  row.optionD || row.OptionD || row.Option_D || '',
+                ],
+                correctAnswer: parseInt(row.correctAnswer || row.CorrectAnswer || row.Correct_Answer || '0') || 0,
+                marks: parseInt(row.marks || row.Marks || '1') || 1,
+              }))
+              
+              if (parsedQuestions.length === 0) {
+                setError('No valid questions found in file')
+                return
+              }
+              
+              setImportedQuestions(parsedQuestions)
+              setError(null)
+            } catch (err) {
+              setError('Failed to parse Excel file. Ensure it\'s a valid Excel format.')
+            }
+          }).catch(() => {
+            setError('Failed to load Excel parser. Please try a CSV or JSON file instead.')
+          })
+          return
         }
         
         if (questions.length === 0) {
@@ -133,8 +151,13 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
         setImportedQuestions(questions)
         setError(null)
       } catch (err) {
+        console.error('File import error:', err)
         setError('Failed to parse file. Ensure it\'s valid JSON, CSV, or Excel format.')
       }
+    }
+    
+    reader.onerror = () => {
+      setError('Failed to read file. Please try again.')
     }
     
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {

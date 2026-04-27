@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { X } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { X, Upload, FileText } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
@@ -34,6 +34,8 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [importedQuestions, setImportedQuestions] = useState<any[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleSave() {
     if (!form.subjectName || !form.examDate || !form.startTime || !form.endTime) {
@@ -42,6 +44,10 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
     }
     if (form.startTime >= form.endTime) {
       setError('Start time must be before end time')
+      return
+    }
+    if (form.examType === 'cbt' && importedQuestions.length === 0) {
+      setError('CBT exams require at least one question to be imported')
       return
     }
     setSaving(true)
@@ -58,6 +64,7 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
           startTime: form.startTime,
           endTime: form.endTime,
           examType: form.examType,
+          questions: form.examType === 'cbt' ? importedQuestions : [],
         }),
       })
       const data = await res.json()
@@ -68,6 +75,49 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleFileImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string
+        const lines = content.split('\n').filter(line => line.trim())
+        
+        // Parse CSV or JSON format
+        let questions: any[] = []
+        
+        if (file.name.endsWith('.json')) {
+          questions = JSON.parse(content)
+        } else if (file.name.endsWith('.csv')) {
+          // Parse CSV: question,optionA,optionB,optionC,optionD,correctAnswer
+          questions = lines.slice(1).map((line, idx) => {
+            const [question, optionA, optionB, optionC, optionD, correctAnswer] = line.split(',').map(s => s.trim())
+            return {
+              id: `q${idx + 1}`,
+              question,
+              options: [optionA, optionB, optionC, optionD],
+              correctAnswer: parseInt(correctAnswer) || 0,
+              marks: 1,
+            }
+          })
+        }
+        
+        if (questions.length === 0) {
+          setError('No valid questions found in file')
+          return
+        }
+        
+        setImportedQuestions(questions)
+        setError(null)
+      } catch (err) {
+        setError('Failed to parse file. Ensure it\'s valid JSON or CSV format.')
+      }
+    }
+    reader.readAsText(file)
   }
 
   return (
@@ -102,6 +152,44 @@ export function ExamEntryModal({ examPeriodId, onSaved, onClose }: Props) {
               </SelectContent>
             </Select>
           </div>
+
+          {form.examType === 'cbt' && (
+            <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 bg-blue-50">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="h-4 w-4 text-blue-600" />
+                <Label className="text-xs font-semibold text-blue-900">Import Questions (CBT)</Label>
+              </div>
+              <p className="text-xs text-blue-700 mb-3">
+                Upload a JSON or CSV file with exam questions. CSV format: question,optionA,optionB,optionC,optionD,correctAnswer
+              </p>
+              <div className="flex gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,.csv"
+                  onChange={handleFileImport}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1"
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1" />
+                  Choose File
+                </Button>
+              </div>
+              {importedQuestions.length > 0 && (
+                <div className="mt-2 p-2 bg-green-50 rounded border border-green-200">
+                  <p className="text-xs text-green-700 font-semibold">
+                    ✓ {importedQuestions.length} question{importedQuestions.length !== 1 ? 's' : ''} imported
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <Label className="text-xs">Exam Date</Label>

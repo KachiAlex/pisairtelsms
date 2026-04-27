@@ -14,6 +14,16 @@ import { ParentNavigation } from '../parent/ParentNavigation'
 import { Button } from '../ui/button'
 
 const ParentDashboard = lazy(() => import('../pages/parent/ParentDashboard').then(m => ({ default: m.ParentDashboard })))
+const AcademicProgress = lazy(() => import('../pages/parent/AcademicProgress').then(m => ({ default: m.AcademicProgress })))
+const AttendanceTracking = lazy(() => import('../pages/parent/AttendanceTracking').then(m => ({ default: m.AttendanceTracking })))
+const BehavioralReports = lazy(() => import('../pages/parent/BehavioralReports').then(m => ({ default: m.BehavioralReports })))
+const Communications = lazy(() => import('../pages/parent/Communications').then(m => ({ default: m.Communications })))
+const TeacherMessages = lazy(() => import('../pages/parent/TeacherMessages').then(m => ({ default: m.TeacherMessages })))
+const FeeManagement = lazy(() => import('../pages/parent/FeeManagement').then(m => ({ default: m.FeeManagement })))
+const Timetable = lazy(() => import('../pages/parent/Timetable').then(m => ({ default: m.Timetable })))
+const HealthWellness = lazy(() => import('../pages/parent/HealthWellness').then(m => ({ default: m.HealthWellness })))
+const Notifications = lazy(() => import('../pages/parent/Notifications').then(m => ({ default: m.Notifications })))
+const ParentProfile = lazy(() => import('../pages/parent/ParentProfile').then(m => ({ default: m.ParentProfile })))
 
 interface ParentLayoutProps {
   children?: React.ReactNode
@@ -53,6 +63,26 @@ export function ParentLayout({ children }: ParentLayoutProps) {
     switch (currentPage) {
       case 'dashboard':
         return <ParentDashboard />
+      case 'academic':
+        return <AcademicProgress />
+      case 'attendance':
+        return <AttendanceTracking />
+      case 'behavioral':
+        return <BehavioralReports />
+      case 'communications':
+        return <Communications />
+      case 'messages':
+        return <TeacherMessages />
+      case 'fees':
+        return <FeeManagement />
+      case 'timetable':
+        return <Timetable />
+      case 'health':
+        return <HealthWellness />
+      case 'notifications':
+        return <Notifications />
+      case 'profile':
+        return <ParentProfile />
       default:
         return (
           <div className="flex items-center justify-center h-full">

@@ -167,13 +167,20 @@ describe('Monitoring Filters - Property 16', () => {
     };
 
     // Filter by exam and status
+    // Active students with completionPercentage >= 50:
+    // student-1: Active, 50% ✓
+    // student-2: Completed, skip
+    // student-3: Active, 80% ✓
+    // student-4: Active, 60% ✓
+    // student-5: Paused, skip
     const filtered = monitoringData.students.filter(
       (s) => s.status === 'Active' && s.completionPercentage >= 50
     );
 
-    expect(filtered).toHaveLength(2);
+    expect(filtered).toHaveLength(3);
     expect(filtered[0].studentId).toBe('student-1');
     expect(filtered[1].studentId).toBe('student-3');
+    expect(filtered[2].studentId).toBe('student-4');
   });
 
   it('should return empty results when no matches found', () => {

@@ -25,6 +25,20 @@ import {
   scheduleExam as scheduleExamScheduling,
   type ScheduleExamInput,
 } from './_lib/exam-scheduling';
+import {
+  generateRequestId,
+  logError,
+  sendErrorResponse,
+  createValidationError,
+  createNotFoundError,
+  createInternalError,
+  createDatabaseError,
+} from './_lib/error-handler';
+import {
+  validateExam,
+  validateExamHasQuestions,
+  formatValidationErrors,
+} from './_lib/validation-middleware';
 
 // Initialize database pool
 const pool = new Pool({
@@ -43,46 +57,45 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>
 ) {
+  const requestId = generateRequestId();
+
   // Get tenant ID from query or headers
   const tenantId = (req.query.tenantId as string) || req.headers['x-tenant-id'] as string;
   const userId = (req.headers['x-user-id'] as string) || 'system';
 
   if (!tenantId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Tenant ID is required',
-    });
+    const error = createValidationError({ tenantId: 'Tenant ID is required' });
+    logError(requestId, error);
+    return sendErrorResponse(res, error, requestId);
   }
 
   try {
     // Handle schedule endpoint
     if (req.query.action === 'schedule') {
-      return handleSchedule(req, res, tenantId);
+      return handleSchedule(req, res, tenantId, requestId);
     }
 
     switch (req.method) {
       case 'GET':
-        return handleGet(req, res, tenantId);
+        return handleGet(req, res, tenantId, requestId);
       case 'POST':
-        return handlePost(req, res, tenantId, userId);
+        return handlePost(req, res, tenantId, userId, requestId);
       case 'PUT':
-        return handlePut(req, res, tenantId);
+        return handlePut(req, res, tenantId, requestId);
       case 'DELETE':
-        return handleDelete(req, res, tenantId);
+        return handleDelete(req, res, tenantId, requestId);
       default:
         return res.status(405).json({
           success: false,
           error: 'Method not allowed',
+          requestId,
         });
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Exam API error:', errorMessage);
-
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-    });
+    const originalError = error instanceof Error ? error : new Error(String(error));
+    const errorDetails = createInternalError(originalError, { method: req.method, path: req.url });
+    logError(requestId, errorDetails);
+    return sendErrorResponse(res, errorDetails, requestId);
   }
 }
 
@@ -92,49 +105,58 @@ export default async function handler(
 async function handleGet(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
-  tenantId: string
+  tenantId: string,
+  requestId: string
 ) {
-  const { id, stats } = req.query;
+  try {
+    const { id, stats } = req.query;
 
-  // Get statistics
-  if (stats === 'true') {
-    const statistics = await getExamStatistics(pool, tenantId);
-    return res.status(200).json({
-      success: true,
-      data: statistics,
-    });
-  }
-
-  // Get single exam
-  if (id) {
-    const exam = await getExamById(pool, tenantId, id as string);
-    if (!exam) {
-      return res.status(404).json({
-        success: false,
-        error: 'Exam not found',
+    // Get statistics
+    if (stats === 'true') {
+      const statistics = await getExamStatistics(pool, tenantId);
+      return res.status(200).json({
+        success: true,
+        data: statistics,
+        requestId,
       });
     }
-    return res.status(200).json({
-      success: true,
-      data: exam,
-    });
+
+    // Get single exam
+    if (id) {
+      const exam = await getExamById(pool, tenantId, id as string);
+      if (!exam) {
+        const error = createNotFoundError('Exam');
+        logError(requestId, error);
+        return sendErrorResponse(res, error, requestId);
+      }
+      return res.status(200).json({
+        success: true,
+        data: exam,
+        requestId,
+      });
+    }
+
+    // Get all exams with filters
+    const filters = {
+      subject: req.query.subject as string,
+      class: req.query.class as string,
+      status: req.query.status as any,
+      searchText: req.query.search as string,
+    };
+
+    const pagination = {
+      page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
+      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
+    };
+
+    const result = await getExams(pool, tenantId, filters, pagination);
+    return res.status(200).json({ ...result, requestId });
+  } catch (error) {
+    const originalError = error instanceof Error ? error : new Error(String(error));
+    const errorDetails = createDatabaseError(originalError, { operation: 'getExams' });
+    logError(requestId, errorDetails);
+    return sendErrorResponse(res, errorDetails, requestId);
   }
-
-  // Get all exams with filters
-  const filters = {
-    subject: req.query.subject as string,
-    class: req.query.class as string,
-    status: req.query.status as any,
-    searchText: req.query.search as string,
-  };
-
-  const pagination = {
-    page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
-    limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
-  };
-
-  const result = await getExams(pool, tenantId, filters, pagination);
-  return res.status(200).json(result);
 }
 
 /**
@@ -144,50 +166,30 @@ async function handlePost(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
   tenantId: string,
-  userId: string
+  userId: string,
+  requestId: string
 ) {
-  const { title, subject, class: examClass, duration, pass_mark, total_marks, scheduled_date, scheduled_time } = req.body;
-
-  // Validate required fields
-  const validationErrors: Record<string, string> = {};
-
-  if (!title || title.trim().length === 0) {
-    validationErrors.title = 'Exam title is required';
-  }
-
-  if (!subject || subject.trim().length === 0) {
-    validationErrors.subject = 'Subject is required';
-  }
-
-  if (!examClass || examClass.trim().length === 0) {
-    validationErrors.class = 'Class is required';
-  }
-
-  if (!duration || duration < 15 || duration > 480) {
-    validationErrors.duration = 'Duration must be between 15 and 480 minutes';
-  }
-
-  if (pass_mark === undefined || pass_mark < 0 || pass_mark > 100) {
-    validationErrors.pass_mark = 'Pass mark must be between 0 and 100';
-  }
-
-  if (!total_marks || total_marks <= 0) {
-    validationErrors.total_marks = 'Total marks must be greater than 0';
-  }
-
-  if (total_marks <= pass_mark) {
-    validationErrors.total_marks = 'Total marks must be greater than pass mark';
-  }
-
-  if (Object.keys(validationErrors).length > 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      validationErrors,
-    });
-  }
-
   try {
+    const { title, subject, class: examClass, duration, pass_mark, total_marks, scheduled_date, scheduled_time } = req.body;
+
+    // Validate using centralized validation middleware
+    const validation = validateExam({
+      title,
+      subject,
+      class: examClass,
+      duration,
+      pass_mark,
+      total_marks,
+      scheduled_date,
+      scheduled_time,
+    });
+
+    if (!validation.isValid) {
+      const error = createValidationError(formatValidationErrors(validation.errors));
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
     // Create exam
     const input: CreateExamInput = {
       title,
@@ -206,13 +208,13 @@ async function handlePost(
       success: true,
       data: exam,
       message: 'Exam created successfully',
+      requestId,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return res.status(400).json({
-      success: false,
-      error: errorMessage,
-    });
+    const originalError = error instanceof Error ? error : new Error(String(error));
+    const errorDetails = createDatabaseError(originalError, { operation: 'createExam' });
+    logError(requestId, errorDetails);
+    return sendErrorResponse(res, errorDetails, requestId);
   }
 }
 
@@ -222,43 +224,44 @@ async function handlePost(
 async function handlePut(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
-  tenantId: string
+  tenantId: string,
+  requestId: string
 ) {
-  const { id } = req.query;
-
-  if (!id) {
-    return res.status(400).json({
-      success: false,
-      error: 'Exam ID is required',
-    });
-  }
-
-  const { title, subject, class: examClass, duration, pass_mark, total_marks, scheduled_date, scheduled_time, status } = req.body;
-
-  // Validate input if provided
-  const validationErrors: Record<string, string> = {};
-
-  if (duration && (duration < 15 || duration > 480)) {
-    validationErrors.duration = 'Duration must be between 15 and 480 minutes';
-  }
-
-  if (pass_mark !== undefined && (pass_mark < 0 || pass_mark > 100)) {
-    validationErrors.pass_mark = 'Pass mark must be between 0 and 100';
-  }
-
-  if (total_marks && total_marks <= 0) {
-    validationErrors.total_marks = 'Total marks must be greater than 0';
-  }
-
-  if (Object.keys(validationErrors).length > 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      validationErrors,
-    });
-  }
-
   try {
+    const { id } = req.query;
+
+    if (!id) {
+      const error = createValidationError({ id: 'Exam ID is required' });
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
+    const { title, subject, class: examClass, duration, pass_mark, total_marks, scheduled_date, scheduled_time, status } = req.body;
+
+    // Validate input if provided
+    const validation = validateExam({
+      title: title || '',
+      subject: subject || '',
+      class: examClass || '',
+      duration,
+      pass_mark,
+      total_marks,
+      scheduled_date,
+      scheduled_time,
+    });
+
+    // Only validate fields that are provided
+    const providedErrors = validation.errors.filter((err) => {
+      const fieldValue = req.body[err.field] || req.body[err.field === 'class' ? 'examClass' : err.field];
+      return fieldValue !== undefined && fieldValue !== null;
+    });
+
+    if (providedErrors.length > 0) {
+      const error = createValidationError(formatValidationErrors(providedErrors));
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
     // Update exam
     const input: UpdateExamInput = {
       title,
@@ -275,23 +278,22 @@ async function handlePut(
     const exam = await updateExam(pool, tenantId, id as string, input);
 
     if (!exam) {
-      return res.status(404).json({
-        success: false,
-        error: 'Exam not found',
-      });
+      const error = createNotFoundError('Exam');
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
     }
 
     return res.status(200).json({
       success: true,
       data: exam,
       message: 'Exam updated successfully',
+      requestId,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return res.status(400).json({
-      success: false,
-      error: errorMessage,
-    });
+    const originalError = error instanceof Error ? error : new Error(String(error));
+    const errorDetails = createDatabaseError(originalError, { operation: 'updateExam' });
+    logError(requestId, errorDetails);
+    return sendErrorResponse(res, errorDetails, requestId);
   }
 }
 
@@ -301,30 +303,37 @@ async function handlePut(
 async function handleDelete(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
-  tenantId: string
+  tenantId: string,
+  requestId: string
 ) {
-  const { id } = req.query;
+  try {
+    const { id } = req.query;
 
-  if (!id) {
-    return res.status(400).json({
-      success: false,
-      error: 'Exam ID is required',
+    if (!id) {
+      const error = createValidationError({ id: 'Exam ID is required' });
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
+    const deleted = await deleteExam(pool, tenantId, id as string);
+
+    if (!deleted) {
+      const error = createNotFoundError('Exam');
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Exam deleted successfully',
+      requestId,
     });
+  } catch (error) {
+    const originalError = error instanceof Error ? error : new Error(String(error));
+    const errorDetails = createDatabaseError(originalError, { operation: 'deleteExam' });
+    logError(requestId, errorDetails);
+    return sendErrorResponse(res, errorDetails, requestId);
   }
-
-  const deleted = await deleteExam(pool, tenantId, id as string);
-
-  if (!deleted) {
-    return res.status(404).json({
-      success: false,
-      error: 'Exam not found',
-    });
-  }
-
-  return res.status(200).json({
-    success: true,
-    message: 'Exam deleted successfully',
-  });
 }
 
 /**
@@ -333,33 +342,44 @@ async function handleDelete(
 async function handleSchedule(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
-  tenantId: string
+  tenantId: string,
+  requestId: string
 ) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed. Use POST',
-    });
-  }
-
-  const { id } = req.query;
-  const { scheduled_date, scheduled_time } = req.body;
-
-  if (!id) {
-    return res.status(400).json({
-      success: false,
-      error: 'Exam ID is required',
-    });
-  }
-
-  if (!scheduled_date || !scheduled_time) {
-    return res.status(400).json({
-      success: false,
-      error: 'Scheduled date and time are required',
-    });
-  }
-
   try {
+    if (req.method !== 'POST') {
+      return res.status(405).json({
+        success: false,
+        error: 'Method not allowed. Use POST',
+        requestId,
+      });
+    }
+
+    const { id } = req.query;
+    const { scheduled_date, scheduled_time } = req.body;
+
+    if (!id) {
+      const error = createValidationError({ id: 'Exam ID is required' });
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
+    if (!scheduled_date || !scheduled_time) {
+      const error = createValidationError({
+        scheduled_date: scheduled_date ? '' : 'Scheduled date is required',
+        scheduled_time: scheduled_time ? '' : 'Scheduled time is required',
+      });
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
+    // Validate exam has questions before scheduling
+    const questionsValidation = await validateExamHasQuestions(pool, id as string);
+    if (!questionsValidation.isValid) {
+      const error = createValidationError(formatValidationErrors(questionsValidation.errors));
+      logError(requestId, error);
+      return sendErrorResponse(res, error, requestId);
+    }
+
     const input: ScheduleExamInput = {
       scheduled_date,
       scheduled_time,
@@ -371,12 +391,12 @@ async function handleSchedule(
       success: true,
       data: result,
       message: result.message,
+      requestId,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return res.status(400).json({
-      success: false,
-      error: errorMessage,
-    });
+    const originalError = error instanceof Error ? error : new Error(String(error));
+    const errorDetails = createDatabaseError(originalError, { operation: 'scheduleExam' });
+    logError(requestId, errorDetails);
+    return sendErrorResponse(res, errorDetails, requestId);
   }
 }

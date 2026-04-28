@@ -3,6 +3,9 @@
  * GET /api/tenant/cbt/security/:examId - Get security settings
  * POST /api/tenant/cbt/security/:examId - Create/update security settings
  * DELETE /api/tenant/cbt/security/:examId - Delete security settings
+ * 
+ * Requires: Authentication, Invigilator/Admin role, Exam access
+ * Requirements: 5.1
  */
 
 import { NextApiRequest, NextApiResponse } from 'next';
@@ -15,6 +18,15 @@ import {
   type SecuritySettings,
   type SecuritySettingsInput,
 } from '../_lib/security';
+import {
+  requireAuthentication,
+  requireExamAccess,
+  requireTenantAccess,
+  verifyExamModifyPermission,
+  verifyExamDeletePermission,
+  logAuthEvent,
+} from '../_lib/auth-middleware';
+import { getPool } from '../_lib/db';
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -28,16 +40,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>
 ) {
-  // Get tenant ID from headers
-  const tenantId = req.headers['x-tenant-id'] as string;
   const { examId } = req.query;
-
-  if (!tenantId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Tenant ID is required',
-    });
-  }
+  const pool = getPool();
 
   if (!examId || typeof examId !== 'string') {
     return res.status(400).json({
@@ -47,13 +51,58 @@ export default async function handler(
   }
 
   try {
+    // Verify authentication (all methods require authentication)
+    const authContext = await requireAuthentication(req, res, 'invigilator');
+    if (!authContext) {
+      return; // requireAuthentication already sent error response
+    }
+
+    // Verify tenant access
+    if (!requireTenantAccess(req, res, authContext, authContext.tenantId)) {
+      return;
+    }
+
+    // Verify exam access
+    if (!(await requireExamAccess(req, res, examId, authContext))) {
+      return;
+    }
+
     switch (req.method) {
       case 'GET':
-        return handleGet(req, res, examId, tenantId);
+        return handleGet(req, res, examId, authContext.tenantId);
       case 'POST':
-        return handlePost(req, res, examId, tenantId);
+        // Verify permission to modify exam
+        const canModify = await verifyExamModifyPermission(
+          pool,
+          examId,
+          authContext.tenantId,
+          authContext.userId,
+          authContext.role
+        );
+        if (!canModify) {
+          await logAuthEvent(pool, authContext.userId, authContext.tenantId, 'access_denied', {
+            action: 'modify_security_settings',
+            examId,
+          });
+          return res.status(403).json({
+            success: false,
+            error: 'Forbidden: You do not have permission to modify this exam',
+          });
+        }
+        return handlePost(req, res, examId, authContext.tenantId, authContext.userId);
       case 'DELETE':
-        return handleDelete(req, res, examId, tenantId);
+        // Verify permission to delete exam
+        if (!verifyExamDeletePermission(authContext.role)) {
+          await logAuthEvent(pool, authContext.userId, authContext.tenantId, 'access_denied', {
+            action: 'delete_security_settings',
+            examId,
+          });
+          return res.status(403).json({
+            success: false,
+            error: 'Forbidden: Only admins can delete security settings',
+          });
+        }
+        return handleDelete(req, res, examId, authContext.tenantId, authContext.userId);
       default:
         return res.status(405).json({
           success: false,
@@ -118,7 +167,8 @@ async function handlePost(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
   examId: string,
-  tenantId: string
+  tenantId: string,
+  userId: string
 ) {
   try {
     const {
@@ -167,6 +217,15 @@ async function handlePost(
     if (existingSettings) {
       // Update existing settings
       settings = await updateSecuritySettings(examId, tenantId, input);
+      
+      // Log audit event
+      const pool = getPool();
+      await logAuthEvent(pool, userId, tenantId, 'access_denied', {
+        action: 'update_security_settings',
+        examId,
+        changes: input,
+      });
+      
       return res.status(200).json({
         success: true,
         data: settings,
@@ -175,6 +234,15 @@ async function handlePost(
     } else {
       // Create new settings
       settings = await createSecuritySettings(examId, tenantId, input);
+      
+      // Log audit event
+      const pool = getPool();
+      await logAuthEvent(pool, userId, tenantId, 'access_denied', {
+        action: 'create_security_settings',
+        examId,
+        settings: input,
+      });
+      
       return res.status(201).json({
         success: true,
         data: settings,
@@ -212,7 +280,8 @@ async function handleDelete(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
   examId: string,
-  tenantId: string
+  tenantId: string,
+  userId: string
 ) {
   try {
     const deleted = await deleteSecuritySettings(examId, tenantId);
@@ -223,6 +292,13 @@ async function handleDelete(
         error: 'Security settings not found',
       });
     }
+
+    // Log audit event
+    const pool = getPool();
+    await logAuthEvent(pool, userId, tenantId, 'access_denied', {
+      action: 'delete_security_settings',
+      examId,
+    });
 
     return res.status(200).json({
       success: true,

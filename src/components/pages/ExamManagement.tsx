@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, FileText, Play, Pause, Eye, Settings, AlertCircle, Users, Clock, Upload, Download } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
@@ -279,6 +279,8 @@ export function ExamManagement() {
           <TabsTrigger value="exams">All Exams</TabsTrigger>
           <TabsTrigger value="live">Live Monitoring</TabsTrigger>
           <TabsTrigger value="questions">Question Bank</TabsTrigger>
+          <TabsTrigger value="results">Exam Results</TabsTrigger>
+          <TabsTrigger value="security">Security Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="exams" className="space-y-4">
@@ -399,6 +401,156 @@ export function ExamManagement() {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="results" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Exam Results</CardTitle>
+              <CardDescription>View and analyze exam performance and student results</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-sm text-gray-600">Total Exams Completed</p>
+                    <p className="text-2xl font-bold text-blue-600 mt-1">24</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-sm text-gray-600">Average Score</p>
+                    <p className="text-2xl font-bold text-green-600 mt-1">78.5%</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-sm text-gray-600">Pass Rate</p>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">92%</p>
+                  </CardContent>
+                </Card>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Recent Results</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {[
+                      { exam: 'Mathematics Final', students: 45, avgScore: 82, passed: 42 },
+                      { exam: 'English Midterm', students: 48, avgScore: 75, passed: 44 },
+                      { exam: 'Physics Quiz', students: 50, avgScore: 68, passed: 45 },
+                    ].map((result, idx) => (
+                      <div key={idx} className="border-b pb-3 last:border-b-0">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-medium text-gray-900">{result.exam}</p>
+                            <p className="text-sm text-gray-600">{result.students} students</p>
+                          </div>
+                          <Badge className="bg-green-100 text-green-700">{result.passed}/{result.students} Passed</Badge>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Average Score: {result.avgScore}%</span>
+                          <span className="text-gray-600">Pass Rate: {Math.round((result.passed / result.students) * 100)}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="security" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Security Settings</CardTitle>
+              <CardDescription>Configure exam security and proctoring options</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">Enable Proctoring</p>
+                      <p className="text-sm text-gray-600">Monitor students during exam</p>
+                    </div>
+                    <input type="checkbox" className="w-5 h-5" defaultChecked />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">Disable Copy/Paste</p>
+                      <p className="text-sm text-gray-600">Prevent copying exam content</p>
+                    </div>
+                    <input type="checkbox" className="w-5 h-5" defaultChecked />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">Disable Right-Click</p>
+                      <p className="text-sm text-gray-600">Prevent context menu access</p>
+                    </div>
+                    <input type="checkbox" className="w-5 h-5" defaultChecked />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">Require Camera</p>
+                      <p className="text-sm text-gray-600">Student must enable camera</p>
+                    </div>
+                    <input type="checkbox" className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">Randomize Questions</p>
+                      <p className="text-sm text-gray-600">Show questions in random order</p>
+                    </div>
+                    <input type="checkbox" className="w-5 h-5" defaultChecked />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">Randomize Options</p>
+                      <p className="text-sm text-gray-600">Shuffle answer options</p>
+                    </div>
+                    <input type="checkbox" className="w-5 h-5" defaultChecked />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="font-medium text-gray-900 mb-3">Access Control</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm text-gray-600">Allowed IP Addresses</label>
+                    <Input placeholder="e.g., 192.168.1.0/24" className="mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600">Exam Password</label>
+                    <Input type="password" placeholder="Optional password for exam access" className="mt-1" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button className="bg-blue-600 hover:bg-blue-700">Save Settings</Button>
+                <Button variant="outline">Reset to Default</Button>
               </div>
             </CardContent>
           </Card>

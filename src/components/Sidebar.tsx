@@ -66,18 +66,7 @@ const navItems: NavItem[] = [
       { id: 'academic-calendar', label: 'Academic Calendar' },
     ]
   },
-  {
-    id: 'cbt',
-    label: 'CBT & Examinations',
-    icon: <FileText className="w-5 h-5" />,
-    children: [
-      { id: 'exam-creation', label: 'Exam Creation' },
-      { id: 'question-bank', label: 'Question Bank' },
-      { id: 'live-monitoring', label: 'Live Monitoring' },
-      { id: 'exam-results', label: 'Exam Results' },
-      { id: 'exam-security', label: 'Security Settings' },
-    ]
-  },
+
   {
     id: 'results',
     label: 'Results & Assessment',

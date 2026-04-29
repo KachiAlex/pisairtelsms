@@ -16,7 +16,7 @@ const StudentAttendance = lazy(() => import('./components/pages/StudentAttendanc
 const TimetableScheduling = lazy(() => import('./components/pages/TimetableScheduling'));
 const StaffHR = lazy(() => import('./components/pages/StaffHR'));
 const CommunicationHub = lazy(() => import('./components/pages/CommunicationHub'));
-const ExamManagement = lazy(() => import('./components/pages/ExamManagement'));
+
 const FinanceManagement = lazy(() => import('./components/pages/FinanceManagement'));
 const AnalyticsDashboard = lazy(() => import('./components/pages/AnalyticsDashboard'));
 const SystemSettings = lazy(() => import('./components/pages/SystemSettings'));
@@ -135,12 +135,7 @@ export default function App() {
       case 'parent-messaging':
       case 'communication-logs':
         return <CommunicationHub />;
-      case 'exam-creation':
-      case 'question-bank':
-      case 'live-monitoring':
-      case 'exam-results':
-      case 'exam-security':
-        return <ExamManagement />;
+
       case 'fee-structure':
       case 'fee-collection':
       case 'outstanding-fees':
@@ -258,7 +253,7 @@ export default function App() {
       dashboard: 'Dashboard',
       'students-list': 'Student Management',
       'student-enrollment': 'Student Enrollment',
-      'exam-creation': 'CBT & Examinations',
+
       'fee-structure': 'Finance & Fees',
       'academic-analytics': 'Analytics & Reports',
       'system-settings': 'System Settings',

@@ -9,6 +9,45 @@ import { ExamResultsTab } from './cbt/ExamResultsTab';
 import { SecuritySettingsTab } from './cbt/SecuritySettingsTab';
 import { tenantApiGet } from '../../lib/tenantApi';
 
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+
+class TabErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Tab rendering error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 bg-red-50 rounded-lg border border-red-200">
+          <h3 className="text-red-900 font-semibold mb-2">Tab Rendering Error</h3>
+          <p className="text-red-700 text-sm mb-3">{this.state.error?.message}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 // ─── Dashboard stats ───────────────────────────────────────────────────────────
 
 interface DashboardStats {
@@ -92,35 +131,37 @@ export function ExamManagement() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="exams" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="exams">All Exams</TabsTrigger>
-          <TabsTrigger value="live">Live Monitoring</TabsTrigger>
-          <TabsTrigger value="questions">Question Bank</TabsTrigger>
-          <TabsTrigger value="results">Exam Results</TabsTrigger>
-          <TabsTrigger value="security">Security Settings</TabsTrigger>
-        </TabsList>
+      <TabErrorBoundary>
+        <Tabs defaultValue="exams" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="exams">All Exams</TabsTrigger>
+            <TabsTrigger value="live">Live Monitoring</TabsTrigger>
+            <TabsTrigger value="questions">Question Bank</TabsTrigger>
+            <TabsTrigger value="results">Exam Results</TabsTrigger>
+            <TabsTrigger value="security">Security Settings</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="exams">
-          <ExamCreationTab />
-        </TabsContent>
+          <TabsContent value="exams">
+            <ExamCreationTab />
+          </TabsContent>
 
-        <TabsContent value="live">
-          <LiveMonitoringTab />
-        </TabsContent>
+          <TabsContent value="live">
+            <LiveMonitoringTab />
+          </TabsContent>
 
-        <TabsContent value="questions">
-          <QuestionBankTab />
-        </TabsContent>
+          <TabsContent value="questions">
+            <QuestionBankTab />
+          </TabsContent>
 
-        <TabsContent value="results">
-          <ExamResultsTab />
-        </TabsContent>
+          <TabsContent value="results">
+            <ExamResultsTab />
+          </TabsContent>
 
-        <TabsContent value="security">
-          <SecuritySettingsTab />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="security">
+            <SecuritySettingsTab />
+          </TabsContent>
+        </Tabs>
+      </TabErrorBoundary>
     </div>
   );
 }

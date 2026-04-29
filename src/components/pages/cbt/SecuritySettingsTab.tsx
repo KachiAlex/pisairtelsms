@@ -377,24 +377,25 @@ export function SecuritySettingsTab() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {logs.map((log) => (
-                        <tr key={log.id} className="hover:bg-gray-50">
-                          <td className="p-3">
-                            <Badge className={
-                              log.eventType === 'copy_attempt' || log.eventType === 'tab_switch' ? 'bg-red-100 text-red-700' :
-                              log.eventType === 'right_click' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-blue-100 text-blue-700'
-                            }>
-                              {EVENT_TYPE_LABELS[log.eventType] || log.eventType}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-gray-700">{log.studentName || log.studentId}</td>
-                          <td className="p-3 text-gray-500">{new Date(log.createdAt).toLocaleString()}</td>
-                          <td className="p-3 text-gray-500 text-xs max-w-[200px] truncate">
-                            {log.eventDetails ? JSON.stringify(log.eventDetails) : '—'}
-                          </td>
-                        </tr>
-                      ))}
+                      {logs.map((log) => {
+                        const badgeClass = log.eventType === 'copy_attempt' || log.eventType === 'tab_switch' ? 'bg-red-100 text-red-700' :
+                          log.eventType === 'right_click' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-blue-100 text-blue-700';
+                        return (
+                          <tr key={log.id} className="hover:bg-gray-50">
+                            <td className="p-3">
+                              <Badge className={badgeClass}>
+                                {EVENT_TYPE_LABELS[log.eventType] || log.eventType}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-gray-700">{log.studentName || log.studentId}</td>
+                            <td className="p-3 text-gray-500">{new Date(log.createdAt).toLocaleString()}</td>
+                            <td className="p-3 text-gray-500 text-xs max-w-[200px] truncate">
+                              {log.eventDetails ? JSON.stringify(log.eventDetails) : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -34,7 +34,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Implement request validation and error handling
   - _Requirements: 1.2, 1.3, 1.4, 7.1_
 
-- [ ]* 2.1 Write property test for question CRUD operations
+- [x]* 2.1 Write property test for question CRUD operations
   - **Property 1: Question Addition Round-Trip** - Add and retrieve questions
   - **Property 2: Question Deletion Removes from Bank** - Verify deletion removes from queries
   - **Validates: Requirements 1.2, 1.3**
@@ -239,7 +239,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Calculate completion rate
   - _Requirements: 4.3_
 
-- [ ]* 23.1 Write property test for analytics
+- [x]* 23.1 Write property test for analytics
   - **Property 19: Analytics Calculations Are Correct** - Verify calculations accurate
   - **Validates: Requirements 4.3**
 
@@ -249,7 +249,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Filter results by student status
   - _Requirements: 4.5_
 
-- [ ]* 24.1 Write property test for results filtering
+- [x]* 24.1 Write property test for results filtering
   - **Property 20: Results Filtering Returns Matching Records** - Verify filter accuracy
   - **Validates: Requirements 4.5**
 
@@ -259,7 +259,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Support PDF export format
   - _Requirements: 4.6_
 
-- [ ]* 25.1 Write property test for results export
+- [x]* 25.1 Write property test for results export
   - **Property 21: Results Export Contains All Data** - Verify export completeness
   - **Validates: Requirements 4.6**
 
@@ -275,7 +275,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Store settings in database
   - _Requirements: 5.1, 5.10_
 
-- [ ]* 27.1 Write property test for security settings
+- [x]* 27.1 Write property test for security settings
   - **Property 22: Security Settings Persist Correctly** - Verify settings stored and retrievable
   - **Validates: Requirements 5.1**
 
@@ -288,7 +288,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Record timestamp and event details
   - _Requirements: 5.2_
 
-- [ ]* 28.1 Write property test for proctoring logs
+- [x]* 28.1 Write property test for proctoring logs
   - **Property 23: Proctoring Events Are Logged** - Verify events recorded with details
   - **Validates: Requirements 5.2**
 
@@ -297,7 +297,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Block exam access if camera required but unavailable
   - _Requirements: 5.5_
 
-- [ ]* 29.1 Write property test for camera enforcement
+- [x]* 29.1 Write property test for camera enforcement
   - **Property 24: Camera Requirement Enforced** - Verify camera check enforced
   - **Validates: Requirements 5.5**
 
@@ -306,7 +306,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Ensure different students get different orders
   - _Requirements: 5.6_
 
-- [ ]* 30.1 Write property test for question randomization
+- [x]* 30.1 Write property test for question randomization
   - **Property 25: Question Randomization Produces Different Orders** - Verify different orders
   - **Validates: Requirements 5.6**
 
@@ -315,7 +315,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Ensure different students get different option orders
   - _Requirements: 5.7_
 
-- [ ]* 31.1 Write property test for option randomization
+- [x]* 31.1 Write property test for option randomization
   - **Property 26: Option Randomization Shuffles Answers** - Verify different option orders
   - **Validates: Requirements 5.7**
 
@@ -324,7 +324,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Block access from non-whitelisted IPs
   - _Requirements: 5.8_
 
-- [ ]* 32.1 Write property test for IP whitelist
+- [x]* 32.1 Write property test for IP whitelist
   - **Property 27: IP Whitelist Validation Works Correctly** - Verify IP validation
   - **Validates: Requirements 5.8**
 
@@ -333,7 +333,7 @@ This implementation plan transforms the CBT Dashboard from a mock-data-driven in
   - Verify password before allowing exam access
   - _Requirements: 5.9_
 
-- [ ]* 33.1 Write property test for password enforcement
+- [x]* 33.1 Write property test for password enforcement
   - **Property 28: Exam Password Requirement Enforced** - Verify password check enforced
   - **Validates: Requirements 5.9**
 

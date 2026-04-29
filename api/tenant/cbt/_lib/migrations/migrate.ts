@@ -124,6 +124,9 @@ export async function verifySchema(pool: Pool): Promise<boolean> {
       'student_answers',
       'security_settings',
       'proctoring_logs',
+      'sessions',
+      'session_policies',
+      'session_history',
     ];
 
     for (const table of requiredTables) {

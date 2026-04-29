@@ -1,19 +1,25 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import certificateVerificationApi from './verification';
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { tenantId } = req.query;
-
-  if (!tenantId || typeof tenantId !== 'string') {
-    return res.status(400).json({ error: 'Missing tenant ID' });
-  }
+/**
+ * Certificate Verification API Handler
+ * Routes:
+ *   GET  /api/tenant/certificates/verification?type=verify|verifications|registries|fraud-signals|audit-logs|statistics
+ *   POST /api/tenant/certificates/verification  (action: create-verification|create-registry|create-fraud-signal|issue-certificate|revoke-certificate)
+ */
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  const tenantId =
+    (req.headers['x-tenant-id'] as string) ||
+    (req.query.tenantId as string) ||
+    'default-tenant';
 
   try {
     if (req.method === 'GET') {
-      const { type, status, limit, offset, code } = req.query;
+      const { type, status, limit, offset, code, certificateCode } = req.query;
 
-      if (type === 'verify' && code) {
-        const result = certificateVerificationApi.verifyCertificate(tenantId, code as string);
+      if (type === 'verify' && (code || certificateCode)) {
+        const certCode = (code || certificateCode) as string;
+        const result = certificateVerificationApi.verifyCertificate(tenantId, certCode);
         return res.status(200).json(result);
       }
 
@@ -36,6 +42,15 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(200).json({ data: result });
       }
 
+      if (type === 'audit-logs') {
+        const result = certificateVerificationApi.listAuditLogs(tenantId, {
+          certificateCode: certificateCode as string,
+          limit: limit ? parseInt(limit as string) : 50,
+          offset: offset ? parseInt(offset as string) : 0,
+        });
+        return res.status(200).json(result);
+      }
+
       if (type === 'statistics') {
         const result = certificateVerificationApi.getStatistics(tenantId);
         return res.status(200).json(result);
@@ -45,7 +60,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     if (req.method === 'POST') {
-      const { action, payload } = req.body;
+      const { action, payload } = req.body || {};
 
       if (action === 'create-verification') {
         const verification = certificateVerificationApi.createVerification(tenantId, payload);
@@ -67,12 +82,19 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(201).json(issuance);
       }
 
+      if (action === 'revoke-certificate') {
+        const issuance = certificateVerificationApi.revokeCertificate(tenantId, payload.certificateCode, payload);
+        return res.status(200).json(issuance);
+      }
+
       return res.status(400).json({ error: 'Invalid action' });
     }
 
+    res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'Method not allowed' });
-  } catch (error: any) {
-    console.error('Error in certificate verification routes:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    const status = message.includes('not found') ? 404 : 400;
+    return res.status(status).json({ error: message });
   }
 }

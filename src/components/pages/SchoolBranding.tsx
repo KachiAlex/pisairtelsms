@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Globe, Download, Loader } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Globe, Loader } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -43,28 +43,16 @@ export function SchoolBranding() {
     loadBranding()
   }, [])
 
-  const loadBranding = () => {
+  const loadBranding = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with actual API call
-      // const config = brandingApi.get('tenant-1')
-      const config = {
-        id: '1',
-        tenantId: 'tenant-1',
-        schoolName: 'Your School',
-        schoolMotto: 'Excellence in Education',
-        primaryColor: '#1E3A8A',
-        secondaryColor: '#10B981',
-        accentColor: '#F59E0B',
-        logoUrl: null,
-        logoFileName: null,
-        version: 1,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdBy: 'system',
-        updatedBy: 'system',
-      }
+      setError(null)
+      const response = await fetch('/api/tenant/branding', {
+        headers: { 'x-tenant-id': 'default-tenant', 'x-user-id': 'current-user' },
+      })
+      if (!response.ok) throw new Error('Failed to load branding')
+      const result = await response.json()
+      const config = result.data
       setBranding(config)
       setFormData({
         schoolName: config.schoolName,
@@ -84,10 +72,18 @@ export function SchoolBranding() {
     try {
       setSaving(true)
       setError(null)
-      // TODO: Replace with actual API call
-      // const updated = brandingApi.upsert('tenant-1', 'user-1', formData)
-      const updated = { ...branding, ...formData, updatedAt: new Date() }
-      setBranding(updated)
+      const response = await fetch('/api/tenant/branding', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': 'default-tenant',
+          'x-user-id': 'current-user',
+        },
+        body: JSON.stringify(formData),
+      })
+      if (!response.ok) throw new Error('Failed to save branding')
+      const result = await response.json()
+      setBranding(result.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save branding')
     } finally {

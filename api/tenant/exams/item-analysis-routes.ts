@@ -1,18 +1,29 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import itemAnalysisApi from './item-analysis';
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { tenantId, examId } = req.query;
+/**
+ * Exam Item Analysis API Handler
+ * Routes:
+ *   GET  /api/tenant/exams/item-analysis?type=items|distractors|blueprint|anchors|performance|statistics&examId=...
+ *   POST /api/tenant/exams/item-analysis  (action: create-item|create-distractor|create-blueprint|create-anchor|track-performance)
+ */
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  const tenantId =
+    (req.headers['x-tenant-id'] as string) ||
+    (req.query.tenantId as string) ||
+    'default-tenant';
 
-  if (!tenantId || typeof tenantId !== 'string') {
-    return res.status(400).json({ error: 'Missing tenant ID' });
-  }
+  const { examId } = req.query;
 
   try {
     if (req.method === 'GET') {
       const { type, limit, offset } = req.query;
 
-      if (type === 'items' && examId) {
+      if (!examId) {
+        return res.status(400).json({ error: 'Missing exam ID' });
+      }
+
+      if (type === 'items') {
         const result = itemAnalysisApi.listItems(tenantId, examId as string, {
           limit: limit ? parseInt(limit as string) : 50,
           offset: offset ? parseInt(offset as string) : 0,
@@ -20,22 +31,27 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(200).json(result);
       }
 
-      if (type === 'distractors' && examId) {
+      if (type === 'distractors') {
         const result = itemAnalysisApi.listDistractors(tenantId, examId as string);
         return res.status(200).json({ data: result });
       }
 
-      if (type === 'blueprint' && examId) {
+      if (type === 'blueprint') {
         const result = itemAnalysisApi.listBlueprintCoverage(tenantId, examId as string);
         return res.status(200).json({ data: result });
       }
 
-      if (type === 'anchors' && examId) {
+      if (type === 'anchors') {
         const result = itemAnalysisApi.listAnchors(tenantId, examId as string);
         return res.status(200).json({ data: result });
       }
 
-      if (type === 'statistics' && examId) {
+      if (type === 'performance') {
+        const result = itemAnalysisApi.listPerformanceByQuestion(tenantId, examId as string);
+        return res.status(200).json({ data: result });
+      }
+
+      if (type === 'statistics') {
         const result = itemAnalysisApi.getStatistics(tenantId, examId as string);
         return res.status(200).json(result);
       }
@@ -44,7 +60,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     if (req.method === 'POST') {
-      const { action, payload } = req.body;
+      const { action, payload } = req.body || {};
 
       if (!examId) {
         return res.status(400).json({ error: 'Missing exam ID' });
@@ -70,12 +86,19 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(201).json(anchor);
       }
 
+      if (action === 'track-performance') {
+        const performance = itemAnalysisApi.trackPerformanceByQuestion(tenantId, examId as string, payload);
+        return res.status(201).json(performance);
+      }
+
       return res.status(400).json({ error: 'Invalid action' });
     }
 
+    res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'Method not allowed' });
-  } catch (error: any) {
-    console.error('Error in item analysis routes:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    const status = message.includes('not found') ? 404 : 400;
+    return res.status(status).json({ error: message });
   }
 }

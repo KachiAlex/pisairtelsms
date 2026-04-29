@@ -117,8 +117,24 @@ export function Dashboard() {
         throw new Error('Failed to fetch dashboard data')
       }
       const result = await response.json()
-      setDashboardStats(result.data)
+      
+      // Defensive check: ensure data exists and is valid
+      if (!result || !result.data) {
+        throw new Error('Invalid dashboard data received from server')
+      }
+      
+      // Validate required fields
+      const data = result.data
+      if (typeof data.totalStudents !== 'number' || 
+          typeof data.totalTeachers !== 'number' ||
+          typeof data.totalExams !== 'number' ||
+          typeof data.classesCount !== 'number') {
+        throw new Error('Dashboard data is missing required fields')
+      }
+      
+      setDashboardStats(data)
     } catch (err) {
+      console.error('Dashboard fetch error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
@@ -141,7 +157,8 @@ export function Dashboard() {
     )
   }
 
-  if (!dashboardStats) {
+  // Safety check: ensure dashboardStats is valid before rendering
+  if (!dashboardStats || typeof dashboardStats !== 'object') {
     return (
       <div className="space-y-6">
         <Card>
@@ -159,28 +176,28 @@ export function Dashboard() {
   const stats = [
     {
       label: 'Total Students',
-      value: dashboardStats.totalStudents,
+      value: dashboardStats.totalStudents ?? 0,
       change: '+0 this term',
       color: 'blue',
       icon: <Users className="w-6 h-6" />,
     },
     {
       label: 'Total Teachers',
-      value: dashboardStats.totalTeachers,
+      value: dashboardStats.totalTeachers ?? 0,
       change: '+0 this term',
       color: 'green',
       icon: <GraduationCap className="w-6 h-6" />,
     },
     {
       label: 'Total Exams',
-      value: dashboardStats.totalExams,
-      change: `${dashboardStats.activeExams} active`,
+      value: dashboardStats.totalExams ?? 0,
+      change: `${dashboardStats.activeExams ?? 0} active`,
       color: 'purple',
       icon: <FileText className="w-6 h-6" />,
     },
     {
       label: 'Classes',
-      value: dashboardStats.classesCount,
+      value: dashboardStats.classesCount ?? 0,
       change: '+0 this term',
       color: 'orange',
       icon: <ClipboardList className="w-6 h-6" />,
@@ -188,22 +205,28 @@ export function Dashboard() {
   ]
 
   // Build enrollment trend data
-  const enrollmentData = dashboardStats.classSummaries.map(cs => ({
-    month: cs.className,
-    students: cs.studentCount,
-  }))
+  const enrollmentData = Array.isArray(dashboardStats.classSummaries) 
+    ? dashboardStats.classSummaries.map(cs => ({
+        month: cs?.className ?? 'Unknown',
+        students: cs?.studentCount ?? 0,
+      }))
+    : []
 
   // Build revenue by month data from live API
-  const revenueData = dashboardStats.revenueByMonth ?? []
+  const revenueData = Array.isArray(dashboardStats.revenueByMonth) 
+    ? dashboardStats.revenueByMonth 
+    : []
 
   // Build academic performance data
-  const performanceData = dashboardStats.classSummaries.map(cs => ({
-    class: cs.className,
-    excellent: Math.floor(Math.random() * 30),
-    good: Math.floor(Math.random() * 40),
-    average: Math.floor(Math.random() * 20),
-    poor: Math.floor(Math.random() * 10),
-  }))
+  const performanceData = Array.isArray(dashboardStats.classSummaries)
+    ? dashboardStats.classSummaries.map(cs => ({
+        class: cs?.className ?? 'Unknown',
+        excellent: Math.floor(Math.random() * 30),
+        good: Math.floor(Math.random() * 40),
+        average: Math.floor(Math.random() * 20),
+        poor: Math.floor(Math.random() * 10),
+      }))
+    : []
 
   return (
     <div className="space-y-6">
@@ -388,7 +411,7 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {dashboardStats.recentActivity.length === 0 ? (
+              {!Array.isArray(dashboardStats.recentActivity) || dashboardStats.recentActivity.length === 0 ? (
                 <div className="text-center py-8">
                   <Activity className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-600">No recent activities available.</p>
@@ -400,8 +423,8 @@ export function Dashboard() {
                       <Clock className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-sm text-gray-900">{activity.message}</p>
-                      <p className="text-xs text-gray-500 mt-1">{new Date(activity.timestamp).toLocaleString()}</p>
+                      <p className="font-medium text-sm text-gray-900">{activity?.message ?? 'Unknown activity'}</p>
+                      <p className="text-xs text-gray-500 mt-1">{activity?.timestamp ? new Date(activity.timestamp).toLocaleString() : 'Unknown time'}</p>
                     </div>
                   </div>
                 ))

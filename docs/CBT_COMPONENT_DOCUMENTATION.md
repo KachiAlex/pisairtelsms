@@ -1,1013 +1,1048 @@
-# CBT Dashboard Component Documentation
-
-**Version**: 1.0.0  
-**Last Updated**: April 28, 2026
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Component Architecture](#component-architecture)
-3. [ExamManagement Component](#exammanagement-component)
-4. [QuestionBankTab Component](#questionbanktab-component)
-5. [ExamCreationTab Component](#examcreationtab-component)
-6. [LiveMonitoringTab Component](#livemonitoringtab-component)
-7. [ExamResultsTab Component](#examresultstab-component)
-8. [SecuritySettingsTab Component](#securitysettingstab-component)
-9. [State Management](#state-management)
-10. [Integration Points](#integration-points)
-
----
+# CBT & Examinations System - Component Documentation
 
 ## Overview
 
-The CBT Dashboard is composed of five interconnected tabs that manage the complete exam lifecycle:
+This document provides comprehensive documentation for all React components in the CBT (Computer-Based Testing) & Examinations system. The system is built with React functional components using hooks for state management and side effects.
 
-1. **Question Bank Tab** - Manage exam questions
-2. **Exam Creation Tab** - Create and schedule exams
-3. **Live Monitoring Tab** - Monitor student progress in real-time
-4. **Exam Results Tab** - View and analyze exam results
-5. **Security Settings Tab** - Configure exam security
+## Component Hierarchy
 
-All components share a common parent component (`ExamManagement`) that manages tab state and provides shared functionality.
-
----
+```
+ExamManagement (Container)
+├── Dashboard Stats (StatCard components)
+├── TabErrorBoundary
+│   └── Tabs Container
+│       ├── ExamCreationTab
+│       ├── LiveMonitoringTab
+│       ├── QuestionBankTab
+│       ├── ExamResultsTab
+│       └── SecuritySettingsTab
+```
 
 ## Component Architecture
 
-### Component Hierarchy
+### Design Patterns
 
-```
-ExamManagement (Main Container)
-├── QuestionBankTab
-│   ├── QuestionList
-│   ├── QuestionForm
-│   ├── SearchFilter
-│   ├── ImportExport
-│   └── Statistics
-├── ExamCreationTab
-│   ├── ExamForm
-│   ├── QuestionSelector
-│   ├── SchedulingPanel
-│   └── ExamList
-├── LiveMonitoringTab
-│   ├── MonitoringTable
-│   ├── StudentProgressCard
-│   ├── FilterPanel
-│   └── FlagDialog
-├── ExamResultsTab
-│   ├── ResultsSummary
-│   ├── ResultsTable
-│   ├── AnalyticsPanel
-│   ├── DetailedResultView
-│   └── ExportPanel
-└── SecuritySettingsTab
-    ├── SecurityForm
-    ├── ProctoringLogs
-    ├── IPWhitelistPanel
-    └── PasswordPanel
-```
+1. **Container/Presentational Pattern**: ExamManagement acts as a container managing state and data fetching
+2. **Error Boundaries**: TabErrorBoundary catches rendering errors in tabs
+3. **Custom Hooks**: Reusable logic for API calls and data management
+4. **Controlled Components**: Form inputs with state management
+5. **Composition**: Small, reusable UI components (Card, Button, Badge, etc.)
 
-### Data Flow
+### State Management
 
-```
-API Layer
-    ↓
-State Management (Context/Redux)
-    ↓
-ExamManagement Component
-    ↓
-Tab Components
-    ↓
-Sub-components
-    ↓
-UI Elements
-```
+- **Local State**: useState for component-level state
+- **Side Effects**: useEffect for data fetching and subscriptions
+- **Refs**: useRef for file inputs, polling intervals, and DOM references
+- **API Integration**: tenantApiGet, tenantApiPost, tenantApiPut for backend communication
 
 ---
 
-## ExamManagement Component
+## Component Documentation
 
-Main container component that manages tab state and provides shared functionality.
+### 1. ExamManagement (Container Component)
 
-### Props
+**File**: `src/components/pages/ExamManagement.tsx`
 
-```typescript
-interface ExamManagementProps {
-  tenantId: string
-  userId: string
-  userRole: 'admin' | 'invigilator'
-}
-```
+**Purpose**: Main container component that manages the CBT examination system interface with tabbed navigation and dashboard statistics.
 
-### State
+#### Props
+
+None - This is a top-level container component.
+
+#### State
 
 ```typescript
-interface ExamManagementState {
-  activeTab: 'questions' | 'exams' | 'live' | 'results' | 'security'
-  selectedExam: Exam | null
-  loading: boolean
-  error: string | null
-  stats: DashboardStats
-  refreshInterval: number
-}
-
 interface DashboardStats {
-  totalQuestions: number
-  totalExams: number
-  ongoingExams: number
-  activeStudents: number
-  averageScore: number
-  passRate: number
+  totalQuestions: number;      // Total questions in question bank
+  ongoingExams: number;        // Number of exams currently in progress
+  scheduledExams: number;      // Number of exams scheduled for future
+  activeStudents: number;      // Number of students currently taking exams
 }
 ```
 
-### Methods
+#### Hooks & Lifecycle
 
 ```typescript
-// Tab management
-switchTab(tab: string): void
-selectExam(exam: Exam): void
-clearSelection(): void
-
-// Data refresh
-refreshStats(): Promise<void>
-startAutoRefresh(interval: number): void
-stopAutoRefresh(): void
-
-// Error handling
-handleError(error: Error): void
-clearError(): void
+useEffect(() => {
+  // Fetch dashboard statistics on component mount
+  // Calls /api/tenant/cbt/questions/stats and /api/tenant/cbt/exams
+  // Updates stats state with fetched data
+}, []);
 ```
 
-### Usage
+#### Key Features
 
-```tsx
-import ExamManagement from '@/components/pages/cbt/ExamManagement'
+- **Dashboard Statistics**: Displays real-time counts of exams and students
+- **Tab Navigation**: Five main tabs for different exam management functions
+- **Error Boundary**: Catches errors in child tab components
+- **Responsive Layout**: Grid layout adapts to screen size
 
-export default function CBTDashboard() {
-  return (
-    <ExamManagement
-      tenantId="tenant-123"
-      userId="user-456"
-      userRole="invigilator"
-    />
-  )
+#### Sub-Components
+
+- **StatCard**: Displays individual statistics with icon and color coding
+  - Props: `label`, `value`, `color`, `icon`
+  - Used for: Ongoing Exams, Scheduled, Active Students, Question Bank
+
+#### Usage Example
+
+```typescript
+import { ExamManagement } from '@/components/pages/ExamManagement';
+
+export default function AdminDashboard() {
+  return <ExamManagement />;
 }
 ```
 
-### Integration Points
+#### Error Handling
 
-- **API**: Calls all CBT endpoints
-- **State**: Manages global exam state
-- **WebSocket**: Connects to real-time monitoring
-- **Child Components**: Passes data and callbacks
+- TabErrorBoundary catches rendering errors
+- Displays error message with reload button
+- Non-critical stats failures don't block UI
+
+#### Testing
+
+```typescript
+// Test component renders
+render(<ExamManagement />);
+
+// Test statistics display
+expect(screen.getByText('Ongoing Exams')).toBeInTheDocument();
+
+// Test tab navigation
+fireEvent.click(screen.getByRole('tab', { name: /live monitoring/i }));
+```
 
 ---
 
-## QuestionBankTab Component
+### 2. QuestionBankTab
 
-Manages the question bank with CRUD operations, search, filtering, and import/export.
+**File**: `src/components/pages/cbt/QuestionBankTab.tsx`
 
-### Props
+**Purpose**: Manages the question bank with CRUD operations, search/filter, and CSV import/export functionality.
 
-```typescript
-interface QuestionBankTabProps {
-  tenantId: string
-  onExamSelect?: (exam: Exam) => void
-  refreshTrigger?: number
-}
-```
+#### Props
 
-### State
+None - Receives data from parent ExamManagement component.
+
+#### State
 
 ```typescript
-interface QuestionBankState {
-  questions: Question[]
-  filteredQuestions: Question[]
-  loading: boolean
-  error: string | null
-  selectedQuestions: Set<string>
-  filters: QuestionFilter
-  pagination: PaginationState
-  showForm: boolean
-  editingQuestion: Question | null
-  importProgress: number
-  exportInProgress: boolean
+interface Question {
+  id: string;
+  text: string;
+  type: 'objective' | 'truefalse' | 'essay';
+  options: string[];
+  correctAnswer: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  subject: string;
+  tags: string[];
+  createdAt: string;
 }
 
-interface QuestionFilter {
-  subject?: string
-  difficulty?: string
-  type?: string
-  searchText?: string
-  tags?: string[]
+interface QuestionStats {
+  total: number;
+  byDifficulty: { Easy: number; Medium: number; Hard: number };
+  byType: { objective: number; truefalse: number; essay: number };
+}
+
+interface QuestionFormData {
+  text: string;
+  type: 'objective' | 'truefalse' | 'essay';
+  options: string[];
+  correctAnswer: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  subject: string;
+  tags: string;
 }
 ```
 
-### Methods
+#### Hooks & Lifecycle
 
 ```typescript
-// CRUD Operations
-async createQuestion(data: QuestionInput): Promise<void>
-async updateQuestion(id: string, data: Partial<QuestionInput>): Promise<void>
-async deleteQuestion(id: string): Promise<void>
-async fetchQuestions(page?: number): Promise<void>
+// Fetch questions on mount and when filters change
+useEffect(() => {
+  fetchQuestions();
+}, [page, search, filterSubject, filterDifficulty, filterType]);
 
-// Search and Filter
-applyFilters(filters: QuestionFilter): void
-searchQuestions(text: string): void
-clearFilters(): void
-
-// Import/Export
-async importQuestions(file: File): Promise<void>
-async exportQuestions(selectedOnly?: boolean): Promise<void>
-
-// Selection
-toggleQuestionSelection(id: string): void
-selectAllQuestions(): void
-clearSelection(): void
-
-// Statistics
-getStatistics(): QuestionStatistics
+// Fetch statistics after questions update
+useEffect(() => {
+  fetchStats();
+}, [questions]);
 ```
 
-### Sub-Components
+#### Key Features
 
-#### QuestionList
-Displays paginated list of questions with actions.
+- **Question CRUD**: Create, read, update, delete questions
+- **Search & Filter**: Filter by subject, difficulty, type
+- **Pagination**: 20 questions per page
+- **CSV Import/Export**: Bulk import/export questions
+- **Statistics**: Display question bank statistics
+- **Form Validation**: Client-side validation for question data
 
-```typescript
-interface QuestionListProps {
-  questions: Question[]
-  selectedIds: Set<string>
-  loading: boolean
-  onSelect: (id: string) => void
-  onEdit: (question: Question) => void
-  onDelete: (id: string) => void
-  onSelectAll: () => void
-}
-```
+#### API Endpoints Used
 
-#### QuestionForm
-Form for creating/editing questions.
-
-```typescript
-interface QuestionFormProps {
-  question?: Question
-  onSubmit: (data: QuestionInput) => Promise<void>
-  onCancel: () => void
-  loading: boolean
-}
-```
-
-#### SearchFilter
-Search and filter controls.
-
-```typescript
-interface SearchFilterProps {
-  filters: QuestionFilter
-  onFilterChange: (filters: QuestionFilter) => void
-  onSearch: (text: string) => void
-  onClear: () => void
-}
-```
-
-#### ImportExport
-Import/export functionality.
-
-```typescript
-interface ImportExportProps {
-  onImport: (file: File) => Promise<void>
-  onExport: (selectedOnly: boolean) => Promise<void>
-  importProgress: number
-  exportInProgress: boolean
-}
-```
-
-#### Statistics
-Display question statistics.
-
-```typescript
-interface StatisticsProps {
-  stats: QuestionStatistics
-  loading: boolean
-}
-
-interface QuestionStatistics {
-  totalCount: number
-  byDifficulty: Record<string, number>
-  byType: Record<string, number>
-  bySubject: Record<string, number>
-}
-```
-
-### Usage
-
-```tsx
-<QuestionBankTab
-  tenantId="tenant-123"
-  onExamSelect={handleExamSelect}
-  refreshTrigger={refreshCount}
-/>
-```
-
-### API Integration
-
-- `GET /api/tenant/cbt/questions` - Fetch questions
-- `POST /api/tenant/cbt/questions` - Create question
-- `PUT /api/tenant/cbt/questions/:id` - Update question
+- `GET /api/tenant/cbt/questions` - List questions with filters
+- `POST /api/tenant/cbt/questions` - Create new question
 - `DELETE /api/tenant/cbt/questions/:id` - Delete question
-- `POST /api/tenant/cbt/questions/import` - Import from CSV
-- `GET /api/tenant/cbt/questions/export` - Export to CSV
+- `POST /api/tenant/cbt/questions/import` - Import CSV
+- `GET /api/tenant/cbt/questions/export` - Export CSV
+- `GET /api/tenant/cbt/questions/stats` - Get statistics
+
+#### Form Validation
+
+```typescript
+function validateForm(form: QuestionFormData): FormErrors {
+  // Question text: required, max 1000 characters
+  // Subject: required
+  // Options: required for objective/truefalse, 2-4 options
+  // Correct answer: must match one of the options
+  // Difficulty: Easy, Medium, or Hard
+}
+```
+
+#### Usage Example
+
+```typescript
+import { QuestionBankTab } from '@/components/pages/cbt/QuestionBankTab';
+
+export default function QuestionBank() {
+  return <QuestionBankTab />;
+}
+```
+
+#### CSV Format
+
+**Import Format**:
+```csv
+text,type,option1,option1_correct,option2,option2_correct,difficulty,subject
+"What is 2+2?",objective,"3",false,"4",true,Easy,Math
+```
+
+**Export Format**: Same as import format with all questions
+
+#### Testing
+
+```typescript
+// Test question creation
+fireEvent.click(screen.getByText('Add Question'));
+fireEvent.change(screen.getByPlaceholderText('Enter question text...'), {
+  target: { value: 'Test question?' }
+});
+fireEvent.click(screen.getByText('Save Question'));
+
+// Test search
+fireEvent.change(screen.getByPlaceholderText('Search questions...'), {
+  target: { value: 'math' }
+});
+
+// Test CSV import
+const file = new File(['text,type,...'], 'questions.csv', { type: 'text/csv' });
+fireEvent.change(screen.getByLabelText('Import CSV'), { target: { files: [file] } });
+```
 
 ---
 
-## ExamCreationTab Component
+### 3. ExamCreationTab
 
-Manages exam creation, question selection, and scheduling.
+**File**: `src/components/pages/cbt/ExamCreationTab.tsx`
 
-### Props
+**Purpose**: Manages exam creation, editing, scheduling, and question selection.
 
-```typescript
-interface ExamCreationTabProps {
-  tenantId: string
-  selectedExam?: Exam
-  onExamCreated?: (exam: Exam) => void
-  refreshTrigger?: number
-}
-```
+#### Props
 
-### State
+None - Receives data from parent ExamManagement component.
+
+#### State
 
 ```typescript
-interface ExamCreationState {
-  exams: Exam[]
-  filteredExams: Exam[]
-  loading: boolean
-  error: string | null
-  showForm: boolean
-  editingExam: Exam | null
-  formData: ExamFormData
-  selectedQuestions: Question[]
-  availableQuestions: Question[]
-  pagination: PaginationState
-  scheduling: SchedulingState
+interface Exam {
+  id: string;
+  title: string;
+  subject: string;
+  class: string;
+  description?: string;
+  duration: number;           // minutes
+  passMark: number;           // 0-100
+  totalMarks: number;
+  status: 'Draft' | 'Scheduled' | 'Ongoing' | 'Completed';
+  scheduledDate?: string;
+  scheduledTime?: string;
+  questions: Array<{ id: string; questionId: string; marks: number; order: number }>;
+  createdAt: string;
 }
 
-interface ExamFormData {
-  title: string
-  subject: string
-  class: string
-  description?: string
-  duration: number
-  passMark: number
-  totalMarks: number
-  scheduledDate?: string
-  scheduledTime?: string
-  questionIds: string[]
-}
-
-interface SchedulingState {
-  isScheduling: boolean
-  scheduledDate?: string
-  scheduledTime?: string
-  validationErrors: Record<string, string>
+interface ExamForm {
+  title: string;
+  subject: string;
+  class: string;
+  duration: string;
+  passMark: string;
+  totalMarks: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  description: string;
 }
 ```
 
-### Methods
+#### Hooks & Lifecycle
 
 ```typescript
-// CRUD Operations
-async createExam(data: ExamFormData): Promise<void>
-async updateExam(id: string, data: Partial<ExamFormData>): Promise<void>
-async deleteExam(id: string): Promise<void>
-async fetchExams(page?: number): Promise<void>
+// Fetch exams on mount
+useEffect(() => {
+  fetchExams();
+}, []);
 
-// Question Management
-async fetchAvailableQuestions(): Promise<void>
-addQuestion(question: Question): void
-removeQuestion(questionId: string): void
-reorderQuestions(questions: Question[]): void
-
-// Scheduling
-async scheduleExam(examId: string, date: string, time: string): Promise<void>
-async startExam(examId: string): Promise<void>
-
-// Validation
-validateExamForm(data: ExamFormData): ValidationResult
-validateScheduling(date: string, time: string): ValidationResult
-
-// Form Management
-resetForm(): void
-loadExamForEdit(exam: Exam): void
+// Fetch available questions when form opens
+useEffect(() => {
+  if (isFormOpen) fetchQuestions(questionSearch);
+}, [isFormOpen, questionSearch]);
 ```
 
-### Sub-Components
+#### Key Features
 
-#### ExamForm
-Form for creating/editing exams.
+- **Exam CRUD**: Create, read, update, delete exams
+- **Question Selection**: Select questions from question bank
+- **Exam Scheduling**: Schedule exams for future dates
+- **Form Validation**: Comprehensive validation for exam data
+- **Status Tracking**: Draft → Scheduled → Ongoing → Completed
+- **Question Search**: Search questions while creating exam
 
-```typescript
-interface ExamFormProps {
-  exam?: Exam
-  onSubmit: (data: ExamFormData) => Promise<void>
-  onCancel: () => void
-  loading: boolean
-  validationErrors: Record<string, string>
-}
-```
+#### API Endpoints Used
 
-#### QuestionSelector
-Interface for selecting questions for an exam.
-
-```typescript
-interface QuestionSelectorProps {
-  availableQuestions: Question[]
-  selectedQuestions: Question[]
-  onAdd: (question: Question) => void
-  onRemove: (questionId: string) => void
-  onReorder: (questions: Question[]) => void
-  loading: boolean
-}
-```
-
-#### SchedulingPanel
-Scheduling controls.
-
-```typescript
-interface SchedulingPanelProps {
-  exam: Exam
-  onSchedule: (date: string, time: string) => Promise<void>
-  onStart: () => Promise<void>
-  loading: boolean
-  validationErrors: Record<string, string>
-}
-```
-
-#### ExamList
-Display list of exams.
-
-```typescript
-interface ExamListProps {
-  exams: Exam[]
-  loading: boolean
-  onEdit: (exam: Exam) => void
-  onDelete: (id: string) => void
-  onSchedule: (exam: Exam) => void
-  onStart: (exam: Exam) => void
-}
-```
-
-### Usage
-
-```tsx
-<ExamCreationTab
-  tenantId="tenant-123"
-  selectedExam={selectedExam}
-  onExamCreated={handleExamCreated}
-  refreshTrigger={refreshCount}
-/>
-```
-
-### API Integration
-
-- `GET /api/tenant/cbt/exams` - Fetch exams
+- `GET /api/tenant/cbt/exams` - List exams
 - `POST /api/tenant/cbt/exams` - Create exam
 - `PUT /api/tenant/cbt/exams/:id` - Update exam
 - `DELETE /api/tenant/cbt/exams/:id` - Delete exam
 - `POST /api/tenant/cbt/exams/:id/schedule` - Schedule exam
-- `POST /api/tenant/cbt/exams/:id/start` - Start exam
+- `GET /api/tenant/cbt/questions` - Get questions for selection
+
+#### Form Validation
+
+```typescript
+function validateExamForm(form: ExamForm, selectedQuestions: string[]): FormErrors {
+  // Title: required, max 255 characters
+  // Subject: required
+  // Class: required
+  // Duration: 15-480 minutes
+  // Pass mark: 0-100
+  // Total marks: must be > pass mark
+  // Scheduled date: must be in future
+  // Questions: at least 1 required
+}
+```
+
+#### Usage Example
+
+```typescript
+import { ExamCreationTab } from '@/components/pages/cbt/ExamCreationTab';
+
+export default function ExamCreation() {
+  return <ExamCreationTab />;
+}
+```
+
+#### Testing
+
+```typescript
+// Test exam creation
+fireEvent.click(screen.getByText('Create Exam'));
+fireEvent.change(screen.getByPlaceholderText('Exam title'), {
+  target: { value: 'Math Final' }
+});
+fireEvent.change(screen.getByPlaceholderText('60'), {
+  target: { value: '120' }
+});
+
+// Test question selection
+fireEvent.click(screen.getByRole('checkbox', { name: /question 1/i }));
+
+// Test scheduling
+fireEvent.change(screen.getByLabelText('Scheduled Date'), {
+  target: { value: '2026-05-15' }
+});
+fireEvent.click(screen.getByText('Save & Schedule'));
+```
 
 ---
 
-## LiveMonitoringTab Component
+### 4. LiveMonitoringTab
 
-Real-time monitoring of student exam progress.
+**File**: `src/components/pages/cbt/LiveMonitoringTab.tsx`
 
-### Props
+**Purpose**: Real-time monitoring of student progress during exams with WebSocket support and student flagging.
+
+#### Props
+
+None - Receives data from parent ExamManagement component.
+
+#### State
 
 ```typescript
-interface LiveMonitoringTabProps {
-  tenantId: string
-  selectedExam?: Exam
-  refreshInterval?: number
+interface StudentProgress {
+  id: string;
+  studentId: string;
+  studentName: string;
+  questionsAnswered: number;
+  totalQuestions: number;
+  currentQuestion: number;
+  status: 'Active' | 'Completed' | 'Paused' | 'Flagged';
+  timeRemaining: number;      // seconds
+  completionPercentage: number;
+  lastActivityTime: string;
+  flagReason?: string;
+}
+
+interface MonitoringData {
+  examId: string;
+  examTitle: string;
+  totalStudents: number;
+  activeStudents: number;
+  completedStudents: number;
+  averageProgress: number;
+  students: StudentProgress[];
 }
 ```
 
-### State
+#### Hooks & Lifecycle
 
 ```typescript
-interface LiveMonitoringState {
-  monitoringData: LiveMonitoringData | null
-  students: StudentExamProgress[]
-  filteredStudents: StudentExamProgress[]
-  loading: boolean
-  error: string | null
-  filters: MonitoringFilter
-  selectedStudent: StudentExamProgress | null
-  showFlagDialog: boolean
-  flagReason: string
-  wsConnected: boolean
-  lastUpdate: Date
-}
+// Fetch ongoing exams on mount
+useEffect(() => {
+  fetchOngoingExams();
+}, []);
 
-interface MonitoringFilter {
-  status?: string
-  class?: string
-  searchText?: string
-}
+// Fetch monitoring data and set up polling
+useEffect(() => {
+  if (selectedExamId) {
+    fetchMonitoring(selectedExamId);
+    // Poll every 10 seconds
+    pollRef.current = setInterval(() => fetchMonitoring(selectedExamId), 10000);
+  }
+  return () => { if (pollRef.current) clearInterval(pollRef.current); };
+}, [selectedExamId]);
 ```
 
-### Methods
+#### Key Features
 
-```typescript
-// Data Fetching
-async fetchMonitoringData(examId: string): Promise<void>
-async fetchStudentProgress(examId: string, studentId: string): Promise<void>
+- **Real-Time Updates**: Polls monitoring data every 10 seconds
+- **Student Progress**: Shows questions answered, time remaining, completion %
+- **Status Filtering**: Filter students by status (Active, Completed, Paused, Flagged)
+- **Student Flagging**: Flag students for suspicious activity with reason
+- **Statistics**: Display total, active, completed, and flagged student counts
+- **WebSocket Ready**: Designed for WebSocket integration (currently uses polling)
 
-// Real-time Updates
-connectWebSocket(examId: string): void
-disconnectWebSocket(): void
-handleProgressUpdate(data: StudentExamProgress): void
+#### API Endpoints Used
 
-// Filtering
-applyFilters(filters: MonitoringFilter): void
-searchStudents(text: string): void
-clearFilters(): void
-
-// Actions
-async flagStudent(studentId: string, reason: string): Promise<void>
-async unflagStudent(studentId: string): Promise<void>
-
-// Polling Fallback
-startPolling(examId: string, interval: number): void
-stopPolling(): void
-```
-
-### Sub-Components
-
-#### MonitoringTable
-Table displaying all students' progress.
-
-```typescript
-interface MonitoringTableProps {
-  students: StudentExamProgress[]
-  loading: boolean
-  onSelectStudent: (student: StudentExamProgress) => void
-  onFlag: (student: StudentExamProgress) => void
-}
-```
-
-#### StudentProgressCard
-Detailed progress card for a student.
-
-```typescript
-interface StudentProgressCardProps {
-  student: StudentExamProgress
-  onFlag: (reason: string) => Promise<void>
-  onClose: () => void
-}
-```
-
-#### FilterPanel
-Filtering controls.
-
-```typescript
-interface FilterPanelProps {
-  filters: MonitoringFilter
-  onFilterChange: (filters: MonitoringFilter) => void
-  onSearch: (text: string) => void
-  onClear: () => void
-}
-```
-
-#### FlagDialog
-Dialog for flagging students.
-
-```typescript
-interface FlagDialogProps {
-  student: StudentExamProgress
-  onSubmit: (reason: string) => Promise<void>
-  onCancel: () => void
-  loading: boolean
-}
-```
-
-### Usage
-
-```tsx
-<LiveMonitoringTab
-  tenantId="tenant-123"
-  selectedExam={selectedExam}
-  refreshInterval={3000}
-/>
-```
-
-### API Integration
-
-- `GET /api/tenant/cbt/monitoring/:examId` - Fetch monitoring data
-- `GET /api/tenant/cbt/monitoring/:examId/student/:studentId` - Fetch student progress
+- `GET /api/tenant/cbt/exams?status=Ongoing` - Get ongoing exams
+- `GET /api/tenant/cbt/monitoring/:examId` - Get live monitoring data
 - `PUT /api/tenant/cbt/monitoring/:examId/student/:studentId/flag` - Flag student
-- `WebSocket /ws/cbt/monitoring/:examId` - Real-time updates
+
+#### Usage Example
+
+```typescript
+import { LiveMonitoringTab } from '@/components/pages/cbt/LiveMonitoringTab';
+
+export default function Monitoring() {
+  return <LiveMonitoringTab />;
+}
+```
+
+#### Real-Time Updates
+
+**Current Implementation**: Polling every 10 seconds
+```typescript
+pollRef.current = setInterval(() => fetchMonitoring(selectedExamId), 10000);
+```
+
+**Future Enhancement**: WebSocket connection
+```typescript
+const ws = new WebSocket(`wss://api.example.com/ws/cbt/monitoring/${examId}`);
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  setMonitoring(data);
+};
+```
+
+#### Testing
+
+```typescript
+// Test exam selection
+fireEvent.change(screen.getByLabelText('Select Ongoing Exam'), {
+  target: { value: 'exam-123' }
+});
+
+// Test status filtering
+fireEvent.click(screen.getByRole('button', { name: /Active/i }));
+
+// Test student flagging
+fireEvent.click(screen.getByRole('button', { name: /Flag/i }));
+fireEvent.change(screen.getByPlaceholderText('Describe the suspicious activity...'), {
+  target: { value: 'Tab switching detected' }
+});
+fireEvent.click(screen.getByText('Flag Student'));
+```
 
 ---
 
-## ExamResultsTab Component
+### 5. ExamResultsTab
 
-View and analyze exam results.
+**File**: `src/components/pages/cbt/ExamResultsTab.tsx`
 
-### Props
+**Purpose**: Display exam results, analytics, and detailed student performance with export functionality.
 
-```typescript
-interface ExamResultsTabProps {
-  tenantId: string
-  selectedExam?: Exam
-  refreshTrigger?: number
-}
-```
+#### Props
 
-### State
+None - Receives data from parent ExamManagement component.
+
+#### State
 
 ```typescript
-interface ExamResultsState {
-  results: ExamResultsSummary[]
-  selectedResult: ExamResult | null
-  loading: boolean
-  error: string | null
-  filters: ResultsFilter
-  pagination: PaginationState
-  showDetailedView: boolean
-  exportInProgress: boolean
-  analytics: ResultsAnalytics
+interface ExamResult {
+  id: string;
+  studentId: string;
+  studentName: string;
+  score: number;
+  totalMarks: number;
+  percentage: number;
+  status: 'Passed' | 'Failed';
+  timeSpent: number;          // seconds
+  submittedAt: string;
 }
 
-interface ResultsFilter {
-  examId?: string
-  startDate?: string
-  endDate?: string
-  status?: string
+interface StudentAnswer {
+  questionId: string;
+  questionText: string;
+  studentAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+  marksObtained: number;
+  totalMarks: number;
 }
 
-interface ResultsAnalytics {
-  averageScore: number
-  passRate: number
-  highestScore: number
-  lowestScore: number
-  medianScore: number
-  standardDeviation: number
+interface ResultsSummary {
+  examId: string;
+  examTitle: string;
+  totalStudents: number;
+  completedStudents: number;
+  averageScore: number;
+  passRate: number;
+  highestScore: number;
+  lowestScore: number;
+  completionRate: number;
+  results: ExamResult[];
 }
 ```
 
-### Methods
+#### Hooks & Lifecycle
 
 ```typescript
-// Data Fetching
-async fetchResults(page?: number): Promise<void>
-async fetchExamResults(examId: string): Promise<void>
-async fetchStudentResult(examId: string, studentId: string): Promise<void>
+// Fetch completed exams on mount
+useEffect(() => {
+  fetchCompletedExams();
+}, []);
 
-// Filtering
-applyFilters(filters: ResultsFilter): void
-clearFilters(): void
-
-// Analytics
-calculateAnalytics(results: ExamResult[]): ResultsAnalytics
-generateReport(results: ExamResult[]): Report
-
-// Export
-async exportResults(format: 'csv' | 'pdf'): Promise<void>
-
-// Detailed View
-showDetailedResult(result: ExamResult): void
-hideDetailedResult(): void
+// Fetch results when exam selected or filters change
+useEffect(() => {
+  if (selectedExamId) fetchResults(selectedExamId);
+}, [selectedExamId, startDate, endDate]);
 ```
 
-### Sub-Components
+#### Key Features
 
-#### ResultsSummary
-Summary statistics for results.
+- **Results Summary**: Average score, pass rate, highest/lowest scores
+- **Results List**: Paginated list of student results
+- **Status Filtering**: Filter by Passed/Failed status
+- **Date Filtering**: Filter results by date range
+- **Detailed View**: View individual student answers and performance
+- **Export**: Export results to CSV or PDF
+- **Analytics**: Display completion rate and statistical metrics
 
-```typescript
-interface ResultsSummaryProps {
-  analytics: ResultsAnalytics
-  loading: boolean
-}
-```
+#### API Endpoints Used
 
-#### ResultsTable
-Table of exam results.
-
-```typescript
-interface ResultsTableProps {
-  results: ExamResult[]
-  loading: boolean
-  onSelectResult: (result: ExamResult) => void
-}
-```
-
-#### AnalyticsPanel
-Analytics visualization.
-
-```typescript
-interface AnalyticsPanelProps {
-  analytics: ResultsAnalytics
-  results: ExamResult[]
-}
-```
-
-#### DetailedResultView
-Detailed view of a single result.
-
-```typescript
-interface DetailedResultViewProps {
-  result: ExamResult
-  onClose: () => void
-}
-```
-
-#### ExportPanel
-Export controls.
-
-```typescript
-interface ExportPanelProps {
-  onExport: (format: 'csv' | 'pdf') => Promise<void>
-  exportInProgress: boolean
-}
-```
-
-### Usage
-
-```tsx
-<ExamResultsTab
-  tenantId="tenant-123"
-  selectedExam={selectedExam}
-  refreshTrigger={refreshCount}
-/>
-```
-
-### API Integration
-
-- `GET /api/tenant/cbt/results` - Fetch results summary
-- `GET /api/tenant/cbt/results/:examId` - Fetch exam results
-- `GET /api/tenant/cbt/results/:examId/student/:studentId` - Fetch student result
+- `GET /api/tenant/cbt/exams?status=Completed` - Get completed exams
+- `GET /api/tenant/cbt/results/:examId` - Get exam results summary
+- `GET /api/tenant/cbt/results/:examId/student/:studentId` - Get detailed result
 - `GET /api/tenant/cbt/results/export` - Export results
 
----
-
-## SecuritySettingsTab Component
-
-Configure exam security and view proctoring logs.
-
-### Props
+#### Usage Example
 
 ```typescript
-interface SecuritySettingsTabProps {
-  tenantId: string
-  selectedExam?: Exam
-  refreshTrigger?: number
+import { ExamResultsTab } from '@/components/pages/cbt/ExamResultsTab';
+
+export default function Results() {
+  return <ExamResultsTab />;
 }
 ```
 
-### State
+#### Analytics Calculations
 
 ```typescript
-interface SecuritySettingsState {
-  settings: SecuritySettings | null
-  loading: boolean
-  error: string | null
-  formData: SecuritySettingsForm
-  proctoringLogs: ProctoringLog[]
-  logsLoading: boolean
-  logsFilter: LogsFilter
-  logsPagination: PaginationState
-  validationErrors: Record<string, string>
-}
+// Average Score: Mean of all student scores
+averageScore = results.reduce((sum, r) => sum + r.percentage, 0) / results.length;
 
-interface SecuritySettingsForm {
-  enableProctoring: boolean
-  disableCopyPaste: boolean
-  disableRightClick: boolean
-  requireCamera: boolean
-  randomizeQuestions: boolean
-  randomizeOptions: boolean
-  allowedIPs: string[]
-  examPassword: string
-}
+// Pass Rate: Percentage of students who passed
+passRate = (results.filter(r => r.status === 'Passed').length / results.length) * 100;
 
-interface LogsFilter {
-  eventType?: string
-  studentId?: string
-  startDate?: string
-  endDate?: string
-}
+// Completion Rate: Percentage of students who completed
+completionRate = (completedStudents / totalStudents) * 100;
 ```
 
-### Methods
+#### Testing
 
 ```typescript
-// Settings Management
-async fetchSecuritySettings(examId: string): Promise<void>
-async saveSecuritySettings(examId: string, settings: SecuritySettingsForm): Promise<void>
+// Test exam selection
+fireEvent.change(screen.getByLabelText('Select Completed Exam'), {
+  target: { value: 'exam-123' }
+});
 
-// Proctoring Logs
-async fetchProctoringLogs(examId: string, page?: number): Promise<void>
-applyLogsFilter(filter: LogsFilter): void
-clearLogsFilter(): void
+// Test status filtering
+fireEvent.click(screen.getByRole('button', { name: /Passed/i }));
 
-// Validation
-validateSettings(settings: SecuritySettingsForm): ValidationResult
-validateIPAddress(ip: string): boolean
-validatePassword(password: string): boolean
+// Test date filtering
+fireEvent.change(screen.getByPlaceholderText('Start date'), {
+  target: { value: '2026-05-01' }
+});
 
-// Form Management
-resetForm(): void
-loadSettings(settings: SecuritySettings): void
-```
+// Test detailed view
+fireEvent.click(screen.getByRole('button', { name: /View Details/i }));
 
-### Sub-Components
-
-#### SecurityForm
-Form for security settings.
-
-```typescript
-interface SecurityFormProps {
-  settings?: SecuritySettings
-  onSubmit: (data: SecuritySettingsForm) => Promise<void>
-  loading: boolean
-  validationErrors: Record<string, string>
-}
-```
-
-#### ProctoringLogs
-Display proctoring logs.
-
-```typescript
-interface ProctoringLogsProps {
-  logs: ProctoringLog[]
-  loading: boolean
-  filter: LogsFilter
-  onFilterChange: (filter: LogsFilter) => void
-  pagination: PaginationState
-  onPageChange: (page: number) => void
-}
-```
-
-#### IPWhitelistPanel
-IP whitelist management.
-
-```typescript
-interface IPWhitelistPanelProps {
-  ips: string[]
-  onAdd: (ip: string) => void
-  onRemove: (ip: string) => void
-  validationError?: string
-}
-```
-
-#### PasswordPanel
-Exam password management.
-
-```typescript
-interface PasswordPanelProps {
-  password?: string
-  onSet: (password: string) => void
-  onClear: () => void
-  validationError?: string
-}
-```
-
-### Usage
-
-```tsx
-<SecuritySettingsTab
-  tenantId="tenant-123"
-  selectedExam={selectedExam}
-  refreshTrigger={refreshCount}
-/>
-```
-
-### API Integration
-
-- `GET /api/tenant/cbt/security/:examId` - Fetch security settings
-- `POST /api/tenant/cbt/security/:examId` - Save security settings
-- `GET /api/tenant/cbt/security/:examId/logs` - Fetch proctoring logs
-
----
-
-## State Management
-
-### Context Structure
-
-```typescript
-interface CBTContextType {
-  // Global State
-  tenantId: string
-  userId: string
-  userRole: string
-
-  // Tab State
-  activeTab: string
-  selectedExam: Exam | null
-
-  // Data State
-  questions: Question[]
-  exams: Exam[]
-  monitoringData: LiveMonitoringData | null
-  results: ExamResult[]
-
-  // UI State
-  loading: boolean
-  error: string | null
-
-  // Actions
-  switchTab: (tab: string) => void
-  selectExam: (exam: Exam) => void
-  setError: (error: string | null) => void
-  setLoading: (loading: boolean) => void
-}
-```
-
-### Usage
-
-```tsx
-import { useCBTContext } from '@/contexts/CBTContext'
-
-function MyComponent() {
-  const { activeTab, switchTab, selectedExam } = useCBTContext()
-
-  return (
-    <button onClick={() => switchTab('questions')}>
-      Switch to Questions
-    </button>
-  )
-}
+// Test export
+fireEvent.click(screen.getByRole('button', { name: /CSV/i }));
 ```
 
 ---
 
-## Integration Points
+### 6. SecuritySettingsTab
 
-### API Integration
+**File**: `src/components/pages/cbt/SecuritySettingsTab.tsx`
 
-All components integrate with the CBT API endpoints:
+**Purpose**: Configure exam security settings, proctoring options, and view security event logs.
 
-- Question Bank API
-- Exam Management API
-- Live Monitoring API
-- Exam Results API
-- Security Settings API
+#### Props
 
-### WebSocket Integration
+None - Receives data from parent ExamManagement component.
 
-Live Monitoring Tab connects to WebSocket for real-time updates:
+#### State
 
 ```typescript
-const ws = new WebSocket(`ws://server/ws/cbt/monitoring/${examId}`)
+interface SecuritySettings {
+  id?: string;
+  examId: string;
+  proctoringEnabled: boolean;
+  cameraRequired: boolean;
+  copyPasteDisabled: boolean;
+  rightClickDisabled: boolean;
+  questionRandomization: boolean;
+  optionRandomization: boolean;
+  ipWhitelist?: string;       // CIDR notation
+  examPassword?: string;
+}
 
-ws.onmessage = (event) => {
-  const message = JSON.parse(event.data)
-  if (message.type === 'progress_update') {
-    updateStudentProgress(message.data)
+interface ProctoringLog {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  eventType: 'camera_on' | 'camera_off' | 'tab_switch' | 'copy_attempt' | 'right_click';
+  createdAt: string;
+  eventDetails?: Record<string, any>;
+}
+```
+
+#### Hooks & Lifecycle
+
+```typescript
+// Fetch exams on mount
+useEffect(() => {
+  fetchExams();
+}, []);
+
+// Fetch settings and logs when exam selected
+useEffect(() => {
+  if (selectedExamId) {
+    fetchSettings(selectedExamId);
+    fetchLogs(selectedExamId);
   }
+}, [selectedExamId]);
+
+// Refetch logs when filters change
+useEffect(() => {
+  if (selectedExamId) fetchLogs(selectedExamId);
+}, [logEventFilter, logStartDate, logEndDate]);
+```
+
+#### Key Features
+
+- **Proctoring Options**: Enable/disable camera, copy/paste, right-click
+- **Question Randomization**: Randomize question and option order
+- **IP Whitelist**: Restrict access by IP address (CIDR notation)
+- **Exam Password**: Optional password protection
+- **Proctoring Logs**: View security events with filtering
+- **Form Validation**: Validate IP addresses and password strength
+
+#### API Endpoints Used
+
+- `GET /api/tenant/cbt/exams` - Get exams
+- `GET /api/tenant/cbt/security/:examId` - Get security settings
+- `POST /api/tenant/cbt/security/:examId` - Save security settings
+- `GET /api/tenant/cbt/security/:examId/logs` - Get proctoring logs
+
+#### Security Settings
+
+```typescript
+// Proctoring & Restrictions
+- proctoringEnabled: Monitor students during exam
+- cameraRequired: Students must enable camera
+- copyPasteDisabled: Prevent copying exam content
+- rightClickDisabled: Prevent context menu access
+- questionRandomization: Random question order per student
+- optionRandomization: Random option order per student
+
+// Access Control
+- ipWhitelist: Allowed IP addresses (CIDR notation)
+- examPassword: Optional password protection
+```
+
+#### IP Whitelist Validation
+
+```typescript
+// Valid CIDR formats:
+// 192.168.1.0/24
+// 10.0.0.0/8
+// 172.16.0.0/12
+
+// Multiple ranges (comma-separated):
+// 192.168.1.0/24, 10.0.0.0/8
+```
+
+#### Usage Example
+
+```typescript
+import { SecuritySettingsTab } from '@/components/pages/cbt/SecuritySettingsTab';
+
+export default function SecuritySettings() {
+  return <SecuritySettingsTab />;
 }
+```
+
+#### Testing
+
+```typescript
+// Test exam selection
+fireEvent.change(screen.getByLabelText('Select Exam'), {
+  target: { value: 'exam-123' }
+});
+
+// Test toggle settings
+fireEvent.click(screen.getByRole('switch', { name: /Enable Proctoring/i }));
+
+// Test IP whitelist
+fireEvent.change(screen.getByPlaceholderText('e.g. 192.168.1.0/24'), {
+  target: { value: '192.168.1.0/24' }
+});
+
+// Test password
+fireEvent.change(screen.getByPlaceholderText('Leave empty to keep existing password'), {
+  target: { value: 'SecureP@ssw0rd' }
+});
+
+// Test save
+fireEvent.click(screen.getByText('Save Settings'));
+
+// Test log filtering
+fireEvent.change(screen.getByDisplayValue('All Events'), {
+  target: { value: 'tab_switch' }
+});
+```
+
+---
+
+## Common Patterns & Best Practices
+
+### 1. Data Fetching Pattern
+
+```typescript
+const [data, setData] = useState(null);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
+
+const fetchData = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const res = await tenantApiGet('/api/endpoint');
+    if (!res.ok) throw new Error('Failed to fetch');
+    const data = await res.json();
+    setData(data.data);
+  } catch (e) {
+    setError(e instanceof Error ? e.message : 'Error');
+  } finally {
+    setLoading(false);
+  }
+};
+
+useEffect(() => {
+  fetchData();
+}, []);
+```
+
+### 2. Form Validation Pattern
+
+```typescript
+const [form, setForm] = useState(initialForm);
+const [errors, setErrors] = useState<FormErrors>({});
+
+const validate = (): FormErrors => {
+  const errors: FormErrors = {};
+  if (!form.field) errors.field = 'Field is required';
+  return errors;
+};
+
+const handleSubmit = async () => {
+  const errors = validate();
+  if (Object.keys(errors).length > 0) {
+    setErrors(errors);
+    return;
+  }
+  // Submit form
+};
+```
+
+### 3. Dialog/Modal Pattern
+
+```typescript
+const [isOpen, setIsOpen] = useState(false);
+
+const handleOpen = () => {
+  resetForm();
+  setIsOpen(true);
+};
+
+const handleClose = () => {
+  setIsOpen(false);
+};
+
+return (
+  <>
+    <Button onClick={handleOpen}>Open</Button>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      {/* Dialog content */}
+    </Dialog>
+  </>
+);
+```
+
+### 4. Polling Pattern
+
+```typescript
+const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+useEffect(() => {
+  if (selectedId) {
+    fetchData(selectedId);
+    pollRef.current = setInterval(() => fetchData(selectedId), 10000);
+  }
+  return () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+  };
+}, [selectedId]);
+```
+
+---
+
+## Component Testing Guide
+
+### Unit Testing
+
+```typescript
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QuestionBankTab } from '@/components/pages/cbt/QuestionBankTab';
+
+describe('QuestionBankTab', () => {
+  it('renders question list', async () => {
+    render(<QuestionBankTab />);
+    await waitFor(() => {
+      expect(screen.getByText(/Question 1/i)).toBeInTheDocument();
+    });
+  });
+
+  it('opens add question dialog', () => {
+    render(<QuestionBankTab />);
+    fireEvent.click(screen.getByText('Add Question'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('validates form before submission', () => {
+    render(<QuestionBankTab />);
+    fireEvent.click(screen.getByText('Add Question'));
+    fireEvent.click(screen.getByText('Save Question'));
+    expect(screen.getByText(/Question text is required/i)).toBeInTheDocument();
+  });
+});
+```
+
+### Integration Testing
+
+```typescript
+describe('Exam Creation Workflow', () => {
+  it('creates exam with selected questions', async () => {
+    render(<ExamCreationTab />);
+    
+    // Fill form
+    fireEvent.change(screen.getByPlaceholderText('Exam title'), {
+      target: { value: 'Math Final' }
+    });
+    
+    // Select questions
+    fireEvent.click(screen.getByRole('checkbox', { name: /Question 1/i }));
+    
+    // Submit
+    fireEvent.click(screen.getByText('Save as Draft'));
+    
+    // Verify
+    await waitFor(() => {
+      expect(screen.getByText('Math Final')).toBeInTheDocument();
+    });
+  });
+});
+```
+
+---
+
+## Troubleshooting Guide
+
+### Issue: Component not rendering
+
+**Cause**: Error in component or missing data
+**Solution**: Check browser console for errors, verify API endpoints are working
+
+### Issue: Data not updating
+
+**Cause**: useEffect dependencies incorrect or API call failing
+**Solution**: Check useEffect dependencies, verify API response in network tab
+
+### Issue: Form validation not working
+
+**Cause**: Validation function not called or errors not displayed
+**Solution**: Verify validate() is called before submit, check error state display
+
+### Issue: Polling not stopping
+
+**Cause**: Cleanup function not called or interval not cleared
+**Solution**: Verify useEffect cleanup function clears interval
+
+### Issue: Dialog not closing
+
+**Cause**: onOpenChange handler not updating state
+**Solution**: Verify Dialog component receives correct open/onOpenChange props
+
+---
+
+## Performance Optimization
+
+### 1. Memoization
+
+```typescript
+const MemoizedComponent = React.memo(Component);
+const memoizedCallback = useCallback(() => {}, [dependencies]);
+```
+
+### 2. Lazy Loading
+
+```typescript
+const QuestionBankTab = lazy(() => import('./QuestionBankTab'));
+```
+
+### 3. Pagination
+
+- Limit results to 20 items per page
+- Implement next/previous navigation
+- Avoid loading all data at once
+
+### 4. Debouncing
+
+```typescript
+const debouncedSearch = useCallback(
+  debounce((value) => fetchQuestions(value), 300),
+  []
+);
+```
+
+---
+
+## Accessibility
+
+### ARIA Labels
+
+```typescript
+<Button aria-label="Refresh">
+  <RefreshCw className="w-4 h-4" />
+</Button>
+```
+
+### Keyboard Navigation
+
+- Tab through form fields
+- Enter to submit forms
+- Escape to close dialogs
+
+### Screen Reader Support
+
+- Use semantic HTML
+- Provide alt text for icons
+- Label form inputs
+
+---
+
+## API Integration
+
+### Authentication
+
+All API calls include JWT token in Authorization header:
+```
+Authorization: Bearer <token>
 ```
 
 ### Error Handling
 
-All components implement consistent error handling:
-
 ```typescript
 try {
-  await fetchData()
-} catch (error) {
-  setError(error.message)
-  // Display error to user
+  const res = await tenantApiGet('/api/endpoint');
+  if (!res.ok) throw new Error('API error');
+  const data = await res.json();
+} catch (e) {
+  setError(e instanceof Error ? e.message : 'Unknown error');
 }
 ```
 
-### Loading States
+### Rate Limiting
 
-All async operations show loading indicators:
-
-```typescript
-{loading ? <Spinner /> : <Content />}
-```
-
-### Validation
-
-All forms implement client-side and server-side validation:
-
-```typescript
-const errors = validateForm(formData)
-if (Object.keys(errors).length > 0) {
-  setValidationErrors(errors)
-  return
-}
-```
+- Standard: 100 requests per minute
+- Burst: 1000 requests per hour
+- Check X-RateLimit-* headers
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: April 28, 2026  
+## Future Enhancements
+
+1. **WebSocket Integration**: Replace polling with real-time WebSocket updates
+2. **Offline Support**: Cache data locally for offline access
+3. **Advanced Analytics**: More detailed performance metrics
+4. **Bulk Operations**: Bulk edit/delete questions and exams
+5. **Custom Reports**: Generate custom exam reports
+6. **Mobile Optimization**: Improve mobile UI/UX
+7. **Accessibility**: Enhanced keyboard navigation and screen reader support
+
+---
+
+## Related Documentation
+
+- [API Documentation](./CBT_API_DOCUMENTATION.md)
+- [Database Documentation](./CBT_DATABASE_DOCUMENTATION.md)
+- [Deployment Guide](./CBT_DEPLOYMENT_GUIDE.md)
+- [User Guide](./CBT_USER_GUIDE.md)
+
+---
+
+**Last Updated**: May 4, 2026  
+**Version**: 1.0.0  
 **Status**: Complete

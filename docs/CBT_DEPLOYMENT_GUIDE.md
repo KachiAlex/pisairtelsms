@@ -1,708 +1,676 @@
-# CBT Dashboard Deployment Guide
+# CBT & Examinations Deployment Guide
 
-**Version**: 1.0.0  
-**Last Updated**: April 28, 2026
+## Overview
 
-## Table of Contents
-
-1. [Pre-Deployment Checklist](#pre-deployment-checklist)
-2. [Environment Setup](#environment-setup)
-3. [Database Setup](#database-setup)
-4. [Application Deployment](#application-deployment)
-5. [Post-Deployment Verification](#post-deployment-verification)
-6. [Monitoring and Maintenance](#monitoring-and-maintenance)
-7. [Rollback Procedures](#rollback-procedures)
-8. [Troubleshooting](#troubleshooting)
-
----
+This guide provides comprehensive instructions for deploying the CBT (Computer-Based Testing) & Examinations system to development, staging, and production environments. The system consists of a Node.js/Vercel backend API, React frontend, PostgreSQL database, and WebSocket server for real-time monitoring.
 
 ## Pre-Deployment Checklist
 
-Before deploying to production, verify:
-
-### Code Quality
-- [ ] All tests passing (`npm run test`)
-- [ ] No linting errors (`npm run lint`)
-- [ ] TypeScript compilation successful (`npm run build`)
-- [ ] Code review completed
-- [ ] Security scan passed
-
-### Documentation
-- [ ] API documentation complete
-- [ ] Component documentation complete
-- [ ] Deployment guide reviewed
-- [ ] Configuration guide reviewed
-- [ ] Troubleshooting guide reviewed
-
-### Database
-- [ ] Migration scripts tested on clean database
+### Prerequisites
+- [ ] Node.js 18+ installed
+- [ ] PostgreSQL 13+ installed and running
+- [ ] Git repository access
+- [ ] Vercel CLI installed (`npm install -g vercel`)
+- [ ] Environment variables configured
+- [ ] SSL certificates obtained (production)
 - [ ] Database backups configured
-- [ ] Connection pooling configured
-- [ ] Indexes verified
+- [ ] Monitoring and logging setup
+- [ ] All tests passing (100% pass rate)
+- [ ] Security audit completed
 
-### Infrastructure
-- [ ] Server resources adequate (CPU, RAM, disk)
-- [ ] Network connectivity verified
-- [ ] SSL certificates valid
-- [ ] Firewall rules configured
-- [ ] Load balancer configured (if applicable)
-
-### Monitoring
-- [ ] Logging configured
-- [ ] Error tracking configured
-- [ ] Performance monitoring configured
-- [ ] Alerts configured
-- [ ] Backup procedures tested
+### Required Credentials
+- [ ] Database connection string
+- [ ] JWT secret key
+- [ ] API keys for external services
+- [ ] Email service credentials
+- [ ] AWS/Cloud storage credentials
+- [ ] Vercel project token
 
 ---
 
-## Environment Setup
+## Environment Configuration
 
-### 1. Environment Variables
+### Development Environment
 
-Create `.env.production` file with the following variables:
+**File**: `.env.local`
 
-```bash
-# Application
-NODE_ENV=production
-APP_URL=https://api.scholarx.app
-APP_PORT=3000
-
+```env
 # Database
-DB_HOST=db.production.internal
-DB_PORT=5432
-DB_NAME=school_management
-DB_USER=cbt_user
-DB_PASSWORD=<secure_password>
-POSTGRES_URL=postgresql://cbt_user:password@db.production.internal:5432/school_management
+DATABASE_URL=postgresql://user:password@localhost:5432/cbt_dev
+DATABASE_POOL_SIZE=10
 
-# Authentication
-JWT_SECRET=<secure_jwt_secret>
-JWT_EXPIRY=86400
+# API
+API_URL=http://localhost:3000
+API_PORT=3000
+NODE_ENV=development
 
-# Security
-CORS_ORIGIN=https://scholarx.app
-RATE_LIMIT_WINDOW=60000
-RATE_LIMIT_MAX_REQUESTS=100
+# JWT
+JWT_SECRET=dev-secret-key-change-in-production
+JWT_EXPIRY=24h
 
 # WebSocket
-WS_URL=wss://api.scholarx.app/ws
-WS_HEARTBEAT_INTERVAL=30000
+WS_URL=ws://localhost:3000
+WS_PORT=3000
+
+# Email
+EMAIL_SERVICE=sendgrid
+SENDGRID_API_KEY=your-sendgrid-key
+
+# Logging
+LOG_LEVEL=debug
+LOG_FORMAT=json
+
+# Feature Flags
+ENABLE_PROCTORING=true
+ENABLE_OFFLINE_SYNC=true
+ENABLE_REAL_TIME_MONITORING=true
+```
+
+### Staging Environment
+
+**File**: `.env.staging`
+
+```env
+# Database
+DATABASE_URL=postgresql://user:password@staging-db.example.com:5432/cbt_staging
+DATABASE_POOL_SIZE=20
+DATABASE_SSL=true
+
+# API
+API_URL=https://staging-api.example.com
+API_PORT=443
+NODE_ENV=staging
+
+# JWT
+JWT_SECRET=staging-secret-key-change-in-production
+JWT_EXPIRY=24h
+
+# WebSocket
+WS_URL=wss://staging-api.example.com
+WS_PORT=443
+
+# Email
+EMAIL_SERVICE=sendgrid
+SENDGRID_API_KEY=your-sendgrid-staging-key
 
 # Logging
 LOG_LEVEL=info
 LOG_FORMAT=json
-LOG_FILE=/var/log/cbt/app.log
+
+# Feature Flags
+ENABLE_PROCTORING=true
+ENABLE_OFFLINE_SYNC=true
+ENABLE_REAL_TIME_MONITORING=true
 
 # Monitoring
-SENTRY_DSN=<sentry_dsn>
-DATADOG_API_KEY=<datadog_key>
-
-# Email (for notifications)
-SMTP_HOST=smtp.production.internal
-SMTP_PORT=587
-SMTP_USER=noreply@scholarx.app
-SMTP_PASSWORD=<secure_password>
-SMTP_FROM=noreply@scholarx.app
-
-# File Storage
-STORAGE_TYPE=s3
-S3_BUCKET=cbt-exports
-S3_REGION=us-east-1
-S3_ACCESS_KEY=<aws_access_key>
-S3_SECRET_KEY=<aws_secret_key>
+SENTRY_DSN=your-sentry-staging-dsn
+DATADOG_API_KEY=your-datadog-key
 ```
 
-### 2. Verify Environment Variables
+### Production Environment
 
-```bash
-# Check all required variables are set
-node scripts/verify-env.js
+**File**: `.env.production`
 
-# Expected output:
-# ✓ All required environment variables are set
-```
+```env
+# Database
+DATABASE_URL=postgresql://user:password@prod-db.example.com:5432/cbt_prod
+DATABASE_POOL_SIZE=50
+DATABASE_SSL=true
+DATABASE_REPLICA_URL=postgresql://user:password@prod-db-replica.example.com:5432/cbt_prod
 
-### 3. SSL/TLS Configuration
+# API
+API_URL=https://api.example.com
+API_PORT=443
+NODE_ENV=production
 
-```bash
-# Verify SSL certificates
-openssl x509 -in /etc/ssl/certs/api.crt -text -noout
+# JWT
+JWT_SECRET=production-secret-key-use-strong-random-key
+JWT_EXPIRY=24h
 
-# Expected: Certificate is valid and not expired
+# WebSocket
+WS_URL=wss://api.example.com
+WS_PORT=443
+
+# Email
+EMAIL_SERVICE=sendgrid
+SENDGRID_API_KEY=your-sendgrid-production-key
+
+# Logging
+LOG_LEVEL=warn
+LOG_FORMAT=json
+
+# Feature Flags
+ENABLE_PROCTORING=true
+ENABLE_OFFLINE_SYNC=true
+ENABLE_REAL_TIME_MONITORING=true
+
+# Monitoring
+SENTRY_DSN=your-sentry-production-dsn
+DATADOG_API_KEY=your-datadog-production-key
+
+# Security
+CORS_ORIGIN=https://example.com
+RATE_LIMIT_WINDOW=15m
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Performance
+CACHE_TTL=3600
+REDIS_URL=redis://prod-redis.example.com:6379
 ```
 
 ---
 
-## Database Setup
+## Database Migration
 
-### 1. Create Database User
+### Pre-Migration Steps
 
-```sql
--- Connect as superuser
-psql -h db.production.internal -U postgres
+1. **Backup existing database**
+   ```bash
+   pg_dump -U postgres cbt_prod > cbt_backup_$(date +%Y%m%d_%H%M%S).sql
+   ```
 
--- Create user
-CREATE USER cbt_user WITH PASSWORD '<secure_password>';
+2. **Verify backup integrity**
+   ```bash
+   pg_restore --list cbt_backup_20260504_120000.sql | head -20
+   ```
 
--- Create database
-CREATE DATABASE school_management OWNER cbt_user;
+3. **Test migration on staging**
+   ```bash
+   psql -U postgres -d cbt_staging -f api/tenant/cbt/_migrations/001_create_cbt_schema.sql
+   ```
 
--- Grant permissions
-GRANT ALL PRIVILEGES ON DATABASE school_management TO cbt_user;
-GRANT ALL PRIVILEGES ON SCHEMA public TO cbt_user;
+### Running Migrations
+
+**Development**:
+```bash
+# Connect to development database
+psql -U postgres -d cbt_dev -f api/tenant/cbt/_migrations/001_create_cbt_schema.sql
+
+# Verify schema
+psql -U postgres -d cbt_dev -c "\dt"
 ```
 
-### 2. Run Migrations
+**Staging**:
+```bash
+# Connect to staging database
+psql -U postgres -h staging-db.example.com -d cbt_staging -f api/tenant/cbt/_migrations/001_create_cbt_schema.sql
+
+# Verify schema
+psql -U postgres -h staging-db.example.com -d cbt_staging -c "\dt"
+```
+
+**Production**:
+```bash
+# Connect to production database (with SSL)
+psql -U postgres -h prod-db.example.com -d cbt_prod -f api/tenant/cbt/_migrations/001_create_cbt_schema.sql --set=sslmode=require
+
+# Verify schema
+psql -U postgres -h prod-db.example.com -d cbt_prod -c "\dt" --set=sslmode=require
+```
+
+### Post-Migration Verification
 
 ```bash
-# Option A: Using API endpoint
-curl -X POST https://api.scholarx.app/api/tenant/cbt/init-db \
-  -H "Authorization: Bearer <admin_token>" \
-  -H "Content-Type: application/json"
+# Verify all tables created
+psql -U postgres -d cbt_prod -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"
 
-# Option B: Using direct SQL
-psql -h db.production.internal -U cbt_user -d school_management \
-  -f api/tenant/cbt/_lib/migrations/001_create_cbt_tables.sql
+# Verify indexes
+psql -U postgres -d cbt_prod -c "SELECT indexname FROM pg_indexes WHERE schemaname='public';"
 
-# Option C: Using Node.js script
-NODE_ENV=production node api/tenant/cbt/_lib/migrations/run-migration.js
-```
+# Verify constraints
+psql -U postgres -d cbt_prod -c "SELECT constraint_name FROM information_schema.table_constraints WHERE table_schema='public';"
 
-### 3. Verify Database Setup
-
-```bash
-# Connect to database
-psql -h db.production.internal -U cbt_user -d school_management
-
-# List tables
-\dt
-
-# Expected: All 8 tables created
-# - exam_questions
-# - exam_results
-# - exams
-# - proctoring_logs
-# - questions_bank
-# - security_settings
-# - student_answers
-# - student_exam_progress
-
-# Check indexes
-\di
-
-# Expected: All indexes created
-
-# Exit
-\q
-```
-
-### 4. Configure Connection Pooling
-
-```javascript
-// config/database.js
-const { Pool } = require('pg')
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 20, // Maximum pool size
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-})
-
-module.exports = pool
-```
-
-### 5. Setup Database Backups
-
-```bash
-# Create backup script
-cat > /usr/local/bin/backup-cbt-db.sh << 'EOF'
-#!/bin/bash
-BACKUP_DIR="/backups/cbt"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/cbt_backup_$TIMESTAMP.sql.gz"
-
-mkdir -p $BACKUP_DIR
-
-pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME | gzip > $BACKUP_FILE
-
-# Keep only last 30 days of backups
-find $BACKUP_DIR -name "cbt_backup_*.sql.gz" -mtime +30 -delete
-
-echo "Backup completed: $BACKUP_FILE"
-EOF
-
-chmod +x /usr/local/bin/backup-cbt-db.sh
-
-# Schedule daily backups
-echo "0 2 * * * /usr/local/bin/backup-cbt-db.sh" | crontab -
+# Check table row counts
+psql -U postgres -d cbt_prod -c "SELECT tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) FROM pg_tables WHERE schemaname='public' ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
 ```
 
 ---
 
 ## Application Deployment
 
-### 1. Build Application
+### Development Deployment
 
-```bash
-# Install dependencies
-npm install --production
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-# Build application
-npm run build
+2. **Run database migrations**
+   ```bash
+   npm run migrate:dev
+   ```
 
-# Expected output:
-# ✓ Build completed successfully
-# ✓ Output: dist/
+3. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Verify API health**
+   ```bash
+   curl http://localhost:3000/api/health
+   ```
+
+### Staging Deployment
+
+1. **Build application**
+   ```bash
+   npm run build
+   ```
+
+2. **Run tests**
+   ```bash
+   npm run test
+   npm run test:integration
+   npm run test:performance
+   ```
+
+3. **Deploy to Vercel staging**
+   ```bash
+   vercel --prod --env-file .env.staging
+   ```
+
+4. **Run database migrations**
+   ```bash
+   npm run migrate:staging
+   ```
+
+5. **Verify deployment**
+   ```bash
+   curl https://staging-api.example.com/api/health
+   ```
+
+6. **Run smoke tests**
+   ```bash
+   npm run test:smoke:staging
+   ```
+
+### Production Deployment
+
+1. **Create release branch**
+   ```bash
+   git checkout -b release/v1.0.0
+   git push origin release/v1.0.0
+   ```
+
+2. **Build application**
+   ```bash
+   npm run build
+   ```
+
+3. **Run all tests**
+   ```bash
+   npm run test
+   npm run test:integration
+   npm run test:performance
+   npm run test:security
+   ```
+
+4. **Create backup**
+   ```bash
+   pg_dump -U postgres cbt_prod > cbt_backup_pre_deploy_$(date +%Y%m%d_%H%M%S).sql
+   ```
+
+5. **Deploy to Vercel production**
+   ```bash
+   vercel --prod --env-file .env.production
+   ```
+
+6. **Run database migrations**
+   ```bash
+   npm run migrate:prod
+   ```
+
+7. **Verify deployment**
+   ```bash
+   curl https://api.example.com/api/health
+   ```
+
+8. **Run smoke tests**
+   ```bash
+   npm run test:smoke:prod
+   ```
+
+9. **Monitor logs**
+   ```bash
+   vercel logs --prod
+   ```
+
+---
+
+## WebSocket Configuration
+
+### Development
+
+```javascript
+// src/config/websocket.ts
+export const wsConfig = {
+  url: process.env.WS_URL || 'ws://localhost:3000',
+  reconnectInterval: 3000,
+  maxReconnectAttempts: 5,
+  heartbeatInterval: 30000,
+};
 ```
 
-### 2. Deploy to Server
+### Staging/Production
 
-```bash
-# Option A: Using Docker
-docker build -t cbt-dashboard:1.0.0 .
-docker tag cbt-dashboard:1.0.0 registry.production.internal/cbt-dashboard:1.0.0
-docker push registry.production.internal/cbt-dashboard:1.0.0
-
-# Option B: Using direct deployment
-scp -r dist/ user@production.server:/opt/cbt-dashboard/
-scp .env.production user@production.server:/opt/cbt-dashboard/
-
-# Option C: Using CI/CD pipeline
-git push origin main  # Triggers automated deployment
+```javascript
+// src/config/websocket.ts
+export const wsConfig = {
+  url: process.env.WS_URL || 'wss://api.example.com',
+  reconnectInterval: 5000,
+  maxReconnectAttempts: 10,
+  heartbeatInterval: 30000,
+  ssl: true,
+  cert: process.env.SSL_CERT_PATH,
+  key: process.env.SSL_KEY_PATH,
+};
 ```
 
-### 3. Start Application
+### WebSocket Server Setup
 
 ```bash
-# Using Node.js
-NODE_ENV=production node dist/main.js
+# Install WebSocket dependencies
+npm install ws socket.io socket.io-client
 
-# Using PM2
-pm2 start dist/main.js --name "cbt-dashboard" --env production
+# Configure WebSocket server
+# api/tenant/cbt/ws-monitoring.ts
 
-# Using Docker
-docker run -d \
-  --name cbt-dashboard \
-  --env-file .env.production \
-  -p 3000:3000 \
-  registry.production.internal/cbt-dashboard:1.0.0
-
-# Using systemd
-systemctl start cbt-dashboard
-systemctl enable cbt-dashboard
-```
-
-### 4. Verify Application is Running
-
-```bash
-# Check application status
-curl -X GET https://api.scholarx.app/api/health
-
-# Expected response:
-# {
-#   "status": "ok",
-#   "timestamp": "2026-04-28T10:30:00Z",
-#   "version": "1.0.0"
-# }
-
-# Check logs
-tail -f /var/log/cbt/app.log
-
-# Expected: No errors, application running
-```
-
-### 5. Configure Reverse Proxy
-
-```nginx
-# /etc/nginx/sites-available/cbt-dashboard
-upstream cbt_backend {
-  server localhost:3000;
-  server localhost:3001;
-  server localhost:3002;
-  keepalive 64;
-}
-
-server {
-  listen 443 ssl http2;
-  server_name api.scholarx.app;
-
-  ssl_certificate /etc/ssl/certs/api.crt;
-  ssl_certificate_key /etc/ssl/private/api.key;
-
-  # Security headers
-  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-  add_header X-Content-Type-Options "nosniff" always;
-  add_header X-Frame-Options "DENY" always;
-  add_header X-XSS-Protection "1; mode=block" always;
-
-  # Compression
-  gzip on;
-  gzip_types text/plain text/css application/json application/javascript;
-
-  # Proxy settings
-  location /api/tenant/cbt/ {
-    proxy_pass http://cbt_backend;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_buffering off;
-  }
-
-  # WebSocket
-  location /ws/cbt/ {
-    proxy_pass http://cbt_backend;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "Upgrade";
-    proxy_set_header Host $host;
-    proxy_read_timeout 86400;
-  }
-}
-
-server {
-  listen 80;
-  server_name api.scholarx.app;
-  return 301 https://$server_name$request_uri;
-}
-```
-
-Enable the configuration:
-
-```bash
-ln -s /etc/nginx/sites-available/cbt-dashboard /etc/nginx/sites-enabled/
-nginx -t
-systemctl restart nginx
+# Start WebSocket server
+npm run start:ws
 ```
 
 ---
 
-## Post-Deployment Verification
+## Security Configuration
 
-### 1. Health Checks
+### SSL/TLS Certificates
 
 ```bash
-# API Health
-curl -X GET https://api.scholarx.app/api/health
+# Generate self-signed certificate (development only)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365
 
-# Database Connection
-curl -X GET https://api.scholarx.app/api/tenant/cbt/health/db
-
-# WebSocket Connection
-wscat -c wss://api.scholarx.app/ws/cbt/monitoring/test-exam
-
-# Expected: All checks pass
+# For production, use Let's Encrypt
+certbot certonly --standalone -d api.example.com
 ```
 
-### 2. Functional Testing
+### Environment Security
 
 ```bash
-# Test Question Bank API
-curl -X GET "https://api.scholarx.app/api/tenant/cbt/questions?tenantId=test-tenant&limit=5" \
-  -H "Authorization: Bearer <token>"
+# Encrypt sensitive environment variables
+npm install dotenv-vault
 
-# Test Exam Management API
-curl -X GET "https://api.scholarx.app/api/tenant/cbt/exams?tenantId=test-tenant" \
-  -H "Authorization: Bearer <token>"
+# Create encrypted .env.vault file
+npx dotenv-vault push
 
-# Test Results API
-curl -X GET "https://api.scholarx.app/api/tenant/cbt/results?tenantId=test-tenant" \
-  -H "Authorization: Bearer <token>"
-
-# Expected: All endpoints return 200 OK
+# Verify encryption
+npx dotenv-vault status
 ```
 
-### 3. Performance Testing
+### Database Security
 
 ```bash
-# Load testing with Apache Bench
-ab -n 1000 -c 10 https://api.scholarx.app/api/tenant/cbt/questions?tenantId=test-tenant
+# Enable SSL for database connections
+DATABASE_SSL=true
+DATABASE_SSL_CERT=/path/to/cert.pem
 
-# Expected: Response time < 200ms, no errors
-
-# Stress testing with wrk
-wrk -t4 -c100 -d30s https://api.scholarx.app/api/tenant/cbt/questions?tenantId=test-tenant
-
-# Expected: Throughput > 100 req/s, error rate < 1%
-```
-
-### 4. Security Verification
-
-```bash
-# Check SSL/TLS configuration
-curl -I https://api.scholarx.app/api/health
-
-# Expected headers:
-# Strict-Transport-Security: max-age=31536000
-# X-Content-Type-Options: nosniff
-# X-Frame-Options: DENY
-
-# Test CORS
-curl -X OPTIONS https://api.scholarx.app/api/tenant/cbt/questions \
-  -H "Origin: https://scholarx.app" \
-  -H "Access-Control-Request-Method: GET"
-
-# Expected: CORS headers present
-```
-
-### 5. Monitoring Setup
-
-```bash
-# Verify logging
-tail -f /var/log/cbt/app.log
-
-# Expected: Application logs visible
-
-# Verify error tracking
-# Check Sentry dashboard for errors
-
-# Verify performance monitoring
-# Check Datadog dashboard for metrics
+# Create database user with limited permissions
+CREATE USER cbt_app WITH PASSWORD 'strong-password';
+GRANT CONNECT ON DATABASE cbt_prod TO cbt_app;
+GRANT USAGE ON SCHEMA public TO cbt_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cbt_app;
 ```
 
 ---
 
-## Monitoring and Maintenance
+## Monitoring and Logging
 
-### 1. Application Monitoring
+### Application Monitoring
 
 ```bash
-# Monitor application processes
-pm2 monit
+# Install monitoring tools
+npm install sentry @sentry/node @sentry/tracing
 
-# Monitor system resources
-top
-htop
+# Configure Sentry
+# src/config/monitoring.ts
+import * as Sentry from "@sentry/node";
 
-# Monitor network connections
-netstat -an | grep ESTABLISHED | wc -l
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV,
+  tracesSampleRate: 1.0,
+});
 ```
 
-### 2. Database Monitoring
+### Log Aggregation
 
 ```bash
-# Monitor active connections
-psql -h db.production.internal -U cbt_user -d school_management -c \
-  "SELECT datname, count(*) FROM pg_stat_activity GROUP BY datname;"
+# Install logging tools
+npm install winston winston-datadog
 
-# Monitor slow queries
-psql -h db.production.internal -U cbt_user -d school_management -c \
-  "SELECT query, calls, mean_time FROM pg_stat_statements ORDER BY mean_time DESC LIMIT 10;"
+# Configure Winston
+# src/config/logger.ts
+import winston from 'winston';
 
-# Monitor table sizes
-psql -h db.production.internal -U cbt_user -d school_management -c \
-  "SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) FROM pg_tables ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 ```
 
-### 3. Log Rotation
+### Performance Monitoring
 
 ```bash
-# Configure logrotate
-cat > /etc/logrotate.d/cbt-dashboard << 'EOF'
-/var/log/cbt/*.log {
-  daily
-  rotate 30
-  compress
-  delaycompress
-  notifempty
-  create 0640 www-data www-data
-  sharedscripts
-  postrotate
-    systemctl reload cbt-dashboard > /dev/null 2>&1 || true
-  endscript
-}
-EOF
-```
+# Install performance monitoring
+npm install @datadog/browser-rum @datadog/browser-logs
 
-### 4. Maintenance Tasks
+# Configure Datadog
+# src/config/datadog.ts
+import { datadogRum } from '@datadog/browser-rum';
 
-```bash
-# Weekly: Analyze database statistics
-psql -h db.production.internal -U cbt_user -d school_management -c "ANALYZE;"
-
-# Monthly: Reindex tables
-psql -h db.production.internal -U cbt_user -d school_management -c "REINDEX DATABASE school_management;"
-
-# Monthly: Vacuum tables
-psql -h db.production.internal -U cbt_user -d school_management -c "VACUUM ANALYZE;"
-
-# Quarterly: Update dependencies
-npm update
-npm audit fix
+datadogRum.init({
+  applicationId: process.env.DATADOG_APP_ID,
+  clientToken: process.env.DATADOG_CLIENT_TOKEN,
+  site: 'datadoghq.com',
+  service: 'cbt-examinations',
+  env: process.env.NODE_ENV,
+  sessionSampleRate: 100,
+  sessionReplaySampleRate: 20,
+  trackUserInteractions: true,
+  trackResources: true,
+  trackLongTasks: true,
+  defaultPrivacyLevel: 'mask-user-input',
+});
 ```
 
 ---
 
 ## Rollback Procedures
 
-### 1. Application Rollback
+### Application Rollback
 
 ```bash
-# Using PM2
-pm2 stop cbt-dashboard
-pm2 delete cbt-dashboard
-git checkout <previous_version>
-npm install
-npm run build
-pm2 start dist/main.js --name "cbt-dashboard"
+# Revert to previous version
+git revert HEAD
+git push origin main
 
-# Using Docker
-docker stop cbt-dashboard
-docker rm cbt-dashboard
-docker run -d \
-  --name cbt-dashboard \
-  --env-file .env.production \
-  -p 3000:3000 \
-  registry.production.internal/cbt-dashboard:<previous_version>
+# Redeploy previous version
+vercel --prod --env-file .env.production
 ```
 
-### 2. Database Rollback
+### Database Rollback
 
 ```bash
 # Restore from backup
-psql -h db.production.internal -U cbt_user -d school_management < /backups/cbt/cbt_backup_20260428_020000.sql
+psql -U postgres -d cbt_prod < cbt_backup_pre_deploy_20260504_120000.sql
 
 # Verify restoration
-psql -h db.production.internal -U cbt_user -d school_management -c "SELECT COUNT(*) FROM exams;"
+psql -U postgres -d cbt_prod -c "SELECT COUNT(*) FROM exams;"
 ```
 
-### 3. Verify Rollback
+### Partial Rollback
 
 ```bash
-# Check application status
-curl -X GET https://api.scholarx.app/api/health
+# If only specific tables need rollback
+psql -U postgres -d cbt_prod << EOF
+BEGIN;
+DROP TABLE IF EXISTS exam_results CASCADE;
+DROP TABLE IF EXISTS student_answers CASCADE;
+COMMIT;
+EOF
 
-# Check database
-psql -h db.production.internal -U cbt_user -d school_management -c "SELECT version();"
-
-# Check logs
-tail -f /var/log/cbt/app.log
+# Restore specific tables from backup
+pg_restore -U postgres -d cbt_prod -t exam_results cbt_backup_pre_deploy_20260504_120000.sql
+pg_restore -U postgres -d cbt_prod -t student_answers cbt_backup_pre_deploy_20260504_120000.sql
 ```
+
+---
+
+## Post-Deployment Verification
+
+### Health Checks
+
+```bash
+# API health check
+curl -X GET https://api.example.com/api/health
+
+# Database connectivity
+curl -X GET https://api.example.com/api/health/db
+
+# WebSocket connectivity
+curl -X GET https://api.example.com/api/health/ws
+```
+
+### Smoke Tests
+
+```bash
+# Run smoke tests
+npm run test:smoke:prod
+
+# Expected output:
+# ✓ API health check passed
+# ✓ Database connectivity verified
+# ✓ WebSocket connection established
+# ✓ Authentication working
+# ✓ Question bank API responding
+# ✓ Exam management API responding
+# ✓ Results API responding
+# ✓ Monitoring API responding
+```
+
+### Performance Baseline
+
+```bash
+# Run performance tests
+npm run test:performance:prod
+
+# Expected results:
+# - API response time: < 200ms (p95)
+# - Database query time: < 100ms (p95)
+# - WebSocket latency: < 50ms
+# - Page load time: < 3s
+```
+
+### Security Verification
+
+```bash
+# Run security tests
+npm run test:security:prod
+
+# Expected results:
+# - All endpoints require authentication
+# - Authorization properly enforced
+# - Input validation prevents injection
+# - SSL/TLS properly configured
+# - CORS properly configured
+```
+
+---
+
+## Deployment Checklist
+
+### Pre-Deployment
+- [ ] All tests passing (unit, integration, performance, security)
+- [ ] Code review completed
+- [ ] Database backup created
+- [ ] Rollback plan documented
+- [ ] Monitoring configured
+- [ ] Logging configured
+- [ ] Environment variables verified
+- [ ] SSL certificates valid
+- [ ] Team notified of deployment
+
+### During Deployment
+- [ ] Monitor deployment progress
+- [ ] Check application logs
+- [ ] Verify database migrations
+- [ ] Monitor system resources
+- [ ] Check error rates
+- [ ] Verify WebSocket connections
+
+### Post-Deployment
+- [ ] Run health checks
+- [ ] Run smoke tests
+- [ ] Verify all features working
+- [ ] Check performance metrics
+- [ ] Review error logs
+- [ ] Confirm user access
+- [ ] Document deployment
+- [ ] Notify stakeholders
 
 ---
 
 ## Troubleshooting
 
-### Issue: Application Won't Start
+### Common Deployment Issues
 
-**Symptoms**: Application crashes on startup
+**Issue**: Database migration fails
+- **Solution**: Check database connectivity and permissions
+- **Command**: `psql -U postgres -d cbt_prod -c "SELECT version();"`
 
-**Solution**:
-```bash
-# Check logs
-tail -f /var/log/cbt/app.log
+**Issue**: WebSocket connection fails
+- **Solution**: Verify WebSocket server is running and SSL configured
+- **Command**: `curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" wss://api.example.com/ws`
 
-# Verify environment variables
-env | grep DB_
+**Issue**: High API latency
+- **Solution**: Check database query performance and add indexes
+- **Command**: `npm run analyze:queries:prod`
 
-# Verify database connection
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT 1;"
-
-# Check Node.js version
-node --version
-
-# Rebuild application
-npm install
-npm run build
-```
-
-### Issue: Database Connection Errors
-
-**Symptoms**: "Connection refused" or "Connection timeout"
-
-**Solution**:
-```bash
-# Verify database is running
-systemctl status postgresql
-
-# Check database credentials
-psql -h db.production.internal -U cbt_user -d school_management
-
-# Check firewall rules
-sudo ufw status
-sudo ufw allow 5432/tcp
-
-# Check connection pooling
-# Increase pool size in config/database.js
-```
-
-### Issue: High Memory Usage
-
-**Symptoms**: Application consuming excessive memory
-
-**Solution**:
-```bash
-# Check memory usage
-ps aux | grep node
-
-# Monitor memory over time
-watch -n 1 'ps aux | grep node'
-
-# Check for memory leaks
-# Enable heap snapshots
-node --inspect dist/main.js
-
-# Restart application
-pm2 restart cbt-dashboard
-
-# Increase available memory
-# Modify systemd service limits
-```
-
-### Issue: Slow API Responses
-
-**Symptoms**: API endpoints responding slowly
-
-**Solution**:
-```bash
-# Check database query performance
-psql -h db.production.internal -U cbt_user -d school_management -c \
-  "SELECT query, calls, mean_time FROM pg_stat_statements ORDER BY mean_time DESC LIMIT 10;"
-
-# Analyze slow queries
-EXPLAIN ANALYZE SELECT * FROM exams WHERE status = 'Ongoing';
-
-# Add missing indexes
-CREATE INDEX idx_exams_status_date ON exams(status, scheduled_date);
-
-# Check application logs for errors
-tail -f /var/log/cbt/app.log
-
-# Monitor system resources
-top
-```
-
-### Issue: WebSocket Connection Failures
-
-**Symptoms**: Real-time monitoring not updating
-
-**Solution**:
-```bash
-# Check WebSocket server
-curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
-  https://api.scholarx.app/ws/cbt/monitoring/test-exam
-
-# Check firewall rules
-sudo ufw allow 443/tcp
-
-# Verify reverse proxy configuration
-nginx -t
-
-# Check application logs
-tail -f /var/log/cbt/app.log | grep -i websocket
-```
+**Issue**: Memory leak in Node.js
+- **Solution**: Check for unclosed connections and event listeners
+- **Command**: `npm run profile:memory:prod`
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: April 28, 2026  
-**Status**: Complete
+## Maintenance
+
+### Daily Tasks
+- [ ] Monitor error rates
+- [ ] Check disk space
+- [ ] Verify backups completed
+- [ ] Review performance metrics
+
+### Weekly Tasks
+- [ ] Analyze slow queries
+- [ ] Review security logs
+- [ ] Update dependencies
+- [ ] Run performance tests
+
+### Monthly Tasks
+- [ ] Archive old logs
+- [ ] Optimize database
+- [ ] Review and update documentation
+- [ ] Plan capacity upgrades
+
+---
+
+## References
+
+- API Documentation: `docs/CBT_API_DOCUMENTATION.md`
+- Component Documentation: `docs/CBT_COMPONENT_DOCUMENTATION.md`
+- Database Documentation: `docs/CBT_DATABASE_DOCUMENTATION.md`
+- Migration File: `api/tenant/cbt/_migrations/001_create_cbt_schema.sql`

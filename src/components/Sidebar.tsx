@@ -300,17 +300,31 @@ export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProp
                     open={openSections.includes(item.id)}
                     onOpenChange={() => toggleSection(item.id)}
                   >
-                    <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-0">
+                      <button
+                        onClick={() => {
+                          onNavigate(item.id);
+                          if (window.innerWidth < 1024) {
+                            onClose();
+                          }
+                        }}
+                        className={`flex-1 flex items-center gap-3 px-3 py-2 text-sm rounded-lg text-left ${
+                          activePage === item.id
+                            ? 'bg-blue-50 text-blue-700 font-medium'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
                         {item.icon}
                         <span>{item.label}</span>
-                      </div>
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform ${
-                          openSections.includes(item.id) ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </CollapsibleTrigger>
+                      </button>
+                      <CollapsibleTrigger className="px-2 py-2 hover:bg-gray-100 rounded-lg">
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            openSections.includes(item.id) ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </CollapsibleTrigger>
+                    </div>
                     <CollapsibleContent className="mt-1">
                       <div className="ml-8 space-y-1">
                         {item.children.map((child) => (

@@ -110,12 +110,14 @@ export default function App() {
         return <StudentHealth />;
       case 'student-attendance':
         return <StudentAttendance />;
+      case 'cbt':
       case 'cbt-question-bank':
       case 'cbt-exam-creation':
       case 'cbt-live-monitoring':
       case 'cbt-results':
       case 'cbt-security':
         return <CBTExaminations />;
+      case 'timetable':
       case 'timetable-configure':
       case 'timetable-class':
       case 'timetable-teacher':
@@ -131,30 +133,34 @@ export default function App() {
               : 'class'
           }
         />;
+      case 'staff':
       case 'staff-list':
       case 'staff-roles':
       case 'payroll':
       case 'leave-management':
       case 'performance':
         return <StaffHR />;
+      case 'communication':
       case 'announcements':
       case 'bulk-notifications':
       case 'parent-messaging':
       case 'communication-logs':
         return <CommunicationHub />;
-
+      case 'finance':
       case 'fee-structure':
       case 'fee-collection':
       case 'outstanding-fees':
       case 'invoices':
       case 'financial-reports':
         return <FinanceManagement />;
+      case 'analytics':
       case 'academic-analytics':
       case 'student-progress':
       case 'teacher-performance':
       case 'attendance-analytics':
       case 'financial-analytics':
         return <AnalyticsDashboard />;
+      case 'academic':
       case 'academic-structure':
         return <AcademicStructureOverview />;
       case 'classes':
@@ -181,6 +187,7 @@ export default function App() {
         return <GradingPolicy />;
       case 'academic-calendar':
         return <AcademicCalendar />;
+      case 'results':
       case 'access-control':
         return <AccessControl />;
       case 'session-management':
@@ -189,6 +196,7 @@ export default function App() {
         return <DataEncryption />;
       case 'backup-restore':
         return <BackupRestore />;
+      case 'notifications':
       case 'pending-approvals':
         return <PendingApprovals />;
       case 'system-alerts':
@@ -203,6 +211,7 @@ export default function App() {
         return <LMSIntegration />;
       case 'api-management':
         return <APIManagement />;
+      case 'advanced':
       case 'offline-cbt':
         return <OfflineCBTSync />;
       case 'item-analysis':
@@ -211,6 +220,7 @@ export default function App() {
         return <PredictiveRiskAlerts />;
       case 'certificate-verification':
         return <CertificateVerification />;
+      case 'support':
       case 'system-health':
         return <SystemHealth />;
       case 'error-logs':
@@ -219,12 +229,14 @@ export default function App() {
         return <HelpCenter />;
       case 'support-tickets':
         return <SupportTickets />;
+      case 'customization':
       case 'branding':
         return <SchoolBranding />;
       case 'report-templates':
         return <ReportTemplates />;
       case 'grading-scale':
         return <GradingScale />;
+      case 'system':
       case 'system-settings':
         return <SystemSettings />;
       case 'school-profile':
@@ -237,6 +249,7 @@ export default function App() {
         return <AuditLogs />;
       case 'import-export':
         return <ImportExport />;
+      case 'integrations':
       case 'tenant-settings':
         return <TenantSettings tenantId="default" tenantName="Default School" />;
       default:

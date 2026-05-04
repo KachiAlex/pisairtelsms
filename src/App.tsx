@@ -98,6 +98,7 @@ export default function App() {
     switch (activePage) {
       case 'dashboard':
         return <Dashboard />;
+      case 'students':
       case 'students-list':
         return <StudentsList />;
       case 'student-enrollment':

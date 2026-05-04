@@ -36,7 +36,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 import { Label } from '../ui/label'
 import { BulkImportStudents } from './BulkImportStudents'
-import { fetchStudents, createStudent, createStudents, type Student, type StudentPayload } from '../../lib/studentsClient'
+import { fetchStudents, createStudent, createStudents, updateStudent, deleteStudent, exportStudentsToCSV, type Student, type StudentPayload } from '../../lib/studentsClient'
 
 export default function StudentsList() {
   const [students, setStudents] = useState<Student[]>([])
@@ -45,9 +45,12 @@ export default function StudentsList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [classFilter, setClassFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | Student['status']>('all')
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Add Student form state
   const [newStudent, setNewStudent] = useState({
@@ -59,6 +62,18 @@ export default function StudentsList() {
     arm: '',
     guardianName: '',
     guardianPhone: '',
+  })
+
+  // Edit Student form state
+  const [editStudent, setEditStudent] = useState({
+    firstName: '',
+    lastName: '',
+    gender: 'Male',
+    class: 'JSS 1',
+    arm: '',
+    guardianName: '',
+    guardianPhone: '',
+    status: 'Active' as const,
   })
 
   // Load students from database on component mount
@@ -130,6 +145,70 @@ export default function StudentsList() {
     }
   }
 
+  const handleEditStudent = (student: Student) => {
+    const [firstName, ...lastNameParts] = student.name.split(' ')
+    setEditStudent({
+      firstName,
+      lastName: lastNameParts.join(' '),
+      gender: student.gender,
+      class: student.class,
+      arm: student.arm,
+      guardianName: student.guardian,
+      guardianPhone: student.phone,
+      status: student.status,
+    })
+    setSelectedStudent(student)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!selectedStudent) return
+
+    try {
+      setIsSaving(true)
+      const updatedPayload: Partial<StudentPayload> = {
+        name: `${editStudent.firstName} ${editStudent.lastName}`,
+        gender: editStudent.gender,
+        class: editStudent.class,
+        arm: editStudent.arm,
+        guardian: editStudent.guardianName,
+        phone: editStudent.guardianPhone,
+        status: editStudent.status,
+      }
+
+      const updated = await updateStudent(selectedStudent.id, updatedPayload)
+      setStudents(prev => prev.map(s => s.id === updated.id ? updated : s))
+      setIsEditDialogOpen(false)
+      setSelectedStudent(null)
+    } catch (err) {
+      console.error('Error updating student:', err)
+      setError('Failed to update student. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteStudent = async (student: Student) => {
+    if (!window.confirm(`Are you sure you want to delete ${student.name}? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setIsDeleting(true)
+      await deleteStudent(student.id)
+      setStudents(prev => prev.filter(s => s.id !== student.id))
+    } catch (err) {
+      console.error('Error deleting student:', err)
+      setError('Failed to delete student. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleBulkExport = () => {
+    exportStudentsToCSV(filteredStudents)
+  }
+
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
       const matchesSearch =
@@ -170,7 +249,7 @@ export default function StudentsList() {
           <p className="text-sm text-gray-600 mt-1">Monitor admissions, wellbeing, and documents in one workspace.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleBulkExport}>
             <Download className="w-4 h-4 mr-2" />
             Bulk export
           </Button>
@@ -365,11 +444,15 @@ export default function StudentsList() {
                             <Eye className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditStudent(student)}>
                             <Edit className="w-4 h-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => handleDeleteStudent(student)}
+                            disabled={isDeleting}
+                          >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete
                           </DropdownMenuItem>
@@ -552,6 +635,129 @@ export default function StudentsList() {
         onImport={handleBulkImport}
         currentStudentCount={students.length}
       />
+
+      {/* Edit Student Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+            <DialogDescription>
+              Update the student details below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>First Name</Label>
+                <Input
+                  placeholder="Enter first name"
+                  value={editStudent.firstName}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, firstName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Last Name</Label>
+                <Input
+                  placeholder="Enter last name"
+                  value={editStudent.lastName}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, lastName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Gender</Label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={editStudent.gender}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, gender: e.target.value }))}
+                >
+                  <option>Male</option>
+                  <option>Female</option>
+                </select>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={editStudent.status}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, status: e.target.value as any }))}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Suspended">Suspended</option>
+                  <option value="Graduated">Graduated</option>
+                </select>
+              </div>
+              <div>
+                <Label>Class</Label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={editStudent.class}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, class: e.target.value }))}
+                >
+                  <option>JSS 1</option>
+                  <option>JSS 2</option>
+                  <option>JSS 3</option>
+                  <option>SS 1</option>
+                  <option>SS 2</option>
+                  <option>SS 3</option>
+                </select>
+              </div>
+              <div>
+                <Label>Arm</Label>
+                <Input
+                  list="arm-options"
+                  placeholder="Enter arm (A, B, C, D, etc.)"
+                  className="w-full"
+                  value={editStudent.arm}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, arm: e.target.value }))}
+                />
+                <datalist id="arm-options">
+                  <option value="A" />
+                  <option value="B" />
+                  <option value="C" />
+                  <option value="D" />
+                  <option value="E" />
+                  <option value="F" />
+                  <option value="G" />
+                  <option value="H" />
+                  <option value="I" />
+                  <option value="J" />
+                  <option value="K" />
+                  <option value="L" />
+                  <option value="M" />
+                </datalist>
+              </div>
+              <div>
+                <Label>Guardian Name</Label>
+                <Input
+                  placeholder="Enter guardian name"
+                  value={editStudent.guardianName}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, guardianName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Guardian Phone</Label>
+                <Input
+                  placeholder="Enter phone number"
+                  value={editStudent.guardianPhone}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, guardianPhone: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleSaveEdit}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

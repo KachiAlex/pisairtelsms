@@ -1,5 +1,9 @@
-// Mock in-memory storage for students (for development/demo purposes)
-const studentsStore: Map<string, StudentDTO> = new Map();
+/**
+ * Students Database Library
+ * Handles all database operations for student management
+ */
+
+import { queryAll, queryOne, query, transaction } from '../cbt/_lib/db.js';
 
 // Internal API-layer Student type (camelCase, for API responses only)
 interface StudentDTO {
@@ -27,94 +31,104 @@ export interface StudentPayload {
   phone: string;
 }
 
-// Initialize with sample data
-function initializeSampleData() {
-  if (studentsStore.size === 0) {
-    const sampleStudents: StudentDTO[] = [
-      {
-        id: 'student_1',
-        admissionNo: 'ADM001',
-        name: 'John Adewale',
-        class: 'JSS 1',
-        arm: 'A',
-        gender: 'Male',
-        status: 'Active',
-        guardian: 'Mr. Adewale',
-        phone: '+234801234567',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 'student_2',
-        admissionNo: 'ADM002',
-        name: 'Chioma Okafor',
-        class: 'JSS 1',
-        arm: 'B',
-        gender: 'Female',
-        status: 'Active',
-        guardian: 'Mrs. Okafor',
-        phone: '+234802345678',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 'student_3',
-        admissionNo: 'ADM003',
-        name: 'Tunde Oluwaseun',
-        class: 'JSS 2',
-        arm: 'A',
-        gender: 'Male',
-        status: 'Active',
-        guardian: 'Mr. Oluwaseun',
-        phone: '+234803456789',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
-    sampleStudents.forEach(s => studentsStore.set(s.id, s));
-  }
+/**
+ * Convert database row to StudentDTO
+ */
+function rowToDTO(row: any): StudentDTO {
+  return {
+    id: row.id,
+    admissionNo: row.admission_no,
+    name: row.name,
+    class: row.class,
+    arm: row.arm,
+    gender: row.gender,
+    status: row.status,
+    guardian: row.guardian,
+    phone: row.phone,
+    created_at: row.created_at?.toISOString(),
+    updated_at: row.updated_at?.toISOString(),
+  };
 }
 
-export async function fetchStudents(): Promise<StudentDTO[]> {
+/**
+ * Fetch all students for a tenant
+ */
+export async function fetchStudents(tenantId: string): Promise<StudentDTO[]> {
   try {
-    initializeSampleData();
-    return Array.from(studentsStore.values()).sort((a, b) => 
-      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    const rows = await queryAll<any>(
+      `SELECT id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at
+       FROM students
+       WHERE tenant_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at DESC`,
+      [tenantId]
     );
+    return rows.map(rowToDTO);
   } catch (error) {
     console.error('Error fetching students:', error);
-    return [];
+    throw new Error('Failed to fetch students');
   }
 }
 
-export async function createStudent(studentData: StudentPayload): Promise<StudentDTO> {
+/**
+ * Fetch a single student by ID
+ */
+export async function getStudent(id: string, tenantId: string): Promise<StudentDTO | null> {
   try {
-    initializeSampleData();
-    const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
-    
-    const student: StudentDTO = {
-      id,
-      ...studentData,
-      created_at: now,
-      updated_at: now,
-    };
-    
-    studentsStore.set(id, student);
-    return student;
+    const row = await queryOne<any>(
+      `SELECT id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at
+       FROM students
+       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantId]
+    );
+    return row ? rowToDTO(row) : null;
+  } catch (error) {
+    console.error('Error fetching student:', error);
+    throw new Error('Failed to fetch student');
+  }
+}
+
+/**
+ * Create a single student
+ */
+export async function createStudent(tenantId: string, studentData: StudentPayload): Promise<StudentDTO> {
+  try {
+    const row = await queryOne<any>(
+      `INSERT INTO students (tenant_id, admission_no, name, class, arm, gender, status, guardian, phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at`,
+      [
+        tenantId,
+        studentData.admissionNo,
+        studentData.name,
+        studentData.class,
+        studentData.arm,
+        studentData.gender,
+        studentData.status,
+        studentData.guardian,
+        studentData.phone,
+      ]
+    );
+
+    if (!row) {
+      throw new Error('Failed to create student');
+    }
+
+    return rowToDTO(row);
   } catch (error) {
     console.error('Error creating student:', error);
     throw new Error('Failed to create student');
   }
 }
 
-export async function createStudents(studentsData: StudentPayload[]): Promise<StudentDTO[]> {
+/**
+ * Create multiple students in a transaction
+ */
+export async function createStudents(tenantId: string, studentsData: StudentPayload[]): Promise<StudentDTO[]> {
   try {
-    initializeSampleData();
     const createdStudents: StudentDTO[] = [];
 
     for (const studentData of studentsData) {
-      const student = await createStudent(studentData);
+      const student = await createStudent(tenantId, studentData);
       createdStudents.push(student);
     }
 
@@ -125,35 +139,88 @@ export async function createStudents(studentsData: StudentPayload[]): Promise<St
   }
 }
 
-export async function updateStudent(id: string, studentData: Partial<StudentPayload>): Promise<StudentDTO | null> {
+/**
+ * Update a student
+ */
+export async function updateStudent(
+  id: string,
+  tenantId: string,
+  studentData: Partial<StudentPayload>
+): Promise<StudentDTO | null> {
   try {
-    initializeSampleData();
-    const existing = studentsStore.get(id);
-    
-    if (!existing) {
-      return null;
+    // Build dynamic update query
+    const updates: string[] = [];
+    const values: any[] = [id, tenantId];
+    let paramIndex = 3;
+
+    if (studentData.admissionNo !== undefined) {
+      updates.push(`admission_no = $${paramIndex++}`);
+      values.push(studentData.admissionNo);
+    }
+    if (studentData.name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(studentData.name);
+    }
+    if (studentData.class !== undefined) {
+      updates.push(`class = $${paramIndex++}`);
+      values.push(studentData.class);
+    }
+    if (studentData.arm !== undefined) {
+      updates.push(`arm = $${paramIndex++}`);
+      values.push(studentData.arm);
+    }
+    if (studentData.gender !== undefined) {
+      updates.push(`gender = $${paramIndex++}`);
+      values.push(studentData.gender);
+    }
+    if (studentData.status !== undefined) {
+      updates.push(`status = $${paramIndex++}`);
+      values.push(studentData.status);
+    }
+    if (studentData.guardian !== undefined) {
+      updates.push(`guardian = $${paramIndex++}`);
+      values.push(studentData.guardian);
+    }
+    if (studentData.phone !== undefined) {
+      updates.push(`phone = $${paramIndex++}`);
+      values.push(studentData.phone);
     }
 
-    const updated: StudentDTO = {
-      ...existing,
-      ...studentData,
-      updated_at: new Date().toISOString(),
-    };
-    
-    studentsStore.set(id, updated);
-    return updated;
+    if (updates.length === 0) {
+      return getStudent(id, tenantId);
+    }
+
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    const row = await queryOne<any>(
+      `UPDATE students
+       SET ${updates.join(', ')}
+       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+       RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at`,
+      values
+    );
+
+    return row ? rowToDTO(row) : null;
   } catch (error) {
     console.error('Error updating student:', error);
     throw new Error('Failed to update student');
   }
 }
 
-export async function deleteStudent(id: string): Promise<boolean> {
+/**
+ * Soft delete a student
+ */
+export async function deleteStudent(id: string, tenantId: string): Promise<boolean> {
   try {
-    initializeSampleData();
-    return studentsStore.delete(id);
+    const result = await query(
+      `UPDATE students
+       SET deleted_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantId]
+    );
+    return result.rowCount ? result.rowCount > 0 : false;
   } catch (error) {
     console.error('Error deleting student:', error);
-    return false;
+    throw new Error('Failed to delete student');
   }
 }

@@ -1,5 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchStudents, createStudent, updateStudent, deleteStudent, type StudentPayload } from './_lib/students.js'
+import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
+import { fetchStudents, createStudent, createStudents, updateStudent, deleteStudent, type StudentPayload } from './_lib/students.js'
+
+// Get tenant ID from request (from auth context or headers)
+function getTenantId(req: VercelRequest): string {
+  // In a real app, this would come from the authenticated user's context
+  // For now, we'll use a default or from headers
+  const tenantId = (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
+  return tenantId
+}
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
@@ -19,12 +28,22 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    // Initialize database on first request
+    initializeDatabase()
+    await runMigrations()
+  } catch (error) {
+    console.error('Database initialization error:', error)
+    return res.status(500).json({ error: 'Database initialization failed' })
+  }
+
   const { method } = req
+  const tenantId = getTenantId(req)
 
   if (method === 'GET') {
     try {
       const { class: classFilter, status: statusFilter } = req.query
-      const students = await fetchStudents()
+      const students = await fetchStudents(tenantId)
 
       let filtered = students
       if (classFilter && typeof classFilter === 'string') {
@@ -47,28 +66,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Request body is required' })
     }
 
-    const required = ['admissionNo', 'name', 'class', 'arm', 'gender', 'status', 'guardian', 'phone']
-    const missing = required.filter(f => !body[f])
-    if (missing.length > 0) {
-      return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` })
-    }
-
     try {
-      const studentData: StudentPayload = {
-        admissionNo: body.admissionNo,
-        name: body.name,
-        class: body.class,
-        arm: body.arm,
-        gender: body.gender,
-        status: body.status,
-        guardian: body.guardian,
-        phone: body.phone,
+      // Handle bulk import (students array)
+      if (body.students && Array.isArray(body.students)) {
+        const required = ['admissionNo', 'name', 'class', 'arm', 'gender', 'status', 'guardian', 'phone']
+        
+        // Validate all students
+        for (const student of body.students) {
+          const missing = required.filter(f => !student[f])
+          if (missing.length > 0) {
+            return res.status(400).json({ error: `Missing required fields in student: ${missing.join(', ')}` })
+          }
+        }
+
+        const studentPayloads: StudentPayload[] = body.students.map((s: any) => ({
+          admissionNo: s.admissionNo,
+          name: s.name,
+          class: s.class,
+          arm: s.arm,
+          gender: s.gender,
+          status: s.status,
+          guardian: s.guardian,
+          phone: s.phone,
+        }))
+
+        const created = await createStudents(tenantId, studentPayloads)
+        return res.status(201).json({ data: created })
       }
-      const created = await createStudent(studentData)
+
+      // Handle single student creation (student object or direct fields)
+      const studentData = body.student || body
+      const required = ['admissionNo', 'name', 'class', 'arm', 'gender', 'status', 'guardian', 'phone']
+      const missing = required.filter(f => !studentData[f])
+      if (missing.length > 0) {
+        return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` })
+      }
+
+      const payload: StudentPayload = {
+        admissionNo: studentData.admissionNo,
+        name: studentData.name,
+        class: studentData.class,
+        arm: studentData.arm,
+        gender: studentData.gender,
+        status: studentData.status,
+        guardian: studentData.guardian,
+        phone: studentData.phone,
+      }
+      const created = await createStudent(tenantId, payload)
       return res.status(201).json({ data: created })
     } catch (error) {
-      console.error('Error creating student:', error)
-      return res.status(500).json({ error: 'Failed to create student' })
+      console.error('Error creating student(s):', error)
+      return res.status(500).json({ error: 'Failed to create student(s)' })
     }
   }
 
@@ -84,7 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const updated = await updateStudent(id, body)
+      const updated = await updateStudent(id, tenantId, body)
       if (!updated) {
         return res.status(404).json({ error: 'Student not found' })
       }
@@ -102,7 +150,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      await deleteStudent(id)
+      const deleted = await deleteStudent(id, tenantId)
+      if (!deleted) {
+        return res.status(404).json({ error: 'Student not found' })
+      }
       return res.status(204).end()
     } catch (error) {
       console.error('Error deleting student:', error)

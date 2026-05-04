@@ -1,0 +1,304 @@
+/**
+ * Question Bank Service
+ * Business logic for question management
+ */
+
+import { queryAll, queryOne, query, transaction } from './db';
+import {
+  Question,
+  CreateQuestionInput,
+  UpdateQuestionInput,
+  QuestionFilter,
+  ApiResponse,
+  PaginatedResponse,
+} from './types';
+
+/**
+ * Get all questions with filtering and pagination
+ */
+export async function getQuestions(
+  tenantId: string,
+  filter: QuestionFilter
+): Promise<PaginatedResponse<Question>> {
+  const page = filter.page || 1;
+  const limit = filter.limit || 20;
+  const offset = (page - 1) * limit;
+
+  let whereClause = 'WHERE tenant_id = $1 AND deleted_at IS NULL';
+  const params: any[] = [tenantId];
+  let paramIndex = 2;
+
+  if (filter.subject) {
+    whereClause += ` AND subject = $${paramIndex}`;
+    params.push(filter.subject);
+    paramIndex++;
+  }
+
+  if (filter.difficulty) {
+    whereClause += ` AND difficulty = $${paramIndex}`;
+    params.push(filter.difficulty);
+    paramIndex++;
+  }
+
+  if (filter.type) {
+    whereClause += ` AND type = $${paramIndex}`;
+    params.push(filter.type);
+    paramIndex++;
+  }
+
+  if (filter.searchText) {
+    whereClause += ` AND text ILIKE $${paramIndex}`;
+    params.push(`%${filter.searchText}%`);
+    paramIndex++;
+  }
+
+  // Get total count
+  const countResult = await queryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM questions_bank ${whereClause}`,
+    params
+  );
+  const total = parseInt(countResult?.count || '0');
+
+  // Get paginated results
+  const questions = await queryAll<Question>(
+    `SELECT * FROM questions_bank ${whereClause} ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+    [...params, limit, offset]
+  );
+
+  return {
+    success: true,
+    data: questions,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+/**
+ * Get single question by ID
+ */
+export async function getQuestion(
+  tenantId: string,
+  questionId: string
+): Promise<Question | null> {
+  return queryOne<Question>(
+    'SELECT * FROM questions_bank WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL',
+    [questionId, tenantId]
+  );
+}
+
+/**
+ * Create new question
+ */
+export async function createQuestion(
+  tenantId: string,
+  userId: string,
+  input: CreateQuestionInput
+): Promise<Question> {
+  // Validate input
+  validateQuestionInput(input);
+
+  const question = await queryOne<Question>(
+    `INSERT INTO questions_bank (
+      tenant_id, text, type, options, correct_answer, 
+      difficulty, subject, tags, created_by
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING *`,
+    [
+      tenantId,
+      input.text,
+      input.type,
+      JSON.stringify(input.options || []),
+      input.correctAnswer,
+      input.difficulty,
+      input.subject,
+      JSON.stringify(input.tags || []),
+      userId,
+    ]
+  );
+
+  if (!question) {
+    throw new Error('Failed to create question');
+  }
+
+  return question;
+}
+
+/**
+ * Update question
+ */
+export async function updateQuestion(
+  tenantId: string,
+  questionId: string,
+  input: UpdateQuestionInput
+): Promise<Question> {
+  // Get existing question
+  const existing = await getQuestion(tenantId, questionId);
+  if (!existing) {
+    throw new Error('Question not found');
+  }
+
+  // Validate input
+  if (input.text || input.type || input.options || input.correctAnswer) {
+    validateQuestionInput({
+      text: input.text || existing.text,
+      type: input.type || existing.type,
+      options: input.options || existing.options,
+      correctAnswer: input.correctAnswer || existing.correctAnswer,
+      difficulty: input.difficulty || existing.difficulty,
+      subject: input.subject || existing.subject,
+    });
+  }
+
+  const updated = await queryOne<Question>(
+    `UPDATE questions_bank SET
+      text = COALESCE($1, text),
+      type = COALESCE($2, type),
+      options = COALESCE($3, options),
+      correct_answer = COALESCE($4, correct_answer),
+      difficulty = COALESCE($5, difficulty),
+      subject = COALESCE($6, subject),
+      tags = COALESCE($7, tags),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $8 AND tenant_id = $9 AND deleted_at IS NULL
+    RETURNING *`,
+    [
+      input.text,
+      input.type,
+      input.options ? JSON.stringify(input.options) : null,
+      input.correctAnswer,
+      input.difficulty,
+      input.subject,
+      input.tags ? JSON.stringify(input.tags) : null,
+      questionId,
+      tenantId,
+    ]
+  );
+
+  if (!updated) {
+    throw new Error('Failed to update question');
+  }
+
+  return updated;
+}
+
+/**
+ * Delete question (soft delete)
+ */
+export async function deleteQuestion(
+  tenantId: string,
+  questionId: string
+): Promise<void> {
+  const result = await query(
+    `UPDATE questions_bank SET deleted_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+    [questionId, tenantId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error('Question not found');
+  }
+}
+
+/**
+ * Check for duplicate questions
+ */
+export async function checkDuplicate(
+  tenantId: string,
+  text: string,
+  excludeId?: string
+): Promise<Question | null> {
+  let sql = 'SELECT * FROM questions_bank WHERE tenant_id = $1 AND text = $2 AND deleted_at IS NULL';
+  const params: any[] = [tenantId, text];
+
+  if (excludeId) {
+    sql += ' AND id != $3';
+    params.push(excludeId);
+  }
+
+  return queryOne<Question>(sql, params);
+}
+
+/**
+ * Get question statistics
+ */
+export async function getQuestionStats(tenantId: string): Promise<{
+  total: number;
+  byDifficulty: Record<string, number>;
+  byType: Record<string, number>;
+  bySubject: Record<string, number>;
+}> {
+  const total = await queryOne<{ count: string }>(
+    'SELECT COUNT(*) as count FROM questions_bank WHERE tenant_id = $1 AND deleted_at IS NULL',
+    [tenantId]
+  );
+
+  const byDifficulty = await queryAll<{ difficulty: string; count: string }>(
+    'SELECT difficulty, COUNT(*) as count FROM questions_bank WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY difficulty',
+    [tenantId]
+  );
+
+  const byType = await queryAll<{ type: string; count: string }>(
+    'SELECT type, COUNT(*) as count FROM questions_bank WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY type',
+    [tenantId]
+  );
+
+  const bySubject = await queryAll<{ subject: string; count: string }>(
+    'SELECT subject, COUNT(*) as count FROM questions_bank WHERE tenant_id = $1 AND deleted_at IS NULL GROUP BY subject',
+    [tenantId]
+  );
+
+  return {
+    total: parseInt(total?.count || '0'),
+    byDifficulty: Object.fromEntries(byDifficulty.map(d => [d.difficulty, parseInt(d.count)])),
+    byType: Object.fromEntries(byType.map(t => [t.type, parseInt(t.count)])),
+    bySubject: Object.fromEntries(bySubject.map(s => [s.subject, parseInt(s.count)])),
+  };
+}
+
+/**
+ * Validate question input
+ */
+function validateQuestionInput(input: any): void {
+  if (!input.text || input.text.trim().length === 0) {
+    throw new Error('Question text is required');
+  }
+
+  if (input.text.length > 1000) {
+    throw new Error('Question text must be less than 1000 characters');
+  }
+
+  if (!['objective', 'truefalse', 'essay'].includes(input.type)) {
+    throw new Error('Invalid question type');
+  }
+
+  if (!['Easy', 'Medium', 'Hard'].includes(input.difficulty)) {
+    throw new Error('Invalid difficulty level');
+  }
+
+  if (!input.subject || input.subject.trim().length === 0) {
+    throw new Error('Subject is required');
+  }
+
+  if (input.subject.length > 100) {
+    throw new Error('Subject must be less than 100 characters');
+  }
+
+  // Validate options for objective and truefalse
+  if (['objective', 'truefalse'].includes(input.type)) {
+    if (!input.options || !Array.isArray(input.options) || input.options.length < 2) {
+      throw new Error('At least 2 options are required');
+    }
+
+    if (input.options.length > 4) {
+      throw new Error('Maximum 4 options allowed');
+    }
+
+    if (!input.correctAnswer) {
+      throw new Error('Correct answer is required');
+    }
+  }
+}

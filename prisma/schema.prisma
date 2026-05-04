@@ -1,0 +1,312 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Core Models
+// ============================================================================
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  domain    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users                 User[]
+  questionsBank         QuestionBank[]
+  exams                 Exam[]
+  studentExamProgress   StudentExamProgress[]
+  examResults           ExamResult[]
+  securitySettings      SecuritySettings[]
+  proctoringLogs        ProctoringLog[]
+  auditLogs             AuditLog[]
+  offlineSyncQueue      OfflineSyncQueue[]
+
+  @@map("tenants")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  email     String
+  name      String
+  role      String   // 'admin', 'invigilator', 'student', 'teacher'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  // Relations
+  createdQuestions      QuestionBank[] @relation("CreatedBy")
+  createdExams          Exam[] @relation("CreatedBy")
+  studentExamProgress   StudentExamProgress[]
+  examResults           ExamResult[]
+  studentAnswers        StudentAnswer[]
+  proctoringLogs        ProctoringLog[]
+  auditLogs             AuditLog[]
+  offlineSyncQueue      OfflineSyncQueue[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+// ============================================================================
+// Question Bank Models
+// ============================================================================
+
+model QuestionBank {
+  id            String   @id @default(cuid())
+  tenantId      String
+  text          String   @db.Text
+  type          String   // 'objective', 'truefalse', 'essay'
+  options       Json?    // Array of options for objective/truefalse
+  correctAnswer String?
+  difficulty    String   // 'Easy', 'Medium', 'Hard'
+  subject       String
+  tags          Json     @default("[]") // Array of tags
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  creator User @relation("CreatedBy", fields: [createdBy], references: [id])
+
+  // Relations
+  examQuestions ExamQuestion[]
+  studentAnswers StudentAnswer[]
+
+  @@index([tenantId])
+  @@index([subject])
+  @@index([difficulty])
+  @@index([createdAt])
+  @@map("questions_bank")
+}
+
+// ============================================================================
+// Exam Models
+// ============================================================================
+
+model Exam {
+  id              String   @id @default(cuid())
+  tenantId        String
+  title           String
+  subject         String
+  class           String
+  description     String?  @db.Text
+  duration        Int      // in minutes
+  passMark        Decimal  @db.Decimal(5, 2)
+  totalMarks      Decimal  @db.Decimal(5, 2)
+  status          String   @default("Draft") // 'Draft', 'Scheduled', 'Ongoing', 'Completed'
+  scheduledDate   DateTime?
+  scheduledTime   String?  // HH:MM format
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  creator User @relation("CreatedBy", fields: [createdBy], references: [id])
+
+  // Relations
+  examQuestions       ExamQuestion[]
+  studentExamProgress StudentExamProgress[]
+  examResults         ExamResult[]
+  securitySettings    SecuritySettings?
+  proctoringLogs      ProctoringLog[]
+  offlineSyncQueue    OfflineSyncQueue[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id              String   @id @default(cuid())
+  examId          String
+  questionId      String
+  questionOrder   Int
+  marks           Decimal  @db.Decimal(5, 2)
+  createdAt       DateTime @default(now())
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question QuestionBank @relation(fields: [questionId], references: [id])
+
+  @@unique([examId, questionId])
+  @@index([examId])
+  @@index([questionId])
+  @@map("exam_questions")
+}
+
+// ============================================================================
+// Student Progress & Results Models
+// ============================================================================
+
+model StudentExamProgress {
+  id                String   @id @default(cuid())
+  examId            String
+  studentId         String
+  questionsAnswered Int      @default(0)
+  currentQuestion   Int      @default(0)
+  status            String   @default("Active") // 'Active', 'Paused', 'Completed', 'Flagged'
+  timeRemaining     Int?     // in seconds
+  lastActivityTime  DateTime @default(now())
+  flagReason        String?
+  flaggedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  exam Exam @relation(fields: [examId], references: [id])
+  student User @relation(fields: [studentId], references: [id])
+
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+  @@index([status])
+  @@map("student_exam_progress")
+}
+
+model ExamResult {
+  id            String   @id @default(cuid())
+  examId        String
+  studentId     String
+  score         Decimal  @db.Decimal(5, 2)
+  totalMarks    Decimal  @db.Decimal(5, 2)
+  percentage    Decimal  @db.Decimal(5, 2)
+  status        String   // 'Passed', 'Failed'
+  timeSpent     Int      // in seconds
+  submittedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  exam Exam @relation(fields: [examId], references: [id])
+  student User @relation(fields: [studentId], references: [id])
+  studentAnswers StudentAnswer[]
+
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+  @@index([createdAt])
+  @@map("exam_results")
+}
+
+model StudentAnswer {
+  id            String   @id @default(cuid())
+  resultId      String
+  questionId    String
+  studentAnswer String?  @db.Text
+  correctAnswer String?
+  isCorrect     Boolean
+  marksObtained Decimal  @db.Decimal(5, 2)
+  totalMarks    Decimal  @db.Decimal(5, 2)
+  createdAt     DateTime @default(now())
+
+  result ExamResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  question QuestionBank @relation(fields: [questionId], references: [id])
+
+  @@index([resultId])
+  @@index([questionId])
+  @@map("student_answers")
+}
+
+// ============================================================================
+// Security Models
+// ============================================================================
+
+model SecuritySettings {
+  id                    String   @id @default(cuid())
+  examId                String   @unique
+  enableProctoring      Boolean  @default(false)
+  disableCopyPaste      Boolean  @default(false)
+  disableRightClick     Boolean  @default(false)
+  requireCamera         Boolean  @default(false)
+  randomizeQuestions    Boolean  @default(false)
+  randomizeOptions      Boolean  @default(false)
+  allowedIps            Json     @default("[]") // Array of IP addresses/CIDR
+  examPassword          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@map("security_settings")
+}
+
+model ProctoringLog {
+  id            String   @id @default(cuid())
+  examId        String
+  studentId     String
+  eventType     String   // 'tab_switch', 'copy_attempt', 'camera_off', 'suspicious_activity', etc.
+  eventDetails  Json?
+  createdAt     DateTime @default(now())
+
+  exam Exam @relation(fields: [examId], references: [id])
+  student User @relation(fields: [studentId], references: [id])
+
+  @@index([examId])
+  @@index([studentId])
+  @@index([createdAt])
+  @@map("proctoring_logs")
+}
+
+// ============================================================================
+// Audit & Logging Models
+// ============================================================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  action      String   // 'create', 'update', 'delete', 'flag', 'approve', etc.
+  entityType  String   // 'question', 'exam', 'result', 'security_settings', etc.
+  entityId    String?
+  changes     Json?    // Before/after values
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entityType])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// Offline Sync Models
+// ============================================================================
+
+model OfflineSyncQueue {
+  id          String   @id @default(cuid())
+  studentId   String
+  examId      String
+  answers     Json     // Array of answers to sync
+  syncStatus  String   @default("pending") // 'pending', 'synced', 'failed'
+  createdAt   DateTime @default(now())
+  syncedAt    DateTime?
+
+  student User @relation(fields: [studentId], references: [id])
+  exam Exam @relation(fields: [examId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  @@index([studentId])
+  @@index([examId])
+  @@index([syncStatus])
+  @@index([createdAt])
+  @@map("offline_sync_queue")
+}

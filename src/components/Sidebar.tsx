@@ -91,6 +91,18 @@ const navItems: NavItem[] = [
     ]
   },
   {
+    id: 'cbt',
+    label: 'CBT & Examinations',
+    icon: <FileText className="w-5 h-5" />,
+    children: [
+      { id: 'cbt-question-bank', label: 'Question Bank' },
+      { id: 'cbt-exam-creation', label: 'Create Exam' },
+      { id: 'cbt-live-monitoring', label: 'Live Monitoring' },
+      { id: 'cbt-results', label: 'Results' },
+      { id: 'cbt-security', label: 'Security Settings' },
+    ]
+  },
+  {
     id: 'timetable',
     label: 'Timetable & Scheduling',
     icon: <Calendar className="w-5 h-5" />,

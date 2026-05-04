@@ -52,6 +52,7 @@ const PaymentGateway = lazy(() => import('./components/pages/PaymentGateway'));
 const BiometricDevices = lazy(() => import('./components/pages/BiometricDevices'));
 const LMSIntegration = lazy(() => import('./components/pages/LMSIntegration'));
 const APIManagement = lazy(() => import('./components/pages/APIManagement'));
+const CBTExaminations = lazy(() => import('./components/pages/cbt/CBTExaminations'));
 const OfflineCBTSync = lazy(() => import('./components/pages/OfflineCBTSync'));
 const ExamItemAnalysis = lazy(() => import('./components/pages/ExamItemAnalysis'));
 const PredictiveRiskAlerts = lazy(() => import('./components/pages/PredictiveRiskAlerts'));
@@ -109,6 +110,12 @@ export default function App() {
         return <StudentHealth />;
       case 'student-attendance':
         return <StudentAttendance />;
+      case 'cbt-question-bank':
+      case 'cbt-exam-creation':
+      case 'cbt-live-monitoring':
+      case 'cbt-results':
+      case 'cbt-security':
+        return <CBTExaminations />;
       case 'timetable-configure':
       case 'timetable-class':
       case 'timetable-teacher':

@@ -1,491 +1,269 @@
-# Database Migration Testing and Verification Guide
+# CBT Database Migration Testing Guide
 
 ## Overview
 
-This guide provides comprehensive testing procedures to verify that database migrations have been applied correctly and the schema is ready for production use.
+This guide provides comprehensive instructions for testing the CBT database schema migrations. It covers verification procedures, testing strategies, and troubleshooting steps.
 
 ## Pre-Migration Checklist
 
-Before running migrations, verify:
+Before running migrations, ensure:
 
-- [ ] PostgreSQL is installed and running
-- [ ] Database credentials are correct
-- [ ] User has necessary permissions
-- [ ] Backup of existing database (if applicable)
-- [ ] Network connectivity to database server
-- [ ] Sufficient disk space for new tables
+- [ ] Database connection is configured correctly
+- [ ] DATABASE_URL environment variable is set
+- [ ] PostgreSQL version is 12 or higher
+- [ ] Sufficient disk space available
+- [ ] Database backups are current
+- [ ] No active connections to the database
+- [ ] All team members are notified
 
 ## Migration Execution
 
-### Step 1: Verify Database Connection
+### Step 1: Verify Migration Files
 
 ```bash
-# Test connection with psql
-psql -h localhost -U postgres -d school_management -c "SELECT 1"
+# Check migration status
+npx prisma migrate status
 
-# Expected output: 
-# ?column?
-# ----------
-#        1
+# Expected output:
+# Following migration have not yet been applied:
+# 0_init
 ```
 
-### Step 2: Run Migrations
+### Step 2: Apply Migrations
 
 ```bash
-# Option A: Using API endpoint
-curl -X POST http://localhost:3000/api/tenant/cbt/init-db \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json"
+# Apply all pending migrations
+npx prisma migrate deploy
 
-# Option B: Using direct SQL
-psql -h localhost -U postgres -d school_management \
-  -f api/tenant/cbt/_lib/migrations/001_create_cbt_tables.sql
-
-# Option C: Using Node.js script
-node api/tenant/cbt/_lib/migrations/run-migration.js
+# Expected output:
+# Applying migration `0_init`
+# Migration `0_init` applied successfully
 ```
 
-### Step 3: Verify Migration Completion
+### Step 3: Verify Schema Creation
 
 ```bash
-# Check for errors in logs
-tail -f logs/migration.log
+# Generate Prisma client
+npx prisma generate
 
-# Expected: "Migration completed successfully"
+# Expected output:
+# ✔ Generated Prisma Client (v5.x.x) to ./node_modules/@prisma/client in 123ms
 ```
 
 ## Post-Migration Verification
 
-### 1. Table Existence Verification
+### Verify All Tables Exist
 
 ```bash
-psql -h localhost -U postgres -d school_management
+# Connect to database
+psql $DATABASE_URL
 
-# List all tables
-\dt
+# List all CBT tables
+\dt public.questions_bank
+\dt public.exams
+\dt public.exam_questions
+\dt public.student_exam_progress
+\dt public.exam_results
+\dt public.student_answers
+\dt public.security_settings
+\dt public.proctoring_logs
+\dt public.audit_logs
+\dt public.offline_sync_queue
 
-# Expected output:
-#                    List of relations
-#  Schema |          Name          | Type  | Owner
-# --------+------------------------+-------+-------
-#  public | exam_questions         | table | postgres
-#  public | exam_results           | table | postgres
-#  public | exams                  | table | postgres
-#  public | proctoring_logs        | table | postgres
-#  public | questions_bank         | table | postgres
-#  public | security_settings      | table | postgres
-#  public | student_answers        | table | postgres
-#  public | student_exam_progress  | table | postgres
+# Expected output: All tables should exist with correct structure
 ```
 
-### 2. Column Verification
-
-Verify each table has the correct columns:
+### Verify Table Structure
 
 ```sql
--- Check questions_bank columns
-\d questions_bank
+-- Check questions_bank table structure
+\d public.questions_bank
 
 -- Expected columns:
--- id, tenant_id, text, type, options, correct_answer, 
--- difficulty, subject, tags, created_by, created_at, updated_at, deleted_at
-
--- Check exams columns
-\d exams
-
--- Expected columns:
--- id, tenant_id, title, subject, class, description, duration,
--- pass_mark, total_marks, status, scheduled_date, scheduled_time,
--- created_by, created_at, updated_at, deleted_at
-
--- Check exam_questions columns
-\d exam_questions
-
--- Expected columns:
--- id, exam_id, question_id, question_order, marks, created_at
-
--- Check student_exam_progress columns
-\d student_exam_progress
-
--- Expected columns:
--- id, exam_id, student_id, questions_answered, current_question,
--- status, time_remaining, last_activity_time, flag_reason, flagged_at,
--- created_at, updated_at
-
--- Check exam_results columns
-\d exam_results
-
--- Expected columns:
--- id, exam_id, student_id, score, total_marks, percentage,
--- status, time_spent, submitted_at, created_at
-
--- Check student_answers columns
-\d student_answers
-
--- Expected columns:
--- id, result_id, question_id, student_answer, correct_answer,
--- is_correct, marks_obtained, total_marks, created_at
-
--- Check security_settings columns
-\d security_settings
-
--- Expected columns:
--- id, exam_id, enable_proctoring, disable_copy_paste,
--- disable_right_click, require_camera, randomize_questions,
--- randomize_options, allowed_ips, exam_password, created_at, updated_at
-
--- Check proctoring_logs columns
-\d proctoring_logs
-
--- Expected columns:
--- id, exam_id, student_id, event_type, event_details, created_at
+-- id, tenantId, text, type, options, correctAnswer, difficulty, subject, tags, createdBy, createdAt, updatedAt, deletedAt
 ```
 
-### 3. Constraint Verification
+### Verify Indexes
 
 ```sql
--- Check all constraints
-SELECT constraint_name, table_name, constraint_type
-FROM information_schema.table_constraints
-WHERE table_schema = 'public'
-ORDER BY table_name, constraint_name;
-
--- Expected constraints:
--- questions_bank: valid_options, type check, difficulty check
--- exams: duration check, pass_mark check, total_marks check, valid_marks check, status check
--- exam_questions: marks check, unique(exam_id, question_id)
--- student_exam_progress: questions_answered check, current_question check, time_remaining check, status check, unique(exam_id, student_id)
--- exam_results: score check, total_marks check, percentage check, status check, time_spent check, unique(exam_id, student_id)
--- student_answers: marks_obtained check, total_marks check
--- security_settings: unique(exam_id)
--- proctoring_logs: (no specific constraints)
-```
-
-### 4. Index Verification
-
-```sql
--- List all indexes
-SELECT indexname, tablename 
-FROM pg_indexes 
-WHERE schemaname = 'public' 
+-- List all indexes for CBT tables
+SELECT
+    schemaname,
+    tablename,
+    indexname
+FROM pg_indexes
+WHERE tablename IN (
+    'questions_bank',
+    'exams',
+    'exam_questions',
+    'student_exam_progress',
+    'exam_results',
+    'student_answers',
+    'security_settings',
+    'proctoring_logs',
+    'audit_logs',
+    'offline_sync_queue'
+)
 ORDER BY tablename, indexname;
 
--- Expected indexes:
--- questions_bank: idx_questions_tenant, idx_questions_subject, idx_questions_difficulty, idx_questions_type, idx_questions_deleted
--- exams: idx_exams_tenant, idx_exams_status, idx_exams_scheduled_date, idx_exams_class, idx_exams_deleted
--- exam_questions: idx_exam_questions_exam, idx_exam_questions_question
--- student_exam_progress: idx_progress_exam, idx_progress_student, idx_progress_status, idx_progress_last_activity
--- exam_results: idx_results_exam, idx_results_student, idx_results_status, idx_results_submitted
--- student_answers: idx_answers_result, idx_answers_question
--- security_settings: idx_security_exam
--- proctoring_logs: idx_proctoring_exam, idx_proctoring_student, idx_proctoring_timestamp, idx_proctoring_event_type
+-- Expected: 40+ indexes across all tables
 ```
 
-### 5. Foreign Key Verification
+### Verify Foreign Keys
 
 ```sql
--- Check foreign key constraints
-SELECT constraint_name, table_name, column_name, foreign_table_name
-FROM information_schema.key_column_usage
-WHERE table_schema = 'public' AND foreign_table_name IS NOT NULL
-ORDER BY table_name, constraint_name;
+-- List all foreign keys
+SELECT
+    constraint_name,
+    table_name,
+    column_name,
+    foreign_table_name
+FROM information_schema.referential_constraints rc
+JOIN information_schema.key_column_usage kcu ON rc.constraint_name = kcu.constraint_name
+WHERE table_name IN (
+    'questions_bank',
+    'exams',
+    'exam_questions',
+    'student_exam_progress',
+    'exam_results',
+    'student_answers',
+    'security_settings',
+    'proctoring_logs',
+    'audit_logs',
+    'offline_sync_queue'
+)
+ORDER BY table_name;
 
--- Expected foreign keys:
--- exam_questions -> exams(id), questions_bank(id)
--- student_exam_progress -> exams(id)
--- exam_results -> exams(id)
--- student_answers -> exam_results(id), questions_bank(id)
--- security_settings -> exams(id)
--- proctoring_logs -> exams(id)
+-- Expected: 20+ foreign key constraints
 ```
 
-### 6. Data Type Verification
+### Verify Unique Constraints
 
 ```sql
--- Verify column data types
-SELECT table_name, column_name, data_type, is_nullable
-FROM information_schema.columns
-WHERE table_schema = 'public'
-ORDER BY table_name, ordinal_position;
+-- List all unique constraints
+SELECT
+    constraint_name,
+    table_name,
+    column_name
+FROM information_schema.constraint_column_usage
+WHERE constraint_name LIKE '%_key'
+AND table_name IN (
+    'questions_bank',
+    'exams',
+    'exam_questions',
+    'student_exam_progress',
+    'exam_results',
+    'student_answers',
+    'security_settings',
+    'proctoring_logs',
+    'audit_logs',
+    'offline_sync_queue'
+)
+ORDER BY table_name;
 
--- Key data types to verify:
--- UUID columns: id, tenant_id, exam_id, question_id, student_id, result_id, created_by
--- TEXT columns: text, description, student_answer, flag_reason, event_details
--- JSONB columns: options, tags, allowed_ips
--- DECIMAL columns: pass_mark, total_marks, marks, score, percentage, marks_obtained
--- INTEGER columns: duration, questions_answered, current_question, time_remaining, time_spent
--- BOOLEAN columns: enable_proctoring, disable_copy_paste, disable_right_click, require_camera, randomize_questions, randomize_options, is_correct
--- TIMESTAMP columns: created_at, updated_at, deleted_at, last_activity_time, flagged_at, submitted_at
--- DATE columns: scheduled_date
--- TIME columns: scheduled_time
--- VARCHAR columns: type, difficulty, subject, status, event_type, exam_password
+-- Expected: Unique constraints on:
+-- - users(tenantId, email)
+-- - exam_questions(examId, questionId)
+-- - student_exam_progress(examId, studentId)
+-- - exam_results(examId, studentId)
+-- - security_settings(examId)
 ```
 
 ## Functional Testing
 
-### Test 1: Insert Question
+### Test 1: Insert Test Data
 
 ```sql
--- Insert a test question
-INSERT INTO questions_bank (
-  tenant_id, text, type, options, correct_answer,
-  difficulty, subject, created_by
-) VALUES (
-  '550e8400-e29b-41d4-a716-446655440000',
-  'What is the capital of France?',
-  'objective',
-  '["London", "Paris", "Berlin", "Madrid"]'::jsonb,
-  'Paris',
-  'Easy',
-  'Geography',
-  '550e8400-e29b-41d4-a716-446655440001'
+-- Insert test tenant
+INSERT INTO tenants (id, name, domain) 
+VALUES ('test-tenant-1', 'Test School', 'test.example.com');
+
+-- Insert test user
+INSERT INTO users (id, tenantId, email, name, role) 
+VALUES ('test-user-1', 'test-tenant-1', 'teacher@test.com', 'Test Teacher', 'invigilator');
+
+-- Insert test question
+INSERT INTO questions_bank (id, tenantId, text, type, difficulty, subject, createdBy) 
+VALUES (
+    'test-q-1',
+    'test-tenant-1',
+    'What is 2+2?',
+    'objective',
+    'Easy',
+    'Math',
+    'test-user-1'
 );
 
--- Verify insertion
-SELECT * FROM questions_bank WHERE subject = 'Geography';
-
--- Expected: 1 row returned with all correct values
-```
-
-### Test 2: Insert Exam
-
-```sql
--- Insert a test exam
-INSERT INTO exams (
-  tenant_id, title, subject, class, duration,
-  pass_mark, total_marks, status, created_by
-) VALUES (
-  '550e8400-e29b-41d4-a716-446655440000',
-  'Geography Quiz',
-  'Geography',
-  '10A',
-  30,
-  50,
-  100,
-  'Draft',
-  '550e8400-e29b-41d4-a716-446655440001'
+-- Insert test exam
+INSERT INTO exams (id, tenantId, title, subject, class, duration, passMark, totalMarks, createdBy) 
+VALUES (
+    'test-exam-1',
+    'test-tenant-1',
+    'Math Quiz',
+    'Math',
+    'Class 10',
+    30,
+    40.00,
+    100.00,
+    'test-user-1'
 );
 
--- Verify insertion
-SELECT * FROM exams WHERE title = 'Geography Quiz';
-
--- Expected: 1 row returned with status = 'Draft'
+-- Expected: All inserts succeed without errors
 ```
 
-### Test 3: Link Question to Exam
+### Test 2: Verify Soft Deletes
 
 ```sql
--- Get IDs from previous tests
-SELECT id INTO exam_id FROM exams WHERE title = 'Geography Quiz' LIMIT 1;
-SELECT id INTO question_id FROM questions_bank WHERE subject = 'Geography' LIMIT 1;
+-- Soft delete a question
+UPDATE questions_bank SET deletedAt = CURRENT_TIMESTAMP WHERE id = 'test-q-1';
 
--- Link question to exam
-INSERT INTO exam_questions (exam_id, question_id, question_order, marks)
-VALUES (exam_id, question_id, 1, 10);
+-- Verify soft delete
+SELECT * FROM questions_bank WHERE id = 'test-q-1';
+-- Expected: deletedAt is set to current timestamp
 
--- Verify linking
-SELECT eq.*, q.text, e.title
-FROM exam_questions eq
-JOIN questions_bank q ON eq.question_id = q.id
-JOIN exams e ON eq.exam_id = e.id
-WHERE e.title = 'Geography Quiz';
-
--- Expected: 1 row with question linked to exam
+-- Verify active questions query
+SELECT * FROM questions_bank WHERE deletedAt IS NULL;
+-- Expected: test-q-1 is not in results
 ```
 
-### Test 4: Create Student Progress
+### Test 3: Verify Foreign Key Constraints
 
 ```sql
--- Create student progress record
-INSERT INTO student_exam_progress (
-  exam_id, student_id, status
-) VALUES (
-  exam_id,
-  '550e8400-e29b-41d4-a716-446655440002',
-  'Active'
-);
+-- Try to insert exam_question with non-existent exam
+INSERT INTO exam_questions (id, examId, questionId, questionOrder, marks) 
+VALUES ('test-eq-1', 'non-existent-exam', 'test-q-1', 1, 10.00);
 
--- Verify creation
-SELECT * FROM student_exam_progress WHERE status = 'Active';
-
--- Expected: 1 row with status = 'Active'
+-- Expected: Foreign key constraint violation error
+-- ERROR: insert or update on table "exam_questions" violates foreign key constraint
 ```
 
-### Test 5: Record Exam Result
+### Test 4: Verify Unique Constraints
 
 ```sql
--- Record exam result
-INSERT INTO exam_results (
-  exam_id, student_id, score, total_marks, percentage, status, time_spent
-) VALUES (
-  exam_id,
-  '550e8400-e29b-41d4-a716-446655440002',
-  75,
-  100,
-  75,
-  'Passed',
-  1800
-);
+-- Try to insert duplicate exam_question
+INSERT INTO exam_questions (id, examId, questionId, questionOrder, marks) 
+VALUES ('test-eq-1', 'test-exam-1', 'test-q-1', 1, 10.00);
 
--- Verify result
-SELECT * FROM exam_results WHERE status = 'Passed';
+INSERT INTO exam_questions (id, examId, questionId, questionOrder, marks) 
+VALUES ('test-eq-2', 'test-exam-1', 'test-q-1', 2, 10.00);
 
--- Expected: 1 row with score = 75, status = 'Passed'
+-- Expected: Unique constraint violation error
+-- ERROR: duplicate key value violates unique constraint "exam_questions_examId_questionId_key"
 ```
 
-### Test 6: Record Student Answer
+### Test 5: Verify Cascade Delete
 
 ```sql
--- Get result ID
-SELECT id INTO result_id FROM exam_results WHERE status = 'Passed' LIMIT 1;
+-- Insert exam with questions
+INSERT INTO exam_questions (id, examId, questionId, questionOrder, marks) 
+VALUES ('test-eq-1', 'test-exam-1', 'test-q-1', 1, 10.00);
 
--- Record student answer
-INSERT INTO student_answers (
-  result_id, question_id, student_answer, correct_answer,
-  is_correct, marks_obtained, total_marks
-) VALUES (
-  result_id,
-  question_id,
-  'Paris',
-  'Paris',
-  true,
-  10,
-  10
-);
+-- Delete exam
+DELETE FROM exams WHERE id = 'test-exam-1';
 
--- Verify answer
-SELECT * FROM student_answers WHERE is_correct = true;
-
--- Expected: 1 row with is_correct = true, marks_obtained = 10
-```
-
-### Test 7: Create Security Settings
-
-```sql
--- Create security settings
-INSERT INTO security_settings (
-  exam_id, enable_proctoring, require_camera,
-  randomize_questions, allowed_ips
-) VALUES (
-  exam_id,
-  true,
-  true,
-  true,
-  '["192.168.1.0/24"]'::jsonb
-);
-
--- Verify settings
-SELECT * FROM security_settings WHERE enable_proctoring = true;
-
--- Expected: 1 row with enable_proctoring = true
-```
-
-### Test 8: Log Proctoring Event
-
-```sql
--- Log proctoring event
-INSERT INTO proctoring_logs (
-  exam_id, student_id, event_type, event_details
-) VALUES (
-  exam_id,
-  '550e8400-e29b-41d4-a716-446655440002',
-  'camera_on',
-  '{"timestamp": "2024-01-15T10:30:00Z"}'::jsonb
-);
-
--- Verify logging
-SELECT * FROM proctoring_logs WHERE event_type = 'camera_on';
-
--- Expected: 1 row with event_type = 'camera_on'
-```
-
-## Constraint Testing
-
-### Test 1: Invalid Question Type
-
-```sql
--- Try to insert question with invalid type
-INSERT INTO questions_bank (
-  tenant_id, text, type, options, correct_answer,
-  difficulty, subject, created_by
-) VALUES (
-  '550e8400-e29b-41d4-a716-446655440000',
-  'Test question',
-  'invalid_type',  -- Invalid!
-  '["A", "B"]'::jsonb,
-  'A',
-  'Easy',
-  'Test',
-  '550e8400-e29b-41d4-a716-446655440001'
-);
-
--- Expected: ERROR - violates check constraint "questions_bank_type_check"
-```
-
-### Test 2: Invalid Exam Duration
-
-```sql
--- Try to insert exam with invalid duration
-INSERT INTO exams (
-  tenant_id, title, subject, class, duration,
-  pass_mark, total_marks, status, created_by
-) VALUES (
-  '550e8400-e29b-41d4-a716-446655440000',
-  'Invalid Exam',
-  'Test',
-  '10A',
-  10,  -- Invalid! Must be 15-480
-  50,
-  100,
-  'Draft',
-  '550e8400-e29b-41d4-a716-446655440001'
-);
-
--- Expected: ERROR - violates check constraint "exams_duration_check"
-```
-
-### Test 3: Invalid Pass Mark
-
-```sql
--- Try to insert exam with invalid pass mark
-INSERT INTO exams (
-  tenant_id, title, subject, class, duration,
-  pass_mark, total_marks, status, created_by
-) VALUES (
-  '550e8400-e29b-41d4-a716-446655440000',
-  'Invalid Exam',
-  'Test',
-  '10A',
-  30,
-  150,  -- Invalid! Must be 0-100
-  100,
-  'Draft',
-  '550e8400-e29b-41d4-a716-446655440001'
-);
-
--- Expected: ERROR - violates check constraint "exams_pass_mark_check"
-```
-
-### Test 4: Invalid Total Marks
-
-```sql
--- Try to insert exam with total_marks <= pass_mark
-INSERT INTO exams (
-  tenant_id, title, subject, class, duration,
-  pass_mark, total_marks, status, created_by
-) VALUES (
-  '550e8400-e29b-41d4-a716-446655440000',
-  'Invalid Exam',
-  'Test',
-  '10A',
-  30,
-  80,
-  50,  -- Invalid! Must be > pass_mark
-  'Draft',
-  '550e8400-e29b-41d4-a716-446655440001'
-);
-
--- Expected: ERROR - violates check constraint "exams_valid_marks"
+-- Verify cascade delete
+SELECT * FROM exam_questions WHERE examId = 'test-exam-1';
+-- Expected: No rows returned (cascade delete worked)
 ```
 
 ## Performance Testing
@@ -493,125 +271,241 @@ INSERT INTO exams (
 ### Test 1: Index Performance
 
 ```sql
--- Test index usage for tenant filtering
+-- Create test data (1000 questions)
+INSERT INTO questions_bank (id, tenantId, text, type, difficulty, subject, createdBy)
+SELECT
+    'q-' || i,
+    'test-tenant-1',
+    'Question ' || i,
+    CASE WHEN i % 3 = 0 THEN 'objective' WHEN i % 3 = 1 THEN 'truefalse' ELSE 'essay' END,
+    CASE WHEN i % 3 = 0 THEN 'Easy' WHEN i % 3 = 1 THEN 'Medium' ELSE 'Hard' END,
+    'Math',
+    'test-user-1'
+FROM generate_series(1, 1000) AS i;
+
+-- Test query with index (should be fast)
 EXPLAIN ANALYZE
 SELECT * FROM questions_bank 
-WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000';
+WHERE tenantId = 'test-tenant-1' AND subject = 'Math' AND difficulty = 'Easy';
 
--- Expected: Uses index idx_questions_tenant
--- Seq Scan should NOT appear (unless table is very small)
+-- Expected: Index scan, execution time < 10ms
 ```
 
-### Test 2: Foreign Key Performance
+### Test 2: Query Performance
 
 ```sql
--- Test join performance
+-- Test complex query performance
 EXPLAIN ANALYZE
-SELECT e.title, COUNT(eq.id) as question_count
+SELECT 
+    e.title,
+    COUNT(eq.id) as question_count,
+    COUNT(DISTINCT sep.studentId) as student_count
 FROM exams e
-LEFT JOIN exam_questions eq ON e.id = eq.exam_id
-WHERE e.tenant_id = '550e8400-e29b-41d4-a716-446655440000'
+LEFT JOIN exam_questions eq ON e.id = eq.examId
+LEFT JOIN student_exam_progress sep ON e.id = sep.examId
+WHERE e.tenantId = 'test-tenant-1' AND e.deletedAt IS NULL
 GROUP BY e.id, e.title;
 
--- Expected: Uses indexes for joins
+-- Expected: Execution time < 100ms
 ```
 
-### Test 3: Soft Delete Performance
+## Data Integrity Testing
+
+### Test 1: Referential Integrity
 
 ```sql
--- Test soft delete query performance
-EXPLAIN ANALYZE
-SELECT * FROM questions_bank 
-WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000'
-AND deleted_at IS NULL;
+-- Verify all foreign keys are valid
+SELECT 
+    'questions_bank' as table_name,
+    COUNT(*) as invalid_count
+FROM questions_bank qb
+WHERE qb.tenantId NOT IN (SELECT id FROM tenants)
+UNION ALL
+SELECT 
+    'exams',
+    COUNT(*)
+FROM exams e
+WHERE e.tenantId NOT IN (SELECT id FROM tenants)
+UNION ALL
+SELECT 
+    'exam_questions',
+    COUNT(*)
+FROM exam_questions eq
+WHERE eq.examId NOT IN (SELECT id FROM exams)
+   OR eq.questionId NOT IN (SELECT id FROM questions_bank);
 
--- Expected: Uses index idx_questions_deleted
+-- Expected: All counts should be 0
 ```
 
-## Cleanup
-
-After testing, clean up test data:
+### Test 2: Unique Constraint Integrity
 
 ```sql
--- Delete test data (in reverse order of dependencies)
-DELETE FROM proctoring_logs WHERE exam_id = exam_id;
-DELETE FROM security_settings WHERE exam_id = exam_id;
-DELETE FROM student_answers WHERE result_id IN (
-  SELECT id FROM exam_results WHERE exam_id = exam_id
-);
-DELETE FROM exam_results WHERE exam_id = exam_id;
-DELETE FROM student_exam_progress WHERE exam_id = exam_id;
-DELETE FROM exam_questions WHERE exam_id = exam_id;
-DELETE FROM exams WHERE id = exam_id;
-DELETE FROM questions_bank WHERE subject = 'Geography';
+-- Verify unique constraints
+SELECT 
+    'users' as table_name,
+    COUNT(*) as duplicate_count
+FROM (
+    SELECT tenantId, email, COUNT(*) as cnt
+    FROM users
+    WHERE deletedAt IS NULL
+    GROUP BY tenantId, email
+    HAVING COUNT(*) > 1
+) t
+UNION ALL
+SELECT 
+    'exam_questions',
+    COUNT(*)
+FROM (
+    SELECT examId, questionId, COUNT(*) as cnt
+    FROM exam_questions
+    GROUP BY examId, questionId
+    HAVING COUNT(*) > 1
+) t;
 
--- Verify cleanup
-SELECT COUNT(*) FROM exams;
-SELECT COUNT(*) FROM questions_bank;
+-- Expected: All counts should be 0
+```
+
+## Rollback Testing
+
+### Test Rollback Procedure
+
+```bash
+# Create a backup before testing rollback
+pg_dump $DATABASE_URL > backup_before_rollback.sql
+
+# Execute rollback (DEVELOPMENT ONLY)
+psql $DATABASE_URL < prisma/migrations/rollback.sql
+
+# Verify tables are dropped
+psql $DATABASE_URL -c "\dt public.*"
+
+# Expected: No CBT tables should exist
+
+# Restore from backup
+psql $DATABASE_URL < backup_before_rollback.sql
+
+# Verify tables are restored
+psql $DATABASE_URL -c "\dt public.*"
+
+# Expected: All CBT tables should exist
+```
+
+## Troubleshooting
+
+### Issue: Migration Fails with "Table Already Exists"
+
+**Cause:** Tables already exist from previous migration attempt
+
+**Solution:**
+```bash
+# Check migration history
+npx prisma migrate status
+
+# If migration is marked as applied but tables don't exist:
+npx prisma migrate resolve --rolled-back 0_init
+
+# Re-apply migration
+npx prisma migrate deploy
+```
+
+### Issue: Foreign Key Constraint Violation
+
+**Cause:** Attempting to delete a record that is referenced by other records
+
+**Solution:**
+```sql
+-- Find referencing records
+SELECT * FROM exam_questions WHERE examId = 'exam-id';
+
+-- Delete referencing records first
+DELETE FROM exam_questions WHERE examId = 'exam-id';
+
+-- Then delete the exam
+DELETE FROM exams WHERE id = 'exam-id';
+```
+
+### Issue: Unique Constraint Violation
+
+**Cause:** Attempting to insert duplicate data
+
+**Solution:**
+```sql
+-- Check for existing records
+SELECT * FROM exam_questions 
+WHERE examId = 'exam-id' AND questionId = 'question-id';
+
+-- If record exists, update instead of insert
+UPDATE exam_questions 
+SET marks = 10.00 
+WHERE examId = 'exam-id' AND questionId = 'question-id';
+```
+
+### Issue: Index Performance Degradation
+
+**Cause:** Indexes not being used or statistics are stale
+
+**Solution:**
+```sql
+-- Analyze table statistics
+ANALYZE questions_bank;
+ANALYZE exams;
+ANALYZE exam_questions;
+
+-- Reindex if necessary
+REINDEX TABLE questions_bank;
+REINDEX TABLE exams;
+REINDEX TABLE exam_questions;
 ```
 
 ## Verification Checklist
 
-After running all tests, verify:
+After migration, verify:
 
-- [ ] All 8 tables created successfully
+- [ ] All 10 tables exist
 - [ ] All columns have correct data types
-- [ ] All constraints are enforced
-- [ ] All indexes are created
-- [ ] All foreign keys are working
-- [ ] Insert operations work correctly
-- [ ] Update operations work correctly
-- [ ] Delete operations work correctly
-- [ ] Soft delete functionality works
-- [ ] Constraint violations are caught
-- [ ] Index performance is good
-- [ ] No orphaned data exists
+- [ ] All indexes are created (40+)
+- [ ] All foreign keys are established (20+)
+- [ ] All unique constraints are in place
+- [ ] Soft delete columns exist (deletedAt)
+- [ ] Test data can be inserted
+- [ ] Soft deletes work correctly
+- [ ] Foreign key constraints are enforced
+- [ ] Unique constraints are enforced
+- [ ] Cascade deletes work correctly
+- [ ] Query performance is acceptable
+- [ ] Referential integrity is maintained
+- [ ] No orphaned records exist
 
-## Troubleshooting
+## Post-Migration Steps
 
-### Issue: "Relation does not exist"
+1. **Update API Layer**
+   - Ensure all API endpoints use the new schema
+   - Update validation rules
+   - Test all CRUD operations
 
-```bash
-# Verify table exists
-psql -h localhost -U postgres -d school_management -c "\dt questions_bank"
+2. **Update Frontend Components**
+   - Verify components work with new schema
+   - Test data fetching and display
+   - Test form submissions
 
-# If not found, re-run migrations
-psql -h localhost -U postgres -d school_management \
-  -f api/tenant/cbt/_lib/migrations/001_create_cbt_tables.sql
-```
+3. **Run Integration Tests**
+   - Execute full test suite
+   - Verify all tests pass
+   - Check code coverage
 
-### Issue: "Constraint violation"
+4. **Monitor Performance**
+   - Monitor query performance
+   - Check for slow queries
+   - Monitor database size growth
 
-```bash
-# Check constraint definition
-SELECT constraint_name, constraint_definition
-FROM information_schema.check_constraints
-WHERE table_name = 'exams';
+5. **Document Changes**
+   - Update API documentation
+   - Update database documentation
+   - Update deployment guide
 
-# Verify data meets constraints before inserting
-```
+## Support
 
-### Issue: "Index not being used"
-
-```bash
-# Analyze table statistics
-ANALYZE questions_bank;
-
-# Reindex if necessary
-REINDEX TABLE questions_bank;
-
-# Check query plan
-EXPLAIN ANALYZE SELECT * FROM questions_bank WHERE tenant_id = '...';
-```
-
-## Next Steps
-
-After successful verification:
-
-1. ✅ Document any custom configurations
-2. ✅ Set up automated backups
-3. ✅ Configure monitoring and alerts
-4. ✅ Deploy to production
-5. ✅ Monitor performance in production
-
-</content>
+For migration issues or questions, please refer to:
+- Database Schema Documentation: `docs/CBT_DATABASE_SCHEMA.md`
+- API Documentation: `docs/API_DOCUMENTATION.md`
+- Troubleshooting Guide: `docs/TROUBLESHOOTING.md`

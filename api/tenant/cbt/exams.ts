@@ -16,6 +16,7 @@ import {
   endExam,
   getExamStats,
 } from './_lib/exams.js'
+import { initializeDatabase, runMigrations } from './_lib/db.js'
 import type { ExamFilter, CreateExamInput, UpdateExamInput } from './_lib/types.js'
 
 /**
@@ -70,6 +71,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
   const { id, action } = req.query
+
+  // Initialize database on first request
+  try {
+    initializeDatabase()
+    await runMigrations()
+  } catch (error: any) {
+    console.error('Database initialization error:', error)
+    return res.status(503).json({
+      success: false,
+      error: 'Database initialization failed: ' + error.message,
+    })
+  }
 
   // Validate tenant ID
   if (!validateTenantId(tenantId, res)) {

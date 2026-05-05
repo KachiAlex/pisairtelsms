@@ -62,39 +62,242 @@ function validateUserId(userId: string | undefined, res: VercelResponse): boolea
 }
 
 /**
- * Convert CSV to questions array
+ * Normalise a raw header string to a canonical key.
+ * Strips whitespace, lowercases, and collapses common variants.
  */
-function parseCSV(csvContent: string): any[] {
-  const lines = csvContent.trim().split('\n')
-  if (lines.length < 2) {
-    throw new Error('CSV must contain header and at least one data row')
+function normaliseHeader(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * Map a normalised header to our internal field name.
+ * Accepts many common spreadsheet column name variants.
+ */
+function mapHeader(norm: string): string | null {
+  // Question text
+  if (['question', 'questiontext', 'text', 'stem', 'body', 'que'].includes(norm)) return 'text'
+  // Question type
+  if (['type', 'questiontype', 'qtype', 'kind'].includes(norm)) return 'type'
+  // Options (generic JSON array column)
+  if (norm === 'options') return 'options'
+  // Individual option columns: optiona / option_a / option1 / a / choice1 etc.
+  if (['optiona', 'option1', 'choicea', 'choice1', 'answera', 'a'].includes(norm)) return 'optionA'
+  if (['optionb', 'option2', 'choiceb', 'choice2', 'answerb', 'b'].includes(norm)) return 'optionB'
+  if (['optionc', 'option3', 'choicec', 'choice3', 'answerc', 'c'].includes(norm)) return 'optionC'
+  if (['optiond', 'option4', 'choiced', 'choice4', 'answerd', 'd'].includes(norm)) return 'optionD'
+  if (['optione', 'option5', 'choicee', 'choice5', 'answere', 'e'].includes(norm)) return 'optionE'
+  // Correct answer
+  if (['correctanswer', 'answer', 'correct', 'key', 'answerkey', 'rightanswer', 'correctoption'].includes(norm)) return 'correctAnswer'
+  // Difficulty
+  if (['difficulty', 'level', 'difflevel', 'difficultyLevel'].includes(norm)) return 'difficulty'
+  // Subject
+  if (['subject', 'topic', 'course', 'category', 'section'].includes(norm)) return 'subject'
+  // Tags
+  if (['tags', 'tag', 'keywords', 'labels'].includes(norm)) return 'tags'
+  // Points / marks (informational, not stored but accepted)
+  if (['points', 'marks', 'score', 'weight'].includes(norm)) return 'points'
+  // Explanation (informational)
+  if (['explanation', 'rationale', 'reason', 'explanationoptions', 'explanationoption'].includes(norm)) return 'explanation'
+  return null
+}
+
+/**
+ * Convert a row object (with mapped field names) into a question payload.
+ * Handles both the "options array" format and the "Option A/B/C/D" column format.
+ */
+function rowToQuestion(row: Record<string, string>): any {
+  // Build options array from individual columns if present
+  const individualOptions: string[] = []
+  for (const key of ['optionA', 'optionB', 'optionC', 'optionD', 'optionE']) {
+    if (row[key] !== undefined && row[key].trim() !== '') {
+      individualOptions.push(row[key].trim())
+    }
   }
 
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-  const questions: any[] = []
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim())
-    if (values.length !== headers.length) {
-      throw new Error(`Row ${i + 1} has incorrect number of columns`)
+  let options: string[] = []
+  if (individualOptions.length > 0) {
+    options = individualOptions
+  } else if (row.options) {
+    try {
+      options = JSON.parse(row.options)
+    } catch {
+      options = row.options.split('|').map((o: string) => o.trim()).filter(Boolean)
     }
+  }
 
-    const question: any = {}
-    headers.forEach((header, index) => {
-      const value = values[index]
-      if (header === 'options') {
-        question[header] = value ? JSON.parse(value) : []
-      } else if (header === 'tags') {
-        question[header] = value ? JSON.parse(value) : []
+  // Normalise type: accept "MULTIPLE_CHOICE", "MCQ", "objective", "truefalse", "essay" etc.
+  let type = (row.type || 'objective').trim().toLowerCase()
+  if (['multiple_choice', 'mcq', 'multiplechoice', 'mc', 'objective'].includes(type)) type = 'objective'
+  else if (['true_false', 'truefalse', 'tf', 'boolean', 'yes_no'].includes(type)) type = 'truefalse'
+  else if (['essay', 'short_answer', 'shortanswer', 'open', 'freetext', 'free_text'].includes(type)) type = 'essay'
+  else type = 'objective' // default
+
+  // Normalise difficulty
+  let difficulty = (row.difficulty || 'Medium').trim()
+  const diffLower = difficulty.toLowerCase()
+  if (['easy', 'low', 'simple', '1'].includes(diffLower)) difficulty = 'Easy'
+  else if (['hard', 'difficult', 'high', 'complex', '3'].includes(diffLower)) difficulty = 'Hard'
+  else difficulty = 'Medium'
+
+  // Normalise correct answer: accept "A", "B", "1", "2", "True", "False", full option text
+  let correctAnswer = (row.correctAnswer || '').trim()
+  // If it's a number like "1" → convert to letter "A"
+  if (/^[1-5]$/.test(correctAnswer)) {
+    correctAnswer = String.fromCharCode(64 + parseInt(correctAnswer)) // "1"→"A"
+  }
+  // Uppercase single letter
+  if (/^[a-e]$/.test(correctAnswer)) {
+    correctAnswer = correctAnswer.toUpperCase()
+  }
+  // "True"/"False" for truefalse questions → "A"/"B"
+  if (type === 'truefalse') {
+    if (correctAnswer.toLowerCase() === 'true') correctAnswer = 'A'
+    else if (correctAnswer.toLowerCase() === 'false') correctAnswer = 'B'
+  }
+
+  // Tags
+  let tags: string[] = []
+  if (row.tags) {
+    try {
+      tags = JSON.parse(row.tags)
+    } catch {
+      tags = row.tags.split(/[,;|]/).map((t: string) => t.trim()).filter(Boolean)
+    }
+  }
+
+  return {
+    text: (row.text || '').trim(),
+    type,
+    options,
+    correctAnswer,
+    difficulty,
+    subject: (row.subject || 'General').trim() || 'General',
+    tags,
+  }
+}
+
+/**
+ * Parse a plain-text CSV string into question rows.
+ * Handles quoted fields and common delimiters (, or ;).
+ */
+function parseCSVText(csvContent: string): any[] {
+  const lines = csvContent.trim().split(/\r?\n/)
+  if (lines.length < 2) {
+    throw new Error('CSV must contain a header row and at least one data row')
+  }
+
+  // Detect delimiter: use semicolon if the header has more semicolons than commas
+  const headerLine = lines[0]
+  const delimiter = (headerLine.split(';').length > headerLine.split(',').length) ? ';' : ','
+
+  // Simple CSV field splitter that respects double-quoted fields
+  function splitCSVLine(line: string): string[] {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if (ch === delimiter && !inQuotes) {
+        result.push(current.trim())
+        current = ''
       } else {
-        question[header] = value
+        current += ch
       }
-    })
+    }
+    result.push(current.trim())
+    return result
+  }
 
-    questions.push(question)
+  const rawHeaders = splitCSVLine(headerLine)
+  const mappedHeaders = rawHeaders.map(h => mapHeader(normaliseHeader(h)))
+
+  const questions: any[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+    const values = splitCSVLine(line)
+    const row: Record<string, string> = {}
+    mappedHeaders.forEach((field, idx) => {
+      if (field) row[field] = values[idx] ?? ''
+    })
+    if (!row.text) continue // skip rows with no question text
+    questions.push(rowToQuestion(row))
   }
 
   return questions
+}
+
+/**
+ * Parse a base64-encoded Excel (.xlsx/.xls) file into question rows.
+ * Uses the 'xlsx' (SheetJS) library which is already in package.json.
+ */
+async function parseExcelBase64(base64: string): Promise<any[]> {
+  // Dynamic import so the module is only loaded when needed
+  const XLSX = await import('xlsx')
+  const buffer = Buffer.from(base64, 'base64')
+  const workbook = XLSX.read(buffer, { type: 'buffer' })
+
+  // Use the first sheet
+  const sheetName = workbook.SheetNames[0]
+  if (!sheetName) throw new Error('Excel file contains no sheets')
+  const sheet = workbook.Sheets[sheetName]
+
+  // Convert to array-of-arrays (raw values)
+  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+  if (rows.length < 2) throw new Error('Excel sheet must have a header row and at least one data row')
+
+  const rawHeaders: string[] = rows[0].map((h: any) => String(h ?? ''))
+  const mappedHeaders = rawHeaders.map(h => mapHeader(normaliseHeader(h)))
+
+  const questions: any[] = []
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i]
+    const row: Record<string, string> = {}
+    mappedHeaders.forEach((field, idx) => {
+      if (field) row[field] = String(values[idx] ?? '').trim()
+    })
+    if (!row.text) continue // skip empty rows
+    questions.push(rowToQuestion(row))
+  }
+
+  return questions
+}
+
+/**
+ * Parse imported file content (base64 or plain text) into question rows.
+ * Supports CSV and Excel formats with flexible column naming.
+ */
+async function parseImportContent(content: string, filename: string): Promise<any[]> {
+  const isExcel = /\.(xlsx|xls)$/i.test(filename || '')
+
+  if (isExcel) {
+    return parseExcelBase64(content)
+  }
+
+  // For CSV: content may be base64-encoded or plain text
+  let csvText = content
+  // Detect base64: no newlines and only base64 chars
+  if (!/\n/.test(content) && /^[A-Za-z0-9+/]+=*$/.test(content.replace(/\s/g, ''))) {
+    csvText = Buffer.from(content, 'base64').toString('utf-8')
+  } else if (content.startsWith('data:')) {
+    // Strip data URL prefix
+    const comma = content.indexOf(',')
+    const raw = comma !== -1 ? content.slice(comma + 1) : content
+    csvText = Buffer.from(raw, 'base64').toString('utf-8')
+  }
+
+  return parseCSVText(csvText)
+}
+
+/**
+ * @deprecated Use parseImportContent instead.
+ * Kept for backward compatibility with any direct callers.
+ */
+function parseCSV(csvContent: string): any[] {
+  return parseCSVText(csvContent)
 }
 
 /**
@@ -268,13 +471,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, error: 'Request body is required' })
     }
 
-    const { csvContent } = body
-    if (!csvContent) {
-      return res.status(400).json({ success: false, error: 'csvContent is required' })
+    // Accept both legacy { csvContent } and new { content, filename } payloads
+    const csvContent: string | undefined = body.csvContent
+    const fileContent: string | undefined = body.content
+    const filename: string = body.filename || 'import.csv'
+
+    if (!csvContent && !fileContent) {
+      return res.status(400).json({ success: false, error: 'content or csvContent is required' })
     }
 
     try {
-      const questionsData = parseCSV(csvContent)
+      const questionsData = csvContent
+        ? parseCSVText(csvContent)
+        : await parseImportContent(fileContent!, filename)
       const results = {
         imported: 0,
         failed: 0,

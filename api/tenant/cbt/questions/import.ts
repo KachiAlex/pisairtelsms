@@ -1,9 +1,53 @@
 /**
  * POST /api/tenant/cbt/questions/import
  * Imports questions from CSV or Excel content.
+ * 
  * Accepts JSON body: { content: string, filename: string }
- * - CSV: content is the raw CSV text
+ * - CSV: content is the raw CSV text (can be base64-encoded or plain text)
  * - Excel: content is base64-encoded xlsx data
+ * 
+ * EXPECTED CSV FORMAT:
+ * Headers (case-insensitive, flexible naming):
+ * - Question/QuestionText/Text: The question text (required)
+ * - Type/QuestionType: objective, truefalse, or essay (default: objective)
+ * - Option A/Option1/ChoiceA: First option (for objective questions)
+ * - Option B/Option2/ChoiceB: Second option
+ * - Option C/Option3/ChoiceC: Third option
+ * - Option D/Option4/ChoiceD: Fourth option
+ * - Option E/Option5/ChoiceE: Fifth option (optional)
+ * - CorrectAnswer/Answer/Key: A, B, C, D, or E (or 1, 2, 3, 4, 5)
+ * - Difficulty/Level: Easy, Medium, or Hard (default: Medium)
+ * - Subject/Topic/Course: Subject name (default: General)
+ * - Tags/Keywords: Comma or pipe-separated tags
+ * 
+ * SAMPLE QUESTIONS:
+ * Objective (Multiple Choice):
+ * "What is 2 + 2?","objective","3","4","5","6","B","Easy","Mathematics","basic arithmetic"
+ * 
+ * True/False:
+ * "The Earth is flat.","truefalse","True","False","","","B","Easy","Science","basic facts"
+ * 
+ * Essay:
+ * "Explain the process of photosynthesis.","essay","","","","","Medium","Biology","plant biology"
+ * 
+ * ALTERNATIVE FORMAT (single options column):
+ * You can also use a single "options" column with pipe-separated values:
+ * "What is 2 + 2?","objective","3|4|5|6","B","Easy","Mathematics","basic arithmetic"
+ * 
+ * TYPE NORMALIZATION:
+ * - objective, multiple_choice, mcq, multiple choice → objective
+ * - truefalse, true_false, tf, boolean → truefalse
+ * - essay, short_answer, shortanswer → essay
+ * 
+ * DIFFICULTY NORMALIZATION:
+ * - easy, low, simple, 1 → Easy
+ * - hard, difficult, high, complex, 3 → Hard
+ * - anything else → Medium
+ * 
+ * CORRECT ANSWER NORMALIZATION:
+ * - Numbers 1-5 → Letters A-E
+ * - Lowercase letters → Uppercase
+ * - True/False → A/B for truefalse questions
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'

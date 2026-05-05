@@ -301,6 +301,16 @@ function parseCSV(csvContent: string): any[] {
 }
 
 /**
+ * Escape a CSV field value (quote if needed)
+ */
+function escapeCSVField(value: string): string {
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    return '"' + value.replace(/"/g, '""') + '"'
+  }
+  return value
+}
+
+/**
  * Convert questions to CSV
  */
 function generateCSV(questions: any[]): string {
@@ -314,10 +324,13 @@ function generateCSV(questions: any[]): string {
   for (const question of questions) {
     const row = headers.map(header => {
       const value = question[header]
+      let stringValue: string
       if (header === 'options' || header === 'tags') {
-        return JSON.stringify(value || [])
+        stringValue = JSON.stringify(value || [])
+      } else {
+        stringValue = String(value || '')
       }
-      return String(value || '')
+      return escapeCSVField(stringValue)
     })
     rows.push(row.join(','))
   }
@@ -548,31 +561,184 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (sample === 'true') {
         const sampleQuestions = [
           {
-            text: 'What is the capital of France?',
+            text: 'What is software development?',
             type: 'objective',
-            options: ['Paris', 'London', 'Berlin', 'Madrid'],
+            options: ['The process of designing, coding, testing, and maintaining software applications', 'Only writing code', 'Just testing software', 'Installing software on computers'],
             correctAnswer: 'A',
             difficulty: 'Easy',
-            subject: 'Geography',
-            tags: ['capitals', 'europe'],
+            subject: 'Software Development',
+            tags: ['fundamentals', 'definition'],
           },
           {
-            text: 'Is the Earth flat?',
-            type: 'truefalse',
-            options: ['True', 'False'],
-            correctAnswer: 'B',
-            difficulty: 'Easy',
-            subject: 'Science',
-            tags: ['earth', 'basic'],
-          },
-          {
-            text: 'Explain the water cycle.',
-            type: 'essay',
-            options: [],
-            correctAnswer: '',
+            text: 'Which layer is responsible for the user interface in a three-tier architecture?',
+            type: 'objective',
+            options: ['Presentation Layer', 'Business Logic Layer', 'Data Access Layer', 'Database Layer'],
+            correctAnswer: 'A',
             difficulty: 'Medium',
-            subject: 'Science',
-            tags: ['water', 'cycles'],
+            subject: 'Software Development',
+            tags: ['architecture', 'layers'],
+          },
+          {
+            text: 'What does MVC stand for?',
+            type: 'objective',
+            options: ['Model-View-Controller', 'Model-Validation-Component', 'Module-View-Code', 'Memory-Virtual-Cache'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['design-patterns', 'mvc'],
+          },
+          {
+            text: 'Which of the following is a version control system?',
+            type: 'objective',
+            options: ['Git', 'Python', 'JavaScript', 'MySQL'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['tools', 'version-control'],
+          },
+          {
+            text: 'What is the primary purpose of unit testing?',
+            type: 'objective',
+            options: ['To test individual components or functions in isolation', 'To test the entire application', 'To deploy the application', 'To document the code'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['testing', 'quality-assurance'],
+          },
+          {
+            text: 'Which programming paradigm focuses on objects and classes?',
+            type: 'objective',
+            options: ['Object-Oriented Programming', 'Functional Programming', 'Procedural Programming', 'Declarative Programming'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['programming-paradigms', 'oop'],
+          },
+          {
+            text: 'What is an API?',
+            type: 'objective',
+            options: ['Application Programming Interface - a set of rules for software communication', 'Advanced Programming Interface', 'Application Process Integration', 'Automated Programming Interface'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['apis', 'fundamentals'],
+          },
+          {
+            text: 'Which of the following is a relational database?',
+            type: 'objective',
+            options: ['MySQL', 'MongoDB', 'Redis', 'Elasticsearch'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['databases', 'sql'],
+          },
+          {
+            text: 'What does REST stand for?',
+            type: 'objective',
+            options: ['Representational State Transfer', 'Remote Execution Service Transfer', 'Resource Exchange Service Technology', 'Reliable Endpoint Service Transfer'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['rest-api', 'web-services'],
+          },
+          {
+            text: 'Which of the following is a NoSQL database?',
+            type: 'objective',
+            options: ['MongoDB', 'PostgreSQL', 'Oracle', 'SQL Server'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['databases', 'nosql'],
+          },
+          {
+            text: 'What is the purpose of a code review?',
+            type: 'objective',
+            options: ['To ensure code quality, catch bugs, and share knowledge among team members', 'To slow down development', 'To criticize developers', 'To replace testing'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['best-practices', 'collaboration'],
+          },
+          {
+            text: 'Which design pattern is used to create objects without specifying their exact classes?',
+            type: 'objective',
+            options: ['Factory Pattern', 'Singleton Pattern', 'Observer Pattern', 'Strategy Pattern'],
+            correctAnswer: 'A',
+            difficulty: 'Hard',
+            subject: 'Software Development',
+            tags: ['design-patterns', 'creational'],
+          },
+          {
+            text: 'What is continuous integration?',
+            type: 'objective',
+            options: ['Automatically building and testing code changes frequently', 'Manually testing code once a month', 'Integrating code only at the end of the project', 'Using only one programming language'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['devops', 'ci-cd'],
+          },
+          {
+            text: 'Which HTTP method is used to retrieve data?',
+            type: 'objective',
+            options: ['GET', 'POST', 'PUT', 'DELETE'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['http', 'web-services'],
+          },
+          {
+            text: 'What is the difference between authentication and authorization?',
+            type: 'objective',
+            options: ['Authentication verifies identity; authorization determines permissions', 'They are the same thing', 'Authorization comes before authentication', 'Authentication is for databases only'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['security', 'access-control'],
+          },
+          {
+            text: 'Which of the following is a JavaScript framework?',
+            type: 'objective',
+            options: ['React', 'Django', 'Spring', 'Laravel'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['javascript', 'frameworks'],
+          },
+          {
+            text: 'What is the purpose of middleware in web applications?',
+            type: 'objective',
+            options: ['To process requests and responses between client and server', 'To store data', 'To display user interfaces', 'To manage databases'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['web-development', 'architecture'],
+          },
+          {
+            text: 'Which principle states that a class should have only one reason to change?',
+            type: 'objective',
+            options: ['Single Responsibility Principle', 'Open/Closed Principle', 'Liskov Substitution Principle', 'Interface Segregation Principle'],
+            correctAnswer: 'A',
+            difficulty: 'Hard',
+            subject: 'Software Development',
+            tags: ['solid-principles', 'design'],
+          },
+          {
+            text: 'What is Docker used for?',
+            type: 'objective',
+            options: ['Containerizing applications for consistent deployment', 'Writing HTML code', 'Managing databases', 'Creating user interfaces'],
+            correctAnswer: 'A',
+            difficulty: 'Medium',
+            subject: 'Software Development',
+            tags: ['devops', 'containerization'],
+          },
+          {
+            text: 'Which of the following is a version of the HTTP protocol that uses encryption?',
+            type: 'objective',
+            options: ['HTTPS', 'HTTP/2', 'HTTP/1.1', 'FTP'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Software Development',
+            tags: ['security', 'http', 'encryption'],
           },
         ]
         const csv = generateCSV(sampleQuestions)

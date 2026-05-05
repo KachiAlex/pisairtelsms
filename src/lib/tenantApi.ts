@@ -5,6 +5,25 @@
 
 const TENANT_ID = 'default-tenant';
 
+function getAuthHeaders(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem('auth');
+    if (stored) {
+      const auth = JSON.parse(stored);
+      const headers: Record<string, string> = {
+        'x-tenant-id': auth.tenantId || TENANT_ID,
+      };
+      if (auth.userId) {
+        headers['x-user-id'] = auth.userId;
+      }
+      return headers;
+    }
+  } catch {
+    // fall through
+  }
+  return { 'x-tenant-id': TENANT_ID };
+}
+
 interface FetchOptions extends RequestInit {
   headers?: Record<string, string>;
 }
@@ -14,7 +33,7 @@ export async function tenantApiFetch(
   options: FetchOptions = {}
 ): Promise<Response> {
   const headers = {
-    'x-tenant-id': TENANT_ID,
+    ...getAuthHeaders(),
     ...options.headers,
   };
 

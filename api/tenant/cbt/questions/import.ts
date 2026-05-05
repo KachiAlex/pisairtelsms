@@ -105,9 +105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!tenantId) {
     return res.status(400).json({ success: false, error: 'x-tenant-id header is required' })
   }
-  if (!userId) {
-    return res.status(401).json({ success: false, error: 'x-user-id header is required' })
-  }
+  // userId is optional - fall back to 'admin' if not provided
+  const effectiveUserId = userId || 'admin'
 
   try {
     initializeDatabase()
@@ -197,7 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           tags: Array.isArray(questionData.tags) ? questionData.tags : [],
         }
 
-        await createQuestion(tenantId, userId, input)
+        await createQuestion(tenantId, effectiveUserId, input)
         results.imported++
       } catch (error: any) {
         results.failed++

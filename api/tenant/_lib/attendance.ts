@@ -949,21 +949,21 @@ export async function identifyAtRiskStudents(
 
     // Build HAVING clause — reason filter applies to the dominant absence reason
     // We filter by reason after the aggregation if provided
+    // Note: students and classes tables may not exist in all deployments,
+    // so we query attendance_records directly without joins.
     const rows = await queryAll<any>(
       `SELECT
         ar.student_id,
-        s.name,
+        ar.student_id as name,
         ar.class,
         COUNT(*) as total_days,
         SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END) as present_days,
         SUM(CASE WHEN ar.status = 'absent' THEN 1 ELSE 0 END) as absent_days,
         SUM(CASE WHEN ar.status = 'late' THEN 1 ELSE 0 END) as late_days,
-        c.advisor_name as owner
+        NULL as owner
        FROM attendance_records ar
-       LEFT JOIN students s ON s.id = ar.student_id AND s.tenant_id = ar.tenant_id
-       LEFT JOIN classes c ON c.name = ar.class AND c.tenant_id = ar.tenant_id
        WHERE ${whereClause}
-       GROUP BY ar.student_id, s.name, ar.class, c.advisor_name
+       GROUP BY ar.student_id, ar.class
        HAVING COUNT(*) > 0 AND
          (SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END)::float / COUNT(*)) < 0.85
        ORDER BY (SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END)::float / COUNT(*)) ASC`,

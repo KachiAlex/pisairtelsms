@@ -20,7 +20,7 @@ import { Button } from '../ui/button'
 
 import { StaffDashboard } from '../pages/staff/StaffDashboard'
 import { MyTimetable } from '../pages/staff/MyTimetable'
-import { AttendanceMarking } from '../pages/staff/AttendanceMarking'
+import { TeacherAttendanceEntry } from '../pages/staff/TeacherAttendanceEntry'
 import { LeaveManagement } from '../pages/staff/LeaveManagement'
 import { PayslipViewer } from '../pages/staff/PayslipViewer'
 import { ClassLists } from '../pages/staff/ClassLists'
@@ -68,7 +68,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
       case 'timetable':
         return <MyTimetable />
       case 'attendance':
-        return <AttendanceMarking />
+        return <TeacherAttendanceEntry />
       case 'leave':
         return <LeaveManagement />
       case 'payslips':

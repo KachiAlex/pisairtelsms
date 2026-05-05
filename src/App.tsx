@@ -109,7 +109,10 @@ export default function App() {
         return <StudentDocuments />;
       case 'student-health':
         return <StudentHealth />;
+      case 'attendance':
       case 'student-attendance':
+      case 'staff-attendance':
+      case 'attendance-reports':
         return <StudentAttendance />;
       case 'cbt':
       case 'cbt-question-bank':

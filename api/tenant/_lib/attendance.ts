@@ -1131,7 +1131,7 @@ export async function calculateHomeroomLeaderboard(
         SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count,
         COUNT(*) as total_records,
         ROUND(
-          (SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)) * 100,
+          ((SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0)) * 100)::numeric,
           1
         ) as rate
        FROM attendance_records

@@ -20,9 +20,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Initialize database connection
     initializeDatabase()
 
-    // Run migrations
-    await runMigrations()
-
+    // Note: runMigrations() is intentionally not called here.
+    // Tables are managed via direct SQL migrations applied to the database.
     // Check database health
     const isHealthy = await healthCheck()
 

@@ -538,7 +538,7 @@ export function TeacherAttendanceEntry() {
               const status = record?.status || 'present'
               const reasonId = record?.absenceReasonId
               const reason = reasonId
-                ? ABSENCE_REASONS.find((r) => r.id === reasonId)?.reasonName
+                ? absenceReasonsList.find((r) => r.id === reasonId)?.reasonName
                 : undefined
 
               return (

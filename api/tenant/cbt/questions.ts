@@ -98,6 +98,8 @@ function mapHeader(norm: string): string | null {
   if (['points', 'marks', 'score', 'weight'].includes(norm)) return 'points'
   // Explanation (informational)
   if (['explanation', 'rationale', 'reason', 'explanationoptions', 'explanationoption'].includes(norm)) return 'explanation'
+  // Explanation Options (same as explanation)
+  if (['explanationoptions'].includes(norm)) return 'explanation'
   return null
 }
 
@@ -127,13 +129,14 @@ function rowToQuestion(row: Record<string, string>): any {
 
   // Normalise type: accept "MULTIPLE_CHOICE", "MCQ", "objective", "truefalse", "essay" etc.
   let type = (row.type || 'objective').trim().toLowerCase()
-  if (['multiple_choice', 'mcq', 'multiplechoice', 'mc', 'objective'].includes(type)) type = 'objective'
+  if (['multiple_choice', 'mcq', 'multiplechoice', 'mc', 'objective', 'multiple choice'].includes(type)) type = 'objective'
   else if (['true_false', 'truefalse', 'tf', 'boolean', 'yes_no'].includes(type)) type = 'truefalse'
   else if (['essay', 'short_answer', 'shortanswer', 'open', 'freetext', 'free_text'].includes(type)) type = 'essay'
   else type = 'objective' // default
 
-  // Normalise difficulty
+  // Normalise difficulty - if not provided, default to Medium
   let difficulty = (row.difficulty || 'Medium').trim()
+  if (difficulty === '') difficulty = 'Medium'
   const diffLower = difficulty.toLowerCase()
   if (['easy', 'low', 'simple', '1'].includes(diffLower)) difficulty = 'Easy'
   else if (['hard', 'difficult', 'high', 'complex', '3'].includes(diffLower)) difficulty = 'Hard'
@@ -559,28 +562,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // If sample=true, return a template with example questions in CSV format
       if (sample === 'true') {
-        // Generate CSV directly in the approved format for parsing
-        const csvContent = `text,type,options,correctAnswer,difficulty,subject,tags
-"What is software development?","objective","[""The process of designing, coding, testing, and maintaining software applications"",""Only writing code"",""Just testing software"",""Installing software on computers""]","A","Easy","Software Development","[""fundamentals"",""definition""]"
-"Which layer is responsible for the user interface in a three-tier architecture?","objective","[""Presentation Layer"",""Business Logic Layer"",""Data Access Layer"",""Database Layer""]","A","Medium","Software Development","[""architecture"",""layers""]"
-"What does MVC stand for?","objective","[""Model-View-Controller"",""Model-Validation-Component"",""Module-View-Code"",""Memory-Virtual-Cache""]","A","Easy","Software Development","[""design-patterns"",""mvc""]"
-"Which of the following is a version control system?","objective","[""Git"",""Python"",""JavaScript"",""MySQL""]","A","Easy","Software Development","[""tools"",""version-control""]"
-"What is the primary purpose of unit testing?","objective","[""To test individual components or functions in isolation"",""To test the entire application"",""To deploy the application"",""To document the code""]","A","Medium","Software Development","[""testing"",""quality-assurance""]"
-"Which programming paradigm focuses on objects and classes?","objective","[""Object-Oriented Programming"",""Functional Programming"",""Procedural Programming"",""Declarative Programming""]","A","Medium","Software Development","[""programming-paradigms"",""oop""]"
-"What is an API?","objective","[""Application Programming Interface - a set of rules for software communication"",""Advanced Programming Interface"",""Application Process Integration"",""Automated Programming Interface""]","A","Easy","Software Development","[""apis"",""fundamentals""]"
-"Which of the following is a relational database?","objective","[""MySQL"",""MongoDB"",""Redis"",""Elasticsearch""]","A","Easy","Software Development","[""databases"",""sql""]"
-"What does REST stand for?","objective","[""Representational State Transfer"",""Remote Execution Service Transfer"",""Resource Exchange Service Technology"",""Reliable Endpoint Service Transfer""]","A","Medium","Software Development","[""rest-api"",""web-services""]"
-"Which of the following is a NoSQL database?","objective","[""MongoDB"",""PostgreSQL"",""Oracle"",""SQL Server""]","A","Medium","Software Development","[""databases"",""nosql""]"
-"What is the purpose of a code review?","objective","[""To ensure code quality, catch bugs, and share knowledge among team members"",""To slow down development"",""To criticize developers"",""To replace testing""]","A","Easy","Software Development","[""best-practices"",""collaboration""]"
-"Which design pattern is used to create objects without specifying their exact classes?","objective","[""Factory Pattern"",""Singleton Pattern"",""Observer Pattern"",""Strategy Pattern""]","A","Hard","Software Development","[""design-patterns"",""creational""]"
-"What is continuous integration?","objective","[""Automatically building and testing code changes frequently"",""Manually testing code once a month"",""Integrating code only at the end of the project"",""Using only one programming language""]","A","Medium","Software Development","[""devops"",""ci-cd""]"
-"Which HTTP method is used to retrieve data?","objective","[""GET"",""POST"",""PUT"",""DELETE""]","A","Easy","Software Development","[""http"",""web-services""]"
-"What is the difference between authentication and authorization?","objective","[""Authentication verifies identity; authorization determines permissions"",""They are the same thing"",""Authorization comes before authentication"",""Authentication is for databases only""]","A","Medium","Software Development","[""security"",""access-control""]"
-"Which of the following is a JavaScript framework?","objective","[""React"",""Django"",""Spring"",""Laravel""]","A","Easy","Software Development","[""javascript"",""frameworks""]"
-"What is the purpose of middleware in web applications?","objective","[""To process requests and responses between client and server"",""To store data"",""To display user interfaces"",""To manage databases""]","A","Medium","Software Development","[""web-development"",""architecture""]"
-"Which principle states that a class should have only one reason to change?","objective","[""Single Responsibility Principle"",""Open/Closed Principle"",""Liskov Substitution Principle"",""Interface Segregation Principle""]","A","Hard","Software Development","[""solid-principles"",""design""]"
-"What is Docker used for?","objective","[""Containerizing applications for consistent deployment"",""Writing HTML code"",""Managing databases"",""Creating user interfaces""]","A","Medium","Software Development","[""devops"",""containerization""]"
-"Which of the following is a version of the HTTP protocol that uses encryption?","objective","[""HTTPS"",""HTTP/2"",""HTTP/1.1"",""FTP""]","A","Easy","Software Development","[""security"",""http"",""encryption""]"`
+        // Generate CSV in the user's approved format with individual option columns
+        const csvContent = `Question,Type,Option A,Option B,Option C,Option D,Correct Answer,Points,Explanation Options
+"What is software development primarily about?","MULTIPLE_CHOICE","Writing random code","Solving problems with software","Buying computers","Installing apps","B","1","Software development focuses on creating solutions to problems."
+"Which layer is responsible for user interface?","MULTIPLE_CHOICE","Database","Backend","Frontend","Server Rack","C","1","Frontend is what users see and interact with."
+"Which component stores persistent data?","MULTIPLE_CHOICE","API","Database","Browser","CSS","B","1","Databases store application data."
+"What does API stand for?","MULTIPLE_CHOICE","Application Programming Interface","Advanced Program Internet","Applied Protocol Integration","Automatic Program Input","A","1","API enables systems to communicate."
+"Which language is widely used for web development?","MULTIPLE_CHOICE","Python","JavaScript","C++ only","SQL","B","1","JavaScript is core to web development."
+"Which language is popular for AI and automation?","MULTIPLE_CHOICE","Python","HTML","CSS","PHP","A","1","Python is common in AI."
+"Git is mainly used for what?","MULTIPLE_CHOICE","Graphic design","Version control","Gaming","Networking","B","1","Git tracks code changes."
+"GitHub is best described as a...","MULTIPLE_CHOICE","Database engine","Cloud code hosting platform","Text editor","Browser","B","1","GitHub hosts repositories."
+"Which request type commonly fetches data?","MULTIPLE_CHOICE","POST","DELETE","GET","RUN","C","1","GET retrieves data."
+"Which request type commonly sends new data?","MULTIPLE_CHOICE","GET","POST","LOOK","PULL","B","1","POST commonly submits data."
+"What is a variable in programming?","MULTIPLE_CHOICE","A place to store data","An internet cable","A bug","A compiler","A","1","Variables hold values."
+"Which statement helps decision making in code?","MULTIPLE_CHOICE","Loop","If/Else","Comment","Import","B","1","Conditions control decisions."
+"Functions are mainly used to...","MULTIPLE_CHOICE","Delete hardware","Reuse logic","Increase screen size","Browse websites","B","1","Functions organize reusable code."
+"Node.js is commonly used as a...","MULTIPLE_CHOICE","Browser","JavaScript runtime","Database","Design tool","B","1","Node.js runs JavaScript outside browser."
+"Which tool is a common code editor?","MULTIPLE_CHOICE","VS Code","Chrome","Excel","Photoshop","A","1","VS Code is a popular editor."
+"In a login process, credentials are checked mainly by the...","MULTIPLE_CHOICE","Backend","Keyboard","Monitor","Mouse","A","1","Backend validates login details."
+"AI in many apps is often integrated through...","MULTIPLE_CHOICE","Paper forms","APIs","USB only","Printers","B","1","Apps usually call AI services via APIs."
+"Which mindset is valuable for developers?","MULTIPLE_CHOICE","Avoid learning","Break problems into steps","Memorize everything","Never debug","B","1","Problem decomposition is key."
+"What does debugging mean?","MULTIPLE_CHOICE","Selling software","Finding and fixing errors","Drawing diagrams","Formatting drives","B","1","Debugging fixes issues in code."
+"Which best describes modern software teams?","MULTIPLE_CHOICE","No collaboration needed","Use tools, version control, and teamwork","Only one person codes forever","Never update products","B","1","Modern teams collaborate with tools."`
         
         res.setHeader('Content-Type', 'text/csv; charset=utf-8')
         res.setHeader('Content-Disposition', 'attachment; filename="sample-questions.csv"')

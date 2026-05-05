@@ -31,6 +31,9 @@ model Tenant {
   proctoringLogs        ProctoringLog[]
   auditLogs             AuditLog[]
   offlineSyncQueue      OfflineSyncQueue[]
+  absenceReasons        AbsenceReason[]
+  biometricDevices      BiometricDevice[]
+  attendanceRecords     AttendanceRecord[]
 
   @@map("tenants")
 }
@@ -309,4 +312,148 @@ model OfflineSyncQueue {
   @@index([syncStatus])
   @@index([createdAt])
   @@map("offline_sync_queue")
+}
+
+// ============================================================================
+// Attendance Logging System Models
+// ============================================================================
+
+model AbsenceReason {
+  id          String   @id @default(cuid())
+  tenantId    String
+  reasonName  String   @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendanceRecord[]
+
+  @@unique([tenantId, reasonName])
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("absence_reasons")
+}
+
+model BiometricDevice {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  deviceName            String   @db.VarChar(255)
+  deviceType            String   @db.VarChar(50) // 'fingerprint', 'face', 'iris', 'palm'
+  manufacturer          String?  @db.VarChar(255)
+  model                 String?  @db.VarChar(255)
+  serialNumber          String?  @unique @db.VarChar(255)
+  location              String?  @db.VarChar(255)
+  status                String   @default("inactive") @db.VarChar(50) // 'active', 'inactive', 'maintenance', 'error'
+  syncStatus            String   @default("pending") @db.VarChar(50) // 'synced', 'pending', 'failed'
+  ipAddress             String?  @db.VarChar(45)
+  port                  Int?
+  connectionProtocol    String   @default("HTTPS") @db.VarChar(50)
+  syncFrequency         String   @default("daily") @db.VarChar(50) // 'hourly', 'every_4_hours', 'daily', 'manual'
+  lastSync              DateTime?
+  lastError             String?  @db.Text
+  consecutiveFailures   Int      @default(0)
+  enrolledStudentsCount Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendanceRecord[]
+  deviceEnrollments DeviceEnrollment[]
+  deviceSyncLogs    DeviceSyncLog[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([syncStatus])
+  @@index([serialNumber])
+  @@map("biometric_devices")
+}
+
+model AttendanceRecord {
+  id                String   @id @default(cuid())
+  tenantId          String
+  studentId         String   @db.VarChar(50)
+  class             String   @db.VarChar(50)
+  date              DateTime @db.Date
+  status            String   @db.VarChar(20) // 'present', 'absent', 'late'
+  absenceReasonId   String?
+  source            String   @db.VarChar(50) // 'teacher_entry', 'biometric_device', 'batch_upload', 'api_entry'
+  deviceId          String?
+  userId            String?
+  academicSession   String   @db.VarChar(20)
+  term              String   @db.VarChar(10)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String?
+  updatedBy         String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  absenceReason AbsenceReason? @relation(fields: [absenceReasonId], references: [id], onDelete: SetNull)
+  device BiometricDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  auditTrail AttendanceAuditTrail[]
+
+  @@unique([tenantId, studentId, date])
+  @@index([studentId, date])
+  @@index([class, date])
+  @@index([deviceId])
+  @@index([source])
+  @@index([tenantId])
+  @@index([status])
+  @@index([academicSession])
+  @@index([term])
+  @@index([date])
+  @@map("attendance_records")
+}
+
+model AttendanceAuditTrail {
+  id                  String   @id @default(cuid())
+  attendanceRecordId  String
+  action              String   @db.VarChar(50) // 'create', 'update', 'delete'
+  oldValue            Json?
+  newValue            Json?
+  changedBy           String
+  changedAt           DateTime @default(now())
+
+  attendanceRecord AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceRecordId])
+  @@index([changedAt])
+  @@index([action])
+  @@index([changedBy])
+  @@map("attendance_audit_trail")
+}
+
+model DeviceEnrollment {
+  id          String   @id @default(cuid())
+  deviceId    String
+  studentId   String   @db.VarChar(50)
+  biometricId String   @db.VarChar(255)
+  enrolledAt  DateTime @default(now())
+
+  device BiometricDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, studentId])
+  @@unique([deviceId, biometricId])
+  @@index([deviceId])
+  @@index([studentId])
+  @@index([biometricId])
+  @@map("device_enrollment")
+}
+
+model DeviceSyncLog {
+  id              String   @id @default(cuid())
+  deviceId        String
+  syncTimestamp   DateTime @default(now())
+  status          String   @db.VarChar(50) // 'success', 'failed', 'partial'
+  recordsSynced   Int      @default(0)
+  recordsFailed   Int      @default(0)
+  errorDetails    String?  @db.Text
+  syncDurationMs  Int?
+
+  device BiometricDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([syncTimestamp])
+  @@index([status])
+  @@map("device_sync_logs")
 }

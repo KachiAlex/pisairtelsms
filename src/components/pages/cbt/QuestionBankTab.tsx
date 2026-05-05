@@ -302,6 +302,9 @@ export function QuestionBankTab() {
             <Button variant="outline" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />Export CSV
             </Button>
+            <Button variant="outline" onClick={() => window.open('/api/tenant/cbt/questions/export?sample=true', '_blank')}>
+              <Download className="w-4 h-4 mr-2" />Sample
+            </Button>
             <Button variant="outline" size="icon" onClick={fetchQuestions} aria-label="Refresh">
               <RefreshCw className="w-4 h-4" />
             </Button>

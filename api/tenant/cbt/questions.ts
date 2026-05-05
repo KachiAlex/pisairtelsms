@@ -542,7 +542,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/cbt/questions/export
   if (req.method === 'GET' && action === 'export') {
     try {
-      const { questionIds, subject } = req.query
+      const { questionIds, subject, sample } = req.query
+
+      // If sample=true, return a template with example questions
+      if (sample === 'true') {
+        const sampleQuestions = [
+          {
+            text: 'What is the capital of France?',
+            type: 'objective',
+            options: ['Paris', 'London', 'Berlin', 'Madrid'],
+            correctAnswer: 'A',
+            difficulty: 'Easy',
+            subject: 'Geography',
+            tags: ['capitals', 'europe'],
+          },
+          {
+            text: 'Is the Earth flat?',
+            type: 'truefalse',
+            options: ['True', 'False'],
+            correctAnswer: 'B',
+            difficulty: 'Easy',
+            subject: 'Science',
+            tags: ['earth', 'basic'],
+          },
+          {
+            text: 'Explain the water cycle.',
+            type: 'essay',
+            options: [],
+            correctAnswer: '',
+            difficulty: 'Medium',
+            subject: 'Science',
+            tags: ['water', 'cycles'],
+          },
+        ]
+        const csv = generateCSV(sampleQuestions)
+        res.setHeader('Content-Type', 'text/csv')
+        res.setHeader('Content-Disposition', 'attachment; filename="sample-questions.csv"')
+        return res.status(200).send(csv)
+      }
 
       let filter: QuestionFilter = {
         page: 1,

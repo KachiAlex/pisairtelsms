@@ -3,8 +3,8 @@
  * Handles synchronization of offline exam answers with conflict resolution
  */
 
-import { queryAll, queryOne, query } from './db';
-import { OfflineSyncQueue, StudentAnswer, SyncStatus } from './types';
+import { queryAll, queryOne, query } from './db.js';
+import { OfflineSyncQueue, StudentAnswer, SyncStatus } from './types.js';
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000; // 1 second

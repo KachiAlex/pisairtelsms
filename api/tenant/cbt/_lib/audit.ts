@@ -3,8 +3,8 @@
  * Comprehensive logging of all CBT system actions
  */
 
-import { queryAll, queryOne, query } from './db';
-import { AuditLog, CreateAuditLogInput } from './types';
+import { queryAll, queryOne, query } from './db.js';
+import { AuditLog, CreateAuditLogInput } from './types.js';
 
 /**
  * Create audit log entry

@@ -3,13 +3,13 @@
  * Business logic for exam results, scoring, and analytics
  */
 
-import { queryAll, queryOne, query } from './db';
+import { queryAll, queryOne, query } from './db.js';
 import {
   ExamResult,
   StudentAnswer,
   ExamResultsSummary,
   ResultsFilter,
-} from './types';
+} from './types.js';
 
 /**
  * Get exam results with filtering and pagination

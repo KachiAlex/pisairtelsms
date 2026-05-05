@@ -3,7 +3,7 @@
  * Business logic for question management
  */
 
-import { queryAll, queryOne, query, transaction } from './db';
+import { queryAll, queryOne, query, transaction } from './db.js';
 import {
   Question,
   CreateQuestionInput,
@@ -11,7 +11,7 @@ import {
   QuestionFilter,
   ApiResponse,
   PaginatedResponse,
-} from './types';
+} from './types.js';
 
 /**
  * Get all questions with filtering and pagination

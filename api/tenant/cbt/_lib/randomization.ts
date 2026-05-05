@@ -3,8 +3,8 @@
  * Handles randomization of questions and options per student
  */
 
-import { queryOne, queryAll } from './db';
-import { ExamQuestion, Question } from './types';
+import { queryOne, queryAll } from './db.js';
+import { ExamQuestion, Question } from './types.js';
 
 /**
  * Seed-based random number generator for consistent randomization per student

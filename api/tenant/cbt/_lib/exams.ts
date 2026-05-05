@@ -3,14 +3,14 @@
  * Business logic for exam lifecycle management
  */
 
-import { queryAll, queryOne, query, transaction } from './db';
+import { queryAll, queryOne, query, transaction } from './db.js';
 import {
   Exam,
   CreateExamInput,
   UpdateExamInput,
   ExamFilter,
   ExamQuestion,
-} from './types';
+} from './types.js';
 
 /**
  * Get all exams with filtering and pagination

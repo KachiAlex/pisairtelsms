@@ -3,8 +3,8 @@
  * Real-time exam progress tracking
  */
 
-import { queryAll, queryOne, query } from './db';
-import { StudentExamProgress, UpdateProgressInput, ProgressStatus } from './types';
+import { queryAll, queryOne, query } from './db.js';
+import { StudentExamProgress, UpdateProgressInput, ProgressStatus } from './types.js';
 
 /**
  * Get live monitoring data for exam

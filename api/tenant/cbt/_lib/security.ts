@@ -3,13 +3,13 @@
  * Business logic for exam security configuration and proctoring
  */
 
-import { queryAll, queryOne, query } from './db';
+import { queryAll, queryOne, query } from './db.js';
 import {
   SecuritySettings,
   UpdateSecuritySettingsInput,
   ProctoringLog,
   CreateProctoringLogInput,
-} from './types';
+} from './types.js';
 
 /**
  * Get security settings for exam

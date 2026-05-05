@@ -252,6 +252,24 @@ export function QuestionBankTab() {
     window.open(`/api/tenant/cbt/questions/export?${params}`, '_blank');
   };
 
+  const handleDownloadSample = async () => {
+    try {
+      const res = await tenantApiFetch('/api/tenant/cbt/questions/export?sample=true');
+      if (!res.ok) throw new Error('Failed to download sample');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sample-questions.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to download sample');
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -299,10 +317,10 @@ export function QuestionBankTab() {
               <Upload className="w-4 h-4 mr-2" />Import CSV/Excel
             </Button>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
-            <Button variant="outline" onClick={handleExport}>
+            <Button variant="outline" onClick={() => window.open(`/api/tenant/cbt/questions/export?subject=${filterSubject}`, '_blank')}>
               <Download className="w-4 h-4 mr-2" />Export CSV
             </Button>
-            <Button variant="outline" onClick={() => window.open('/api/tenant/cbt/questions/export?sample=true', '_blank')}>
+            <Button variant="outline" onClick={handleDownloadSample}>
               <Download className="w-4 h-4 mr-2" />Sample
             </Button>
             <Button variant="outline" size="icon" onClick={fetchQuestions} aria-label="Refresh">

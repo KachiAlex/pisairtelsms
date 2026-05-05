@@ -206,19 +206,38 @@ export function QuestionBankTab() {
     }
   };
 
-  // ── CSV import/export ──────────────────────────────────────────────────────
+  // ── CSV/Excel import/export ────────────────────────────────────────────────
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImportStatus('Importing...');
+    setImportStatus('Reading file...');
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await tenantApiFetch('/api/tenant/cbt/questions/import', { method: 'POST', body: formData });
+      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+
+      // Read file as base64 (works for both CSV and Excel)
+      const base64Content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Strip the data URL prefix (e.g. "data:text/csv;base64,")
+          const base64 = result.split(',')[1] || result;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      setImportStatus('Importing...');
+      const res = await tenantApiFetch('/api/tenant/cbt/questions/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: base64Content, filename: file.name }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Import failed');
-      setImportStatus(`Imported ${data.imported} questions. ${data.failed > 0 ? `${data.failed} failed.` : ''}`);
+      const { imported, failed } = data.data || data;
+      setImportStatus(`Imported ${imported} question${imported !== 1 ? 's' : ''}${failed > 0 ? `. ${failed} failed.` : '.'}`);
       fetchQuestions();
       fetchStats();
     } catch (e) {
@@ -277,9 +296,9 @@ export function QuestionBankTab() {
               <Plus className="w-4 h-4 mr-2" />Add Question
             </Button>
             <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="w-4 h-4 mr-2" />Import CSV
+              <Upload className="w-4 h-4 mr-2" />Import CSV/Excel
             </Button>
-            <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
             <Button variant="outline" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />Export CSV
             </Button>

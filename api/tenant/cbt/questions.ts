@@ -35,7 +35,7 @@ function parseBody(req: VercelRequest) {
  * Method not allowed response
  */
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,POST,PUT,DELETE')
+  res.setHeader('Allow', 'GET,POST,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -531,6 +531,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error) {
       console.error('Error exporting questions:', error)
       return res.status(500).json({ success: false, error: 'Failed to export questions' })
+    }
+  }
+
+  // DELETE /api/tenant/cbt/questions/:id
+  if (req.method === 'DELETE' && id && !action) {
+    try {
+      await deleteQuestion(tenantId, id as string)
+      return res.status(200).json({ success: true, message: 'Question deleted successfully' })
+    } catch (error: any) {
+      if (error.message === 'Question not found') {
+        return res.status(404).json({ success: false, error: 'Question not found' })
+      }
+      console.error('Error deleting question:', error)
+      return res.status(500).json({ success: false, error: 'Failed to delete question' })
     }
   }
 

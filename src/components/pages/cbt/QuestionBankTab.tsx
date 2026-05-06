@@ -80,6 +80,7 @@ export function QuestionBankTab() {
   const [stats, setStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [subjects, setSubjects] = useState<string[]>([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -113,6 +114,11 @@ export function QuestionBankTab() {
     tags: '',
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // Import categorization
+  const [importSubject, setImportSubject] = useState('');
+  const [importDifficulty, setImportDifficulty] = useState<Question['difficulty']>('Medium');
+  const [importType, setImportType] = useState<Question['type']>('objective');
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -150,8 +156,22 @@ export function QuestionBankTab() {
     }
   };
 
+  const fetchSubjects = async () => {
+    try {
+      const res = await tenantApiGet('/api/tenant/cbt/questions/subjects');
+      if (res.ok) {
+        const data = await res.json();
+        setSubjects(data.data || []);
+      }
+    } catch {
+      // If fetch fails, use default subjects
+      setSubjects(['Mathematics', 'English', 'Physics', 'Chemistry', 'Biology', 'History', 'Geography']);
+    }
+  };
+
   useEffect(() => {
     fetchQuestions();
+    fetchSubjects();
   }, [page, search, filterSubject, filterDifficulty, filterType]);
 
   useEffect(() => {
@@ -329,7 +349,12 @@ export function QuestionBankTab() {
         body: JSON.stringify({ 
           content: base64Content, 
           filename: file.name,
-          options: { skipDuplicates: true }
+          options: { 
+            skipDuplicates: true,
+            subject: importSubject || undefined,
+            difficulty: importDifficulty || undefined,
+            type: importType || undefined,
+          }
         }),
       });
       const data = await res.json();
@@ -390,7 +415,7 @@ export function QuestionBankTab() {
             </div>
             <select className="border rounded-md px-3 py-2 text-sm" value={filterSubject} onChange={(e) => { setFilterSubject(e.target.value); setPage(1); }}>
               <option value="">All Subjects</option>
-              {['Mathematics', 'English', 'Physics', 'Chemistry', 'Biology', 'History', 'Geography'].map((s) => <option key={s} value={s}>{s}</option>)}
+              {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <select className="border rounded-md px-3 py-2 text-sm" value={filterDifficulty} onChange={(e) => { setFilterDifficulty(e.target.value); setPage(1); }}>
               <option value="">All Difficulties</option>
@@ -604,7 +629,10 @@ export function QuestionBankTab() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="q-subject">Subject *</Label>
-                    <Input id="q-subject" className="mt-1" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="e.g. Mathematics" />
+                    <select id="q-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}>
+                      <option value="">Select a subject</option>
+                      {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
                     {formErrors.subject && <p className="text-red-600 text-xs mt-1">{formErrors.subject}</p>}
                   </div>
                   <div>
@@ -642,6 +670,35 @@ export function QuestionBankTab() {
                     <Button variant="outline" size="sm" onClick={handleDownloadSample} className="w-full">
                       <Download className="w-4 h-4 mr-2" />Download Sample Template
                     </Button>
+                  </div>
+
+                  {/* Categorization */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="import-subject">Subject (optional)</Label>
+                      <select id="import-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={importSubject} onChange={(e) => setImportSubject(e.target.value)}>
+                        <option value="">Use from CSV</option>
+                        {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="import-difficulty">Difficulty (optional)</Label>
+                      <select id="import-difficulty" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={importDifficulty} onChange={(e) => setImportDifficulty(e.target.value as any)}>
+                        <option value="">Use from CSV</option>
+                        <option value="Easy">Easy</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Hard">Hard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="import-type">Type (optional)</Label>
+                      <select id="import-type" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={importType} onChange={(e) => setImportType(e.target.value as any)}>
+                        <option value="">Use from CSV</option>
+                        <option value="objective">Objective</option>
+                        <option value="truefalse">True/False</option>
+                        <option value="essay">Essay</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>

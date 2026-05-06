@@ -39,7 +39,7 @@ import {
   checkDuplicate,
 } from '../_lib/questions.js'
 import { initializeDatabase } from '../_lib/db.js'
-import type { CreateQuestionInput } from '../_lib/types.js'
+import type { CreateQuestionInput, QuestionOption } from '../_lib/types.js'
 
 // ─── Column Mapping ─────────────────────────────────────────────────────────────
 
@@ -466,6 +466,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const options = body.options || {}
   const skipDuplicates = options.skipDuplicates !== false // default true
   const overwriteDuplicates = options.overwriteDuplicates || false // default false
+  const defaultSubject = options.subject || undefined
+  const defaultDifficulty = options.difficulty || undefined
+  const defaultType = options.type || undefined
 
   try {
     // Parse file
@@ -532,14 +535,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const row = validRows[i]
         
         // Build question object
-        const type = normalizeType(row.type || 'objective')
+        const type = normalizeType(defaultType || row.type || 'objective')
+        const options = parseOptions(row)
+        const questionOptions: QuestionOption[] = options.map((text, idx) => ({
+          id: crypto.randomUUID(),
+          text,
+          isCorrect: String.fromCharCode(65 + idx) === normalizeCorrectAnswer(row.correctAnswer || '', type)
+        }))
         const input: CreateQuestionInput = {
           text: row.text.trim(),
           type,
-          options: type === 'essay' ? [] : parseOptions(row),
+          options: type === 'essay' ? [] : questionOptions,
           correctAnswer: type === 'essay' ? '' : normalizeCorrectAnswer(row.correctAnswer || '', type),
-          difficulty: normalizeDifficulty(row.difficulty || 'Medium'),
-          subject: (row.subject || 'General').trim() || 'General',
+          difficulty: normalizeDifficulty(defaultDifficulty || row.difficulty || 'Medium'),
+          subject: (defaultSubject || row.subject || 'General').trim() || 'General',
           tags: parseTags(row),
         }
 

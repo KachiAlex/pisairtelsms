@@ -342,17 +342,27 @@ function generateCSV(questions: any[]): string {
 }
 
 /**
+ * Check if string is a UUID
+ */
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
+/**
  * Main handler
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
   
-  // Extract ID from URL path
-  const urlParts = req.url?.split('/').filter(Boolean) || []
+  // Extract ID from URL path only if it's a UUID
+  // Remove query string from URL before splitting
+  const urlPath = req.url?.split('?')[0] || ''
+  const urlParts = urlPath.split('/').filter(Boolean)
   const pathId = urlParts[urlParts.length - 1]
   const { id: queryId, action } = req.query
-  const id = queryId || pathId
+  const id = queryId || (isUUID(pathId) ? pathId : undefined)
 
   // Initialize database on first request
   try {

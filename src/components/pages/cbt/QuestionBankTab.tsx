@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Upload, Download, Trash2, FileText, RefreshCw, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Download, Trash2, FileText, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
@@ -92,8 +92,6 @@ export function QuestionBankTab() {
   // Dialog state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<QuestionFormData>({
     text: '',
@@ -206,68 +204,12 @@ export function QuestionBankTab() {
     }
   };
 
-  // ── CSV/Excel import/export ────────────────────────────────────────────────
-
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportStatus('Reading file...');
-    try {
-      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-
-      // Read file as base64 (works for both CSV and Excel)
-      const base64Content = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Strip the data URL prefix (e.g. "data:text/csv;base64,")
-          const base64 = result.split(',')[1] || result;
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      setImportStatus('Importing...');
-      const res = await tenantApiFetch('/api/tenant/cbt/questions/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: base64Content, filename: file.name }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Import failed');
-      const { imported, failed } = data.data || data;
-      setImportStatus(`Imported ${imported} question${imported !== 1 ? 's' : ''}${failed > 0 ? `. ${failed} failed.` : '.'}`);
-      fetchQuestions();
-      fetchStats();
-    } catch (e) {
-      setImportStatus(e instanceof Error ? e.message : 'Import failed');
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+  // ── CSV export ──────────────────────────────────────────────────────────────
 
   const handleExport = () => {
     const params = new URLSearchParams();
     if (filterSubject) params.set('subject', filterSubject);
     window.open(`/api/tenant/cbt/questions/export?${params}`, '_blank');
-  };
-
-  const handleDownloadSample = async () => {
-    try {
-      const res = await tenantApiFetch('/api/tenant/cbt/questions/export?sample=true');
-      if (!res.ok) throw new Error('Failed to download sample');
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'sample-questions.csv';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to download sample');
-    }
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -313,26 +255,13 @@ export function QuestionBankTab() {
             <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
               <Plus className="w-4 h-4 mr-2" />Add Question
             </Button>
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="w-4 h-4 mr-2" />Import CSV/Excel
-            </Button>
-            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
             <Button variant="outline" onClick={() => window.open(`/api/tenant/cbt/questions/export?subject=${filterSubject}`, '_blank')}>
               <Download className="w-4 h-4 mr-2" />Export CSV
-            </Button>
-            <Button variant="outline" onClick={handleDownloadSample}>
-              <Download className="w-4 h-4 mr-2" />Sample
             </Button>
             <Button variant="outline" size="icon" onClick={fetchQuestions} aria-label="Refresh">
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
-          {importStatus && (
-            <div className="mt-2 flex items-center gap-2 text-sm text-blue-700 bg-blue-50 rounded px-3 py-2">
-              <span>{importStatus}</span>
-              <button onClick={() => setImportStatus(null)} aria-label="Dismiss"><X className="w-3 h-3" /></button>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -347,7 +276,7 @@ export function QuestionBankTab() {
       ) : questions.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p>No questions found. Add your first question or import a CSV.</p>
+          <p>No questions found. Add your first question.</p>
         </div>
       ) : (
         <div className="space-y-3">

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Download, Trash2, FileText, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Upload, Download, Trash2, FileText, RefreshCw, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
@@ -92,6 +92,11 @@ export function QuestionBankTab() {
   // Dialog state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<Array<{ row: number; field: string; error: string }>>([]);
+  const [importPreview, setImportPreview] = useState<Array<{ text: string; type: string; subject: string }>>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<QuestionFormData>({
     text: '',
@@ -204,7 +209,84 @@ export function QuestionBankTab() {
     }
   };
 
-  // ── CSV export ──────────────────────────────────────────────────────────────
+  // ── CSV import/export ──────────────────────────────────────────────────────
+
+  const handleDownloadSample = async () => {
+    try {
+      const res = await tenantApiFetch('/api/tenant/cbt/questions/export?sample=true');
+      if (!res.ok) throw new Error('Failed to download sample');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sample-questions.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to download sample');
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsImporting(true);
+    setImportStatus('Reading file...');
+    setImportErrors([]);
+    setImportPreview([]);
+    
+    try {
+      const base64Content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(',')[1] || result;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      setImportStatus('Validating and importing...');
+      const res = await tenantApiFetch('/api/tenant/cbt/questions/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          content: base64Content, 
+          filename: file.name,
+          options: { skipDuplicates: true }
+        }),
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (data.data?.errors) {
+          setImportErrors(data.data.errors);
+          setImportStatus(`Validation failed: ${data.data.errorRows} rows have errors`);
+        } else {
+          throw new Error(data.error || 'Import failed');
+        }
+      } else {
+        const { imported, skipped, failed, preview } = data.data || data;
+        setImportPreview(preview || []);
+        setImportStatus(
+          `Imported ${imported} question${imported !== 1 ? 's' : ''}` +
+          (skipped > 0 ? `. Skipped ${skipped} duplicate${skipped !== 1 ? 's' : ''}` : '') +
+          (failed > 0 ? `. ${failed} failed.` : '.')
+        );
+        fetchQuestions();
+        fetchStats();
+      }
+    } catch (e) {
+      setImportStatus(e instanceof Error ? e.message : 'Import failed');
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleExport = () => {
     const params = new URLSearchParams();
@@ -255,13 +337,44 @@ export function QuestionBankTab() {
             <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
               <Plus className="w-4 h-4 mr-2" />Add Question
             </Button>
-            <Button variant="outline" onClick={() => window.open(`/api/tenant/cbt/questions/export?subject=${filterSubject}`, '_blank')}>
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
+              <Upload className="w-4 h-4 mr-2" />{isImporting ? 'Importing...' : 'Import CSV/Excel'}
+            </Button>
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
+            <Button variant="outline" onClick={handleDownloadSample}>
+              <Download className="w-4 h-4 mr-2" />Sample
+            </Button>
+            <Button variant="outline" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />Export CSV
             </Button>
             <Button variant="outline" size="icon" onClick={fetchQuestions} aria-label="Refresh">
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
+          {importStatus && (
+            <div className={`mt-2 flex items-center gap-2 text-sm rounded px-3 py-2 ${importErrors.length > 0 ? 'text-red-700 bg-red-50' : 'text-blue-700 bg-blue-50'}`}>
+              {importErrors.length > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+              <span>{importStatus}</span>
+              <button onClick={() => { setImportStatus(null); setImportErrors([]); }} aria-label="Dismiss"><X className="w-3 h-3" /></button>
+            </div>
+          )}
+          {importErrors.length > 0 && (
+            <div className="mt-2 max-h-40 overflow-y-auto text-xs bg-red-50 rounded p-2">
+              <p className="font-semibold text-red-700 mb-1">Validation Errors:</p>
+              {importErrors.slice(0, 10).map((err, idx) => (
+                <div key={idx} className="text-red-600">Row {err.row} ({err.field}): {err.error}</div>
+              ))}
+              {importErrors.length > 10 && <div className="text-red-600 mt-1">...and {importErrors.length - 10} more errors</div>}
+            </div>
+          )}
+          {importPreview.length > 0 && importErrors.length === 0 && (
+            <div className="mt-2 text-xs bg-green-50 rounded p-2">
+              <p className="font-semibold text-green-700 mb-1">Preview of imported questions:</p>
+              {importPreview.map((q, idx) => (
+                <div key={idx} className="text-green-600">• {q.text} ({q.type} - {q.subject})</div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

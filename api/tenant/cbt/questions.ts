@@ -414,6 +414,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // POST /api/tenant/cbt/questions/import
+  if (req.method === 'POST' && action === 'import') {
+    // Delegate to the standalone import handler
+    const importHandler = (await import('./questions/import.js')).default
+    return importHandler(req, res)
+  }
+
   // POST /api/tenant/cbt/questions
   if (req.method === 'POST' && !id && action !== 'import') {
     if (!validateUserId(userId, res)) {
@@ -479,7 +486,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/cbt/questions/export
   if (req.method === 'GET' && action === 'export') {
     try {
-      const { questionIds, subject } = req.query
+      const { questionIds, subject, sample } = req.query
+
+      // If sample=true, return a template with example questions
+      if (sample === 'true') {
+        const csvContent = `Question,Type,Option A,Option B,Option C,Option D,Correct Answer,Difficulty,Subject,Tags
+"What is 2 + 2?","objective","3","4","5","6","B","Easy","Mathematics","basic arithmetic"
+"Which planet is closest to the sun?","objective","Venus","Mars","Mercury","Earth","C","Easy","Science","astronomy"
+"The capital of France is...","objective","London","Berlin","Paris","Madrid","C","Easy","Geography","capitals"
+"Water boils at what temperature (Celsius)?","objective","90°C","100°C","110°C","120°C","B","Medium","Science","physics"
+"Who wrote 'Romeo and Juliet'?","objective","Charles Dickens","William Shakespeare","Jane Austen","Mark Twain","B","Medium","English","literature"
+"The mitochondria is the...","objective","Powerhouse of the cell","Control center of the cell","Waste disposal unit","Storage unit","A","Hard","Biology","cell biology"
+"The Earth is flat.","truefalse","True","False","","","B","Easy","Science","basic facts"
+"Water freezes at 0°C.","truefalse","True","False","","","A","Easy","Science","physics"
+"Plants perform photosynthesis.","truefalse","True","False","","","A","Easy","Biology","plant biology"
+"Explain the process of photosynthesis.","essay","","","","","Medium","Biology","plant biology"`
+        
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+        res.setHeader('Content-Disposition', 'attachment; filename="sample-questions.csv"')
+        return res.status(200).send(csvContent)
+      }
 
       let filter: QuestionFilter = {
         page: 1,

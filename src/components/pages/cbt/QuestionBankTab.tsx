@@ -89,6 +89,10 @@ export function QuestionBankTab() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Selection state
+  const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+
   // Dialog state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -209,10 +213,54 @@ export function QuestionBankTab() {
       if (!res.ok) throw new Error('Delete failed');
       fetchQuestions();
       fetchStats();
+      setSelectedQuestions(new Set());
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Delete failed');
     }
   };
+
+  const handleBulkDelete = async () => {
+    if (selectedQuestions.size === 0) return;
+    if (!confirm(`Delete ${selectedQuestions.size} question${selectedQuestions.size > 1 ? 's' : ''}?`)) return;
+    
+    try {
+      const promises = Array.from(selectedQuestions).map(id =>
+        tenantApiFetch(`/api/tenant/cbt/questions/${id}`, { method: 'DELETE' })
+      );
+      await Promise.all(promises);
+      setSelectedQuestions(new Set());
+      fetchQuestions();
+      fetchStats();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Delete failed');
+    }
+  };
+
+  const toggleQuestionSelection = (id: string) => {
+    setSelectedQuestions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedQuestions(new Set());
+    } else {
+      setSelectedQuestions(new Set(questions.map(q => q.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  useEffect(() => {
+    setSelectedQuestions(new Set());
+    setSelectAll(false);
+  }, [page, search, filterSubject, filterDifficulty, filterType]);
 
   // ── CSV import/export ──────────────────────────────────────────────────────
 
@@ -342,6 +390,11 @@ export function QuestionBankTab() {
             <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
               <Plus className="w-4 h-4 mr-2" />Add Question
             </Button>
+            {selectedQuestions.size > 0 && (
+              <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleBulkDelete}>
+                <Trash2 className="w-4 h-4 mr-2" />Delete ({selectedQuestions.size})
+              </Button>
+            )}
             <Button variant="outline" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />Export CSV
             </Button>
@@ -366,45 +419,72 @@ export function QuestionBankTab() {
           <p>No questions found. Add your first question.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {questions.map((q, idx) => (
-            <Card key={q.id}>
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-sm font-medium text-gray-500">Q{(page - 1) * 20 + idx + 1}.</span>
-                      <p className="font-medium text-gray-900 truncate">{q.text}</p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap mb-2">
-                      <Badge className={TYPE_COLORS[q.type]}>{q.type}</Badge>
-                      <Badge className={DIFFICULTY_COLORS[q.difficulty]}>{q.difficulty}</Badge>
-                      {q.subject && <Badge className="bg-gray-100 text-gray-600">{q.subject}</Badge>}
-                    </div>
-                    {q.type === 'objective' && q.options.length > 0 && (
-                      <div className="grid grid-cols-2 gap-1 text-sm">
-                        {q.options.map((opt, i) => (
-                          <div key={i} className={`px-2 py-1 rounded text-xs ${String.fromCharCode(65 + i) === q.correctAnswer ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>
-                            {String.fromCharCode(65 + i)}. {opt}
+        <>
+          {/* Select All */}
+          {questions.length > 0 && (
+            <div className="flex items-center gap-2 px-2 py-2 bg-gray-50 rounded-t-md border-b">
+              <input
+                type="checkbox"
+                className="w-4 h-4"
+                checked={selectAll}
+                onChange={toggleSelectAll}
+                id="select-all-questions"
+              />
+              <label htmlFor="select-all-questions" className="text-sm text-gray-600 cursor-pointer">
+                Select all ({questions.length})
+              </label>
+            </div>
+          )}
+          <div className="space-y-3">
+            {questions.map((q, idx) => (
+              <Card key={q.id} className={selectedQuestions.has(q.id) ? 'bg-blue-50 border-blue-200' : ''}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        className="mt-1 w-4 h-4 shrink-0"
+                        checked={selectedQuestions.has(q.id)}
+                        onChange={() => toggleQuestionSelection(q.id)}
+                        id={`question-${q.id}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <label htmlFor={`question-${q.id}`} className="cursor-pointer">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-sm font-medium text-gray-500">Q{(page - 1) * 20 + idx + 1}.</span>
+                            <p className="font-medium text-gray-900 truncate">{q.text}</p>
                           </div>
-                        ))}
+                          <div className="flex gap-2 flex-wrap mb-2">
+                            <Badge className={TYPE_COLORS[q.type]}>{q.type}</Badge>
+                            <Badge className={DIFFICULTY_COLORS[q.difficulty]}>{q.difficulty}</Badge>
+                            {q.subject && <Badge className="bg-gray-100 text-gray-600">{q.subject}</Badge>}
+                          </div>
+                          {q.type === 'objective' && q.options.length > 0 && (
+                            <div className="grid grid-cols-2 gap-1 text-sm">
+                              {q.options.map((opt, i) => (
+                                <div key={i} className={`px-2 py-1 rounded text-xs ${String.fromCharCode(65 + i) === q.correctAnswer ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>
+                                  {String.fromCharCode(65 + i)}. {opt}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {q.type === 'truefalse' && (
+                            <div className="flex gap-2 text-xs">
+                              <span className={`px-2 py-1 rounded ${q.correctAnswer === 'A' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>A. True</span>
+                              <span className={`px-2 py-1 rounded ${q.correctAnswer === 'B' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>B. False</span>
+                            </div>
+                          )}
+                          {q.type === 'essay' && <p className="text-xs text-gray-500 italic">Essay — manual grading</p>}
+                        </label>
                       </div>
-                    )}
-                    {q.type === 'truefalse' && (
-                      <div className="flex gap-2 text-xs">
-                        <span className={`px-2 py-1 rounded ${q.correctAnswer === 'A' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>A. True</span>
-                        <span className={`px-2 py-1 rounded ${q.correctAnswer === 'B' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>B. False</span>
-                      </div>
-                    )}
-                    {q.type === 'essay' && <p className="text-xs text-gray-500 italic">Essay — manual grading</p>}
+                    </div>
+                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 shrink-0" onClick={() => handleDelete(q.id)} aria-label="Delete question">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 shrink-0" onClick={() => handleDelete(q.id)} aria-label="Delete question">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))}
 
           {/* Pagination */}
           {totalPages > 1 && (

@@ -224,13 +224,32 @@ export function QuestionBankTab() {
     if (!confirm(`Delete ${selectedQuestions.size} question${selectedQuestions.size > 1 ? 's' : ''}?`)) return;
     
     try {
-      const promises = Array.from(selectedQuestions).map(id =>
-        tenantApiFetch(`/api/tenant/cbt/questions/${id}`, { method: 'DELETE' })
-      );
-      await Promise.all(promises);
+      const ids = Array.from(selectedQuestions);
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (const id of ids) {
+        try {
+          const res = await tenantApiFetch(`/api/tenant/cbt/questions/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+            successCount++;
+          } else {
+            failCount++;
+            console.error(`Failed to delete question ${id}:`, res.status);
+          }
+        } catch (err) {
+          failCount++;
+          console.error(`Error deleting question ${id}:`, err);
+        }
+      }
+      
       setSelectedQuestions(new Set());
       fetchQuestions();
       fetchStats();
+      
+      if (failCount > 0) {
+        alert(`Deleted ${successCount} question${successCount !== 1 ? 's' : ''}. ${failCount} failed.`);
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Delete failed');
     }

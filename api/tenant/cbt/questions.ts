@@ -364,6 +364,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { id: queryId, action } = req.query
   const id = queryId || (isUUID(pathId) ? pathId : undefined)
 
+  // Debug logging
+  console.log('[DEBUG] Request:', {
+    method: req.method,
+    url: req.url,
+    urlPath,
+    pathId,
+    queryId,
+    action,
+    finalId: id,
+    isUUIDPathId: isUUID(pathId),
+  })
+
   // Initialize database on first request
   try {
     initializeDatabase()

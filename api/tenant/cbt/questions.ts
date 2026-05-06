@@ -400,6 +400,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // GET /api/tenant/cbt/questions/subjects
+  if (req.method === 'GET' && action === 'subjects') {
+    try {
+      const result = await getQuestions(tenantId, { page: 1, limit: 10000 })
+      const subjects = [...new Set(result.data.map((q: any) => q.subject).filter(Boolean))].sort()
+      return res.status(200).json({ success: true, data: subjects })
+    } catch (error) {
+      console.error('Error fetching subjects:', error)
+      return res.status(500).json({ success: false, error: 'Failed to fetch subjects' })
+    }
+  }
+
   // GET /api/tenant/cbt/questions/:id
   if (req.method === 'GET' && id && !action) {
     try {

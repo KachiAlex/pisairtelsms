@@ -92,6 +92,7 @@ export function QuestionBankTab() {
   // Dialog state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [addTab, setAddTab] = useState<'manual' | 'import'>('manual');
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<Array<{ row: number; field: string; error: string }>>([]);
   const [importPreview, setImportPreview] = useState<Array<{ text: string; type: string; subject: string }>>([]);
@@ -158,6 +159,10 @@ export function QuestionBankTab() {
   const resetForm = () => {
     setForm({ text: '', type: 'objective', options: ['', '', '', ''], correctAnswer: 'A', difficulty: 'Medium', subject: '', tags: '' });
     setFormErrors({});
+    setAddTab('manual');
+    setImportStatus(null);
+    setImportErrors([]);
+    setImportPreview([]);
   };
 
   const handleTypeChange = (type: QuestionFormData['type']) => {
@@ -337,13 +342,6 @@ export function QuestionBankTab() {
             <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
               <Plus className="w-4 h-4 mr-2" />Add Question
             </Button>
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
-              <Upload className="w-4 h-4 mr-2" />{isImporting ? 'Importing...' : 'Import CSV/Excel'}
-            </Button>
-            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
-            <Button variant="outline" onClick={handleDownloadSample}>
-              <Download className="w-4 h-4 mr-2" />Sample
-            </Button>
             <Button variant="outline" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />Export CSV
             </Button>
@@ -351,30 +349,6 @@ export function QuestionBankTab() {
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
-          {importStatus && (
-            <div className={`mt-2 flex items-center gap-2 text-sm rounded px-3 py-2 ${importErrors.length > 0 ? 'text-red-700 bg-red-50' : 'text-blue-700 bg-blue-50'}`}>
-              {importErrors.length > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-              <span>{importStatus}</span>
-              <button onClick={() => { setImportStatus(null); setImportErrors([]); }} aria-label="Dismiss"><X className="w-3 h-3" /></button>
-            </div>
-          )}
-          {importErrors.length > 0 && (
-            <div className="mt-2 max-h-40 overflow-y-auto text-xs bg-red-50 rounded p-2">
-              <p className="font-semibold text-red-700 mb-1">Validation Errors:</p>
-              {importErrors.slice(0, 10).map((err, idx) => (
-                <div key={idx} className="text-red-600">Row {err.row} ({err.field}): {err.error}</div>
-              ))}
-              {importErrors.length > 10 && <div className="text-red-600 mt-1">...and {importErrors.length - 10} more errors</div>}
-            </div>
-          )}
-          {importPreview.length > 0 && importErrors.length === 0 && (
-            <div className="mt-2 text-xs bg-green-50 rounded p-2">
-              <p className="font-semibold text-green-700 mb-1">Preview of imported questions:</p>
-              {importPreview.map((q, idx) => (
-                <div key={idx} className="text-green-600">• {q.text} ({q.type} - {q.subject})</div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -445,95 +419,176 @@ export function QuestionBankTab() {
 
       {/* Add Question Dialog */}
       <Dialog open={isAddOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsAddOpen(open); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Question</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
-            {/* Type */}
-            <div>
-              <Label>Question Type *</Label>
-              <div className="flex gap-2 mt-1">
-                {(['objective', 'truefalse', 'essay'] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => handleTypeChange(t)}
-                    className={`px-3 py-1.5 rounded text-sm border transition-colors ${form.type === t ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
-                    {t === 'truefalse' ? 'True/False' : t.charAt(0).toUpperCase() + t.slice(1)}
-                  </button>
-                ))}
-              </div>
+            {/* Tabs */}
+            <div className="flex border-b">
+              <button
+                type="button"
+                onClick={() => setAddTab('manual')}
+                className={`px-4 py-2 text-sm font-medium ${addTab === 'manual' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+              >
+                Manual Entry
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddTab('import')}
+                className={`px-4 py-2 text-sm font-medium ${addTab === 'import' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+              >
+                Import from CSV/Excel
+              </button>
             </div>
 
-            {/* Text */}
-            <div>
-              <Label htmlFor="q-text">Question Text *</Label>
-              <textarea id="q-text" rows={3} className="w-full mt-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} placeholder="Enter question text..." />
-              {formErrors.text && <p className="text-red-600 text-xs mt-1">{formErrors.text}</p>}
-            </div>
-
-            {/* Options */}
-            {form.type === 'objective' && (
-              <div>
-                <Label>Options * (mark correct answer)</Label>
-                <div className="space-y-2 mt-1">
-                  {form.options.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, correctAnswer: String.fromCharCode(65 + i) }))}
-                        className={`w-7 h-7 rounded-full text-xs font-bold border-2 shrink-0 ${form.correctAnswer === String.fromCharCode(65 + i) ? 'bg-green-500 text-white border-green-500' : 'border-gray-300 text-gray-500'}`}>
-                        {String.fromCharCode(65 + i)}
+            {/* Manual Entry Tab */}
+            {addTab === 'manual' && (
+              <>
+                {/* Type */}
+                <div>
+                  <Label>Question Type *</Label>
+                  <div className="flex gap-2 mt-1">
+                    {(['objective', 'truefalse', 'essay'] as const).map((t) => (
+                      <button key={t} type="button" onClick={() => handleTypeChange(t)}
+                        className={`px-3 py-1.5 rounded text-sm border transition-colors ${form.type === t ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+                        {t === 'truefalse' ? 'True/False' : t.charAt(0).toUpperCase() + t.slice(1)}
                       </button>
-                      <Input value={opt} onChange={(e) => { const opts = [...form.options]; opts[i] = e.target.value; setForm((f) => ({ ...f, options: opts })); }}
-                        placeholder={`Option ${String.fromCharCode(65 + i)}`} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Text */}
+                <div>
+                  <Label htmlFor="q-text">Question Text *</Label>
+                  <textarea id="q-text" rows={3} className="w-full mt-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} placeholder="Enter question text..." />
+                  {formErrors.text && <p className="text-red-600 text-xs mt-1">{formErrors.text}</p>}
+                </div>
+
+                {/* Options */}
+                {form.type === 'objective' && (
+                  <div>
+                    <Label>Options * (mark correct answer)</Label>
+                    <div className="space-y-2 mt-1">
+                      {form.options.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <button type="button" onClick={() => setForm((f) => ({ ...f, correctAnswer: String.fromCharCode(65 + i) }))}
+                            className={`w-7 h-7 rounded-full text-xs font-bold border-2 shrink-0 ${form.correctAnswer === String.fromCharCode(65 + i) ? 'bg-green-500 text-white border-green-500' : 'border-gray-300 text-gray-500'}`}>
+                            {String.fromCharCode(65 + i)}
+                          </button>
+                          <Input value={opt} onChange={(e) => { const opts = [...form.options]; opts[i] = e.target.value; setForm((f) => ({ ...f, options: opts })); }}
+                            placeholder={`Option ${String.fromCharCode(65 + i)}`} />
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    {formErrors.options && <p className="text-red-600 text-xs mt-1">{formErrors.options}</p>}
+                    {formErrors.correctAnswer && <p className="text-red-600 text-xs mt-1">{formErrors.correctAnswer}</p>}
+                  </div>
+                )}
+
+                {form.type === 'truefalse' && (
+                  <div>
+                    <Label>Correct Answer *</Label>
+                    <div className="flex gap-3 mt-1">
+                      {['A', 'B'].map((v, i) => (
+                        <button key={v} type="button" onClick={() => setForm((f) => ({ ...f, correctAnswer: v }))}
+                          className={`px-4 py-2 rounded border text-sm ${form.correctAnswer === v ? 'bg-green-500 text-white border-green-500' : 'border-gray-300 text-gray-700'}`}>
+                          {i === 0 ? 'True' : 'False'}
+                        </button>
+                      ))}
+                    </div>
+                    {formErrors.correctAnswer && <p className="text-red-600 text-xs mt-1">{formErrors.correctAnswer}</p>}
+                  </div>
+                )}
+
+                {/* Subject & Difficulty */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="q-subject">Subject *</Label>
+                    <Input id="q-subject" className="mt-1" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="e.g. Mathematics" />
+                    {formErrors.subject && <p className="text-red-600 text-xs mt-1">{formErrors.subject}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="q-difficulty">Difficulty</Label>
+                    <select id="q-difficulty" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.difficulty} onChange={(e) => setForm((f) => ({ ...f, difficulty: e.target.value as any }))}>
+                      <option value="Easy">Easy</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Hard">Hard</option>
+                    </select>
+                  </div>
                 </div>
-                {formErrors.options && <p className="text-red-600 text-xs mt-1">{formErrors.options}</p>}
-                {formErrors.correctAnswer && <p className="text-red-600 text-xs mt-1">{formErrors.correctAnswer}</p>}
-              </div>
+
+                {/* Tags */}
+                <div>
+                  <Label htmlFor="q-tags">Tags (comma-separated)</Label>
+                  <Input id="q-tags" className="mt-1" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="e.g. algebra, equations" />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={handleSave} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save Question'}
+                  </Button>
+                  <Button variant="outline" className="flex-1" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                </div>
+              </>
             )}
 
-            {form.type === 'truefalse' && (
-              <div>
-                <Label>Correct Answer *</Label>
-                <div className="flex gap-3 mt-1">
-                  {['A', 'B'].map((v, i) => (
-                    <button key={v} type="button" onClick={() => setForm((f) => ({ ...f, correctAnswer: v }))}
-                      className={`px-4 py-2 rounded border text-sm ${form.correctAnswer === v ? 'bg-green-500 text-white border-green-500' : 'border-gray-300 text-gray-700'}`}>
-                      {i === 0 ? 'True' : 'False'}
-                    </button>
-                  ))}
+            {/* Import Tab */}
+            {addTab === 'import' && (
+              <>
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-2">Import Questions</h4>
+                    <p className="text-sm text-blue-700 mb-3">Upload a CSV or Excel file to import multiple questions at once.</p>
+                    <Button variant="outline" size="sm" onClick={handleDownloadSample} className="w-full">
+                      <Download className="w-4 h-4 mr-2" />Download Sample Template
+                    </Button>
+                  </div>
+
+                  <div>
+                    <Label>Upload File *</Label>
+                    <div className="mt-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        className="w-full border rounded-md px-3 py-2 text-sm"
+                        onChange={handleImport}
+                      />
+                    </div>
+                  </div>
+
+                  {importStatus && (
+                    <div className={`flex items-center gap-2 text-sm rounded px-3 py-2 ${importErrors.length > 0 ? 'text-red-700 bg-red-50' : 'text-blue-700 bg-blue-50'}`}>
+                      {importErrors.length > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                      <span>{importStatus}</span>
+                    </div>
+                  )}
+
+                  {importErrors.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto text-xs bg-red-50 rounded p-2">
+                      <p className="font-semibold text-red-700 mb-1">Validation Errors:</p>
+                      {importErrors.slice(0, 10).map((err, idx) => (
+                        <div key={idx} className="text-red-600">Row {err.row} ({err.field}): {err.error}</div>
+                      ))}
+                      {importErrors.length > 10 && <div className="text-red-600 mt-1">...and {importErrors.length - 10} more errors</div>}
+                    </div>
+                  )}
+
+                  {importPreview.length > 0 && importErrors.length === 0 && (
+                    <div className="text-xs bg-green-50 rounded p-2">
+                      <p className="font-semibold text-green-700 mb-1">Preview of imported questions:</p>
+                      {importPreview.map((q, idx) => (
+                        <div key={idx} className="text-green-600">• {q.text} ({q.type} - {q.subject})</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {formErrors.correctAnswer && <p className="text-red-600 text-xs mt-1">{formErrors.correctAnswer}</p>}
-              </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setIsAddOpen(false)}>Close</Button>
+                </div>
+              </>
             )}
-
-            {/* Subject & Difficulty */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="q-subject">Subject *</Label>
-                <Input id="q-subject" className="mt-1" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="e.g. Mathematics" />
-                {formErrors.subject && <p className="text-red-600 text-xs mt-1">{formErrors.subject}</p>}
-              </div>
-              <div>
-                <Label htmlFor="q-difficulty">Difficulty</Label>
-                <select id="q-difficulty" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.difficulty} onChange={(e) => setForm((f) => ({ ...f, difficulty: e.target.value as any }))}>
-                  <option value="Easy">Easy</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Hard">Hard</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Tags */}
-            <div>
-              <Label htmlFor="q-tags">Tags (comma-separated)</Label>
-              <Input id="q-tags" className="mt-1" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="e.g. algebra, equations" />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Question'}
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -108,6 +108,11 @@ export function ExamCreationTab() {
   const [questionSearch, setQuestionSearch] = useState('');
   const [loadingQuestions, setLoadingQuestions] = useState(false);
 
+  // Dynamic dropdowns
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [classes, setClasses] = useState<Array<{ id: string; name: string; arm: string }>>([]);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const fetchExams = async () => {
@@ -142,7 +147,31 @@ export function ExamCreationTab() {
     }
   };
 
+  const fetchDropdownData = async () => {
+    setLoadingDropdowns(true);
+    try {
+      // Fetch subjects from questions
+      const subjectsRes = await tenantApiGet('/api/tenant/cbt/questions/subjects');
+      if (subjectsRes.ok) {
+        const subjectsData = await subjectsRes.json();
+        setSubjects(subjectsData.data || []);
+      }
+
+      // Fetch classes from staff classes endpoint
+      const classesRes = await tenantApiGet('/api/staff/classes');
+      if (classesRes.ok) {
+        const classesData = await classesRes.json();
+        setClasses(classesData.classes || []);
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setLoadingDropdowns(false);
+    }
+  };
+
   useEffect(() => { fetchExams(); }, []);
+  useEffect(() => { fetchDropdownData(); }, []);
 
   useEffect(() => {
     if (isFormOpen) fetchQuestions(questionSearch);
@@ -318,12 +347,19 @@ export function ExamCreationTab() {
               </div>
               <div>
                 <Label htmlFor="e-subject">Subject *</Label>
-                <Input id="e-subject" className="mt-1" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="e.g. Mathematics" />
+                <select id="e-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}>
+                  <option value="">Select a subject</option>
+                  {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                  <option value="other">Other...</option>
+                </select>
                 {formErrors.subject && <p className="text-red-600 text-xs mt-1">{formErrors.subject}</p>}
               </div>
               <div>
                 <Label htmlFor="e-class">Class *</Label>
-                <Input id="e-class" className="mt-1" value={form.class} onChange={(e) => setForm((f) => ({ ...f, class: e.target.value }))} placeholder="e.g. JSS 3" />
+                <select id="e-class" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.class} onChange={(e) => setForm((f) => ({ ...f, class: e.target.value }))}>
+                  <option value="">Select a class</option>
+                  {classes.map((c) => <option key={c.id} value={`${c.name} ${c.arm}`}>{c.name} {c.arm}</option>)}
+                </select>
                 {formErrors.class && <p className="text-red-600 text-xs mt-1">{formErrors.class}</p>}
               </div>
               <div>

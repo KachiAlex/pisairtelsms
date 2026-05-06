@@ -412,20 +412,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // GET /api/tenant/cbt/questions/:id
-  if (req.method === 'GET' && id && !action) {
-    try {
-      const question = await getQuestion(tenantId, id as string)
-      if (!question) {
-        return res.status(404).json({ success: false, error: 'Question not found' })
-      }
-      return res.status(200).json({ success: true, data: question })
-    } catch (error) {
-      console.error('Error fetching question:', error)
-      return res.status(500).json({ success: false, error: 'Failed to fetch question' })
-    }
-  }
-
   // POST /api/tenant/cbt/questions/import
   if (req.method === 'POST' && action === 'import') {
     // Delegate to the standalone import handler
@@ -545,65 +531,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error) {
       console.error('Error exporting questions:', error)
       return res.status(500).json({ success: false, error: 'Failed to export questions' })
-    }
-  }
-
-  // PUT /api/tenant/cbt/questions/:id
-  if (req.method === 'PUT' && id && !action) {
-    const body = parseBody(req)
-    if (!body) {
-      return res.status(400).json({ success: false, error: 'Request body is required' })
-    }
-
-    const { text, type, options, correctAnswer, difficulty, subject, tags } = body
-
-    try {
-      // If text is being updated, check for duplicates
-      if (text) {
-        const duplicate = await checkDuplicate(tenantId, text, id as string)
-        if (duplicate) {
-          return res.status(409).json({
-            success: false,
-            error: 'A question with this text already exists',
-          })
-        }
-      }
-
-      const input: UpdateQuestionInput = {
-        text,
-        type,
-        options,
-        correctAnswer,
-        difficulty,
-        subject,
-        tags,
-      }
-
-      const updated = await updateQuestion(tenantId, id as string, input)
-      return res.status(200).json({ success: true, data: updated })
-    } catch (error: any) {
-      if (error.message === 'Question not found') {
-        return res.status(404).json({ success: false, error: 'Question not found' })
-      }
-      console.error('Error updating question:', error)
-      return res.status(400).json({
-        success: false,
-        error: error.message || 'Failed to update question',
-      })
-    }
-  }
-
-  // DELETE /api/tenant/cbt/questions/:id
-  if (req.method === 'DELETE' && id && !action) {
-    try {
-      await deleteQuestion(tenantId, id as string)
-      return res.status(200).json({ success: true, message: 'Question deleted successfully' })
-    } catch (error: any) {
-      if (error.message === 'Question not found') {
-        return res.status(404).json({ success: false, error: 'Question not found' })
-      }
-      console.error('Error deleting question:', error)
-      return res.status(500).json({ success: false, error: 'Failed to delete question' })
     }
   }
 

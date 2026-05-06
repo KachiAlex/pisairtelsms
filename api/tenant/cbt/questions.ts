@@ -347,7 +347,12 @@ function generateCSV(questions: any[]): string {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
-  const { id, action } = req.query
+  
+  // Extract ID from URL path
+  const urlParts = req.url?.split('/').filter(Boolean) || []
+  const pathId = urlParts[urlParts.length - 1]
+  const { id: queryId, action } = req.query
+  const id = queryId || pathId
 
   // Initialize database on first request
   try {

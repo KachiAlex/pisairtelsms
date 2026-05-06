@@ -485,6 +485,7 @@ export function QuestionBankTab() {
                 </CardContent>
               </Card>
             ))}
+          </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -494,7 +495,7 @@ export function QuestionBankTab() {
               <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
             </div>
           )}
-        </div>
+        </>
       )}
 
       {/* Add Question Dialog */}

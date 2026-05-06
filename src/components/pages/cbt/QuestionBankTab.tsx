@@ -230,7 +230,7 @@ export function QuestionBankTab() {
       
       for (const id of ids) {
         try {
-          const res = await tenantApiFetch(`/api/tenant/cbt/questions/${id}`, { method: 'DELETE' });
+          const res = await tenantApiFetch(`/api/tenant/cbt/questions?id=${id}`, { method: 'DELETE' });
           if (res.ok) {
             successCount++;
           } else {

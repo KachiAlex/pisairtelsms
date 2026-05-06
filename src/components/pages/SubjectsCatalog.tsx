@@ -42,7 +42,7 @@ export function SubjectsCatalog() {
   const [newSubject, setNewSubject] = useState({
     code: '',
     name: '',
-    level: '',
+    levels: [] as string[],
     type: 'Core' as 'Core' | 'Elective',
     department: 'Sciences',
     description: ''
@@ -53,8 +53,8 @@ export function SubjectsCatalog() {
   [activeDepartment])
 
   const handleAddSubject = () => {
-    if (!newSubject.code || !newSubject.name || !newSubject.level) {
-      alert('Please fill in all required fields: Subject Code, Name, and Level.');
+    if (!newSubject.code || !newSubject.name || newSubject.levels.length === 0) {
+      alert('Please fill in all required fields: Subject Code, Name, and Levels.');
       return;
     }
 
@@ -68,7 +68,7 @@ export function SubjectsCatalog() {
     setNewSubject({
       code: '',
       name: '',
-      level: '',
+      levels: [],
       type: 'Core',
       department: 'Sciences',
       description: ''
@@ -97,7 +97,7 @@ export function SubjectsCatalog() {
                 <GraduationCap className="h-4 w-4 mr-2" /> Add subject
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-2xl w-[95vw]">
               <DialogHeader>
                 <DialogTitle>Add New Subject</DialogTitle>
                 <DialogDescription>
@@ -124,24 +124,42 @@ export function SubjectsCatalog() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="subject-level">Level</Label>
-                  <Select value={newSubject.level} onValueChange={(value) => setNewSubject({ ...newSubject, level: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="JSS 1-3">JSS 1-3</SelectItem>
-                      <SelectItem value="JSS 1">JSS 1</SelectItem>
-                      <SelectItem value="JSS 2">JSS 2</SelectItem>
-                      <SelectItem value="JSS 3">JSS 3</SelectItem>
-                      <SelectItem value="SS 1-3">SS 1-3</SelectItem>
-                      <SelectItem value="SS 1">SS 1</SelectItem>
-                      <SelectItem value="SS 2">SS 2</SelectItem>
-                      <SelectItem value="SS 3">SS 3</SelectItem>
-                      <SelectItem value="JSS 2-3">JSS 2-3</SelectItem>
-                      <SelectItem value="SS 1-2">SS 1-2</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Levels *</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'].map((level) => (
+                      <label key={level} className="flex items-center gap-2 p-2 border rounded-md cursor-pointer hover:bg-gray-50 transition">
+                        <input
+                          type="checkbox"
+                          checked={newSubject.levels.includes(level)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewSubject({ ...newSubject, levels: [...newSubject.levels, level] })
+                            } else {
+                              setNewSubject({ ...newSubject, levels: newSubject.levels.filter(l => l !== level) })
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">{level}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {newSubject.levels.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {newSubject.levels.map((level) => (
+                        <Badge key={level} variant="secondary" className="text-xs">
+                          {level}
+                          <button
+                            type="button"
+                            onClick={() => setNewSubject({ ...newSubject, levels: newSubject.levels.filter(l => l !== level) })}
+                            className="ml-1 hover:text-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="subject-type">Type</Label>
@@ -184,7 +202,7 @@ export function SubjectsCatalog() {
                 <Button variant="outline" onClick={() => setAddSubjectOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddSubject} disabled={!newSubject.code || !newSubject.name || !newSubject.level}>
+                <Button onClick={handleAddSubject} disabled={!newSubject.code || !newSubject.name || newSubject.levels.length === 0}>
                   Add Subject
                 </Button>
               </DialogFooter>

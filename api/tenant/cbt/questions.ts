@@ -6,7 +6,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   createQuestion,
-  getQuestionById,
+  getQuestion,
   getQuestions,
   updateQuestion,
   deleteQuestion,
@@ -369,7 +369,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/cbt/questions/:id
   if (req.method === 'GET' && id && !action) {
     try {
-      const question = await getQuestionById(tenantId, id as string)
+      const question = await getQuestion(tenantId, id as string)
       if (!question) {
         return res.status(404).json({ success: false, error: 'Question not found' })
       }

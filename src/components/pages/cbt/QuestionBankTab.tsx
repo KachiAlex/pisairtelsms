@@ -503,13 +503,16 @@ export function QuestionBankTab() {
                             <Badge className={DIFFICULTY_COLORS[q.difficulty]}>{q.difficulty}</Badge>
                             {q.subject && <Badge className="bg-gray-100 text-gray-600">{q.subject}</Badge>}
                           </div>
-                          {q.type === 'objective' && q.options.length > 0 && (
+                          {q.type === 'objective' && Array.isArray(q.options) && q.options.length > 0 && (
                             <div className="grid grid-cols-2 gap-1 text-sm">
-                              {q.options.map((opt, i) => (
-                                <div key={i} className={`px-2 py-1 rounded text-xs ${String.fromCharCode(65 + i) === q.correctAnswer ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>
-                                  {String.fromCharCode(65 + i)}. {opt}
-                                </div>
-                              ))}
+                              {q.options.map((opt, i) => {
+                                const optionText = typeof opt === 'string' ? opt : (opt?.text || '');
+                                return (
+                                  <div key={i} className={`px-2 py-1 rounded text-xs ${String.fromCharCode(65 + i) === q.correctAnswer ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>
+                                    {String.fromCharCode(65 + i)}. {optionText}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                           {q.type === 'truefalse' && (

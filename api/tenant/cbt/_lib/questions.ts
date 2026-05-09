@@ -14,6 +14,17 @@ import {
 } from './types.js';
 
 /**
+ * Parse a question row from the database, converting JSON strings to objects
+ */
+function parseQuestionRow(row: any): Question {
+  return {
+    ...row,
+    options: typeof row.options === 'string' ? JSON.parse(row.options || '[]') : (row.options || []),
+    tags: typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []),
+  };
+}
+
+/**
  * Get all questions with filtering and pagination
  */
 export async function getQuestions(
@@ -60,14 +71,17 @@ export async function getQuestions(
   const total = parseInt(countResult?.count || '0');
 
   // Get paginated results
-  const questions = await queryAll<Question>(
+  const questions = await queryAll<any>(
     `SELECT * FROM questions_bank ${whereClause} ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
     [...params, limit, offset]
   );
 
+  // Parse JSON fields
+  const parsedQuestions = questions.map(q => parseQuestionRow(q));
+
   return {
     success: true,
-    data: questions,
+    data: parsedQuestions,
     pagination: {
       page,
       limit,
@@ -84,10 +98,11 @@ export async function getQuestion(
   tenantId: string,
   questionId: string
 ): Promise<Question | null> {
-  return queryOne<Question>(
+  const row = await queryOne<any>(
     'SELECT * FROM questions_bank WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL',
     [questionId, tenantId]
   );
+  return row ? parseQuestionRow(row) : null;
 }
 
 /**
@@ -101,7 +116,7 @@ export async function createQuestion(
   // Validate input
   validateQuestionInput(input);
 
-  const question = await queryOne<Question>(
+  const row = await queryOne<any>(
     `INSERT INTO questions_bank (
       tenant_id, text, type, options, correct_answer, 
       difficulty, subject, tags, created_by
@@ -120,11 +135,11 @@ export async function createQuestion(
     ]
   );
 
-  if (!question) {
+  if (!row) {
     throw new Error('Failed to create question');
   }
 
-  return question;
+  return parseQuestionRow(row);
 }
 
 /**
@@ -153,7 +168,7 @@ export async function updateQuestion(
     });
   }
 
-  const updated = await queryOne<Question>(
+  const row = await queryOne<any>(
     `UPDATE questions_bank SET
       text = COALESCE($1, text),
       type = COALESCE($2, type),
@@ -178,11 +193,11 @@ export async function updateQuestion(
     ]
   );
 
-  if (!updated) {
+  if (!row) {
     throw new Error('Failed to update question');
   }
 
-  return updated;
+  return parseQuestionRow(row);
 }
 
 /**
@@ -219,7 +234,8 @@ export async function checkDuplicate(
     params.push(excludeId);
   }
 
-  return queryOne<Question>(sql, params);
+  const row = await queryOne<any>(sql, params);
+  return row ? parseQuestionRow(row) : null;
 }
 
 /**

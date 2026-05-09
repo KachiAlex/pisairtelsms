@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { BookOpen, GraduationCap, Layers3, Filter, Download, Sparkles, AlertTriangle, Plus, X } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -10,6 +10,7 @@ import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Textarea } from '../ui/textarea'
+import { tenantApiFetch } from '../../lib/tenantApi'
 
 const subjectStats = [
   { label: 'Subjects catalogued', value: '74', detail: '52 core • 22 elective', icon: BookOpen, color: 'text-blue-600' },
@@ -25,20 +26,27 @@ const departmentSummary = [
   { department: 'Languages', subjects: 11, coverage: '84%', owner: 'Ms. Iboroma', priority: 'Medium' },
 ]
 
-const subjects = [
-  { code: 'MAT-101', name: 'Mathematics', level: 'JSS 1-3', type: 'Core', teachers: 8, version: '2026.1', resources: 'Complete', owner: 'Dr. Olajumoke', audit: 'Jan 2026', department: 'Sciences' },
-  { code: 'ENG-102', name: 'English Studies', level: 'JSS 1-3', type: 'Core', teachers: 7, version: '2025.4', resources: 'Complete', owner: 'Mr. Eze', audit: 'Dec 2025', department: 'Humanities' },
-  { code: 'BSC-203', name: 'Basic Science', level: 'JSS 2-3', type: 'Core', teachers: 6, version: '2026.0', resources: 'Review', owner: 'Dr. Olajumoke', audit: 'Feb 2026', department: 'Sciences' },
-  { code: 'BUS-411', name: 'Entrepreneurship', level: 'SS 1-3', type: 'Elective', teachers: 4, version: '2024.2', resources: 'Upload', owner: 'Mrs. Bello', audit: 'Oct 2025', department: 'Commercial' },
-  { code: 'LAN-325', name: 'French Immersion', level: 'JSS 2-3', type: 'Elective', teachers: 3, version: '2026.0', resources: 'Complete', owner: 'Ms. Iboroma', audit: 'Jan 2026', department: 'Languages' },
-  { code: 'ART-502', name: 'Fine Arts', level: 'SS 1-2', type: 'Elective', teachers: 2, version: '2025.2', resources: 'Review', owner: 'Mr. Eze', audit: 'Nov 2025', department: 'Humanities' },
-]
-
 const departmentFilters = ['All', 'Sciences', 'Humanities', 'Commercial', 'Languages']
+
+interface Subject {
+  id: string
+  code: string
+  name: string
+  levels: string[]
+  type: 'Core' | 'Elective'
+  department: string
+  description?: string
+  version?: string
+  resourcesStatus?: string
+  owner?: string
+  auditDate?: string
+}
 
 export function SubjectsCatalog() {
   const [activeDepartment, setActiveDepartment] = useState('All')
   const [addSubjectOpen, setAddSubjectOpen] = useState(false)
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [loading, setLoading] = useState(true)
   const [newSubject, setNewSubject] = useState({
     code: '',
     name: '',
@@ -50,30 +58,61 @@ export function SubjectsCatalog() {
 
   const filteredSubjects = useMemo(() =>
     activeDepartment === 'All' ? subjects : subjects.filter((subject) => subject.department === activeDepartment),
-  [activeDepartment])
+    [activeDepartment, subjects])
 
-  const handleAddSubject = () => {
+  const fetchSubjects = async () => {
+    try {
+      setLoading(true)
+      const res = await tenantApiFetch('/api/tenant/cbt/subjects')
+      if (res.ok) {
+        const data = await res.json()
+        setSubjects(data.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching subjects:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSubjects()
+  }, [])
+
+  const handleAddSubject = async () => {
     if (!newSubject.code || !newSubject.name || newSubject.levels.length === 0) {
       alert('Please fill in all required fields: Subject Code, Name, and Levels.');
       return;
     }
 
-    // Here you would typically save to backend
-    console.log('Adding subject:', newSubject)
+    try {
+      const res = await tenantApiFetch('/api/tenant/cbt/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSubject),
+      });
 
-    // Show success feedback
-    alert(`Subject "${newSubject.name}" (${newSubject.code}) added successfully to ${newSubject.department} department!`);
-
-    // Reset form and close dialog
-    setNewSubject({
-      code: '',
-      name: '',
-      levels: [],
-      type: 'Core',
-      department: 'Sciences',
-      description: ''
-    })
-    setAddSubjectOpen(false)
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Subject "${newSubject.name}" (${newSubject.code}) added successfully to ${newSubject.department} department!`);
+        fetchSubjects();
+        setNewSubject({
+          code: '',
+          name: '',
+          levels: [],
+          type: 'Core',
+          department: 'Sciences',
+          description: ''
+        });
+        setAddSubjectOpen(false);
+      } else {
+        const errorData = await res.json();
+        alert(`Error adding subject: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error adding subject:', error);
+      alert('Error adding subject. Please try again.');
+    }
   }
 
   return (
@@ -318,7 +357,6 @@ export function SubjectsCatalog() {
                   <TableHead>Subject</TableHead>
                   <TableHead>Levels</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Teachers</TableHead>
                   <TableHead>Version</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Last audit</TableHead>
@@ -330,20 +368,27 @@ export function SubjectsCatalog() {
                   <TableRow key={subject.code}>
                     <TableCell className="font-semibold text-gray-900">{subject.code}</TableCell>
                     <TableCell>{subject.name}</TableCell>
-                    <TableCell>{subject.level}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {subject.levels.map((level) => (
+                          <Badge key={level} variant="outline" className="text-xs">
+                            {level}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={subject.type === 'Core' ? 'secondary' : 'outline'} className="text-xs">
                         {subject.type}
                       </Badge>
                     </TableCell>
-                    <TableCell>{subject.teachers}</TableCell>
-                    <TableCell>{subject.version}</TableCell>
-                    <TableCell>{subject.owner}</TableCell>
-                    <TableCell>{subject.audit}</TableCell>
-                    <TableCell className={subject.resources === 'Upload' ? 'text-rose-600 font-semibold' : ''}>
+                    <TableCell>{subject.version || '-'}</TableCell>
+                    <TableCell>{subject.owner || '-'}</TableCell>
+                    <TableCell>{subject.auditDate || '-'}</TableCell>
+                    <TableCell className={subject.resourcesStatus === 'Upload' ? 'text-rose-600 font-semibold' : ''}>
                       <div className="flex items-center gap-2">
-                        <span>{subject.resources}</span>
-                        {subject.resources === 'Upload' && (
+                        <span>{subject.resourcesStatus || 'Pending'}</span>
+                        {subject.resourcesStatus === 'Upload' && (
                           <Button size="sm" variant="outline" className="text-[11px] h-6" onClick={() => alert(`Requesting assets for ${subject.name} - would send notification to subject owner`)}>
                             Request assets
                           </Button>

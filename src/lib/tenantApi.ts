@@ -3,7 +3,7 @@
  * Used for all tenant-scoped API calls
  */
 
-const TENANT_ID = 'default-tenant';
+const TENANT_ID = 'default-tenant-uuid';
 
 function getAuthHeaders(): Record<string, string> {
   try {

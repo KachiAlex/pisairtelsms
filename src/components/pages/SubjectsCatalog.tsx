@@ -10,7 +10,7 @@ import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Textarea } from '../ui/textarea'
-import { tenantApiFetch } from '../../lib/tenantApi'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
 const subjectStats = [
   { label: 'Subjects catalogued', value: '74', detail: '52 core • 22 elective', icon: BookOpen, color: 'text-blue-600' },
@@ -63,7 +63,7 @@ export function SubjectsCatalog() {
   const fetchSubjects = async () => {
     try {
       setLoading(true)
-      const res = await tenantApiFetch('/api/tenant/cbt/subjects')
+      const res = await tenantApiGet('/api/tenant/cbt/subjects')
       if (res.ok) {
         const data = await res.json()
         setSubjects(data.data || [])
@@ -86,11 +86,7 @@ export function SubjectsCatalog() {
     }
 
     try {
-      const res = await tenantApiFetch('/api/tenant/cbt/subjects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSubject),
-      });
+      const res = await tenantApiPost('/api/tenant/cbt/subjects', newSubject);
 
       if (res.ok) {
         const data = await res.json();

@@ -150,8 +150,8 @@ export function ExamCreationTab() {
   const fetchDropdownData = async () => {
     setLoadingDropdowns(true);
     try {
-      // Fetch subjects from questions
-      const subjectsRes = await tenantApiGet('/api/tenant/cbt/questions/subjects');
+      // Fetch subjects from admin-created subjects
+      const subjectsRes = await tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true');
       if (subjectsRes.ok) {
         const subjectsData = await subjectsRes.json();
         setSubjects(subjectsData.data || []);

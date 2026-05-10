@@ -13,8 +13,11 @@ function getAuthHeaders(): Record<string, string> {
       const headers: Record<string, string> = {
         'x-tenant-id': auth.tenantId || TENANT_ID,
       };
+      // Use userId if available, otherwise use email as fallback
       if (auth.userId) {
         headers['x-user-id'] = auth.userId;
+      } else if (auth.email) {
+        headers['x-user-id'] = auth.email;
       }
       return headers;
     }

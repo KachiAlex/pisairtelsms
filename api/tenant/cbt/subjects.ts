@@ -15,7 +15,7 @@ import { initializeDatabase } from './_lib/db.js'
  */
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const tenantId = req.headers['x-tenant-id'] as string
+  let tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
 
   if (!tenantId) {

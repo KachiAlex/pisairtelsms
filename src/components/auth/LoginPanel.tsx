@@ -112,14 +112,40 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
       }
     }
 
-    // Save auth token for tenant admin
-    setAuthInStorage({
-      token: `tenant-admin-${Date.now()}`,
-      tenantId: email.trim().toLowerCase(),
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-    })
+    // Look up tenant ID from user record
+    try {
+      const userRes = await fetch('/api/tenant/user-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      })
 
-    onLogin('tenant-admin')
+      let tenantId = 'default-tenant'
+      if (userRes.ok) {
+        const userData = await userRes.json()
+        tenantId = userData.tenantId || 'default-tenant'
+      }
+
+      // Save auth token for tenant admin
+      setAuthInStorage({
+        token: `tenant-admin-${Date.now()}`,
+        tenantId,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        userId: email.trim().toLowerCase(),
+      })
+
+      onLogin('tenant-admin')
+    } catch (lookupError) {
+      console.error('Error looking up tenant:', lookupError)
+      // Fallback: use email as tenant ID (will be handled by endpoints)
+      setAuthInStorage({
+        token: `tenant-admin-${Date.now()}`,
+        tenantId: email.trim().toLowerCase(),
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        userId: email.trim().toLowerCase(),
+      })
+      onLogin('tenant-admin')
+    }
   }
 
   return (

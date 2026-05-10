@@ -171,13 +171,12 @@ export function ExamCreationTab() {
         setSubjects([]);
       }
 
-      // Fetch classes from staff classes endpoint
-      const classesRes = await tenantApiGet('/api/staff/classes');
+      // Fetch classes from tenant-scoped classes endpoint
+      const classesRes = await tenantApiGet('/api/tenant/cbt/classes');
       if (classesRes.ok) {
         const classesData = await classesRes.json();
         console.log('Classes response:', classesData);
-        const classList = Array.isArray(classesData.classes) ? classesData.classes : 
-                         Array.isArray(classesData.data) ? classesData.data : [];
+        const classList = Array.isArray(classesData.data) ? classesData.data : [];
         console.log('Classes list:', classList);
         setClasses(classList);
       } else {

@@ -154,17 +154,34 @@ export function ExamCreationTab() {
       const subjectsRes = await tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true');
       if (subjectsRes.ok) {
         const subjectsData = await subjectsRes.json();
-        setSubjects(subjectsData.data || []);
+        console.log('Subjects response:', subjectsData);
+        const subjectsList = Array.isArray(subjectsData.data) ? subjectsData.data : [];
+        console.log('Subjects list:', subjectsList);
+        setSubjects(subjectsList);
+      } else {
+        const errorText = await subjectsRes.text();
+        console.error('Failed to fetch subjects:', subjectsRes.status, errorText);
+        setSubjects([]);
       }
 
       // Fetch classes from staff classes endpoint
       const classesRes = await tenantApiGet('/api/staff/classes');
       if (classesRes.ok) {
         const classesData = await classesRes.json();
-        setClasses(classesData.classes || []);
+        console.log('Classes response:', classesData);
+        const classList = Array.isArray(classesData.classes) ? classesData.classes : 
+                         Array.isArray(classesData.data) ? classesData.data : [];
+        console.log('Classes list:', classList);
+        setClasses(classList);
+      } else {
+        const errorText = await classesRes.text();
+        console.error('Failed to fetch classes:', classesRes.status, errorText);
+        setClasses([]);
       }
-    } catch {
-      // non-critical
+    } catch (error) {
+      console.error('Error fetching dropdown data:', error);
+      setSubjects([]);
+      setClasses([]);
     } finally {
       setLoadingDropdowns(false);
     }

@@ -150,6 +150,13 @@ export function ExamCreationTab() {
   const fetchDropdownData = async () => {
     setLoadingDropdowns(true);
     try {
+      // First, run diagnostics to see what's in the database
+      const diagRes = await tenantApiGet('/api/tenant/cbt/diagnostics');
+      if (diagRes.ok) {
+        const diagData = await diagRes.json();
+        console.log('Diagnostics:', diagData);
+      }
+
       // Fetch subjects from admin-created subjects
       const subjectsRes = await tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true');
       if (subjectsRes.ok) {

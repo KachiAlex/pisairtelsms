@@ -10,6 +10,8 @@ import {
   getQuestions,
   updateQuestion,
   deleteQuestion,
+  getQuestionStats,
+  checkDuplicate,
 } from './_lib/questions.js'
 import { getSubjectNames } from './_lib/subjects.js'
 import { initializeDatabase } from './_lib/db.js'

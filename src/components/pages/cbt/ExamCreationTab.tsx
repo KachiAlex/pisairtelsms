@@ -366,7 +366,11 @@ export function ExamCreationTab() {
                 <Label htmlFor="e-subject">Subject *</Label>
                 <select id="e-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}>
                   <option value="">Select a subject</option>
-                  {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {subjects.length === 0 ? (
+                    <option disabled>No subjects available</option>
+                  ) : (
+                    subjects.map((s) => <option key={s} value={s}>{s}</option>)
+                  )}
                   <option value="other">Other...</option>
                 </select>
                 {formErrors.subject && <p className="text-red-600 text-xs mt-1">{formErrors.subject}</p>}
@@ -375,7 +379,11 @@ export function ExamCreationTab() {
                 <Label htmlFor="e-class">Class *</Label>
                 <select id="e-class" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.class} onChange={(e) => setForm((f) => ({ ...f, class: e.target.value }))}>
                   <option value="">Select a class</option>
-                  {classes.map((c) => <option key={c.id} value={`${c.name} ${c.arm}`}>{c.name} {c.arm}</option>)}
+                  {classes.length === 0 ? (
+                    <option disabled>No classes available</option>
+                  ) : (
+                    classes.map((c) => <option key={c.id} value={`${c.name} ${c.arm}`}>{c.name} {c.arm}</option>)
+                  )}
                 </select>
                 {formErrors.class && <p className="text-red-600 text-xs mt-1">{formErrors.class}</p>}
               </div>

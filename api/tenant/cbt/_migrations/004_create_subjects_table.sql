@@ -7,7 +7,7 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS subjects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID,
+  tenant_id VARCHAR(255) NOT NULL DEFAULT 'default-tenant-uuid',
   code VARCHAR(50) NOT NULL,
   name VARCHAR(255) NOT NULL,
   levels JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS subjects (
   resources_status VARCHAR(20) DEFAULT 'Pending' CHECK (resources_status IN ('Complete', 'Review', 'Upload', 'Pending')),
   owner VARCHAR(255),
   audit_date DATE,
-  created_by UUID,
+  created_by VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP

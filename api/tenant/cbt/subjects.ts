@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const createdBy = userId || 'system-user'
 
     try {
-      const body = req.body
+      let body = req.body
       if (typeof body === 'string') {
         try { body = JSON.parse(body) } catch { body = null }
       }
@@ -98,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const body = req.body
+      let body = req.body
       if (typeof body === 'string') {
         try { body = JSON.parse(body) } catch { body = null }
       }

@@ -10,6 +10,9 @@ import path from 'path';
 // Database connection pool
 let pool: Pool | null = null;
 
+// Track if migrations have been run
+let migrationsRun = false;
+
 /**
  * Initialize database connection pool
  */
@@ -33,6 +36,14 @@ export function initializeDatabase(): Pool {
   pool.on('error', (err) => {
     console.error('Unexpected error on idle client', err);
   });
+
+  // Run migrations on first initialization
+  if (!migrationsRun) {
+    migrationsRun = true;
+    runMigrations().catch((err) => {
+      console.error('Failed to run migrations:', err);
+    });
+  }
 
   return pool;
 }

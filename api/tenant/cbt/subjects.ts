@@ -52,9 +52,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // POST /api/tenant/cbt/subjects - Create a new subject
   if (req.method === 'POST') {
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'x-user-id header is required' })
-    }
+    // Use provided userId or generate a default one
+    const createdBy = userId || 'system-user'
 
     try {
       const body = req.body
@@ -79,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         version: body.version,
       }
 
-      const subject = await createSubject(tenantId, userId, input)
+      const subject = await createSubject(tenantId, createdBy, input)
       return res.status(201).json({ success: true, data: subject })
     } catch (error: any) {
       console.error('Error creating subject:', error)
@@ -92,9 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // PUT /api/tenant/cbt/subjects?id={id} - Update a subject
   if (req.method === 'PUT') {
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'x-user-id header is required' })
-    }
+    const updatedBy = userId || 'system-user'
 
     if (!id || typeof id !== 'string') {
       return res.status(400).json({ success: false, error: 'Subject id is required' })
@@ -119,9 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // DELETE /api/tenant/cbt/subjects?id={id} - Delete a subject
   if (req.method === 'DELETE') {
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'x-user-id header is required' })
-    }
+    const deletedBy = userId || 'system-user'
 
     if (!id || typeof id !== 'string') {
       return res.status(400).json({ success: false, error: 'Subject id is required' })

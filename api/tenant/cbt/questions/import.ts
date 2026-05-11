@@ -14,8 +14,13 @@
  *   content: string (base64-encoded or plain text),
  *   filename: string,
  *   options: {
- *     skipDuplicates: boolean (default: true),
- *     overwriteDuplicates: boolean (default: false)
+ *     skipDuplicates?: boolean,
+ *     overwriteDuplicates?: boolean,
+ *     subject?: string,
+ *     difficulty?: string,
+ *     type?: string,
+ *     tag?: string,
+ *     tags?: string[]
  *   }
  * }
  * 
@@ -469,6 +474,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const defaultSubject = options.subject || undefined
   const defaultDifficulty = options.difficulty || undefined
   const defaultType = options.type || undefined
+  const defaultTag = typeof options.tag === 'string' ? options.tag.trim() : ''
+  const defaultTagsArray = Array.isArray(options.tags) ? options.tags.map((t: string) => t?.trim()).filter(Boolean) : []
+  const defaultTags = [...(defaultTag ? [defaultTag] : []), ...defaultTagsArray].filter(Boolean)
 
   try {
     // Parse file
@@ -527,7 +535,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       skipped: 0,
       failed: 0,
       errors: [] as ValidationError[],
-      preview: [] as Array<{ text: string, type: string, subject: string }>,
+      preview: [] as Array<{ text: string, type: string, subject: string, tags?: string[] }>,
     }
 
     for (let i = 0; i < validRows.length; i++) {
@@ -542,6 +550,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           text,
           isCorrect: String.fromCharCode(65 + idx) === normalizeCorrectAnswer(row.correctAnswer || '', type)
         }))
+        const rowTags = parseTags(row)
+        const mergedTags = Array.from(new Set([...rowTags, ...defaultTags]))
+
         const input: CreateQuestionInput = {
           text: row.text.trim(),
           type,
@@ -549,7 +560,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           correctAnswer: type === 'essay' ? '' : normalizeCorrectAnswer(row.correctAnswer || '', type),
           difficulty: normalizeDifficulty(defaultDifficulty || row.difficulty || 'Medium'),
           subject: (defaultSubject || row.subject || 'General').trim() || 'General',
-          tags: parseTags(row),
+          tags: mergedTags,
         }
 
         // Check for duplicates
@@ -571,6 +582,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             text: input.text.substring(0, 100) + (input.text.length > 100 ? '...' : ''),
             type: input.type,
             subject: input.subject,
+            tags: input.tags,
           })
         }
       } catch (error: any) {

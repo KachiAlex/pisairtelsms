@@ -25,6 +25,41 @@ function parseQuestionRow(row: any): Question {
 }
 
 /**
+ * Get unique tags per subject (and globally) for a tenant
+ */
+export async function getQuestionTagsSummary(tenantId: string): Promise<{
+  allTags: string[];
+  subjects: Array<{ subject: string; tags: string[] }>;
+}> {
+  const rows = await queryAll<{ subject: string; tag: string }>(
+    `SELECT subject, jsonb_array_elements_text(tags::jsonb) AS tag
+     FROM questions_bank
+     WHERE tenant_id = $1 AND deleted_at IS NULL AND tags IS NOT NULL AND jsonb_array_length(tags::jsonb) > 0`,
+    [tenantId]
+  );
+
+  const subjectMap = new Map<string, Set<string>>();
+  const allTags = new Set<string>();
+
+  for (const row of rows) {
+    if (!row.tag) continue;
+    allTags.add(row.tag);
+    if (!subjectMap.has(row.subject)) {
+      subjectMap.set(row.subject, new Set());
+    }
+    subjectMap.get(row.subject)!.add(row.tag);
+  }
+
+  return {
+    allTags: Array.from(allTags).sort((a, b) => a.localeCompare(b)),
+    subjects: Array.from(subjectMap.entries()).map(([subject, tagSet]) => ({
+      subject,
+      tags: Array.from(tagSet).sort((a, b) => a.localeCompare(b)),
+    })),
+  };
+}
+
+/**
  * Get all questions with filtering and pagination
  */
 export async function getQuestions(
@@ -60,6 +95,12 @@ export async function getQuestions(
   if (filter.searchText) {
     whereClause += ` AND text ILIKE $${paramIndex}`;
     params.push(`%${filter.searchText}%`);
+    paramIndex++;
+  }
+
+  if (filter.tag) {
+    whereClause += ` AND (tags IS NOT NULL AND tags::jsonb @> $${paramIndex}::jsonb)`;
+    params.push(JSON.stringify([filter.tag]));
     paramIndex++;
   }
 

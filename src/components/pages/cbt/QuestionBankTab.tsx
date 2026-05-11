@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, Search, Upload, Download, Trash2, FileText, RefreshCw, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -81,12 +81,15 @@ export function QuestionBankTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [subjectTagHints, setSubjectTagHints] = useState<Record<string, string[]>>({});
 
   // Filters
   const [search, setSearch] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterDifficulty, setFilterDifficulty] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterTag, setFilterTag] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -100,7 +103,7 @@ export function QuestionBankTab() {
   const [addTab, setAddTab] = useState<'manual' | 'import'>('manual');
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<Array<{ row: number; field: string; error: string }>>([]);
-  const [importPreview, setImportPreview] = useState<Array<{ text: string; type: string; subject: string }>>([]);
+  const [importPreview, setImportPreview] = useState<Array<{ text: string; type: string; subject: string; tags?: string[] }>>([]);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +122,11 @@ export function QuestionBankTab() {
   const [importSubject, setImportSubject] = useState('');
   const [importDifficulty, setImportDifficulty] = useState<Question['difficulty']>('Medium');
   const [importType, setImportType] = useState<Question['type']>('objective');
+  const [importTag, setImportTag] = useState('');
+
+  const activeTagHints = useMemo(() => (
+    importSubject ? (subjectTagHints[importSubject] || []) : []
+  ), [importSubject, subjectTagHints]);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -131,6 +139,7 @@ export function QuestionBankTab() {
       if (filterSubject) params.set('subject', filterSubject);
       if (filterDifficulty) params.set('difficulty', filterDifficulty);
       if (filterType) params.set('type', filterType);
+      if (filterTag) params.set('tag', filterTag);
 
       const res = await tenantApiGet(`/api/tenant/cbt/questions?${params}`);
       if (!res.ok) throw new Error('Failed to load questions');
@@ -170,14 +179,45 @@ export function QuestionBankTab() {
     }
   };
 
+  const fetchTagSummary = async () => {
+    try {
+      const res = await tenantApiGet('/api/tenant/cbt/questions?action=tags');
+      if (!res.ok) {
+        setAvailableTags([]);
+        setSubjectTagHints({});
+        return;
+      }
+      const data = await res.json();
+      const summary = data.data || { allTags: [], subjects: [] };
+      setAvailableTags(Array.isArray(summary.allTags) ? summary.allTags : []);
+      const map: Record<string, string[]> = {};
+      if (Array.isArray(summary.subjects)) {
+        summary.subjects.forEach((entry: { subject: string; tags: string[] }) => {
+          map[entry.subject] = entry.tags;
+        });
+      }
+      setSubjectTagHints(map);
+    } catch {
+      setAvailableTags([]);
+      setSubjectTagHints({});
+    }
+  };
+
   useEffect(() => {
     fetchQuestions();
     fetchSubjects();
-  }, [page, search, filterSubject, filterDifficulty, filterType]);
+    fetchTagSummary();
+  }, [page, search, filterSubject, filterDifficulty, filterType, filterTag]);
 
   useEffect(() => {
     fetchStats();
   }, [questions]);
+
+  useEffect(() => {
+    if (!importSubject || importTag) return;
+    const nextTag = activeTagHints[0] || `${importSubject} set`.trim();
+    setImportTag(nextTag);
+  }, [importSubject, importTag, activeTagHints]);
 
   // ── Form handlers ──────────────────────────────────────────────────────────
 
@@ -188,6 +228,10 @@ export function QuestionBankTab() {
     setImportStatus(null);
     setImportErrors([]);
     setImportPreview([]);
+    setImportSubject('');
+    setImportDifficulty('Medium');
+    setImportType('objective');
+    setImportTag('');
   };
 
   const handleTypeChange = (type: QuestionFormData['type']) => {
@@ -220,6 +264,7 @@ export function QuestionBankTab() {
       resetForm();
       fetchQuestions();
       fetchStats();
+      fetchTagSummary();
     } catch (e) {
       setFormErrors({ text: e instanceof Error ? e.message : 'Save failed' });
     } finally {
@@ -355,6 +400,7 @@ export function QuestionBankTab() {
             subject: importSubject || undefined,
             difficulty: importDifficulty || undefined,
             type: importType || undefined,
+            tag: (importTag || importSubject || '').trim() || undefined,
           }
         }),
       });
@@ -377,6 +423,7 @@ export function QuestionBankTab() {
         );
         fetchQuestions();
         fetchStats();
+        fetchTagSummary();
       }
     } catch (e) {
       setImportStatus(e instanceof Error ? e.message : 'Import failed');
@@ -429,6 +476,17 @@ export function QuestionBankTab() {
               <option value="objective">Objective</option>
               <option value="truefalse">True/False</option>
               <option value="essay">Essay</option>
+            </select>
+            <select
+              className="border rounded-md px-3 py-2 text-sm"
+              value={filterTag}
+              onChange={(e) => { setFilterTag(e.target.value); setPage(1); }}
+              disabled={availableTags.length === 0}
+            >
+              <option value="">{availableTags.length === 0 ? 'No tags yet' : 'All Tags'}</option>
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
             </select>
           </div>
           <div className="flex gap-2 mt-3">
@@ -504,6 +562,15 @@ export function QuestionBankTab() {
                             <Badge className={DIFFICULTY_COLORS[q.difficulty]}>{q.difficulty}</Badge>
                             {q.subject && <Badge className="bg-gray-100 text-gray-600">{q.subject}</Badge>}
                           </div>
+                          {q.tags && q.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {q.tags.map((tag) => (
+                                <span key={`${q.id}-${tag}`} className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           {q.type === 'objective' && Array.isArray(q.options) && q.options.length > 0 && (
                             <div className="grid grid-cols-2 gap-1 text-sm">
                               {q.options.map((opt, i) => {
@@ -690,7 +757,7 @@ export function QuestionBankTab() {
                   </div>
 
                   {/* Categorization */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
                       <Label htmlFor="import-subject">Subject (optional)</Label>
                       <select
@@ -725,6 +792,31 @@ export function QuestionBankTab() {
                         <option value="truefalse">True/False</option>
                         <option value="essay">Essay</option>
                       </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="import-tag">Tag label</Label>
+                      <Input
+                        id="import-tag"
+                        className="mt-1"
+                        value={importTag}
+                        onChange={(e) => setImportTag(e.target.value)}
+                        placeholder={importSubject ? `${importSubject} Midterm` : 'e.g. Algebra Wave 1'}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Tags group imported sets and show up while creating exams.</p>
+                      {activeTagHints.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {activeTagHints.slice(0, 3).map((hint) => (
+                            <button
+                              key={hint}
+                              type="button"
+                              onClick={() => setImportTag(hint)}
+                              className="text-[11px] px-2 py-0.5 rounded-full border border-blue-200 text-blue-600 hover:bg-blue-50"
+                            >
+                              Use "{hint}"
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -762,7 +854,12 @@ export function QuestionBankTab() {
                     <div className="text-xs bg-green-50 rounded p-2">
                       <p className="font-semibold text-green-700 mb-1">Preview of imported questions:</p>
                       {importPreview.map((q, idx) => (
-                        <div key={idx} className="text-green-600">• {q.text} ({q.type} - {q.subject})</div>
+                        <div key={idx} className="text-green-600">
+                          • {q.text} ({q.type} - {q.subject})
+                          {q.tags && q.tags.length > 0 && (
+                            <span className="text-green-700"> — #{q.tags.join(', #')}</span>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}

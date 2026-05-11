@@ -6,6 +6,7 @@
 import { Pool, QueryResult } from 'pg';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Database connection pool
 let pool: Pool | null = null;
@@ -123,7 +124,10 @@ export async function transaction<T>(
  */
 export async function runMigrations(): Promise<void> {
   const pool = getPool();
-  const migrationsDir = path.join(__dirname, '../_migrations');
+  const moduleDirname = typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
+  const migrationsDir = path.join(moduleDirname, '../_migrations');
 
   try {
     // Create migrations table if it doesn't exist

@@ -344,6 +344,7 @@ export interface QuestionFilter {
   difficulty?: DifficultyLevel;
   type?: QuestionType;
   searchText?: string;
+  tag?: string;
   page?: number;
   limit?: number;
 }

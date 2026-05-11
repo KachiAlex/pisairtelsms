@@ -5,7 +5,7 @@ import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Progress } from '../../ui/progress';
 import { tenantApiGet, tenantApiPost, tenantApiPut } from '../../../lib/tenantApi';
 
@@ -33,6 +33,7 @@ interface Question {
   type: string;
   difficulty: string;
   subject: string;
+  tags?: string[];
 }
 
 interface ExamForm {
@@ -107,6 +108,8 @@ export function ExamCreationTab() {
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
   const [questionSearch, setQuestionSearch] = useState('');
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [questionTags, setQuestionTags] = useState<string[]>([]);
+  const [questionTagFilter, setQuestionTagFilter] = useState('');
 
   // Dynamic dropdowns
   const [subjects, setSubjects] = useState<string[]>([]);
@@ -122,7 +125,11 @@ export function ExamCreationTab() {
       const res = await tenantApiGet('/api/tenant/cbt/exams?limit=50');
       if (!res.ok) throw new Error('Failed to load exams');
       const data = await res.json();
-      setExams(data.data || []);
+      const normalized = (data.data || []).map((exam: Exam) => ({
+        ...exam,
+        questions: exam.questions || [],
+      }));
+      setExams(normalized);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load exams');
     } finally {
@@ -130,11 +137,12 @@ export function ExamCreationTab() {
     }
   };
 
-  const fetchQuestions = async (search = '') => {
+  const fetchQuestions = async (search = '', tag = '') => {
     setLoadingQuestions(true);
     try {
       const params = new URLSearchParams({ limit: '100' });
       if (search) params.set('searchText', search);
+      if (tag) params.set('tag', tag);
       const res = await tenantApiGet(`/api/tenant/cbt/questions?${params}`);
       if (res.ok) {
         const data = await res.json();
@@ -144,6 +152,20 @@ export function ExamCreationTab() {
       // non-critical
     } finally {
       setLoadingQuestions(false);
+    }
+  };
+
+  const fetchQuestionTags = async () => {
+    try {
+      const res = await tenantApiGet('/api/tenant/cbt/questions?action=tags');
+      if (!res.ok) {
+        setQuestionTags([]);
+        return;
+      }
+      const data = await res.json();
+      setQuestionTags(Array.isArray(data.data?.allTags) ? data.data.allTags : []);
+    } catch {
+      setQuestionTags([]);
     }
   };
 
@@ -197,8 +219,11 @@ export function ExamCreationTab() {
   useEffect(() => { fetchDropdownData(); }, []);
 
   useEffect(() => {
-    if (isFormOpen) fetchQuestions(questionSearch);
-  }, [isFormOpen, questionSearch]);
+    if (isFormOpen) {
+      fetchQuestions(questionSearch, questionTagFilter);
+      fetchQuestionTags();
+    }
+  }, [isFormOpen, questionSearch, questionTagFilter]);
 
   // ── Form handlers ──────────────────────────────────────────────────────────
 
@@ -223,7 +248,7 @@ export function ExamCreationTab() {
       scheduledTime: exam.scheduledTime || '',
       description: exam.description || '',
     });
-    setSelectedQuestions(exam.questions.map((q) => q.questionId));
+    setSelectedQuestions((exam.questions || []).map((q) => q.questionId));
     setFormErrors({});
     setIsFormOpen(true);
   };
@@ -296,9 +321,11 @@ export function ExamCreationTab() {
     }
   };
 
-  const filteredQuestions = availableQuestions.filter((q) =>
-    !questionSearch || q.text.toLowerCase().includes(questionSearch.toLowerCase()) || q.subject.toLowerCase().includes(questionSearch.toLowerCase())
-  );
+  const filteredQuestions = availableQuestions.filter((q) => {
+    const matchesSearch = !questionSearch || q.text.toLowerCase().includes(questionSearch.toLowerCase()) || q.subject.toLowerCase().includes(questionSearch.toLowerCase());
+    const matchesTag = !questionTagFilter || (Array.isArray(q.tags) && q.tags.includes(questionTagFilter));
+    return matchesSearch && matchesTag;
+  });
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -332,7 +359,7 @@ export function ExamCreationTab() {
                     <p className="text-sm text-gray-600 mb-2">{exam.subject} · {exam.class}</p>
                     <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{exam.duration} mins</span>
-                      <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{exam.questions.length} questions</span>
+                      <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{exam.questions?.length ?? 0} questions</span>
                       <span>Pass: {exam.passMark}/{exam.totalMarks}</span>
                       {exam.scheduledDate && <span>📅 {exam.scheduledDate} {exam.scheduledTime}</span>}
                     </div>
@@ -358,8 +385,13 @@ export function ExamCreationTab() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingExam ? 'Edit Exam' : 'Create Exam'}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="exam-dialog-description">
+          <DialogHeader>
+            <DialogTitle>{editingExam ? 'Edit Exam' : 'Create Exam'}</DialogTitle>
+            <DialogDescription id="exam-dialog-description">
+              Configure exam details, assign class/subject, and attach questions from your bank.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 pt-2">
             {/* Basic fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -435,9 +467,22 @@ export function ExamCreationTab() {
                 <Label>Questions * ({selectedQuestions.length} selected)</Label>
               </div>
               {formErrors.questions && <p className="text-red-600 text-xs mb-2">{formErrors.questions}</p>}
-              <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input className="pl-9" placeholder="Search questions..." value={questionSearch} onChange={(e) => setQuestionSearch(e.target.value)} />
+              <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input className="pl-9" placeholder="Search questions..." value={questionSearch} onChange={(e) => setQuestionSearch(e.target.value)} />
+                </div>
+                <select
+                  className="border rounded-md px-3 py-2 text-sm"
+                  value={questionTagFilter}
+                  onChange={(e) => setQuestionTagFilter(e.target.value)}
+                  disabled={questionTags.length === 0}
+                >
+                  <option value="">{questionTags.length === 0 ? 'No tags yet' : 'Filter by tag'}</option>
+                  {questionTags.map((tag) => (
+                    <option key={tag} value={tag}>#{tag}</option>
+                  ))}
+                </select>
               </div>
               <div className="border rounded-md max-h-48 overflow-y-auto">
                 {loadingQuestions ? (
@@ -455,6 +500,15 @@ export function ExamCreationTab() {
                           <span className="text-xs text-gray-400">·</span>
                           <span className="text-xs text-gray-500">{q.difficulty}</span>
                         </div>
+                        {q.tags && q.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {q.tags.map((tag) => (
+                              <span key={`${q.id}-${tag}`} className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </label>
                   ))

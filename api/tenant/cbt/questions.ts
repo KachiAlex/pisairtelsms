@@ -11,6 +11,7 @@ import {
   updateQuestion,
   deleteQuestion,
   getQuestionStats,
+  getQuestionTagsSummary,
   checkDuplicate,
 } from './_lib/questions.js'
 import { getSubjectNames } from './_lib/subjects.js'
@@ -385,13 +386,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/cbt/questions
   if (req.method === 'GET' && !id && action !== 'export' && action !== 'stats') {
     try {
-      const { subject, difficulty, type, searchText, page, limit } = req.query
+      const { subject, difficulty, type, searchText, tag, page, limit } = req.query
 
       const filter: QuestionFilter = {
         subject: subject as string | undefined,
         difficulty: difficulty as any,
         type: type as any,
         searchText: searchText as string | undefined,
+        tag: tag as string | undefined,
         page: page ? parseInt(page as string) : 1,
         limit: limit ? parseInt(limit as string) : 20,
       }
@@ -412,6 +414,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error) {
       console.error('Error fetching question stats:', error)
       return res.status(500).json({ success: false, error: 'Failed to fetch question stats' })
+    }
+  }
+
+  // GET /api/tenant/cbt/questions/tags
+  if (req.method === 'GET' && action === 'tags') {
+    try {
+      const summary = await getQuestionTagsSummary(tenantId)
+      return res.status(200).json({ success: true, data: summary })
+    } catch (error) {
+      console.error('Error fetching question tags:', error)
+      return res.status(500).json({ success: false, error: 'Failed to fetch question tags' })
     }
   }
 

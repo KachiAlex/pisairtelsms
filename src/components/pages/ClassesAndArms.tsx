@@ -152,10 +152,12 @@ export function ClassesAndArms() {
             <Button onClick={() => setIsDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" /> Add class arm
             </Button>
-            <DialogContent>
+            <DialogContent aria-describedby="create-class-arm-description">
               <DialogHeader>
                 <DialogTitle>Create new class arm</DialogTitle>
-                <DialogDescription>Provide the level and arm name that should appear across CBT workflows.</DialogDescription>
+                <DialogDescription id="create-class-arm-description">
+                  Provide the level and arm name that should appear across CBT workflows.
+                </DialogDescription>
               </DialogHeader>
               <div className="mt-4 space-y-3 text-sm">
                 <label className="flex flex-col gap-1">

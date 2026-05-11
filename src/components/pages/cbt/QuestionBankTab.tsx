@@ -158,14 +158,15 @@ export function QuestionBankTab() {
 
   const fetchSubjects = async () => {
     try {
-      const res = await tenantApiGet('/api/tenant/cbt/questions/subjects');
-      if (res.ok) {
-        const data = await res.json();
-        setSubjects(data.data || []);
+      const res = await tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true');
+      if (!res.ok) {
+        setSubjects([]);
+        return;
       }
+      const data = await res.json();
+      setSubjects(Array.isArray(data.data) ? data.data : []);
     } catch {
-      // If fetch fails, use default subjects
-      setSubjects(['Mathematics', 'English', 'Physics', 'Chemistry', 'Biology', 'History', 'Geography']);
+      setSubjects([]);
     }
   };
 
@@ -632,10 +633,23 @@ export function QuestionBankTab() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="q-subject">Subject *</Label>
-                    <select id="q-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}>
-                      <option value="">Select a subject</option>
-                      {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                    <select
+                      id="q-subject"
+                      className="w-full mt-1 border rounded-md px-3 py-2 text-sm"
+                      value={form.subject}
+                      onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                      disabled={subjects.length === 0}
+                    >
+                      <option value="">{subjects.length === 0 ? 'No subjects available' : 'Select a subject'}</option>
+                      {subjects.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
                     </select>
+                    {subjects.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">Create subjects in the catalog to unlock this dropdown.</p>
+                    )}
                     {formErrors.subject && <p className="text-red-600 text-xs mt-1">{formErrors.subject}</p>}
                   </div>
                   <div>
@@ -679,9 +693,19 @@ export function QuestionBankTab() {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label htmlFor="import-subject">Subject (optional)</Label>
-                      <select id="import-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={importSubject} onChange={(e) => setImportSubject(e.target.value)}>
-                        <option value="">Use from CSV</option>
-                        {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                      <select
+                        id="import-subject"
+                        className="w-full mt-1 border rounded-md px-3 py-2 text-sm"
+                        value={importSubject}
+                        onChange={(e) => setImportSubject(e.target.value)}
+                        disabled={subjects.length === 0}
+                      >
+                        <option value="">{subjects.length === 0 ? 'Add subjects first' : 'Use from CSV'}</option>
+                        {subjects.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>

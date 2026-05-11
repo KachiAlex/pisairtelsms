@@ -313,7 +313,7 @@ export function ExamCreationTab() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this exam?')) return;
     try {
-      const res = await tenantApiPut(`/api/tenant/cbt/exams/${id}`, { deleted: true });
+      const res = await tenantApiFetch(`/api/tenant/cbt/exams/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
       fetchExams();
     } catch (e) {

@@ -21,11 +21,11 @@ CREATE TABLE IF NOT EXISTS questions_bank (
   deleted_at TIMESTAMP
 );
 
-CREATE INDEX idx_questions_tenant ON questions_bank(tenant_id);
-CREATE INDEX idx_questions_subject ON questions_bank(subject);
-CREATE INDEX idx_questions_difficulty ON questions_bank(difficulty);
-CREATE INDEX idx_questions_type ON questions_bank(type);
-CREATE INDEX idx_questions_deleted ON questions_bank(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_questions_tenant ON questions_bank(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions_bank(subject);
+CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON questions_bank(difficulty);
+CREATE INDEX IF NOT EXISTS idx_questions_type ON questions_bank(type);
+CREATE INDEX IF NOT EXISTS idx_questions_deleted ON questions_bank(deleted_at);
 
 -- ============================================================================
 -- 2. EXAMS TABLE
@@ -49,12 +49,12 @@ CREATE TABLE IF NOT EXISTS exams (
   deleted_at TIMESTAMP
 );
 
-CREATE INDEX idx_exams_tenant ON exams(tenant_id);
-CREATE INDEX idx_exams_status ON exams(status);
-CREATE INDEX idx_exams_class ON exams(class);
-CREATE INDEX idx_exams_subject ON exams(subject);
-CREATE INDEX idx_exams_scheduled_date ON exams(scheduled_date);
-CREATE INDEX idx_exams_deleted ON exams(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_exams_tenant ON exams(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_exams_status ON exams(status);
+CREATE INDEX IF NOT EXISTS idx_exams_class ON exams(class);
+CREATE INDEX IF NOT EXISTS idx_exams_subject ON exams(subject);
+CREATE INDEX IF NOT EXISTS idx_exams_scheduled_date ON exams(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_exams_deleted ON exams(deleted_at);
 
 -- ============================================================================
 -- 3. EXAM_QUESTIONS TABLE (Junction Table)
@@ -69,8 +69,8 @@ CREATE TABLE IF NOT EXISTS exam_questions (
   UNIQUE(exam_id, question_id)
 );
 
-CREATE INDEX idx_exam_questions_exam ON exam_questions(exam_id);
-CREATE INDEX idx_exam_questions_question ON exam_questions(question_id);
+CREATE INDEX IF NOT EXISTS idx_exam_questions_exam ON exam_questions(exam_id);
+CREATE INDEX IF NOT EXISTS idx_exam_questions_question ON exam_questions(question_id);
 
 -- ============================================================================
 -- 4. STUDENT_EXAM_PROGRESS TABLE
@@ -91,10 +91,10 @@ CREATE TABLE IF NOT EXISTS student_exam_progress (
   UNIQUE(exam_id, student_id)
 );
 
-CREATE INDEX idx_progress_exam ON student_exam_progress(exam_id);
-CREATE INDEX idx_progress_student ON student_exam_progress(student_id);
-CREATE INDEX idx_progress_status ON student_exam_progress(status);
-CREATE INDEX idx_progress_exam_status ON student_exam_progress(exam_id, status);
+CREATE INDEX IF NOT EXISTS idx_progress_exam ON student_exam_progress(exam_id);
+CREATE INDEX IF NOT EXISTS idx_progress_student ON student_exam_progress(student_id);
+CREATE INDEX IF NOT EXISTS idx_progress_status ON student_exam_progress(status);
+CREATE INDEX IF NOT EXISTS idx_progress_exam_status ON student_exam_progress(exam_id, status);
 
 -- ============================================================================
 -- 5. EXAM_RESULTS TABLE
@@ -113,11 +113,11 @@ CREATE TABLE IF NOT EXISTS exam_results (
   UNIQUE(exam_id, student_id)
 );
 
-CREATE INDEX idx_results_exam ON exam_results(exam_id);
-CREATE INDEX idx_results_student ON exam_results(student_id);
-CREATE INDEX idx_results_status ON exam_results(status);
-CREATE INDEX idx_results_exam_status ON exam_results(exam_id, status);
-CREATE INDEX idx_results_submitted ON exam_results(submitted_at);
+CREATE INDEX IF NOT EXISTS idx_results_exam ON exam_results(exam_id);
+CREATE INDEX IF NOT EXISTS idx_results_student ON exam_results(student_id);
+CREATE INDEX IF NOT EXISTS idx_results_status ON exam_results(status);
+CREATE INDEX IF NOT EXISTS idx_results_exam_status ON exam_results(exam_id, status);
+CREATE INDEX IF NOT EXISTS idx_results_submitted ON exam_results(submitted_at);
 
 -- ============================================================================
 -- 6. STUDENT_ANSWERS TABLE
@@ -134,9 +134,9 @@ CREATE TABLE IF NOT EXISTS student_answers (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_answers_result ON student_answers(result_id);
-CREATE INDEX idx_answers_question ON student_answers(question_id);
-CREATE INDEX idx_answers_correct ON student_answers(is_correct);
+CREATE INDEX IF NOT EXISTS idx_answers_result ON student_answers(result_id);
+CREATE INDEX IF NOT EXISTS idx_answers_question ON student_answers(question_id);
+CREATE INDEX IF NOT EXISTS idx_answers_correct ON student_answers(is_correct);
 
 -- ============================================================================
 -- 7. SECURITY_SETTINGS TABLE
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS security_settings (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_security_exam ON security_settings(exam_id);
+CREATE INDEX IF NOT EXISTS idx_security_exam ON security_settings(exam_id);
 
 -- ============================================================================
 -- 8. PROCTORING_LOGS TABLE
@@ -173,10 +173,10 @@ CREATE TABLE IF NOT EXISTS proctoring_logs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_proctoring_exam ON proctoring_logs(exam_id);
-CREATE INDEX idx_proctoring_student ON proctoring_logs(student_id);
-CREATE INDEX idx_proctoring_event_type ON proctoring_logs(event_type);
-CREATE INDEX idx_proctoring_created ON proctoring_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_proctoring_exam ON proctoring_logs(exam_id);
+CREATE INDEX IF NOT EXISTS idx_proctoring_student ON proctoring_logs(student_id);
+CREATE INDEX IF NOT EXISTS idx_proctoring_event_type ON proctoring_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_proctoring_created ON proctoring_logs(created_at);
 
 -- ============================================================================
 -- 9. AUDIT_LOGS TABLE
@@ -198,11 +198,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_audit_tenant ON audit_logs(tenant_id);
-CREATE INDEX idx_audit_user ON audit_logs(user_id);
-CREATE INDEX idx_audit_action ON audit_logs(action);
-CREATE INDEX idx_audit_entity ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_created ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 
 -- ============================================================================
 -- 10. OFFLINE_SYNC_QUEUE TABLE
@@ -219,22 +219,32 @@ CREATE TABLE IF NOT EXISTS offline_sync_queue (
   synced_at TIMESTAMP
 );
 
-CREATE INDEX idx_sync_student ON offline_sync_queue(student_id);
-CREATE INDEX idx_sync_exam ON offline_sync_queue(exam_id);
-CREATE INDEX idx_sync_status ON offline_sync_queue(sync_status);
-CREATE INDEX idx_sync_created ON offline_sync_queue(created_at);
+CREATE INDEX IF NOT EXISTS idx_sync_student ON offline_sync_queue(student_id);
+CREATE INDEX IF NOT EXISTS idx_sync_exam ON offline_sync_queue(exam_id);
+CREATE INDEX IF NOT EXISTS idx_sync_status ON offline_sync_queue(sync_status);
+CREATE INDEX IF NOT EXISTS idx_sync_created ON offline_sync_queue(created_at);
 
 -- ============================================================================
 -- CONSTRAINTS AND VALIDATIONS
 -- ============================================================================
 
 -- Ensure pass_mark <= total_marks for exams
-ALTER TABLE exams ADD CONSTRAINT check_pass_mark_vs_total
-  CHECK (pass_mark <= total_marks);
+DO $$
+BEGIN
+  ALTER TABLE exams ADD CONSTRAINT check_pass_mark_vs_total
+    CHECK (pass_mark <= total_marks);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Ensure scheduled_date is in the future for scheduled exams
-ALTER TABLE exams ADD CONSTRAINT check_scheduled_date
-  CHECK (scheduled_date IS NULL OR scheduled_date >= CURRENT_DATE);
+DO $$
+BEGIN
+  ALTER TABLE exams ADD CONSTRAINT check_scheduled_date
+    CHECK (scheduled_date IS NULL OR scheduled_date >= CURRENT_DATE);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================================================
 -- MIGRATION METADATA

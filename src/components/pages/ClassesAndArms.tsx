@@ -1,48 +1,140 @@
-import React, { useMemo, useState } from 'react'
-import { Building2, Users, Sparkles, AlertTriangle, Download, Filter, UserPlus, Merge, SplitSquareHorizontal } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Building2,
+  Users,
+  Sparkles,
+  Layers3,
+  RefreshCw,
+  Plus,
+  Search,
+} from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
-const levelSnapshot = [
-  { level: 'JSS 1', arms: 4, capacity: 160, enrolled: 148, lead: 'Mrs. Salami', trend: '+4%', genderMix: '52% ♀ | 48% ♂', boardingSplit: 'Day 82% | Boarding 18%' },
-  { level: 'JSS 2', arms: 4, capacity: 160, enrolled: 154, lead: 'Mr. Muraina', trend: '+2%', genderMix: '49% ♀ | 51% ♂', boardingSplit: 'Day 80% | Boarding 20%' },
-  { level: 'JSS 3', arms: 4, capacity: 160, enrolled: 167, lead: 'Mrs. Uwa', trend: '+5%', genderMix: '45% ♀ | 55% ♂', boardingSplit: 'Day 77% | Boarding 23%' },
-  { level: 'SS 1', arms: 5, capacity: 200, enrolled: 181, lead: 'Mr. Bello', trend: '+1%', genderMix: '53% ♀ | 47% ♂', boardingSplit: 'Day 69% | Boarding 31%' },
-  { level: 'SS 2', arms: 5, capacity: 200, enrolled: 176, lead: 'Mrs. Ikpe', trend: '-3%', genderMix: '50% ♀ | 50% ♂', boardingSplit: 'Day 65% | Boarding 35%' },
-  { level: 'SS 3', arms: 5, capacity: 200, enrolled: 189, lead: 'Mr. Aina', trend: '+6%', genderMix: '48% ♀ | 52% ♂', boardingSplit: 'Day 60% | Boarding 40%' },
-]
-
-const restructuringQueue = [
-  { title: 'Split SS2 Science arm', owner: 'Academics Board', eta: 'Due Friday', status: 'Pending' },
-  { title: 'Merge JSS1 Arms C & D', owner: 'Principal', eta: 'Awaiting approval', status: 'Review' },
-  { title: 'Create Arts immersion stream', owner: 'Curriculum Office', eta: 'Scheduled Mar 12', status: 'Scheduled' },
-]
-
-const classDirectory = [
-  { level: 'JSS 1', arm: 'A', advisor: 'Mrs. Adekunle', capacity: 40, enrolled: 37, shift: 'Morning', profile: 'STEM' },
-  { level: 'JSS 1', arm: 'B', advisor: 'Mr. Lucas', capacity: 40, enrolled: 41, shift: 'Morning', profile: 'Mixed' },
-  { level: 'JSS 1', arm: 'C', advisor: 'Ms. Tobi', capacity: 40, enrolled: 36, shift: 'Morning', profile: 'Arts' },
-  { level: 'JSS 2', arm: 'A', advisor: 'Mr. Idris', capacity: 40, enrolled: 39, shift: 'Morning', profile: 'STEM' },
-  { level: 'SS 1', arm: 'Science A', advisor: 'Mrs. Ogun', capacity: 40, enrolled: 44, shift: 'Morning', profile: 'STEM' },
-  { level: 'SS 1', arm: 'Arts A', advisor: 'Mr. Okoye', capacity: 40, enrolled: 34, shift: 'Morning', profile: 'Arts' },
-  { level: 'SS 2', arm: 'Science B', advisor: 'Mrs. Bello', capacity: 40, enrolled: 46, shift: 'Morning', profile: 'STEM' },
-  { level: 'SS 3', arm: 'Commercial', advisor: 'Mr. Musa', capacity: 40, enrolled: 42, shift: 'Morning', profile: 'Commercial' },
-]
+type ClassArm = {
+  id: string
+  name: string
+  arm: string
+  level: string
+  createdAt?: string
+  updatedAt?: string
+}
 
 export function ClassesAndArms() {
-  const [newArmName, setNewArmName] = useState('SS2 Science C')
-  const [newArmLevel, setNewArmLevel] = useState('SS 2')
-  const [newArmAdvisor, setNewArmAdvisor] = useState('Mrs. Mabel Ojo')
-  const [newArmCapacity, setNewArmCapacity] = useState('38')
+  const [classes, setClasses] = useState<ClassArm[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [levelFilter, setLevelFilter] = useState<'all' | string>('all')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createForm, setCreateForm] = useState({ name: '', arm: '', level: '' })
 
-  const totalCapacity = useMemo(() => levelSnapshot.reduce((sum, level) => sum + level.capacity, 0), [])
-  const totalEnrolled = useMemo(() => levelSnapshot.reduce((sum, level) => sum + level.enrolled, 0), [])
-  const totalBoarders = useMemo(() => Math.round(totalEnrolled * 0.28), [totalEnrolled])
+  const loadClasses = useCallback(async () => {
+    setLoading(true)
+    try {
+      const response = await tenantApiGet('/api/tenant/cbt/classes')
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to fetch classes')
+      }
+      const payload = await response.json()
+      const data = Array.isArray(payload.data) ? payload.data : []
+      setClasses(data)
+      setError(null)
+      setLastSyncedAt(new Date())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load classes')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadClasses()
+  }, [loadClasses])
+
+  const levelOptions = useMemo(() => {
+    const unique = new Set<string>()
+    classes.forEach((c) => {
+      if (c.name?.trim()) unique.add(c.name.trim())
+    })
+    return Array.from(unique).sort((a, b) => a.localeCompare(b))
+  }, [classes])
+
+  const filteredClasses = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    return classes.filter((classArm) => {
+      if (levelFilter !== 'all' && classArm.name !== levelFilter) return false
+      if (!query) return true
+      return (
+        classArm.name.toLowerCase().includes(query) ||
+        classArm.arm.toLowerCase().includes(query) ||
+        classArm.level.toLowerCase().includes(query)
+      )
+    })
+  }, [classes, levelFilter, searchTerm])
+
+  const levelSummaries = useMemo(() => {
+    const grouped = new Map<string, { name: string; levelLabel: string; arms: ClassArm[] }>()
+    classes.forEach((classArm) => {
+      const key = classArm.name || 'Unspecified'
+      if (!grouped.has(key)) {
+        grouped.set(key, { name: key, levelLabel: classArm.level || 'Not tagged', arms: [] })
+      }
+      grouped.get(key)!.arms.push(classArm)
+    })
+    return Array.from(grouped.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [classes])
+
+  const multiArmLevels = useMemo(() => levelSummaries.filter((summary) => summary.arms.length > 1).length, [levelSummaries])
+
+  const lastSyncedLabel = lastSyncedAt ? lastSyncedAt.toLocaleString() : 'Awaiting first sync…'
+
+  const resetCreateForm = () => {
+    setCreateForm({ name: '', arm: '', level: '' })
+    setCreateError(null)
+  }
+
+  const handleCreateArm = async () => {
+    if (!createForm.name.trim() || !createForm.arm.trim()) {
+      setCreateError('Class name and arm are required')
+      return
+    }
+    setCreating(true)
+    try {
+      const response = await tenantApiPost('/api/tenant/cbt/classes', {
+        name: createForm.name.trim(),
+        arm: createForm.arm.trim(),
+        level: createForm.level.trim(),
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to create class arm')
+      }
+      setIsDialogOpen(false)
+      resetCreateForm()
+      loadClasses()
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Unable to create class arm')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const formatDate = (value?: string) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    return Number.isNaN(date.valueOf()) ? '—' : date.toLocaleDateString()
+  }
 
   return (
     <div className="space-y-6">
@@ -53,46 +145,35 @@ export function ClassesAndArms() {
           <p className="text-sm text-gray-600">Balance capacity, shift policies, and advisor coverage in one view.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <Filter className="h-4 w-4 mr-2" /> Advanced filters
+          <Button variant="outline" onClick={loadClasses} disabled={loading}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Reload
           </Button>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" /> Export structure
-          </Button>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="h-4 w-4 mr-2" /> Add class arm
-              </Button>
-            </DialogTrigger>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetCreateForm() }}>
+            <Button onClick={() => setIsDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Add class arm
+            </Button>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Launch new class arm</DialogTitle>
-                <DialogDescription>We pre-fill with enrollment signals from admissions and promotion pipelines.</DialogDescription>
+                <DialogTitle>Create new class arm</DialogTitle>
+                <DialogDescription>Provide the level and arm name that should appear across CBT workflows.</DialogDescription>
               </DialogHeader>
               <div className="mt-4 space-y-3 text-sm">
                 <label className="flex flex-col gap-1">
-                  <span className="text-gray-600">Level</span>
-                  <Input value={newArmLevel} onChange={(e) => setNewArmLevel(e.target.value)} />
+                  <span className="text-gray-600">Class / Level name</span>
+                  <Input value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="e.g., JSS 1" />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-gray-600">Arm name</span>
-                  <Input value={newArmName} onChange={(e) => setNewArmName(e.target.value)} />
+                  <span className="text-gray-600">Arm</span>
+                  <Input value={createForm.arm} onChange={(e) => setCreateForm((prev) => ({ ...prev, arm: e.target.value }))} placeholder="e.g., A" />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-gray-600">Advisor</span>
-                  <Input value={newArmAdvisor} onChange={(e) => setNewArmAdvisor(e.target.value)} />
+                  <span className="text-gray-600">Level tag (optional)</span>
+                  <Input value={createForm.level} onChange={(e) => setCreateForm((prev) => ({ ...prev, level: e.target.value }))} placeholder="Junior Secondary" />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-gray-600">Capacity</span>
-                  <Input type="number" value={newArmCapacity} onChange={(e) => setNewArmCapacity(e.target.value)} />
-                </label>
-                <div className="rounded-2xl border border-dashed border-gray-200 p-3 text-xs text-gray-500">
-                  This wizard will clone timetable templates, auto-assign subject teachers, and notify admissions once you confirm.
-                </div>
+                {createError && <p className="text-xs text-rose-600">{createError}</p>}
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline">Save draft</Button>
-                  <Button>Create arm</Button>
+                  <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetCreateForm() }}>Cancel</Button>
+                  <Button onClick={handleCreateArm} disabled={creating}>{creating ? 'Saving…' : 'Create arm'}</Button>
                 </div>
               </div>
             </DialogContent>
@@ -106,9 +187,9 @@ export function ClassesAndArms() {
             <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
               <Building2 className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Total levels</p>
-            <p className="text-3xl font-semibold text-gray-900">6</p>
-            <p className="text-xs text-gray-500">Primary streams handled separately</p>
+            <p className="text-xs text-gray-500 mt-3">Unique levels</p>
+            <p className="text-3xl font-semibold text-gray-900">{levelSummaries.length}</p>
+            <p className="text-xs text-gray-500">Across {classes.length} arms</p>
           </CardContent>
         </Card>
         <Card>
@@ -116,9 +197,9 @@ export function ClassesAndArms() {
             <div className="rounded-full bg-emerald-50 text-emerald-600 w-10 h-10 flex items-center justify-center">
               <Users className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Enrolled learners</p>
-            <p className="text-3xl font-semibold text-gray-900">{totalEnrolled.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">{((totalEnrolled / totalCapacity) * 100).toFixed(1)}% of configured capacity</p>
+            <p className="text-xs text-gray-500 mt-3">Multi-arm levels</p>
+            <p className="text-3xl font-semibold text-gray-900">{multiArmLevels}</p>
+            <p className="text-xs text-gray-500">Levels requiring per-arm scheduling</p>
           </CardContent>
         </Card>
         <Card>
@@ -126,147 +207,122 @@ export function ClassesAndArms() {
             <div className="rounded-full bg-amber-50 text-amber-600 w-10 h-10 flex items-center justify-center">
               <Sparkles className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Active shifts</p>
-            <p className="text-3xl font-semibold text-gray-900">Morning</p>
-            <p className="text-xs text-gray-500">Afternoon stream pilot opens in May</p>
+            <p className="text-xs text-gray-500 mt-3">Latest update</p>
+            <p className="text-3xl font-semibold text-gray-900">{formatDate(classes[0]?.updatedAt)}</p>
+            <p className="text-xs text-gray-500">Last synced: {lastSyncedLabel}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="rounded-full bg-rose-50 text-rose-600 w-10 h-10 flex items-center justify-center">
-              <AlertTriangle className="h-5 w-5" />
+            <div className="rounded-full bg-indigo-50 text-indigo-600 w-10 h-10 flex items-center justify-center">
+              <Layers3 className="h-5 w-5" />
             </div>
-            <p className="text-xs text-gray-500 mt-3">Over-subscribed arms</p>
-            <p className="text-3xl font-semibold text-gray-900">3</p>
-            <p className="text-xs text-gray-500">Prioritize JSS1, SS2 Science, SS3 Commercial</p>
-          </CardContent>
-        </Card>
-        <Card className="sm:col-span-2 xl:col-span-1">
-          <CardContent className="p-4">
-            <div className="rounded-full bg-purple-50 text-purple-600 w-10 h-10 flex items-center justify-center">
-              <SplitSquareHorizontal className="h-5 w-5" />
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Boarding footprint</p>
-            <p className="text-3xl font-semibold text-gray-900">{Math.round((totalBoarders / totalEnrolled) * 100)}%</p>
-            <p className="text-xs text-gray-500">{totalBoarders.toLocaleString()} of {totalEnrolled.toLocaleString()} learners reside on campus</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Level snapshot</CardTitle>
-            <CardDescription>Capacity trends with assigned level leads.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {levelSnapshot.map((level) => {
-              const occupancy = Math.round((level.enrolled / level.capacity) * 100)
-              return (
-                <div key={level.level} className="rounded-2xl border border-gray-100 p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{level.level}</p>
-                      <p className="text-xs text-gray-500">Lead: {level.lead}</p>
-                    </div>
-                    <Badge variant="outline" className="text-xs">{level.arms} arms</Badge>
-                  </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <div>
-                      <p className="text-xs text-gray-500">Capacity</p>
-                      <p className="text-sm font-semibold text-gray-900">{level.capacity}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Enrolled</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {level.enrolled}
-                        <span className="text-[11px] text-emerald-600 ml-1">{level.trend}</span>
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Occupancy</p>
-                      <p className={`text-sm font-semibold ${occupancy > 100 ? 'text-rose-600' : 'text-gray-900'}`}>{occupancy}%</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 grid gap-3 text-xs text-gray-500 sm:grid-cols-2">
-                    <span>Gender mix: <span className="text-gray-900 font-medium">{level.genderMix}</span></span>
-                    <span>Boarding split: <span className="text-gray-900 font-medium">{level.boardingSplit}</span></span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-gray-100">
-                    <div className={`h-2 rounded-full ${occupancy > 100 ? 'bg-rose-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(occupancy, 120)}%` }} />
-                  </div>
-                </div>
-              )
-            })}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Restructuring pipeline</CardTitle>
-            <CardDescription>Requests awaiting leadership action.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {restructuringQueue.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-gray-100 p-4">
-                <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                <p className="text-xs text-gray-500">{item.owner}</p>
-                <div className="text-xs text-gray-400 mt-2 flex items-center justify-between">
-                  <span>{item.eta}</span>
-                  <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">{item.status}</Badge>
-                </div>
-              </div>
-            ))}
-            <Button className="w-full" variant="outline">
-              <Merge className="h-4 w-4 mr-2" /> Launch restructure charter
-            </Button>
+            <p className="text-xs text-gray-500 mt-3">Total arms</p>
+            <p className="text-3xl font-semibold text-gray-900">{classes.length}</p>
+            <p className="text-xs text-gray-500">Live from CBT data</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
+          <CardTitle>Level snapshot</CardTitle>
+          <CardDescription>Live view of class arms grouped by level name.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {levelSummaries.length === 0 && (
+            <p className="text-sm text-gray-500">No class data available yet.</p>
+          )}
+          {levelSummaries.map((summary) => (
+            <div key={summary.name} className="rounded-2xl border border-gray-100 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{summary.name}</p>
+                  <p className="text-xs text-gray-500">Tag: {summary.levelLabel}</p>
+                </div>
+                <Badge variant="outline" className="text-xs">{summary.arms.length} arm{summary.arms.length === 1 ? '' : 's'}</Badge>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-600">
+                {summary.arms.map((arm) => (
+                  <div key={arm.id} className="rounded-xl border border-gray-100 p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{arm.arm}</p>
+                      <p className="text-xs text-gray-500">Updated: {formatDate(arm.updatedAt)}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[11px]">{arm.level || 'Not tagged'}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Class directory</CardTitle>
-          <CardDescription>Each arm inherits timetable templates and advisor workflows.</CardDescription>
+          <CardDescription>These class arms feed directly into CBT exam creation and monitoring.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <Input placeholder="Search by level, arm, or advisor" className="lg:w-64" />
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">Morning</Button>
-              <Button variant="outline" size="sm">Afternoon</Button>
-              <Button variant="outline" size="sm">Boarding</Button>
+            <div className="relative lg:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input placeholder="Search by class or arm" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="pl-9" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant={levelFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setLevelFilter('all')}>
+                All levels
+              </Button>
+              {levelOptions.map((level) => (
+                <Button
+                  key={level}
+                  variant={levelFilter === level ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setLevelFilter((prev) => (prev === level ? 'all' : level))}
+                >
+                  {level}
+                </Button>
+              ))}
             </div>
           </div>
+          {error && <p className="text-sm text-rose-600">{error}</p>}
           <div className="rounded-2xl border border-gray-100 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Level</TableHead>
+                  <TableHead>Class</TableHead>
                   <TableHead>Arm</TableHead>
-                  <TableHead>Advisor</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Enrolled</TableHead>
-                  <TableHead>Shift</TableHead>
+                  <TableHead>Level tag</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {classDirectory.map((row) => (
-                  <TableRow key={`${row.level}-${row.arm}`}>
-                    <TableCell className="font-semibold text-gray-900">{row.level}</TableCell>
-                    <TableCell>{row.arm}</TableCell>
-                    <TableCell>{row.advisor}</TableCell>
-                    <TableCell>{row.capacity}</TableCell>
-                    <TableCell className={`font-semibold ${row.enrolled > row.capacity ? 'text-rose-600' : 'text-gray-900'} flex items-center gap-2`}>
-                      {row.enrolled}
-                      {row.enrolled > row.capacity && (
-                        <span className="text-[11px] rounded-full bg-rose-50 text-rose-600 px-2 py-0.5">+{row.enrolled - row.capacity}</span>
-                      )}
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-sm text-gray-500">
+                      Loading classes…
                     </TableCell>
-                    <TableCell>{row.shift}</TableCell>
+                  </TableRow>
+                )}
+                {!loading && filteredClasses.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-sm text-gray-500">
+                      No classes match the current filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {filteredClasses.map((classArm) => (
+                  <TableRow key={classArm.id}>
+                    <TableCell className="font-semibold text-gray-900">{classArm.name}</TableCell>
+                    <TableCell>{classArm.arm}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[11px]">{row.profile}</Badge>
+                      <Badge variant="outline" className="text-[11px]">
+                        {classArm.level || 'Not tagged'}
+                      </Badge>
                     </TableCell>
+                    <TableCell>{formatDate(classArm.createdAt)}</TableCell>
+                    <TableCell>{formatDate(classArm.updatedAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

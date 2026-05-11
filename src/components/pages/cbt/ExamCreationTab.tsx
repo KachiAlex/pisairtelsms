@@ -386,9 +386,13 @@ export function ExamCreationTab() {
                 <select id="e-class" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.class} onChange={(e) => setForm((f) => ({ ...f, class: e.target.value }))}>
                   <option value="">Select a class</option>
                   {classes.length === 0 ? (
-                    <option disabled>No classes available</option>
+                    <option disabled>No classes found. Add classes in the Classes & Arms tab.</option>
                   ) : (
-                    classes.map((c) => <option key={c.id} value={`${c.name} ${c.arm}`}>{c.name} {c.arm}</option>)
+                    classes.map((c) => (
+                      <option key={c.id} value={`${c.name} ${c.arm}`}>
+                        {c.name} {c.arm}
+                      </option>
+                    ))
                   )}
                 </select>
                 {formErrors.class && <p className="text-red-600 text-xs mt-1">{formErrors.class}</p>}

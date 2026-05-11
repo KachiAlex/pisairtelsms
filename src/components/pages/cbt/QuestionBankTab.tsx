@@ -73,6 +73,15 @@ function validateForm(form: QuestionFormData): FormErrors {
   return errors;
 }
 
+function parseTagInput(value: string): string[] {
+  if (!value) return [];
+  const tags = value
+    .split(/[,;\n]/)
+    .map((tag) => tag.replace(/^#/, '').trim().replace(/\s+/g, ' '))
+    .filter(Boolean);
+  return Array.from(new Set(tags));
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function QuestionBankTab() {
@@ -96,6 +105,9 @@ export function QuestionBankTab() {
   // Selection state
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [bulkTagInput, setBulkTagInput] = useState('');
+  const [bulkTagging, setBulkTagging] = useState(false);
+  const [bulkTagFeedback, setBulkTagFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Dialog state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -246,6 +258,7 @@ export function QuestionBankTab() {
 
     setSaving(true);
     try {
+      const manualTags = parseTagInput(form.tags);
       const payload = {
         text: form.text.trim(),
         type: form.type,
@@ -253,7 +266,7 @@ export function QuestionBankTab() {
         correctAnswer: form.correctAnswer,
         difficulty: form.difficulty,
         subject: form.subject.trim(),
-        tags: form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        tags: manualTags,
       };
       const res = await tenantApiPost('/api/tenant/cbt/questions', payload);
       if (!res.ok) {
@@ -342,6 +355,40 @@ export function QuestionBankTab() {
     setSelectAll(!selectAll);
   };
 
+  const handleApplyTagsToSelection = async () => {
+    if (selectedQuestions.size === 0) {
+      setBulkTagFeedback({ type: 'error', message: 'Select questions to tag.' });
+      return;
+    }
+
+    const tags = parseTagInput(bulkTagInput);
+    if (tags.length === 0) {
+      setBulkTagFeedback({ type: 'error', message: 'Enter at least one tag (comma separated).' });
+      return;
+    }
+
+    setBulkTagging(true);
+    setBulkTagFeedback(null);
+    try {
+      const res = await tenantApiPost('/api/tenant/cbt/questions?action=tag', {
+        questionIds: Array.from(selectedQuestions),
+        tags,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to tag questions');
+      }
+      setBulkTagFeedback({ type: 'success', message: `Tagged ${data.data?.updated ?? selectedQuestions.size} question${(data.data?.updated ?? selectedQuestions.size) !== 1 ? 's' : ''}.` });
+      setBulkTagInput(tags.join(', '));
+      fetchQuestions();
+      fetchTagSummary();
+    } catch (e) {
+      setBulkTagFeedback({ type: 'error', message: e instanceof Error ? e.message : 'Failed to tag questions' });
+    } finally {
+      setBulkTagging(false);
+    }
+  };
+
   useEffect(() => {
     setSelectedQuestions(new Set());
     setSelectAll(false);
@@ -389,6 +436,9 @@ export function QuestionBankTab() {
       });
 
       setImportStatus('Validating and importing...');
+      const parsedImportTags = parseTagInput(importTag);
+      const fallbackTag = (!parsedImportTags.length && importSubject) ? `${importSubject} set` : '';
+      const finalTagList = parsedImportTags.length > 0 ? parsedImportTags : fallbackTag ? [fallbackTag] : [];
       const res = await tenantApiFetch('/api/tenant/cbt/questions/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -400,7 +450,8 @@ export function QuestionBankTab() {
             subject: importSubject || undefined,
             difficulty: importDifficulty || undefined,
             type: importType || undefined,
-            tag: (importTag || importSubject || '').trim() || undefined,
+            tag: finalTagList[0] || undefined,
+            tags: finalTagList,
           }
         }),
       });
@@ -505,6 +556,44 @@ export function QuestionBankTab() {
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
+          {selectedQuestions.size > 0 && (
+            <div className="mt-4 p-3 border rounded-md bg-blue-50 border-blue-100 space-y-2">
+              <div className="text-sm font-medium text-blue-900">Tag {selectedQuestions.size} selected question{selectedQuestions.size !== 1 ? 's' : ''}</div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <Input
+                  value={bulkTagInput}
+                  onChange={(e) => setBulkTagInput(e.target.value)}
+                  placeholder="e.g. 1st CA Test, Week 2"
+                  className="md:flex-1"
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleApplyTagsToSelection} disabled={bulkTagging} className="bg-blue-600 hover:bg-blue-700">
+                    {bulkTagging ? 'Tagging…' : 'Add Tag'}
+                  </Button>
+                  <Button variant="outline" onClick={() => setSelectedQuestions(new Set())}>Clear Selection</Button>
+                </div>
+              </div>
+              {availableTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs text-blue-800">
+                  {availableTags.slice(0, 6).map((tag) => (
+                    <button
+                      key={`bulk-suggestion-${tag}`}
+                      type="button"
+                      onClick={() => setBulkTagInput((prev) => (prev ? `${prev}, ${tag}` : tag))}
+                      className="px-2 py-0.5 border border-blue-200 rounded-full bg-white hover:bg-blue-100"
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {bulkTagFeedback && (
+                <p className={`text-xs ${bulkTagFeedback.type === 'error' ? 'text-red-600' : 'text-green-700'}`}>
+                  {bulkTagFeedback.message}
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -733,6 +822,20 @@ export function QuestionBankTab() {
                 <div>
                   <Label htmlFor="q-tags">Tags (comma-separated)</Label>
                   <Input id="q-tags" className="mt-1" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="e.g. algebra, equations" />
+                  {availableTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {availableTags.slice(0, 4).map((tag) => (
+                        <button
+                          key={`manual-tag-${tag}`}
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, tags: f.tags ? `${f.tags}, ${tag}` : tag }))}
+                          className="text-[11px] px-2 py-0.5 rounded-full border border-blue-200 text-blue-600 hover:bg-blue-50"
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2 pt-2">

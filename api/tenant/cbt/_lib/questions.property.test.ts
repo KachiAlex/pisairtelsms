@@ -66,6 +66,11 @@ const optionsArb = fc.array(questionOptionArb, { minLength: 2, maxLength: 4 })
 const tagsArb = fc.array(fc.string({ minLength: 1, maxLength: 50 }), { maxLength: 10 })
 
 /**
+ * Generate arrays of noisy tag strings (may include whitespace/extra spacing)
+ */
+const noisyTagArrayArb = fc.array(fc.string({ minLength: 1, maxLength: 80 }), { maxLength: 12 })
+
+/**
  * Generate valid question input
  */
 const validQuestionInputArb = fc.record({
@@ -643,6 +648,68 @@ describe('Question Bank - Property-Based Tests', () => {
         ),
         { numRuns: 15 }
       )
+    })
+  })
+
+  // ========================================================================
+  // Property 5: Tag Normalization & Bulk Tagging Flow
+  // ========================================================================
+  describe('Property 5: Tag Normalization & Bulk Tagging Flow', () => {
+    it('should normalize tag arrays by trimming whitespace, collapsing spaces, and deduplicating', async () => {
+      await fc.assert(
+        fc.property(noisyTagArrayArb, (rawTags) => {
+          const normalized = questionsService.normalizeTags(rawTags)
+          const manual = Array.from(
+            new Set(
+              rawTags
+                .map((tag) => tag.trim().replace(/\s+/g, ' '))
+                .filter((tag) => tag.length > 0 && tag.length <= 60)
+            )
+          )
+
+          expect(normalized).toEqual(manual)
+        }),
+        { numRuns: 25 }
+      )
+    })
+
+    it('should merge normalized tags when bulk tagging questions', async () => {
+      const tenantId = fc.sample(tenantIdArb, 1)[0]
+      const questionRows = [
+        {
+          id: fc.sample(fc.uuid(), 1)[0],
+          tags: ['Week 1', ' Algebra Drill '],
+        },
+        {
+          id: fc.sample(fc.uuid(), 1)[0],
+          tags: JSON.stringify(['General Prep', '  Week 2  ']),
+        },
+      ]
+
+      vi.mocked(db.queryAll).mockResolvedValueOnce(questionRows as any)
+      vi.mocked(db.query).mockResolvedValue({ rowCount: 1 } as any)
+
+      const newTags = ['  Week   1 ', 'Mid Term', 'mid   term', '  Finals  ']
+      const updated = await questionsService.addTagsToQuestions(
+        tenantId,
+        questionRows.map((row) => row.id),
+        newTags
+      )
+
+      expect(updated).toBe(questionRows.length)
+      const queryCalls = vi.mocked(db.query).mock.calls
+      expect(queryCalls.length).toBe(questionRows.length)
+
+      questionRows.forEach((row, index) => {
+        const existing = Array.isArray(row.tags)
+          ? row.tags
+          : JSON.parse(row.tags as string)
+        const expectedTags = questionsService.normalizeTags([...existing, ...newTags])
+        const params = queryCalls[index][1]
+        expect(params[0]).toBe(JSON.stringify(expectedTags))
+        expect(params[1]).toBe(tenantId)
+        expect(params[2]).toBe(row.id)
+      })
     })
   })
 

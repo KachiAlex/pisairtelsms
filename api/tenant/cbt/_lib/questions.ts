@@ -25,6 +25,21 @@ function parseQuestionRow(row: any): Question {
 }
 
 /**
+ * Normalize incoming tag arrays by trimming whitespace, removing empties, and deduplicating.
+ */
+export function normalizeTags(tags?: string[] | null): string[] {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  const cleaned = tags
+    .map((tag) => (typeof tag === 'string' ? tag.trim().replace(/\s+/g, ' ') : ''))
+    .filter((tag) => tag.length > 0 && tag.length <= 60);
+
+  return Array.from(new Set(cleaned));
+}
+
+/**
  * Get unique tags per subject (and globally) for a tenant
  */
 export async function getQuestionTagsSummary(tenantId: string): Promise<{
@@ -157,6 +172,8 @@ export async function createQuestion(
   // Validate input
   validateQuestionInput(input);
 
+  const normalizedTags = normalizeTags(input.tags);
+
   const row = await queryOne<any>(
     `INSERT INTO questions_bank (
       tenant_id, text, type, options, correct_answer, 
@@ -171,7 +188,7 @@ export async function createQuestion(
       input.correctAnswer,
       input.difficulty,
       input.subject,
-      JSON.stringify(input.tags || []),
+      JSON.stringify(normalizedTags),
       userId,
     ]
   );
@@ -209,6 +226,8 @@ export async function updateQuestion(
     });
   }
 
+  const normalizedTags = input.tags ? normalizeTags(input.tags) : null;
+
   const row = await queryOne<any>(
     `UPDATE questions_bank SET
       text = COALESCE($1, text),
@@ -228,7 +247,7 @@ export async function updateQuestion(
       input.correctAnswer,
       input.difficulty,
       input.subject,
-      input.tags ? JSON.stringify(input.tags) : null,
+      normalizedTags ? JSON.stringify(normalizedTags) : null,
       questionId,
       tenantId,
     ]
@@ -257,6 +276,50 @@ export async function deleteQuestion(
   if (result.rowCount === 0) {
     throw new Error('Question not found');
   }
+}
+
+/**
+ * Bulk add tags to multiple questions.
+ */
+export async function addTagsToQuestions(
+  tenantId: string,
+  questionIds: string[],
+  tags: string[]
+): Promise<number> {
+  const normalizedTags = normalizeTags(tags);
+  if (normalizedTags.length === 0 || !Array.isArray(questionIds) || questionIds.length === 0) {
+    return 0;
+  }
+
+  const ids = Array.from(new Set(questionIds.filter(Boolean)));
+  if (ids.length === 0) {
+    return 0;
+  }
+
+  const rows = await queryAll<{ id: string; tags: any }>(
+    `SELECT id, tags FROM questions_bank
+     WHERE tenant_id = $1 AND deleted_at IS NULL AND id = ANY($2::uuid[])`,
+    [tenantId, ids]
+  );
+
+  let updatedCount = 0;
+
+  for (const row of rows) {
+    const existing = Array.isArray(row.tags)
+      ? row.tags
+      : typeof row.tags === 'string'
+        ? JSON.parse(row.tags || '[]')
+        : [];
+    const merged = normalizeTags([...(existing || []), ...normalizedTags]);
+    await query(
+      `UPDATE questions_bank SET tags = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE tenant_id = $2 AND id = $3`,
+      [JSON.stringify(merged), tenantId, row.id]
+    );
+    updatedCount++;
+  }
+
+  return updatedCount;
 }
 
 /**

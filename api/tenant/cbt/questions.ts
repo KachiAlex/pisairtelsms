@@ -13,6 +13,8 @@ import {
   getQuestionStats,
   getQuestionTagsSummary,
   checkDuplicate,
+  addTagsToQuestions,
+  normalizeTags,
 } from './_lib/questions.js'
 import { getSubjectNames } from './_lib/subjects.js'
 import { initializeDatabase } from './_lib/db.js'
@@ -444,6 +446,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Delegate to the standalone import handler
     const importHandler = (await import('./questions/import.js')).default
     return importHandler(req, res)
+  }
+
+  // POST /api/tenant/cbt/questions?action=tag
+  if (req.method === 'POST' && action === 'tag') {
+    if (!validateUserId(userId, res)) {
+      return
+    }
+
+    const body = parseBody(req)
+    const rawIds = Array.isArray(body?.questionIds) ? body.questionIds : []
+    const normalizedIds = rawIds.filter((id: any) => typeof id === 'string' && id.trim().length > 0)
+
+    const rawTags: string[] = []
+    if (Array.isArray(body?.tags)) {
+      rawTags.push(...body.tags)
+    }
+    if (typeof body?.tag === 'string') {
+      rawTags.push(body.tag)
+    }
+
+    const tags = normalizeTags(rawTags)
+
+    if (normalizedIds.length === 0 || tags.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'questionIds and tags are required',
+      })
+    }
+
+    try {
+      const updated = await addTagsToQuestions(tenantId, normalizedIds, tags)
+      return res.status(200).json({
+        success: true,
+        data: { updated, tags },
+      })
+    } catch (error) {
+      console.error('Error tagging questions:', error)
+      return res.status(500).json({ success: false, error: 'Failed to tag questions' })
+    }
   }
 
   // POST /api/tenant/cbt/questions

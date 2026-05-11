@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { BookOpen, GraduationCap, Layers3, Filter, Download, Sparkles, AlertTriangle, Plus, X } from 'lucide-react'
+import { BookOpen, GraduationCap, Layers3, Filter, Download, Sparkles, AlertTriangle, X } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -11,22 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Textarea } from '../ui/textarea'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
-
-const subjectStats = [
-  { label: 'Subjects catalogued', value: '74', detail: '52 core • 22 elective', icon: BookOpen, color: 'text-blue-600' },
-  { label: 'Curriculum versions', value: '4', detail: 'Last review Jan 2026', icon: Layers3, color: 'text-purple-600' },
-  { label: 'Digital resources', value: '89%', detail: '61 subjects synced', icon: Sparkles, color: 'text-emerald-600' },
-  { label: 'Pending QA flags', value: '3', detail: 'Scheme of work upload missing', icon: AlertTriangle, color: 'text-rose-600' },
-]
-
-const departmentSummary = [
-  { department: 'Sciences', subjects: 14, coverage: '96%', owner: 'Dr. Olajumoke', priority: 'High' },
-  { department: 'Humanities', subjects: 12, coverage: '88%', owner: 'Mr. Eze', priority: 'Medium' },
-  { department: 'Commercial', subjects: 9, coverage: '92%', owner: 'Mrs. Bello', priority: 'Low' },
-  { department: 'Languages', subjects: 11, coverage: '84%', owner: 'Ms. Iboroma', priority: 'Medium' },
-]
-
-const departmentFilters = ['All', 'Sciences', 'Humanities', 'Commercial', 'Languages']
 
 interface Subject {
   id: string
@@ -47,6 +31,7 @@ export function SubjectsCatalog() {
   const [addSubjectOpen, setAddSubjectOpen] = useState(false)
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
   const [newSubject, setNewSubject] = useState({
     code: '',
     name: '',
@@ -56,9 +41,113 @@ export function SubjectsCatalog() {
     description: ''
   })
 
-  const filteredSubjects = useMemo(() =>
-    activeDepartment === 'All' ? subjects : subjects.filter((subject) => subject.department === activeDepartment),
-    [activeDepartment, subjects])
+  const departmentBreakdown = useMemo(() => {
+    const counts = new Map<string, number>()
+    subjects.forEach((subject) => {
+      const key = subject.department || 'Unassigned'
+      counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])
+  }, [subjects])
+
+  const departmentFilters = useMemo(() => ['All', ...departmentBreakdown.map(([dept]) => dept)], [departmentBreakdown])
+
+  useEffect(() => {
+    if (!departmentFilters.includes(activeDepartment)) {
+      setActiveDepartment('All')
+    }
+  }, [departmentFilters, activeDepartment])
+
+  const totalSubjects = subjects.length
+  const coreCount = useMemo(() => subjects.filter((subject) => subject.type === 'Core').length, [subjects])
+  const electiveCount = totalSubjects - coreCount
+  const uniqueLevels = useMemo(
+    () => Array.from(new Set(subjects.flatMap((subject) => subject.levels || []))),
+    [subjects]
+  )
+  const resourcesComplete = useMemo(
+    () => subjects.filter((subject) => (subject.resourcesStatus || '').toLowerCase() === 'complete').length,
+    [subjects]
+  )
+  const resourceReadyPct = totalSubjects ? Math.round((resourcesComplete / totalSubjects) * 100) : 0
+  const pendingResources = totalSubjects - resourcesComplete
+  const descriptionGaps = useMemo(() => subjects.filter((subject) => !subject.description?.trim()).length, [subjects])
+  const versionGaps = useMemo(() => subjects.filter((subject) => !subject.version?.trim()).length, [subjects])
+  const descriptionPct = totalSubjects ? Math.round(((totalSubjects - descriptionGaps) / totalSubjects) * 100) : 0
+  const versionPct = totalSubjects ? Math.round(((totalSubjects - versionGaps) / totalSubjects) * 100) : 0
+
+  const departmentSummary = useMemo(
+    () =>
+      departmentBreakdown.map(([department, count]) => ({
+        department,
+        subjects: count,
+        coverage: totalSubjects ? Math.round((count / totalSubjects) * 100) : 0,
+      })),
+    [departmentBreakdown, totalSubjects]
+  )
+
+  const statsData = useMemo(
+    () => [
+      {
+        label: 'Subjects catalogued',
+        value: totalSubjects.toString(),
+        detail: totalSubjects ? `${coreCount} core • ${electiveCount} elective` : 'Add your first subject',
+        icon: BookOpen,
+        color: 'text-blue-600',
+      },
+      {
+        label: 'Levels covered',
+        value: uniqueLevels.length.toString(),
+        detail:
+          uniqueLevels.length === 0
+            ? 'No levels assigned yet'
+            : `${uniqueLevels.slice(0, 3).join(' • ')}${uniqueLevels.length > 3 ? ` +${uniqueLevels.length - 3}` : ''}`,
+        icon: Layers3,
+        color: 'text-purple-600',
+      },
+      {
+        label: 'Departments',
+        value: departmentSummary.length.toString(),
+        detail: departmentSummary[0] ? `Most: ${departmentSummary[0].department}` : 'No departments yet',
+        icon: Sparkles,
+        color: 'text-emerald-600',
+      },
+      {
+        label: 'Resource readiness',
+        value: `${resourceReadyPct}%`,
+        detail: pendingResources > 0 ? `${pendingResources} pending updates` : 'All up to date',
+        icon: AlertTriangle,
+        color: pendingResources > 0 ? 'text-rose-600' : 'text-gray-500',
+      },
+    ],
+    [totalSubjects, coreCount, electiveCount, uniqueLevels, departmentSummary, resourceReadyPct, pendingResources]
+  )
+
+  const qualityMetrics = useMemo(
+    () => [
+      { label: 'Descriptions added', value: descriptionPct, color: 'bg-blue-500' },
+      { label: 'Version tracking', value: versionPct, color: 'bg-emerald-500' },
+      { label: 'Resource readiness', value: resourceReadyPct, color: 'bg-amber-500' },
+    ],
+    [descriptionPct, versionPct, resourceReadyPct]
+  )
+
+  const filteredSubjects = useMemo(() => {
+    const byDepartment = activeDepartment === 'All'
+      ? subjects
+      : subjects.filter((subject) => subject.department === activeDepartment)
+
+    if (!searchTerm.trim()) {
+      return byDepartment
+    }
+
+    const query = searchTerm.toLowerCase()
+    return byDepartment.filter(
+      (subject) =>
+        subject.name.toLowerCase().includes(query) ||
+        subject.code.toLowerCase().includes(query)
+    )
+  }, [activeDepartment, subjects, searchTerm])
 
   const fetchSubjects = async () => {
     try {
@@ -249,7 +338,7 @@ export function SubjectsCatalog() {
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        {subjectStats.map((stat) => {
+        {statsData.map((stat) => {
           const Icon = stat.icon
           return (
             <Card key={stat.label}>
@@ -273,15 +362,18 @@ export function SubjectsCatalog() {
             <CardDescription>Ownership and completion signals.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {departmentSummary.length === 0 && (
+              <p className="text-sm text-gray-500">Add subjects to see department distribution.</p>
+            )}
             {departmentSummary.map((dept) => (
               <div key={dept.department} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-3 justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{dept.department}</p>
-                  <p className="text-xs text-gray-500">{dept.subjects} subjects • Lead: {dept.owner}</p>
+                  <p className="text-xs text-gray-500">{dept.subjects} subject{dept.subjects === 1 ? '' : 's'}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-900">{dept.coverage}</p>
-                  <p className="text-[11px] uppercase tracking-wide text-blue-500">Priority: {dept.priority}</p>
+                  <p className="text-sm font-semibold text-gray-900">{dept.coverage}%</p>
+                  <p className="text-[11px] uppercase tracking-wide text-blue-500">of catalog</p>
                 </div>
               </div>
             ))}
@@ -291,36 +383,23 @@ export function SubjectsCatalog() {
         <Card>
           <CardHeader>
             <CardTitle>Quality controls</CardTitle>
-            <CardDescription>Automated checks across resources and compliance.</CardDescription>
+            <CardDescription>Live signals based on stored subject metadata.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Scheme of work uploads</span>
-                <span>92%</span>
+            {qualityMetrics.map((metric) => (
+              <div key={metric.label}>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{metric.label}</span>
+                  <span>{metric.value}%</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-gray-100">
+                  <div className={`h-2 rounded-full ${metric.color}`} style={{ width: `${metric.value}%` }} />
+                </div>
               </div>
-              <div className="mt-2 h-2 rounded-full bg-gray-100">
-                <div className="h-2 rounded-full bg-blue-500" style={{ width: '92%' }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Exam blueprint alignment</span>
-                <span>87%</span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-gray-100">
-                <div className="h-2 rounded-full bg-emerald-500" style={{ width: '87%' }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Content freshness</span>
-                <span>71%</span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-gray-100">
-                <div className="h-2 rounded-full bg-amber-500" style={{ width: '71%' }} />
-              </div>
-            </div>
+            ))}
+            {totalSubjects === 0 && (
+              <p className="text-xs text-gray-400">Metrics will populate once subjects are added.</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -332,7 +411,12 @@ export function SubjectsCatalog() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <Input placeholder="Search by subject name or code" className="lg:w-72" />
+            <Input
+              placeholder="Search by subject name or code"
+              className="lg:w-72"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
             <div className="flex flex-wrap gap-2 text-xs">
               {departmentFilters.map((dept) => (
                 <button
@@ -362,13 +446,20 @@ export function SubjectsCatalog() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {filteredSubjects.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-sm text-gray-500">
+                      {loading ? 'Loading subjects…' : 'No subjects match the current filters.'}
+                    </TableCell>
+                  </TableRow>
+                )}
                 {filteredSubjects.map((subject) => (
-                  <TableRow key={subject.code}>
+                  <TableRow key={subject.id || subject.code}>
                     <TableCell className="font-semibold text-gray-900">{subject.code}</TableCell>
                     <TableCell>{subject.name}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {subject.levels.map((level) => (
+                        {(subject.levels || []).map((level) => (
                           <Badge key={level} variant="outline" className="text-xs">
                             {level}
                           </Badge>

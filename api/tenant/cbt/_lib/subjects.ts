@@ -5,6 +5,23 @@
 
 import { query } from './db.js'
 
+function normalizeLevels(value: any): string[] {
+  if (Array.isArray(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+
+  return []
+}
+
 export interface Subject {
   id: string
   tenantId: string
@@ -77,7 +94,7 @@ export async function getSubjects(tenantId: string): Promise<Subject[]> {
 
   return result.rows.map((row: any) => ({
     ...row,
-    levels: row.levels || []
+    levels: normalizeLevels(row.levels)
   }))
 }
 
@@ -130,7 +147,7 @@ export async function getSubjectById(tenantId: string, subjectId: string): Promi
   const row = result.rows[0]
   return {
     ...row,
-    levels: row.levels || []
+    levels: normalizeLevels(row.levels)
   }
 }
 
@@ -197,7 +214,7 @@ export async function createSubject(tenantId: string, userId: string, input: Cre
   const row = result.rows[0]
   return {
     ...row,
-    levels: row.levels || []
+    levels: normalizeLevels(row.levels)
   }
 }
 
@@ -292,7 +309,7 @@ export async function updateSubject(tenantId: string, subjectId: string, input: 
   const row = result.rows[0]
   return {
     ...row,
-    levels: row.levels || []
+    levels: normalizeLevels(row.levels)
   }
 }
 

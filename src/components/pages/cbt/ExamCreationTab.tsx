@@ -7,7 +7,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Progress } from '../../ui/progress';
-import { tenantApiGet, tenantApiPost, tenantApiPut } from '../../../lib/tenantApi';
+import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../../lib/tenantApi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -313,7 +313,7 @@ export function ExamCreationTab() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this exam?')) return;
     try {
-      const res = await tenantApiFetch(`/api/tenant/cbt/exams/${id}`, { method: 'DELETE' });
+      const res = await tenantApiDelete(`/api/tenant/cbt/exams/${id}`);
       if (!res.ok) throw new Error('Delete failed');
       fetchExams();
     } catch (e) {

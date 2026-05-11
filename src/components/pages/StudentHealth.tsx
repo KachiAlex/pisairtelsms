@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   Activity,
   HeartPulse,
@@ -10,6 +10,7 @@ import {
   Stethoscope,
   Clock3,
   Plus,
+  RefreshCcw,
 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -19,134 +20,31 @@ import { Separator } from '../ui/separator'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { fetchStudentHealth, StudentHealthPayload } from '../../lib/studentHealthClient'
+import { fetchStudentHealth, StudentHealthPayload, SummaryStat } from '../../lib/studentHealthClient'
 import { useToast } from '../ui/use-toast'
 
-const mockHealthPayload: StudentHealthPayload = {
-  summaryStats: [
-  {
-    label: 'Pending screenings',
-    value: '37',
-    detail: '14 due this week',
-    tone: 'text-amber-600',
-    icon: <Stethoscope className="h-4 w-4" />,
-  },
-  {
-    label: 'Active counseling cases',
-    value: '18',
-    detail: '6 high priority',
-    tone: 'text-rose-600',
-    icon: <HeartPulse className="h-4 w-4" />,
-  },
-  {
-    label: 'High-risk alerts',
-    value: '9',
-    detail: '3 medical • 6 wellness',
-    tone: 'text-red-500',
-    icon: <AlertTriangle className="h-4 w-4" />,
-  },
-  {
-    label: 'Incidents cleared (30d)',
-    value: '24',
-    detail: '78% resolved < 48h',
-    tone: 'text-emerald-600',
-    icon: <ShieldCheck className="h-4 w-4" />,
-  },
-  ],
-  screeningQueue: [
-  {
-    student: 'Favour Nwachukwu',
-    cohort: 'JSS 2A',
-    type: 'Vision screening',
-    due: 'Tomorrow • 09:00',
-    owner: 'Health office',
-    status: 'Scheduled',
-  },
-  {
-    student: 'Ifeanyi Adamu',
-    cohort: 'SS 1C',
-    type: 'Dental check',
-    due: 'Thu • 11:30',
-    owner: 'Partner clinic',
-    status: 'Awaiting transport',
-  },
-  {
-    student: 'Bola Ajayi',
-    cohort: 'SS 2B',
-    type: 'Sickle cell panel',
-    due: 'Fri • 14:00',
-    owner: 'Nurse Aminat',
-    status: 'Prep labs',
-  },
-  ],
-  counselingPipeline: [
-  {
-    stage: 'Intake',
-    color: 'border-sky-200 bg-sky-50',
-    cases: [
-      { student: 'Miriam Adedeji', topic: 'Boarding adjustment', owner: 'Counselor Doyin', nextStep: 'First session Thu' },
-    ],
-  },
-  {
-    stage: 'In session',
-    color: 'border-purple-200 bg-purple-50',
-    cases: [
-      { student: 'Ibrahim Sule', topic: 'Exam anxiety', owner: 'Counselor Ada', nextStep: 'Session 3 today' },
-      { student: 'Ezinne Okoro', topic: 'Peer conflict', owner: 'Counselor Mayowa', nextStep: 'Joint session Fri' },
-    ],
-  },
-  {
-    stage: 'Action plan',
-    color: 'border-amber-200 bg-amber-50',
-    cases: [
-      { student: 'Samuel Bassey', topic: 'Attendance recovery', owner: 'Counselor Toyin', nextStep: 'Parent call pending' },
-    ],
-  },
-  {
-    stage: 'Closed',
-    color: 'border-emerald-200 bg-emerald-50',
-    cases: [
-      { student: 'Sarah Gyang', topic: 'Medical leave reintegration', owner: 'Counselor Titi', nextStep: 'Monitor grades' },
-    ],
-  },
-  ],
-  incidentFeed: [
-  {
-    title: 'Asthma alert triggered',
-    student: 'Halima Musa',
-    time: '25 mins ago',
-    detail: 'Rescue inhaler used, parents notified.',
-    severity: 'High',
-  },
-  {
-    title: 'Dorm wellness check',
-    student: 'SS 1B cohort',
-    time: 'Today • 08:00',
-    detail: 'Hydration + lights-out compliance verified.',
-    severity: 'Low',
-  },
-  {
-    title: 'Counseling escalation',
-    student: 'David Ojo',
-    time: 'Yesterday • 18:15',
-    detail: 'Referred to external therapist for continued care.',
-    severity: 'Critical',
-  },
-  ],
-  wellnessTasks: [
-  { task: 'Send sickle-cell reminder to SS2 boarding parents', owner: 'Health office', due: 'Today', status: 'Pending' },
-  { task: 'Upload counselor session notes for Musa Ibrahim', owner: 'Counselor Ada', due: 'Tomorrow', status: 'In progress' },
-  { task: 'Review allergy action plans (Primary intake)', owner: 'Nurse Aminat', due: 'Fri', status: 'Pending' },
-  { task: 'Escalate chronic absenteeism case to Academics', owner: 'Counselor Doyin', due: 'Mon', status: 'Ready' },
-  ],
+const STAT_ICON_MAP: Record<SummaryStat['icon'], React.ComponentType<{ className?: string }>> = {
+  screening: Stethoscope,
+  counseling: HeartPulse,
+  alerts: AlertTriangle,
+  incidents: ShieldCheck,
+}
+
+const EMPTY_HEALTH_DATA: StudentHealthPayload = {
+  summaryStats: [],
+  screeningQueue: [],
+  counselingPipeline: [],
+  incidentFeed: [],
+  wellnessTasks: [],
 }
 
 export function StudentHealth() {
   const [isScreeningOpen, setIsScreeningOpen] = useState(false)
   const [isIncidentOpen, setIsIncidentOpen] = useState(false)
-  const [healthData, setHealthData] = useState<StudentHealthPayload>(mockHealthPayload)
+  const [healthData, setHealthData] = useState<StudentHealthPayload>(EMPTY_HEALTH_DATA)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
   const { toast } = useToast()
   const [screeningForm, setScreeningForm] = useState({
     student: '',
@@ -163,29 +61,32 @@ export function StudentHealth() {
     notes: '',
   })
 
-  useEffect(() => {
-    const controller = new AbortController()
-
-    async function loadHealthData() {
+  const loadHealthData = useCallback(
+    async (signal?: AbortSignal) => {
       setIsLoading(true)
       try {
-        const payload = await fetchStudentHealth(controller.signal)
+        const payload = await fetchStudentHealth(signal)
         setHealthData(payload)
         setError(null)
+        setLastSyncedAt(new Date())
       } catch (err) {
-        console.warn('Falling back to mock health payload', err)
-        setHealthData(mockHealthPayload)
+        console.error('Failed to load student health data', err)
         setError(err instanceof Error ? err.message : 'Unable to fetch health dashboard data')
       } finally {
         setIsLoading(false)
       }
-    }
+    },
+    []
+  )
 
-    loadHealthData()
+  useEffect(() => {
+    const controller = new AbortController()
+    loadHealthData(controller.signal)
     return () => controller.abort()
-  }, [])
+  }, [loadHealthData])
 
   const { summaryStats, screeningQueue, counselingPipeline, incidentFeed, wellnessTasks } = healthData
+  const lastSyncedLabel = lastSyncedAt ? lastSyncedAt.toLocaleString() : 'Awaiting first sync…'
 
   const resetScreeningForm = () =>
     setScreeningForm({ student: '', screeningType: 'Vision screening', dueDate: '', owner: '', notes: '' })
@@ -216,6 +117,10 @@ export function StudentHealth() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Button variant="ghost" onClick={() => loadHealthData()} disabled={isLoading}>
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            {isLoading ? 'Refreshing…' : 'Refresh data'}
+          </Button>
           <Button variant="outline" onClick={() => setIsIncidentOpen(true)}>
             <AlertTriangle className="h-4 w-4 mr-2" /> Log incident
           </Button>
@@ -226,27 +131,32 @@ export function StudentHealth() {
       </div>
 
       {isLoading && <p className="text-xs text-gray-500">Loading latest health & wellness data…</p>}
-      {error && (
-        <p className="text-xs text-rose-600">
-          Unable to fetch live data ({error}). Displaying cached mock dataset.
-        </p>
-      )}
+      {error && <p className="text-xs text-rose-600">Unable to fetch live data ({error}).</p>}
+      <p className="text-xs text-gray-500">{lastSyncedLabel}</p>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        {summaryStats.map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <div className="flex items-center gap-2 text-gray-600">
-                  {stat.icon}
-                  {stat.label}
-                </div>
-                <span className={`font-medium ${stat.tone}`}>{stat.detail}</span>
-              </div>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{stat.value}</p>
-            </CardContent>
+        {summaryStats.length === 0 && (
+          <Card className="sm:col-span-2 xl:col-span-4">
+            <CardContent className="p-6 text-sm text-gray-500">No wellness stats available yet.</CardContent>
           </Card>
-        ))}
+        )}
+        {summaryStats.map((stat) => {
+          const SummaryIcon = STAT_ICON_MAP[stat.icon] ?? Activity
+          return (
+            <Card key={stat.label}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <SummaryIcon className="h-4 w-4" />
+                    {stat.label}
+                  </div>
+                  <span className={`font-medium ${stat.tone}`}>{stat.detail}</span>
+                </div>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stat.value}</p>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -258,6 +168,9 @@ export function StudentHealth() {
             <CardDescription>Upcoming health screenings and tasks.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {screeningQueue.length === 0 && (
+              <p className="text-xs text-gray-500">No screening items synced yet.</p>
+            )}
             {screeningQueue.map((item) => (
               <div key={item.student} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap gap-3 justify-between">
                 <div>
@@ -284,6 +197,7 @@ export function StudentHealth() {
             <CardDescription>Track sessions across stages.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {counselingPipeline.length === 0 && <p className="text-xs text-gray-500">No counseling cases to display.</p>}
             {counselingPipeline.map((column) => (
               <div key={column.stage} className={`rounded-2xl border ${column.color} p-3 space-y-2`}>
                 <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
@@ -313,6 +227,7 @@ export function StudentHealth() {
             <CardDescription>Latest alerts requiring follow-up.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {incidentFeed.length === 0 && <p className="text-xs text-gray-500">No incidents logged yet.</p>}
             {incidentFeed.map((incident) => (
               <div key={incident.title} className="rounded-2xl border border-gray-100 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -342,6 +257,7 @@ export function StudentHealth() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-gray-600">
+            {wellnessTasks.length === 0 && <p className="text-xs text-gray-500">No wellness tasks synced yet.</p>}
             {wellnessTasks.map((task) => (
               <div key={task.task} className="rounded-2xl border border-gray-100 p-3">
                 <p className="text-sm font-semibold text-gray-900">{task.task}</p>

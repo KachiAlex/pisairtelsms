@@ -22,6 +22,18 @@ interface Question {
   createdAt: string;
 }
 
+interface Tag {
+  id: string;
+  name: string;
+  slug: string;
+  subject?: string;
+  description?: string;
+  usageCount: number;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface QuestionStats {
   total: number;
   byDifficulty: { Easy: number; Medium: number; Hard: number };
@@ -91,6 +103,7 @@ export function QuestionBankTab() {
   const [error, setError] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [catalogTags, setCatalogTags] = useState<Tag[]>([]);
   const [subjectTagHints, setSubjectTagHints] = useState<Record<string, string[]>>({});
 
   // Filters
@@ -193,24 +206,31 @@ export function QuestionBankTab() {
 
   const fetchTagSummary = async () => {
     try {
-      const res = await tenantApiGet('/api/tenant/cbt/questions?action=tags');
+      // Fetch from new tag catalog API
+      const res = await tenantApiGet('/api/tenant/cbt/tags?limit=200');
       if (!res.ok) {
         setAvailableTags([]);
+        setCatalogTags([]);
         setSubjectTagHints({});
         return;
       }
       const data = await res.json();
-      const summary = data.data || { allTags: [], subjects: [] };
-      setAvailableTags(Array.isArray(summary.allTags) ? summary.allTags : []);
+      const tags = Array.isArray(data.data) ? data.data : [];
+      setCatalogTags(tags);
+      setAvailableTags(tags.map((t: Tag) => t.name));
+      
+      // Build subject tag hints from catalog
       const map: Record<string, string[]> = {};
-      if (Array.isArray(summary.subjects)) {
-        summary.subjects.forEach((entry: { subject: string; tags: string[] }) => {
-          map[entry.subject] = entry.tags;
-        });
-      }
+      tags.forEach((tag: Tag) => {
+        if (tag.subject) {
+          if (!map[tag.subject]) map[tag.subject] = [];
+          map[tag.subject].push(tag.name);
+        }
+      });
       setSubjectTagHints(map);
     } catch {
       setAvailableTags([]);
+      setCatalogTags([]);
       setSubjectTagHints({});
     }
   };
@@ -504,6 +524,55 @@ export function QuestionBankTab() {
         </div>
       )}
 
+      {/* Tag Rail */}
+      {catalogTags.length > 0 && (
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Tags</span>
+              {filterTag && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => { setFilterTag(''); setPage(1); }}
+                >
+                  <X className="w-3 h-3 mr-1" />Clear
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => { setFilterTag(''); setPage(1); }}
+                className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                  !filterTag
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                All ({catalogTags.reduce((sum, t) => sum + t.usageCount, 0)})
+              </button>
+              {catalogTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => { setFilterTag(tag.name); setPage(1); }}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    filterTag === tag.name
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  title={`${tag.usageCount} questions${tag.subject ? ` • ${tag.subject}` : ''}`}
+                >
+                  #{tag.name} ({tag.usageCount})
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Toolbar */}
       <Card>
         <CardContent className="p-4">
@@ -527,17 +596,6 @@ export function QuestionBankTab() {
               <option value="objective">Objective</option>
               <option value="truefalse">True/False</option>
               <option value="essay">Essay</option>
-            </select>
-            <select
-              className="border rounded-md px-3 py-2 text-sm"
-              value={filterTag}
-              onChange={(e) => { setFilterTag(e.target.value); setPage(1); }}
-              disabled={availableTags.length === 0}
-            >
-              <option value="">{availableTags.length === 0 ? 'No tags yet' : 'All Tags'}</option>
-              {availableTags.map((tag) => (
-                <option key={tag} value={tag}>{tag}</option>
-              ))}
             </select>
           </div>
           <div className="flex gap-2 mt-3">

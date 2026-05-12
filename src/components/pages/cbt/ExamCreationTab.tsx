@@ -36,6 +36,18 @@ interface Question {
   tags?: string[];
 }
 
+interface Tag {
+  id: string;
+  name: string;
+  slug: string;
+  subject?: string;
+  description?: string;
+  usageCount: number;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface ExamForm {
   title: string;
   subject: string;
@@ -109,6 +121,7 @@ export function ExamCreationTab() {
   const [questionSearch, setQuestionSearch] = useState('');
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [questionTags, setQuestionTags] = useState<string[]>([]);
+  const [catalogTags, setCatalogTags] = useState<Tag[]>([]);
   const [questionTagFilter, setQuestionTagFilter] = useState('');
 
   // Dynamic dropdowns
@@ -157,15 +170,20 @@ export function ExamCreationTab() {
 
   const fetchQuestionTags = async () => {
     try {
-      const res = await tenantApiGet('/api/tenant/cbt/questions?action=tags');
+      // Fetch from new tag catalog API
+      const res = await tenantApiGet('/api/tenant/cbt/tags?limit=200');
       if (!res.ok) {
         setQuestionTags([]);
+        setCatalogTags([]);
         return;
       }
       const data = await res.json();
-      setQuestionTags(Array.isArray(data.data?.allTags) ? data.data.allTags : []);
+      const tags = Array.isArray(data.data) ? data.data : [];
+      setCatalogTags(tags);
+      setQuestionTags(tags.map((t: Tag) => t.name));
     } catch {
       setQuestionTags([]);
+      setCatalogTags([]);
     }
   };
 

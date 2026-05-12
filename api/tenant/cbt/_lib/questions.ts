@@ -12,6 +12,7 @@ import {
   ApiResponse,
   PaginatedResponse,
 } from './types.js';
+import { syncQuestionTags } from './tags.js';
 
 /**
  * Parse a question row from the database, converting JSON strings to objects
@@ -197,7 +198,17 @@ export async function createQuestion(
     throw new Error('Failed to create question');
   }
 
-  return parseQuestionRow(row);
+  const question = parseQuestionRow(row);
+
+  // Sync tags to catalog
+  if (normalizedTags.length > 0) {
+    await syncQuestionTags(tenantId, question.id, normalizedTags, {
+      subject: input.subject,
+      createdBy: userId,
+    });
+  }
+
+  return question;
 }
 
 /**
@@ -257,7 +268,17 @@ export async function updateQuestion(
     throw new Error('Failed to update question');
   }
 
-  return parseQuestionRow(row);
+  const question = parseQuestionRow(row);
+
+  // Sync tags to catalog if tags were provided
+  if (input.tags !== undefined) {
+    const tagsToSync = normalizedTags || [];
+    await syncQuestionTags(tenantId, question.id, tagsToSync, {
+      subject: input.subject || existing.subject,
+    });
+  }
+
+  return question;
 }
 
 /**

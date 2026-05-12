@@ -27,6 +27,41 @@ CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON questions_bank(difficulty
 CREATE INDEX IF NOT EXISTS idx_questions_type ON questions_bank(type);
 CREATE INDEX IF NOT EXISTS idx_questions_deleted ON questions_bank(deleted_at);
 
+-- --------------------------------------------------------------------------
+-- Question Tags Catalog
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS question_tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(80) NOT NULL,
+  slug VARCHAR(120) NOT NULL,
+  subject VARCHAR(100),
+  description TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  last_used_at TIMESTAMP,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(tenant_id, slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_tags_tenant ON question_tags(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_question_tags_usage ON question_tags(tenant_id, usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_question_tags_subject ON question_tags(subject);
+
+CREATE TABLE IF NOT EXISTS question_tag_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  question_id UUID NOT NULL REFERENCES questions_bank(id) ON DELETE CASCADE,
+  tag_id UUID NOT NULL REFERENCES question_tags(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(question_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_tag_links_tag ON question_tag_links(tag_id);
+CREATE INDEX IF NOT EXISTS idx_question_tag_links_question ON question_tag_links(question_id);
+CREATE INDEX IF NOT EXISTS idx_question_tag_links_tenant_tag ON question_tag_links(tenant_id, tag_id);
+
 -- ============================================================================
 -- 2. EXAMS TABLE
 -- ============================================================================

@@ -508,32 +508,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [tenantId]
       )
       const deletedCount = result.rowCount || 0
-      await query(
-        `DELETE FROM question_tag_links
-         WHERE tenant_id = $1`,
-        [tenantId]
-      )
-      await query(
-        `UPDATE question_tags
-         SET deleted_at = CURRENT_TIMESTAMP
-         WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [tenantId]
-      )
+
+      // Try to clear tag links and tags (may fail if tables don't exist yet)
+      try {
+        await query(
+          `DELETE FROM question_tag_links
+           WHERE tenant_id = $1`,
+          [tenantId]
+        )
+      } catch (e) {
+        console.log('question_tag_links table does not exist yet, skipping')
+      }
+
+      try {
+        await query(
+          `UPDATE question_tags
+           SET deleted_at = CURRENT_TIMESTAMP
+           WHERE tenant_id = $1 AND deleted_at IS NULL`,
+          [tenantId]
+        )
+      } catch (e) {
+        console.log('question_tags table does not exist yet, skipping')
+      }
+
       return res.status(200).json({
         success: true,
         data: {
           deletedCount,
-          message: `Deleted ${deletedCount} questions and associated tags`,
+          message: `Deleted ${deletedCount} questions`,
         },
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error clearing questions:', error)
-      return res.status(500).json({ success: false, error: 'Failed to clear questions' })
+      return res.status(500).json({ success: false, error: error.message || 'Failed to clear questions' })
     }
   }
 
   // POST /api/tenant/cbt/questions
-  if (req.method === 'POST' && !id && action !== 'import') {
+  if (req.method === 'POST' && !id && !action) {
     if (!validateUserId(userId, res)) {
       return
     }

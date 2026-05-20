@@ -469,7 +469,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const content: string = body.content
   const filename: string = body.filename || 'import.csv'
   const options = body.options || {}
-  const skipDuplicates = options.skipDuplicates !== false // default true
+  const skipDuplicates = options.skipDuplicates !== false && !options.force // default true, unless force is true
   const overwriteDuplicates = options.overwriteDuplicates || false // default false
   const defaultSubject = options.subject || undefined
   const defaultDifficulty = options.difficulty || undefined

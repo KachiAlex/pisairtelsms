@@ -43,10 +43,19 @@ ALTER TABLE IF EXISTS offline_sync_queue
 
 -- Convert attendance tables tenant/user columns to TEXT
 ALTER TABLE IF EXISTS absence_reasons
+  DROP CONSTRAINT IF EXISTS absence_reasons_tenant_id_fkey;
+
+ALTER TABLE IF EXISTS absence_reasons
   ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text;
 
 ALTER TABLE IF EXISTS biometric_devices
+  DROP CONSTRAINT IF EXISTS biometric_devices_tenant_id_fkey;
+
+ALTER TABLE IF EXISTS biometric_devices
   ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text;
+
+ALTER TABLE IF EXISTS attendance_records
+  DROP CONSTRAINT IF EXISTS attendance_records_tenant_id_fkey;
 
 ALTER TABLE IF EXISTS attendance_records
   ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text,
@@ -59,12 +68,28 @@ ALTER TABLE IF EXISTS attendance_audit_trail
 
 -- Convert notification tables tenant/user columns to TEXT
 ALTER TABLE IF EXISTS guardian_notifications
+  DROP CONSTRAINT IF EXISTS guardian_notifications_tenant_id_fkey;
+
+ALTER TABLE IF EXISTS guardian_notifications
   ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text,
   ALTER COLUMN created_by TYPE TEXT USING created_by::text;
+
+ALTER TABLE IF EXISTS bulk_notification_jobs
+  DROP CONSTRAINT IF EXISTS bulk_notification_jobs_tenant_id_fkey;
 
 ALTER TABLE IF EXISTS bulk_notification_jobs
   ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text,
   ALTER COLUMN created_by TYPE TEXT USING created_by::text;
 
 ALTER TABLE IF EXISTS notification_preferences
+  DROP CONSTRAINT IF EXISTS notification_preferences_tenant_id_fkey;
+
+ALTER TABLE IF EXISTS notification_preferences
+  ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text;
+
+-- Convert students table tenant_id to TEXT
+ALTER TABLE IF EXISTS students
+  DROP CONSTRAINT IF EXISTS students_tenant_id_fkey;
+
+ALTER TABLE IF EXISTS students
   ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text;

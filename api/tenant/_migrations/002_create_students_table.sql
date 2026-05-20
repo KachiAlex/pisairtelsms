@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS students (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   admission_no VARCHAR(50) NOT NULL UNIQUE,
   name VARCHAR(255) NOT NULL,
   class VARCHAR(50) NOT NULL,

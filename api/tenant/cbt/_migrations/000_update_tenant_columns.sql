@@ -40,3 +40,31 @@ ALTER TABLE IF EXISTS audit_logs
 -- Convert offline_sync_queue student_id to TEXT
 ALTER TABLE IF EXISTS offline_sync_queue
   ALTER COLUMN student_id TYPE TEXT USING student_id::text;
+
+-- Convert attendance tables tenant/user columns to TEXT
+ALTER TABLE IF EXISTS absence_reasons
+  ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text;
+
+ALTER TABLE IF EXISTS biometric_devices
+  ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text;
+
+ALTER TABLE IF EXISTS attendance_records
+  ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text,
+  ALTER COLUMN user_id TYPE TEXT USING user_id::text,
+  ALTER COLUMN created_by TYPE TEXT USING created_by::text,
+  ALTER COLUMN updated_by TYPE TEXT USING updated_by::text;
+
+ALTER TABLE IF EXISTS attendance_audit_trail
+  ALTER COLUMN changed_by TYPE TEXT USING changed_by::text;
+
+-- Convert notification tables tenant/user columns to TEXT
+ALTER TABLE IF EXISTS guardian_notifications
+  ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text,
+  ALTER COLUMN created_by TYPE TEXT USING created_by::text;
+
+ALTER TABLE IF EXISTS bulk_notification_jobs
+  ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text,
+  ALTER COLUMN created_by TYPE TEXT USING created_by::text;
+
+ALTER TABLE IF EXISTS notification_preferences
+  ALTER COLUMN tenant_id TYPE TEXT USING tenant_id::text;

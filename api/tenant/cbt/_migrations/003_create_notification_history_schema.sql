@@ -7,7 +7,7 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS guardian_notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   student_id VARCHAR(50) NOT NULL,
   guardian_email VARCHAR(255) NOT NULL,
   guardian_phone VARCHAR(20),
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS guardian_notifications (
   error_message TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_by UUID
+  created_by TEXT
 );
 
 CREATE INDEX idx_guardian_notifications_tenant ON guardian_notifications(tenant_id);
@@ -41,7 +41,7 @@ CREATE INDEX idx_guardian_notifications_sent ON guardian_notifications(sent_at);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS bulk_notification_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   job_name VARCHAR(255) NOT NULL,
   job_type VARCHAR(50) NOT NULL CHECK (job_type IN ('at_risk_students', 'manual_bulk', 'scheduled')),
   total_recipients INTEGER NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS bulk_notification_jobs (
   acknowledged_count INTEGER DEFAULT 0,
   status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'failed', 'cancelled')),
   filters JSONB,
-  created_by UUID NOT NULL,
+  created_by TEXT NOT NULL,
   started_at TIMESTAMP,
   completed_at TIMESTAMP,
   error_message TEXT,
@@ -68,7 +68,7 @@ CREATE INDEX idx_bulk_jobs_created ON bulk_notification_jobs(created_at);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS notification_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   guardian_email VARCHAR(255) NOT NULL,
   notification_type VARCHAR(50) NOT NULL,
   enabled BOOLEAN DEFAULT TRUE,

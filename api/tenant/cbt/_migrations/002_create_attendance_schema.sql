@@ -7,7 +7,7 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS absence_reasons (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   reason_name VARCHAR(100) NOT NULL,
   description TEXT,
   is_active BOOLEAN DEFAULT TRUE,
@@ -23,7 +23,7 @@ CREATE INDEX idx_absence_reasons_active ON absence_reasons(is_active);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS biometric_devices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   device_name VARCHAR(255) NOT NULL,
   device_type VARCHAR(50) NOT NULL CHECK (device_type IN ('fingerprint', 'face', 'iris', 'palm')),
   manufacturer VARCHAR(255),
@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS biometric_devices (
   enrolled_students_count INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_device_tenant ON biometric_devices(tenant_id);
@@ -55,7 +54,7 @@ CREATE INDEX idx_device_serial_number ON biometric_devices(serial_number);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS attendance_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
   student_id VARCHAR(50) NOT NULL,
   class VARCHAR(50) NOT NULL,
   date DATE NOT NULL,
@@ -63,13 +62,13 @@ CREATE TABLE IF NOT EXISTS attendance_records (
   absence_reason_id UUID REFERENCES absence_reasons(id) ON DELETE SET NULL,
   source VARCHAR(50) NOT NULL CHECK (source IN ('teacher_entry', 'biometric_device', 'batch_upload', 'api_entry')),
   device_id UUID REFERENCES biometric_devices(id) ON DELETE SET NULL,
-  user_id UUID,
+  user_id TEXT,
   academic_session VARCHAR(20) NOT NULL,
   term VARCHAR(10) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  created_by UUID,
-  updated_by UUID,
+  created_by TEXT,
+  updated_by TEXT,
   UNIQUE(tenant_id, student_id, date)
 );
 
@@ -92,7 +91,7 @@ CREATE TABLE IF NOT EXISTS attendance_audit_trail (
   action VARCHAR(50) NOT NULL CHECK (action IN ('create', 'update', 'delete')),
   old_value JSONB,
   new_value JSONB,
-  changed_by UUID NOT NULL,
+  changed_by TEXT NOT NULL,
   changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

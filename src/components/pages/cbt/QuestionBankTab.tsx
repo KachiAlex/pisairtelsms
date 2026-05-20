@@ -552,9 +552,6 @@ export function QuestionBankTab() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-4">
-                <Button variant="outline" onClick={() => { setFilterTag(''); setViewMode('questions'); setPage(1); }}>
-                  <FileText className="w-4 h-4 mr-2" />Show All Questions
-                </Button>
                 <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
                   <Plus className="w-4 h-4 mr-2" />Add Question
                 </Button>
@@ -563,7 +560,6 @@ export function QuestionBankTab() {
                 <div className="text-center py-12 text-gray-500">
                   <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No tags found. Add questions with tags to see them here.</p>
-                  <p className="text-sm mt-2">Or click "Show All Questions" to view all questions.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

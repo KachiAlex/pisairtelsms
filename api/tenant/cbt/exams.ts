@@ -75,8 +75,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Initialize database on first request
   try {
     initializeDatabase()
-    // Note: runMigrations() is intentionally not called here.
-    // Tables are managed via direct SQL migrations applied to the database.
+    if (req.headers['x-run-migrations'] === 'true') {
+      await runMigrations()
+    }
   } catch (error: any) {
     console.error('Database initialization error:', error)
     return res.status(503).json({

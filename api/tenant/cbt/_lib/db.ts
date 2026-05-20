@@ -142,10 +142,15 @@ export async function runMigrations(): Promise<void> {
     // Get list of migration files
     const files = fs.readdirSync(migrationsDir)
       .filter(f => f.endsWith('.sql'))
+      .filter(f => /^\d+_/.test(f))
       .sort();
 
     for (const file of files) {
       const version = parseInt(file.split('_')[0]);
+      if (Number.isNaN(version)) {
+        console.warn(`Skipping migration with invalid version: ${file}`);
+        continue;
+      }
       
       // Check if migration has already been run
       const result = await pool.query(

@@ -459,12 +459,12 @@ export function QuestionBankTab() {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setIsImporting(true);
     setImportStatus('Reading file...');
     setImportErrors([]);
     setImportPreview([]);
-    
+
     try {
       const base64Content = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -484,11 +484,12 @@ export function QuestionBankTab() {
       const res = await tenantApiFetch('/api/tenant/cbt/questions/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          content: base64Content, 
+        body: JSON.stringify({
+          content: base64Content,
           filename: file.name,
-          options: { 
-            skipDuplicates: true,
+          options: {
+            force: true,
+            skipDuplicates: false,
             subject: importSubject || undefined,
             difficulty: importDifficulty || undefined,
             type: importType || undefined,
@@ -498,31 +499,30 @@ export function QuestionBankTab() {
         }),
       });
       const data = await res.json();
-      
+
       if (!res.ok) {
         if (data.data?.errors) {
           setImportErrors(data.data.errors);
           setImportStatus(`Validation failed: ${data.data.errorRows} rows have errors`);
         } else {
-          throw new Error(data.error || 'Import failed');
+          setImportStatus(`Error: ${data.error || 'Import failed'}`);
         }
-      } else {
-        const { imported, skipped, failed, preview } = data.data || data;
-        setImportPreview(preview || []);
-        setImportStatus(
-          `Imported ${imported} question${imported !== 1 ? 's' : ''}` +
-          (skipped > 0 ? `. Skipped ${skipped} duplicate${skipped !== 1 ? 's' : ''}` : '') +
-          (failed > 0 ? `. ${failed} failed.` : '.')
-        );
-        fetchQuestions();
-        fetchStats();
-        fetchTagSummary();
+        return;
       }
-    } catch (e) {
-      setImportStatus(e instanceof Error ? e.message : 'Import failed');
+
+      const { imported, skipped, failed, preview } = data.data;
+      setImportStatus(`Imported ${imported} questions. Skipped ${skipped} duplicates. Failed: ${failed}.`);
+      setImportPreview(preview || []);
+
+      if (imported > 0) {
+        fetchQuestions();
+        fetchTagSummary();
+        fetchSubjects();
+      }
+    } catch (err) {
+      setImportStatus(`Error: ${err instanceof Error ? err.message : 'Import failed'}`);
     } finally {
       setIsImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 

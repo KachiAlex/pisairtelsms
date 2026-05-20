@@ -345,14 +345,16 @@ export async function addTagsToQuestions(
 
 /**
  * Check for duplicate questions
+ * Uses normalized text comparison (case-insensitive, trimmed)
  */
 export async function checkDuplicate(
   tenantId: string,
   text: string,
   excludeId?: string
 ): Promise<Question | null> {
-  let sql = 'SELECT * FROM questions_bank WHERE tenant_id = $1 AND text = $2 AND deleted_at IS NULL';
-  const params: any[] = [tenantId, text];
+  const normalizedText = text.trim().toLowerCase();
+  let sql = 'SELECT * FROM questions_bank WHERE tenant_id = $1 AND LOWER(TRIM(text)) = $2 AND deleted_at IS NULL';
+  const params: any[] = [tenantId, normalizedText];
 
   if (excludeId) {
     sql += ' AND id != $3';

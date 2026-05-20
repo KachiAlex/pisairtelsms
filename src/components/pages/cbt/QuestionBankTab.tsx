@@ -552,7 +552,6 @@ export function QuestionBankTab() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Question Tags</h2>
                 <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
                   <Plus className="w-4 h-4 mr-2" />Add Question
                 </Button>

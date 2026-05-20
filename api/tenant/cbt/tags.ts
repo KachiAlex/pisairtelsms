@@ -81,6 +81,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     } catch (error: any) {
       console.error('Error fetching tags:', error)
+      // If tables don't exist yet, return empty array
+      if (error.message && error.message.includes('does not exist')) {
+        return res.status(200).json({
+          success: true,
+          data: [],
+        })
+      }
       return res.status(500).json({ success: false, error: 'Failed to fetch tags' })
     }
   }

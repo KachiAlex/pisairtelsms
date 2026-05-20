@@ -4,7 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { runMigrations } from './_lib/db.js'
+import { initializeDatabase, runMigrations } from './_lib/db.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST requests
@@ -14,6 +14,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    console.log('Initializing database...')
+    initializeDatabase()
+    console.log('Database initialized')
+
     console.log('Starting database migrations...')
     await runMigrations()
     console.log('Database migrations completed successfully')
@@ -27,6 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({
       success: false,
       error: error.message || 'Migration failed',
+      details: error.toString(),
     })
   }
 }

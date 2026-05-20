@@ -106,6 +106,10 @@ export function QuestionBankTab() {
   const [catalogTags, setCatalogTags] = useState<Tag[]>([]);
   const [subjectTagHints, setSubjectTagHints] = useState<Record<string, string[]>>({});
 
+  // View mode: 'tags' (default) or 'questions'
+  const [viewMode, setViewMode] = useState<'tags' | 'questions'>('tags');
+  const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
+
   // Filters
   const [search, setSearch] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
@@ -236,10 +240,13 @@ export function QuestionBankTab() {
   };
 
   useEffect(() => {
-    fetchQuestions();
     fetchSubjects();
     fetchTagSummary();
-  }, [page, search, filterSubject, filterDifficulty, filterType, filterTag]);
+    // Only fetch questions when in questions view mode
+    if (viewMode === 'questions') {
+      fetchQuestions();
+    }
+  }, [page, search, filterSubject, filterDifficulty, filterType, filterTag, viewMode]);
 
   useEffect(() => {
     fetchStats();
@@ -252,6 +259,21 @@ export function QuestionBankTab() {
   }, [importSubject, importTag, activeTagHints]);
 
   // ── Form handlers ──────────────────────────────────────────────────────────
+
+  const handleTagClick = (tag: Tag) => {
+    setSelectedTag(tag);
+    setFilterTag(tag.name);
+    setViewMode('questions');
+    setPage(1);
+  };
+
+  const handleBackToTags = () => {
+    setSelectedTag(null);
+    setFilterTag('');
+    setViewMode('tags');
+    setQuestions([]);
+    setSelectedQuestions(new Set());
+  };
 
   const resetForm = () => {
     setForm({ text: '', type: 'objective', options: ['', '', '', ''], correctAnswer: 'A', difficulty: 'Medium', subject: '', tags: '' });
@@ -524,151 +546,163 @@ export function QuestionBankTab() {
         </div>
       )}
 
-      {/* Tag Rail */}
-      {catalogTags.length > 0 && (
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Tags</span>
-              {filterTag && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => { setFilterTag(''); setPage(1); }}
-                >
-                  <X className="w-3 h-3 mr-1" />Clear
+      {/* Tag View (default) */}
+      {viewMode === 'tags' && (
+        <>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Question Tags</h2>
+                <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
+                  <Plus className="w-4 h-4 mr-2" />Add Question
                 </Button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => { setFilterTag(''); setPage(1); }}
-                className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                  !filterTag
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                All ({catalogTags.reduce((sum, t) => sum + t.usageCount, 0)})
-              </button>
-              {catalogTags.map((tag) => (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => { setFilterTag(tag.name); setPage(1); }}
-                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                    filterTag === tag.name
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                  title={`${tag.usageCount} questions${tag.subject ? ` • ${tag.subject}` : ''}`}
-                >
-                  #{tag.name} ({tag.usageCount})
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Toolbar */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input placeholder="Search questions..." className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-            </div>
-            <select className="border rounded-md px-3 py-2 text-sm" value={filterSubject} onChange={(e) => { setFilterSubject(e.target.value); setPage(1); }}>
-              <option value="">All Subjects</option>
-              {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select className="border rounded-md px-3 py-2 text-sm" value={filterDifficulty} onChange={(e) => { setFilterDifficulty(e.target.value); setPage(1); }}>
-              <option value="">All Difficulties</option>
-              <option value="Easy">Easy</option>
-              <option value="Medium">Medium</option>
-              <option value="Hard">Hard</option>
-            </select>
-            <select className="border rounded-md px-3 py-2 text-sm" value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}>
-              <option value="">All Types</option>
-              <option value="objective">Objective</option>
-              <option value="truefalse">True/False</option>
-              <option value="essay">Essay</option>
-            </select>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
-              <Plus className="w-4 h-4 mr-2" />Add Question
-            </Button>
-            {selectedQuestions.size > 0 && (
-              <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleBulkDelete}>
-                <Trash2 className="w-4 h-4 mr-2" />Delete ({selectedQuestions.size})
-              </Button>
-            )}
-            <Button variant="outline" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />Export CSV
-            </Button>
-            <Button variant="outline" size="icon" onClick={fetchQuestions} aria-label="Refresh">
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
-          {selectedQuestions.size > 0 && (
-            <div className="mt-4 p-3 border rounded-md bg-blue-50 border-blue-100 space-y-2">
-              <div className="text-sm font-medium text-blue-900">Tag {selectedQuestions.size} selected question{selectedQuestions.size !== 1 ? 's' : ''}</div>
-              <div className="flex flex-col md:flex-row gap-2">
-                <Input
-                  value={bulkTagInput}
-                  onChange={(e) => setBulkTagInput(e.target.value)}
-                  placeholder="e.g. 1st CA Test, Week 2"
-                  className="md:flex-1"
-                />
-                <div className="flex gap-2">
-                  <Button onClick={handleApplyTagsToSelection} disabled={bulkTagging} className="bg-blue-600 hover:bg-blue-700">
-                    {bulkTagging ? 'Tagging…' : 'Add Tag'}
-                  </Button>
-                  <Button variant="outline" onClick={() => setSelectedQuestions(new Set())}>Clear Selection</Button>
-                </div>
               </div>
-              {availableTags.length > 0 && (
-                <div className="flex flex-wrap gap-2 text-xs text-blue-800">
-                  {availableTags.slice(0, 6).map((tag) => (
-                    <button
-                      key={`bulk-suggestion-${tag}`}
-                      type="button"
-                      onClick={() => setBulkTagInput((prev) => (prev ? `${prev}, ${tag}` : tag))}
-                      className="px-2 py-0.5 border border-blue-200 rounded-full bg-white hover:bg-blue-100"
+              {catalogTags.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>No tags found. Add questions with tags to see them here.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {catalogTags.map((tag) => (
+                    <Card
+                      key={tag.id}
+                      className="cursor-pointer hover:border-blue-400 hover:shadow-md transition-all"
+                      onClick={() => handleTagClick(tag)}
                     >
-                      #{tag}
-                    </button>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-semibold text-gray-900">#{tag.name}</h3>
+                          <Badge className="bg-blue-100 text-blue-700">{tag.usageCount} questions</Badge>
+                        </div>
+                        {tag.subject && (
+                          <p className="text-sm text-gray-600 mb-1">Subject: {tag.subject}</p>
+                        )}
+                        {tag.description && (
+                          <p className="text-xs text-gray-500 line-clamp-2">{tag.description}</p>
+                        )}
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               )}
-              {bulkTagFeedback && (
-                <p className={`text-xs ${bulkTagFeedback.type === 'error' ? 'text-red-600' : 'text-green-700'}`}>
-                  {bulkTagFeedback.message}
-                </p>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
-      {/* Question list */}
-      {loading ? (
-        <div className="text-center py-12 text-gray-500">Loading questions...</div>
-      ) : error ? (
-        <div className="text-center py-12">
-          <p className="text-red-600 mb-3">{error}</p>
-          <Button variant="outline" onClick={fetchQuestions}>Retry</Button>
-        </div>
-      ) : questions.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p>No questions found. Add your first question.</p>
-        </div>
-      ) : (
+      {/* Question View (when a tag is selected) */}
+      {viewMode === 'questions' && (
+        <>
+          {/* Back button and header */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <Button variant="outline" size="sm" onClick={handleBackToTags}>
+                  <X className="w-4 h-4 mr-1" />Back to Tags
+                </Button>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {selectedTag ? `#${selectedTag.name}` : 'Questions'}
+                  </h2>
+                  {selectedTag && (
+                    <p className="text-sm text-gray-600">
+                      {selectedTag.usageCount} questions {selectedTag.subject ? `• ${selectedTag.subject}` : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Toolbar */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input placeholder="Search questions..." className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+                </div>
+                <select className="border rounded-md px-3 py-2 text-sm" value={filterDifficulty} onChange={(e) => { setFilterDifficulty(e.target.value); setPage(1); }}>
+                  <option value="">All Difficulties</option>
+                  <option value="Easy">Easy</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Hard">Hard</option>
+                </select>
+                <select className="border rounded-md px-3 py-2 text-sm" value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}>
+                  <option value="">All Types</option>
+                  <option value="objective">Objective</option>
+                  <option value="truefalse">True/False</option>
+                  <option value="essay">Essay</option>
+                </select>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => { resetForm(); setIsAddOpen(true); }}>
+                  <Plus className="w-4 h-4 mr-2" />Add Question
+                </Button>
+                {selectedQuestions.size > 0 && (
+                  <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleBulkDelete}>
+                    <Trash2 className="w-4 h-4 mr-2" />Delete ({selectedQuestions.size})
+                  </Button>
+                )}
+                <Button variant="outline" onClick={handleExport}>
+                  <Download className="w-4 h-4 mr-2" />Export CSV
+                </Button>
+                <Button variant="outline" size="icon" onClick={fetchQuestions} aria-label="Refresh">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+              {selectedQuestions.size > 0 && (
+                <div className="mt-4 p-3 border rounded-md bg-blue-50 border-blue-100 space-y-2">
+                  <div className="text-sm font-medium text-blue-900">Tag {selectedQuestions.size} selected question{selectedQuestions.size !== 1 ? 's' : ''}</div>
+                  <div className="flex flex-col md:flex-row gap-2">
+                    <Input
+                      value={bulkTagInput}
+                      onChange={(e) => setBulkTagInput(e.target.value)}
+                      placeholder="e.g. 1st CA Test, Week 2"
+                      className="md:flex-1"
+                    />
+                    <div className="flex gap-2">
+                      <Button onClick={handleApplyTagsToSelection} disabled={bulkTagging} className="bg-blue-600 hover:bg-blue-700">
+                        {bulkTagging ? 'Tagging…' : 'Add Tag'}
+                      </Button>
+                      <Button variant="outline" onClick={() => setSelectedQuestions(new Set())}>Clear Selection</Button>
+                    </div>
+                  </div>
+                  {availableTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 text-xs text-blue-800">
+                      {availableTags.slice(0, 6).map((tag) => (
+                        <button
+                          key={`bulk-suggestion-${tag}`}
+                          type="button"
+                          onClick={() => setBulkTagInput((prev) => (prev ? `${prev}, ${tag}` : tag))}
+                          className="px-2 py-0.5 border border-blue-200 rounded-full bg-white hover:bg-blue-100"
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {bulkTagFeedback && (
+                    <p className={`text-xs ${bulkTagFeedback.type === 'error' ? 'text-red-600' : 'text-green-700'}`}>
+                      {bulkTagFeedback.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Question list */}
+          {loading ? (
+            <div className="text-center py-12 text-gray-500">Loading questions...</div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600 mb-3">{error}</p>
+              <Button variant="outline" onClick={fetchQuestions}>Retry</Button>
+            </div>
+          ) : questions.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p>No questions found in this tag.</p>
+            </div>
+          ) : (
         <>
           {/* Select All */}
           {questions.length > 0 && (
@@ -756,6 +790,8 @@ export function QuestionBankTab() {
               <span className="flex items-center text-sm text-gray-600">Page {page} of {totalPages}</span>
               <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
             </div>
+          )}
+        </>
           )}
         </>
       )}

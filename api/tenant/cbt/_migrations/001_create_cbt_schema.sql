@@ -7,7 +7,7 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS questions_bank (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id TEXT NOT NULL,
   text TEXT NOT NULL,
   type VARCHAR(20) NOT NULL CHECK (type IN ('objective', 'truefalse', 'essay')),
   options JSONB,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS questions_bank (
   difficulty VARCHAR(10) NOT NULL CHECK (difficulty IN ('Easy', 'Medium', 'Hard')),
   subject VARCHAR(100) NOT NULL,
   tags JSONB DEFAULT '[]'::jsonb,
-  created_by UUID,
+  created_by TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP
@@ -32,14 +32,14 @@ CREATE INDEX IF NOT EXISTS idx_questions_deleted ON questions_bank(deleted_at);
 -- --------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS question_tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id TEXT NOT NULL,
   name VARCHAR(80) NOT NULL,
   slug VARCHAR(120) NOT NULL,
   subject VARCHAR(100),
   description TEXT,
   usage_count INTEGER NOT NULL DEFAULT 0,
   last_used_at TIMESTAMP,
-  created_by UUID,
+  created_by TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP,
@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_question_tags_subject ON question_tags(subject);
 
 CREATE TABLE IF NOT EXISTS question_tag_links (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id TEXT NOT NULL,
   question_id UUID NOT NULL REFERENCES questions_bank(id) ON DELETE CASCADE,
   tag_id UUID NOT NULL REFERENCES question_tags(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -68,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_question_tag_links_tenant_tag ON question_tag_lin
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS exams (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id TEXT NOT NULL,
   title VARCHAR(255) NOT NULL,
   subject VARCHAR(100) NOT NULL,
   class VARCHAR(50) NOT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS exams (
   status VARCHAR(20) NOT NULL DEFAULT 'Draft' CHECK (status IN ('Draft', 'Scheduled', 'Ongoing', 'Completed')),
   scheduled_date DATE,
   scheduled_time TIME,
-  created_by UUID,
+  created_by TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP
@@ -114,7 +114,7 @@ CREATE INDEX IF NOT EXISTS idx_exam_questions_question ON exam_questions(questio
 CREATE TABLE IF NOT EXISTS student_exam_progress (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   exam_id UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
-  student_id UUID NOT NULL,
+  student_id TEXT NOT NULL,
   questions_answered INTEGER DEFAULT 0,
   current_question INTEGER DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Completed', 'Paused', 'Flagged')),
@@ -138,7 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_progress_exam_status ON student_exam_progress(exa
 CREATE TABLE IF NOT EXISTS exam_results (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   exam_id UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
-  student_id UUID NOT NULL,
+  student_id TEXT NOT NULL,
   score DECIMAL(5,2) NOT NULL CHECK (score >= 0),
   total_marks DECIMAL(5,2) NOT NULL CHECK (total_marks > 0),
   percentage DECIMAL(5,2) NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
@@ -200,7 +200,7 @@ CREATE INDEX IF NOT EXISTS idx_security_exam ON security_settings(exam_id);
 CREATE TABLE IF NOT EXISTS proctoring_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   exam_id UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
-  student_id UUID NOT NULL,
+  student_id TEXT NOT NULL,
   event_type VARCHAR(50) NOT NULL CHECK (event_type IN (
     'tab_switch', 'copy_attempt', 'right_click', 'camera_off', 
     'suspicious_activity', 'manual_flag', 'other'
@@ -219,8 +219,8 @@ CREATE INDEX IF NOT EXISTS idx_proctoring_created ON proctoring_logs(created_at)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
-  user_id UUID,
+  tenant_id TEXT NOT NULL,
+  user_id TEXT,
   action VARCHAR(100) NOT NULL CHECK (action IN (
     'create', 'update', 'delete', 'read', 'export', 'import',
     'start_exam', 'pause_exam', 'resume_exam', 'complete_exam',
@@ -245,7 +245,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS offline_sync_queue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id UUID NOT NULL,
+  student_id TEXT NOT NULL,
   exam_id UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
   answers JSONB NOT NULL,
   sync_status VARCHAR(20) DEFAULT 'pending' CHECK (sync_status IN ('pending', 'synced', 'failed')),

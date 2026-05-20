@@ -13,7 +13,7 @@ DECLARE
 BEGIN
     -- Loop through all questions that have tags
     FOR question_record IN
-        SELECT id, tenant_id::uuid, tags, subject FROM questions_bank
+        SELECT id, tenant_id, tags, subject FROM questions_bank
         WHERE deleted_at IS NULL
         AND tags IS NOT NULL
         AND jsonb_array_length(tags::jsonb) > 0
@@ -36,15 +36,15 @@ BEGIN
             -- Check if tag already exists for this tenant
             SELECT id INTO tag_id
             FROM question_tags
-            WHERE tenant_id::uuid = question_record.tenant_id::uuid
-            AND slug = tag_slug::text
+            WHERE tenant_id = question_record.tenant_id
+            AND slug = tag_slug
             AND deleted_at IS NULL;
 
             -- If tag doesn't exist, create it
             IF tag_id IS NULL THEN
                 INSERT INTO question_tags (tenant_id, name, slug, subject, usage_count, created_at, updated_at)
                 VALUES (
-                    question_record.tenant_id::uuid,
+                    question_record.tenant_id,
                     tag_name,
                     tag_slug,
                     question_record.subject,
@@ -59,8 +59,8 @@ BEGIN
                 IF tag_id IS NULL THEN
                     SELECT id INTO tag_id
                     FROM question_tags
-                    WHERE tenant_id::uuid = question_record.tenant_id::uuid
-                    AND slug = tag_slug::text
+                    WHERE tenant_id = question_record.tenant_id
+                    AND slug = tag_slug
                     AND deleted_at IS NULL;
                 END IF;
 
@@ -71,7 +71,7 @@ BEGIN
             IF tag_id IS NOT NULL THEN
                 INSERT INTO question_tag_links (tenant_id, question_id, tag_id)
                 VALUES (
-                    question_record.tenant_id::uuid,
+                    question_record.tenant_id,
                     question_record.id,
                     tag_id
                 )

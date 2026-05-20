@@ -165,7 +165,7 @@ export async function runMigrations(): Promise<void> {
         // Record migration
         const description = file.replace(/^\d+_/, '').replace(/\.sql$/, '');
         await pool.query(
-          'INSERT INTO schema_migrations (version, description) VALUES ($1, $2)',
+          'INSERT INTO schema_migrations (version, description) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING',
           [version, description]
         );
 

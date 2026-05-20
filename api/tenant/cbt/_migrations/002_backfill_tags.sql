@@ -7,7 +7,7 @@ DECLARE
     question_record RECORD;
     tag_name TEXT;
     tag_slug TEXT;
-    tag_id UUID;
+    tag_record_id UUID;
     tag_count INTEGER := 0;
     link_count INTEGER := 0;
 BEGIN
@@ -34,14 +34,14 @@ BEGIN
             tag_slug := substring(tag_slug, 1, 120);
 
             -- Check if tag already exists for this tenant
-            SELECT id INTO tag_id
+            SELECT id INTO tag_record_id
             FROM question_tags
             WHERE tenant_id = question_record.tenant_id
             AND slug = tag_slug
             AND deleted_at IS NULL;
 
             -- If tag doesn't exist, create it
-            IF tag_id IS NULL THEN
+            IF tag_record_id IS NULL THEN
                 INSERT INTO question_tags (tenant_id, name, slug, subject, usage_count, created_at, updated_at)
                 VALUES (
                     question_record.tenant_id,
@@ -53,11 +53,11 @@ BEGIN
                     CURRENT_TIMESTAMP
                 )
                 ON CONFLICT (tenant_id, slug) DO NOTHING
-                RETURNING id INTO tag_id;
+                RETURNING id INTO tag_record_id;
 
                 -- Get the ID again in case of conflict (another process created it)
-                IF tag_id IS NULL THEN
-                    SELECT id INTO tag_id
+                IF tag_record_id IS NULL THEN
+                    SELECT id INTO tag_record_id
                     FROM question_tags
                     WHERE tenant_id = question_record.tenant_id
                     AND slug = tag_slug
@@ -68,12 +68,12 @@ BEGIN
             END IF;
 
             -- Create link between question and tag if it doesn't exist
-            IF tag_id IS NOT NULL THEN
+            IF tag_record_id IS NOT NULL THEN
                 INSERT INTO question_tag_links (tenant_id, question_id, tag_id)
                 VALUES (
                     question_record.tenant_id,
                     question_record.id,
-                    tag_id
+                    tag_record_id
                 )
                 ON CONFLICT (question_id, tag_id) DO NOTHING;
 

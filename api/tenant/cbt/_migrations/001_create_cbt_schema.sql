@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS question_tags (
   created_by UUID,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP,
   UNIQUE(tenant_id, slug)
 );
 

@@ -487,6 +487,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // POST /api/tenant/cbt/questions?action=clear
+  if (req.method === 'POST' && action === 'clear') {
+    if (!validateUserId(userId, res)) {
+      return
+    }
+    const body = parseBody(req)
+    if (body?.confirm !== 'CLEAR_ALL_QUESTIONS') {
+      return res.status(400).json({
+        success: false,
+        error: 'Confirmation required. Set confirm=CLEAR_ALL_QUESTIONS in request body to proceed.',
+      })
+    }
+    try {
+      const { query } = await import('./_lib/db.js')
+      const result = await query(
+        `UPDATE questions_bank
+         SET deleted_at = CURRENT_TIMESTAMP
+         WHERE tenant_id = $1 AND deleted_at IS NULL`,
+        [tenantId]
+      )
+      const deletedCount = result.rowCount || 0
+      await query(
+        `DELETE FROM question_tag_links
+         WHERE tenant_id = $1`,
+        [tenantId]
+      )
+      await query(
+        `UPDATE question_tags
+         SET deleted_at = CURRENT_TIMESTAMP
+         WHERE tenant_id = $1 AND deleted_at IS NULL`,
+        [tenantId]
+      )
+      return res.status(200).json({
+        success: true,
+        data: {
+          deletedCount,
+          message: `Deleted ${deletedCount} questions and associated tags`,
+        },
+      })
+    } catch (error) {
+      console.error('Error clearing questions:', error)
+      return res.status(500).json({ success: false, error: 'Failed to clear questions' })
+    }
+  }
+
   // POST /api/tenant/cbt/questions
   if (req.method === 'POST' && !id && action !== 'import') {
     if (!validateUserId(userId, res)) {

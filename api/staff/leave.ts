@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { fetchLeaveRequests, createLeaveRequest, fetchStaffById } from '../tenant/_lib/staff';
+import { fetchLeaveRequests, createLeaveRequest, fetchStaffById } from '../tenant/_lib/staff.js';
 
 interface LeaveBalance {
   leaveType: string;

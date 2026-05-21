@@ -30,6 +30,39 @@ function parseBody(req: VercelRequest) {
     } catch {
       return null
     }
+
+const ROUTE_ACTIONS = new Set(['stats', 'schedule', 'start', 'end'])
+
+function extractPathParams(req: VercelRequest) {
+  if (!req.url) {
+    return { pathId: undefined as string | undefined, pathAction: undefined as string | undefined }
+  }
+
+  const pathname = req.url.split('?')[0]
+  const segments = pathname.split('/').filter(Boolean)
+  const examsIndex = segments.lastIndexOf('exams')
+
+  if (examsIndex === -1) {
+    return { pathId: undefined, pathAction: undefined }
+  }
+
+  const after = segments.slice(examsIndex + 1)
+  if (after.length === 0) {
+    return { pathId: undefined, pathAction: undefined }
+  }
+
+  if (after.length === 1) {
+    if (ROUTE_ACTIONS.has(after[0])) {
+      return { pathId: undefined, pathAction: after[0] }
+    }
+    return { pathId: after[0], pathAction: undefined }
+  }
+
+  return {
+    pathId: after[0],
+    pathAction: ROUTE_ACTIONS.has(after[1]) ? after[1] : undefined,
+  }
+}
   }
   return req.body
 }
@@ -70,7 +103,10 @@ function validateUserId(userId: string | undefined, res: VercelResponse): boolea
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
-  const { id, action } = req.query
+  const { id: queryId, action: queryAction } = req.query
+  const { pathId, pathAction } = extractPathParams(req)
+  const id = (queryId as string | undefined) || pathId
+  const action = (queryAction as string | undefined) || pathAction
 
   // Initialize database on first request
   try {

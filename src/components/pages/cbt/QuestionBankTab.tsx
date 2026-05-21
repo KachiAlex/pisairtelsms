@@ -202,7 +202,10 @@ export function QuestionBankTab() {
         return;
       }
       const data = await res.json();
-      setSubjects(Array.isArray(data.data) ? data.data : []);
+      const uniqueSubjects = Array.isArray(data.data)
+        ? Array.from(new Set((data.data as string[]).filter(Boolean)))
+        : [];
+      setSubjects(uniqueSubjects);
     } catch {
       setSubjects([]);
     }
@@ -221,15 +224,24 @@ export function QuestionBankTab() {
       const data = await res.json();
       const tags = Array.isArray(data.data) ? data.data : [];
       setCatalogTags(tags);
-      setAvailableTags(tags.map((t: Tag) => t.name));
+
+      const uniqueTagNames = Array.from(
+        new Set(tags.map((t: Tag) => t.name).filter(Boolean))
+      );
+      setAvailableTags(uniqueTagNames);
       
       // Build subject tag hints from catalog
       const map: Record<string, string[]> = {};
       tags.forEach((tag: Tag) => {
-        if (tag.subject) {
+        if (tag.subject && tag.name) {
           if (!map[tag.subject]) map[tag.subject] = [];
-          map[tag.subject].push(tag.name);
+          if (!map[tag.subject].includes(tag.name)) {
+            map[tag.subject].push(tag.name);
+          }
         }
+      });
+      Object.keys(map).forEach((subject) => {
+        map[subject] = Array.from(new Set(map[subject]));
       });
       setSubjectTagHints(map);
     } catch {

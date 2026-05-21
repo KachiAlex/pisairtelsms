@@ -4,14 +4,9 @@ import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
+import { tenantApiGet } from '../../../lib/tenantApi'
 
 const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-
-const SUBJECTS = [
-  'Mathematics', 'English Language', 'Physics', 'Chemistry', 'Biology',
-  'Geography', 'Economics', 'Civic Education', 'History', 'ICT',
-  'Further Mathematics', 'Literature', 'Government', 'Commerce', 'Accounting',
-]
 
 interface StaffMember {
   id: string
@@ -32,6 +27,7 @@ interface Props {
 
 export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId, termId, onSaved, onClose, ensureSchedule }: Props) {
   const [staff, setStaff] = useState<StaffMember[]>([])
+  const [subjects, setSubjects] = useState<string[]>([])
   const [form, setForm] = useState({ subjectName: '', teacherId: '', teacherName: '', roomId: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +37,15 @@ export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId
       .then(r => r.json())
       .then(d => setStaff(d.data || []))
       .catch(() => setStaff([]))
+
+    tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true')
+      .then(r => r.json())
+      .then(d => {
+        const list: string[] = Array.isArray(d.data) ? d.data.filter(Boolean) : []
+        setSubjects(list)
+        if (list.length > 0) setForm(f => f.subjectName ? f : { ...f, subjectName: list[0] })
+      })
+      .catch(() => setSubjects([]))
   }, [])
 
   async function handleSave() {
@@ -98,9 +103,12 @@ export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId
           <div>
             <Label className="text-xs">Subject</Label>
             <Select value={form.subjectName} onValueChange={v => setForm(f => ({ ...f, subjectName: v }))}>
-              <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={subjects.length === 0 ? 'No subjects available' : undefined} /></SelectTrigger>
               <SelectContent>
-                {SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {subjects.length === 0
+                  ? <SelectItem value="__none" disabled>Create subjects in the Subject Catalog first</SelectItem>
+                  : subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)
+                }
               </SelectContent>
             </Select>
           </div>

@@ -178,9 +178,13 @@ export function ExamCreationTab() {
         return;
       }
       const data = await res.json();
-      const tags = Array.isArray(data.data) ? data.data : [];
+      const tags: Tag[] = Array.isArray(data.data) ? (data.data as Tag[]) : [];
       setCatalogTags(tags);
-      setQuestionTags(tags.map((t: Tag) => t.name));
+      const tagNames = tags
+        .map((t: Tag) => t.name)
+        .filter((name: Tag['name']): name is string => typeof name === 'string' && name.length > 0);
+      const uniqueTagNames = Array.from(new Set(tagNames));
+      setQuestionTags(uniqueTagNames);
     } catch {
       setQuestionTags([]);
       setCatalogTags([]);
@@ -425,7 +429,9 @@ export function ExamCreationTab() {
                   {subjects.length === 0 ? (
                     <option disabled>No subjects available</option>
                   ) : (
-                    subjects.map((s) => <option key={s} value={s}>{s}</option>)
+                    subjects.map((s, idx) => (
+                      <option key={`${s}-${idx}`} value={s}>{s}</option>
+                    ))
                   )}
                   <option value="other">Other...</option>
                 </select>
@@ -497,8 +503,8 @@ export function ExamCreationTab() {
                   disabled={questionTags.length === 0}
                 >
                   <option value="">{questionTags.length === 0 ? 'No tags yet' : 'Filter by tag'}</option>
-                  {questionTags.map((tag) => (
-                    <option key={tag} value={tag}>#{tag}</option>
+                  {questionTags.map((tag, idx) => (
+                    <option key={`${tag}-${idx}`} value={tag}>#{tag}</option>
                   ))}
                 </select>
               </div>

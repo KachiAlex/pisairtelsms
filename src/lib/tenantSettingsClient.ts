@@ -13,6 +13,8 @@ export interface TenantSettingsPayload {
   twoFactorAuth: boolean
   maintenanceMode: boolean
   logoUrl?: string | null
+  admissionNoFormat?: string
+  admissionNoDigits?: number
 }
 
 export interface TenantSettingsResponse extends TenantSettingsPayload {

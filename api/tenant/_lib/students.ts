@@ -4,6 +4,7 @@
  */
 
 import { queryAll, queryOne, query, transaction } from '../cbt/_lib/db.js';
+import { fetchTenantSettings } from './tenant-settings.js';
 
 // Internal API-layer Student type (camelCase, for API responses only)
 interface StudentDTO {
@@ -32,16 +33,38 @@ export interface StudentPayload {
 }
 
 /**
- * Generate a unique admission number for a tenant
+ * Generate a unique admission number for a tenant using their configured format.
+ * Tokens: {PREFIX} = first 3 letters of school name, {YEAR} = current year, {SEQ} = padded count
  */
 async function generateAdmissionNo(tenantId: string): Promise<string> {
   const year = new Date().getFullYear();
+
   const row = await queryOne<{ count: string }>(
     `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1`,
     [tenantId]
   );
   const next = parseInt(row?.count || '0') + 1;
-  return `SCH/${year}/${String(next).padStart(4, '0')}`;
+
+  let format = '{PREFIX}/{YEAR}/{SEQ}';
+  let digits = 4;
+  let prefix = 'SCH';
+
+  try {
+    const settings = await fetchTenantSettings();
+    if (settings.admissionNoFormat) format = settings.admissionNoFormat;
+    if (settings.admissionNoDigits) digits = settings.admissionNoDigits;
+    if (settings.schoolName) {
+      prefix = settings.schoolName.split(' ')[0].toUpperCase().slice(0, 3);
+    }
+  } catch {
+    // fall back to defaults if settings fetch fails
+  }
+
+  const seq = String(next).padStart(digits, '0');
+  return format
+    .replace('{PREFIX}', prefix)
+    .replace('{YEAR}', String(year))
+    .replace('{SEQ}', seq);
 }
 
 /**

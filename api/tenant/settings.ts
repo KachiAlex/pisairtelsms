@@ -16,6 +16,8 @@ interface TenantSettingsPayload {
   twoFactorAuth: boolean
   maintenanceMode: boolean
   logoUrl?: string | null
+  admissionNoFormat?: string
+  admissionNoDigits?: number
 }
 
 interface TenantSettingsResponse extends TenantSettingsPayload {

@@ -22,6 +22,8 @@ const fallbackSettings: TenantSettingsPayload = {
   twoFactorAuth: false,
   maintenanceMode: false,
   logoUrl: null,
+  admissionNoFormat: '{PREFIX}/{YEAR}/{SEQ}',
+  admissionNoDigits: 4,
 };
 
 export async function ensureTenantSettingsTable(): Promise<void> {

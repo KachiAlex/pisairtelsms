@@ -30,6 +30,8 @@ const fallbackSettings: TenantSettingsPayload = {
   twoFactorAuth: false,
   maintenanceMode: false,
   logoUrl: null,
+  admissionNoFormat: '{PREFIX}/{YEAR}/{SEQ}',
+  admissionNoDigits: 4,
 }
 
 function cloneFallback(): TenantSettingsPayload {
@@ -298,6 +300,58 @@ export function SystemSettings() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Admission Number Format</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-500">
+                Configure how admission numbers are auto-generated when a new student is added.
+                Use the tokens <code className="bg-gray-100 px-1 rounded text-xs">{'{PREFIX}'}</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">{'{YEAR}'}</code> and{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">{'{SEQ}'}</code> (sequential number).
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Format Template</Label>
+                  <Input
+                    className="mt-1 font-mono"
+                    value={settings.admissionNoFormat ?? '{PREFIX}/{YEAR}/{SEQ}'}
+                    onChange={(e) => updateSetting('admissionNoFormat', e.target.value)}
+                    placeholder="{PREFIX}/{YEAR}/{SEQ}"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Preview: {(settings.admissionNoFormat ?? '{PREFIX}/{YEAR}/{SEQ}')
+                      .replace('{PREFIX}', settings.schoolName?.split(' ')[0]?.toUpperCase().slice(0, 3) || 'SCH')
+                      .replace('{YEAR}', String(new Date().getFullYear()))
+                      .replace('{SEQ}', '0001'.slice(-(settings.admissionNoDigits ?? 4)).padStart(settings.admissionNoDigits ?? 4, '0'))}
+                  </p>
+                </div>
+                <div>
+                  <Label>Sequence Digits</Label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
+                    value={settings.admissionNoDigits ?? 4}
+                    onChange={(e) => updateSetting('admissionNoDigits', Number(e.target.value))}
+                  >
+                    <option value={3}>3 digits (001)</option>
+                    <option value={4}>4 digits (0001)</option>
+                    <option value={5}>5 digits (00001)</option>
+                    <option value={6}>6 digits (000001)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700">
+                <strong>Available tokens:</strong>
+                <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                  <li><code>{'{PREFIX}'}</code> — auto-derived from your school name (first word, up to 3 letters)</li>
+                  <li><code>{'{YEAR}'}</code> — current 4-digit year</li>
+                  <li><code>{'{SEQ}'}</code> — auto-incrementing sequence number, zero-padded to the configured digits</li>
+                </ul>
               </div>
             </CardContent>
           </Card>

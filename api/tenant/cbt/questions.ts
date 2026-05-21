@@ -348,10 +348,28 @@ function generateCSV(questions: any[]): string {
 /**
  * Main handler
  */
+const QUESTION_ACTIONS = new Set(['stats', 'tags', 'subjects', 'export', 'import', 'tag', 'clear'])
+
+function extractQuestionPathParams(req: VercelRequest): { pathId?: string; pathAction?: string } {
+  if (!req.url) return {}
+  const pathname = req.url.split('?')[0]
+  const segments = pathname.split('/').filter(Boolean)
+  const idx = segments.lastIndexOf('questions')
+  if (idx === -1) return {}
+  const after = segments.slice(idx + 1)
+  if (after.length === 0) return {}
+  if (QUESTION_ACTIONS.has(after[0])) return { pathAction: after[0] }
+  if (after.length === 1) return { pathId: after[0] }
+  return { pathId: after[0], pathAction: QUESTION_ACTIONS.has(after[1]) ? after[1] : undefined }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
-  const { id, action } = req.query
+  const { id: queryId, action: queryAction } = req.query
+  const { pathId, pathAction } = extractQuestionPathParams(req)
+  const id = (queryId as string | undefined) || pathId
+  const action = (queryAction as string | undefined) || pathAction
 
   // Initialize database on first request
   try {
@@ -386,7 +404,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // GET /api/tenant/cbt/questions
-  if (req.method === 'GET' && !id && action !== 'export' && action !== 'stats') {
+  if (req.method === 'GET' && !id && (!action || !QUESTION_ACTIONS.has(action as string))) {
     try {
       const { subject, difficulty, type, searchText, tag, page, limit } = req.query
 

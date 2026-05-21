@@ -265,6 +265,13 @@ export function QuestionBankTab() {
   }, [questions]);
 
   useEffect(() => {
+    if (subjects.length > 0) {
+      setForm((f) => f.subject ? f : { ...f, subject: subjects[0] });
+      setImportSubject((s) => s || subjects[0]);
+    }
+  }, [subjects]);
+
+  useEffect(() => {
     if (!importSubject || importTag) return;
     const nextTag = activeTagHints[0] || `${importSubject} set`.trim();
     setImportTag(nextTag);
@@ -302,13 +309,13 @@ export function QuestionBankTab() {
   };
 
   const resetForm = () => {
-    setForm({ text: '', type: 'objective', options: ['', '', '', ''], correctAnswer: 'A', difficulty: 'Medium', subject: '', tags: '' });
+    setForm({ text: '', type: 'objective', options: ['', '', '', ''], correctAnswer: 'A', difficulty: 'Medium', subject: subjects[0] || '', tags: '' });
     setFormErrors({});
     setAddTab('manual');
     setImportStatus(null);
     setImportErrors([]);
     setImportPreview([]);
-    setImportSubject('');
+    setImportSubject(subjects[0] || '');
     setImportDifficulty('Medium');
     setImportType('objective');
     setImportTag('');
@@ -925,7 +932,7 @@ export function QuestionBankTab() {
                       onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
                       disabled={subjects.length === 0}
                     >
-                      <option value="">{subjects.length === 0 ? 'No subjects available' : 'Select a subject'}</option>
+                      {subjects.length === 0 && <option value="">No subjects available</option>}
                       {subjects.map((s, idx) => (
                         <option key={`${s}-${idx}`} value={s}>
                           {s}
@@ -999,7 +1006,7 @@ export function QuestionBankTab() {
                         onChange={(e) => setImportSubject(e.target.value)}
                         disabled={subjects.length === 0}
                       >
-                        <option value="">{subjects.length === 0 ? 'Add subjects first' : 'Use from CSV'}</option>
+                        {subjects.length === 0 && <option value="">No subjects available</option>}
                         {subjects.map((s, idx) => (
                           <option key={`${s}-${idx}`} value={s}>
                             {s}

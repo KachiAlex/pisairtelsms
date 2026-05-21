@@ -241,6 +241,12 @@ export function ExamCreationTab() {
   useEffect(() => { fetchDropdownData(); }, []);
 
   useEffect(() => {
+    if (subjects.length > 0) {
+      setForm((f) => f.subject ? f : { ...f, subject: subjects[0] });
+    }
+  }, [subjects]);
+
+  useEffect(() => {
     if (isFormOpen) {
       fetchQuestions(questionSearch, questionTagFilter);
       fetchQuestionTags();
@@ -251,7 +257,7 @@ export function ExamCreationTab() {
 
   const openCreate = () => {
     setEditingExam(null);
-    setForm({ title: '', subject: '', class: '', duration: '', passMark: '', totalMarks: '', scheduledDate: '', scheduledTime: '', description: '' });
+    setForm({ title: '', subject: subjects[0] || '', class: '', duration: '', passMark: '', totalMarks: '', scheduledDate: '', scheduledTime: '', description: '' });
     setSelectedQuestions([]);
     setFormErrors({});
     setIsFormOpen(true);
@@ -438,17 +444,13 @@ export function ExamCreationTab() {
               </div>
               <div>
                 <Label htmlFor="e-subject">Subject *</Label>
-                <select id="e-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}>
-                  <option value="">Select a subject</option>
-                  {subjects.length === 0 ? (
-                    <option disabled>No subjects available</option>
-                  ) : (
-                    subjects.map((s, idx) => (
-                      <option key={`${s}-${idx}`} value={s}>{s}</option>
-                    ))
-                  )}
-                  <option value="other">Other...</option>
+                <select id="e-subject" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} disabled={subjects.length === 0}>
+                  {subjects.length === 0 && <option value="">No subjects available</option>}
+                  {subjects.map((s, idx) => (
+                    <option key={`${s}-${idx}`} value={s}>{s}</option>
+                  ))}
                 </select>
+                {subjects.length === 0 && <p className="text-xs text-amber-600 mt-1">Create subjects in the Subject Catalog first.</p>}
                 {formErrors.subject && <p className="text-red-600 text-xs mt-1">{formErrors.subject}</p>}
               </div>
               <div>

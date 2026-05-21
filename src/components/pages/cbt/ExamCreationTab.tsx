@@ -279,7 +279,18 @@ export function ExamCreationTab() {
     setSelectedQuestions((prev) => prev.includes(id) ? prev.filter((q) => q !== id) : [...prev, id]);
   };
 
-  const handleSave = async (schedule = false) => {
+  const handleTagFilterChange = (tag: string) => {
+    setQuestionTagFilter(tag);
+    if (tag) {
+      // Auto-select all questions that belong to this tag
+      const taggedIds = availableQuestions
+        .filter((q) => Array.isArray(q.tags) && q.tags.includes(tag))
+        .map((q) => q.id);
+      setSelectedQuestions((prev) => Array.from(new Set([...prev, ...taggedIds])));
+    }
+  };
+
+  const handleSave = async (schedule = false, publish = false) => {
     const errors = validateExamForm(form, selectedQuestions);
     if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
 
@@ -311,16 +322,19 @@ export function ExamCreationTab() {
       }
 
       const saved = await res.json();
+      const examId = saved.data?.id || editingExam?.id;
 
       // Schedule if requested
-      if (schedule && form.scheduledDate && form.scheduledTime) {
-        const examId = saved.data?.id || editingExam?.id;
-        if (examId) {
-          await tenantApiPost(`/api/tenant/cbt/exams/${examId}/schedule`, {
-            scheduledDate: form.scheduledDate,
-            scheduledTime: form.scheduledTime,
-          });
-        }
+      if (schedule && form.scheduledDate && form.scheduledTime && examId) {
+        await tenantApiPost(`/api/tenant/cbt/exams/${examId}/schedule`, {
+          scheduledDate: form.scheduledDate,
+          scheduledTime: form.scheduledTime,
+        });
+      }
+
+      // Publish if requested
+      if (publish && examId) {
+        await tenantApiPost(`/api/tenant/cbt/exams/${examId}/publish`, {});
       }
 
       setIsFormOpen(false);
@@ -499,7 +513,7 @@ export function ExamCreationTab() {
                 <select
                   className="border rounded-md px-3 py-2 text-sm"
                   value={questionTagFilter}
-                  onChange={(e) => setQuestionTagFilter(e.target.value)}
+                  onChange={(e) => handleTagFilterChange(e.target.value)}
                   disabled={questionTags.length === 0}
                 >
                   <option value="">{questionTags.length === 0 ? 'No tags yet' : 'Filter by tag'}</option>
@@ -541,11 +555,14 @@ export function ExamCreationTab() {
             </div>
 
             <div className="flex gap-2 pt-2">
-              <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => handleSave(false)} disabled={saving}>
+              <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => handleSave(false, false)} disabled={saving}>
                 {saving ? 'Saving...' : 'Save as Draft'}
               </Button>
+              <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleSave(false, true)} disabled={saving}>
+                {saving ? 'Publishing...' : 'Publish'}
+              </Button>
               {form.scheduledDate && form.scheduledTime && (
-                <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleSave(true)} disabled={saving}>
+                <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={() => handleSave(true, false)} disabled={saving}>
                   {saving ? 'Scheduling...' : 'Save & Schedule'}
                 </Button>
               )}

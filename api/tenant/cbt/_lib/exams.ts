@@ -282,6 +282,38 @@ export async function scheduleExam(
 }
 
 /**
+ * Publish exam (set to Scheduled without requiring a future date)
+ */
+export async function publishExam(
+  tenantId: string,
+  examId: string
+): Promise<Exam> {
+  const exam = await getExam(tenantId, examId);
+  if (!exam) {
+    throw new Error('Exam not found');
+  }
+
+  if (exam.status !== 'Draft') {
+    throw new Error(`Exam is already ${exam.status}`);
+  }
+
+  const updated = await queryOne<Exam>(
+    `UPDATE exams SET
+      status = 'Scheduled',
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+    RETURNING *`,
+    [examId, tenantId]
+  );
+
+  if (!updated) {
+    throw new Error('Failed to publish exam');
+  }
+
+  return updated;
+}
+
+/**
  * Start exam
  */
 export async function startExam(

@@ -12,6 +12,7 @@ import {
   updateExam,
   deleteExam,
   scheduleExam,
+  publishExam,
   startExam,
   endExam,
   getExamStats,
@@ -34,7 +35,7 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-const ROUTE_ACTIONS = new Set(['stats', 'schedule', 'start', 'end'])
+const ROUTE_ACTIONS = new Set(['stats', 'schedule', 'publish', 'start', 'end'])
 
 function extractPathParams(req: VercelRequest) {
   if (!req.url) {
@@ -314,6 +315,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({
         success: false,
         error: error.message || 'Failed to schedule exam',
+      })
+    }
+  }
+
+  // POST /api/tenant/cbt/exams/:id/publish
+  if (req.method === 'POST' && id && action === 'publish') {
+    try {
+      const exam = await publishExam(tenantId, id as string)
+      return res.status(200).json({ success: true, data: exam })
+    } catch (error: any) {
+      if (error.message === 'Exam not found') {
+        return res.status(404).json({ success: false, error: 'Exam not found' })
+      }
+      console.error('Error publishing exam:', error)
+      return res.status(400).json({
+        success: false,
+        error: error.message || 'Failed to publish exam',
       })
     }
   }

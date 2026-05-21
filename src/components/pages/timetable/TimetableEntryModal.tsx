@@ -35,7 +35,11 @@ export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId
   useEffect(() => {
     fetch('/api/tenant/staff')
       .then(r => r.json())
-      .then(d => setStaff(d.data || []))
+      .then(d => {
+        const members = d.data || []
+        setStaff(members)
+        if (members.length > 0) setForm(f => f.teacherId ? f : { ...f, teacherId: members[0].id, teacherName: members[0].name || members[0].id })
+      })
       .catch(() => setStaff([]))
 
     tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true')
@@ -122,7 +126,7 @@ export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId
                 setForm(f => ({ ...f, teacherId: v, teacherName: member?.name || v }))
               }}
             >
-              <SelectTrigger><SelectValue placeholder="Select teacher" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={staff.length === 0 ? 'No staff available' : undefined} /></SelectTrigger>
               <SelectContent>
                 {staff.length === 0 ? (
                   <SelectItem value="__none" disabled>No staff loaded</SelectItem>

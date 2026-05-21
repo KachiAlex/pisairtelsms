@@ -15,13 +15,13 @@ interface Props {
 
 export function HolidayManager({ holidays, terms, onRefresh }: Props) {
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ termId: '', name: '', startDate: '', endDate: '' })
+  const [form, setForm] = useState({ termId: terms[0]?.id || '', name: '', startDate: '', endDate: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   function cancelForm() {
     setShowForm(false)
-    setForm({ termId: '', name: '', startDate: '', endDate: '' })
+    setForm({ termId: terms[0]?.id || '', name: '', startDate: '', endDate: '' })
     setError(null)
   }
 
@@ -89,9 +89,12 @@ export function HolidayManager({ holidays, terms, onRefresh }: Props) {
               <div className="col-span-2">
                 <Label className="text-xs">Term</Label>
                 <Select value={form.termId} onValueChange={v => setForm(f => ({ ...f, termId: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={terms.length === 0 ? 'No terms available' : undefined} /></SelectTrigger>
                   <SelectContent>
-                    {terms.map(t => <SelectItem key={t.id} value={t.id}>{t.name} ({t.academicYear})</SelectItem>)}
+                    {terms.length === 0
+                      ? <SelectItem value="__none" disabled>Create a term first</SelectItem>
+                      : terms.map(t => <SelectItem key={t.id} value={t.id}>{t.name} ({t.academicYear})</SelectItem>)
+                    }
                   </SelectContent>
                 </Select>
               </div>

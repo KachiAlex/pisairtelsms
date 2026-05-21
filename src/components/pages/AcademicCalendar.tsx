@@ -228,7 +228,7 @@ export function AcademicCalendar() {
               <Label htmlFor="milestone-status">Status</Label>
               <Select value={newMilestone.status} onValueChange={(value: typeof newMilestone.status) => setNewMilestone({ ...newMilestone, status: value })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Tentative">Tentative</SelectItem>

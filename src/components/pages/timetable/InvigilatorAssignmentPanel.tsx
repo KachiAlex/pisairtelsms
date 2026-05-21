@@ -36,8 +36,14 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
       fetch('/api/tenant/staff').then(r => r.json()),
       fetch('/api/tenant/timetable/exam-schedules?halls=true').then(r => r.json()),
     ]).then(([staffData, hallsData]) => {
-      setStaff(staffData.data || [])
-      setHalls(hallsData.data || [])
+      const members = staffData.data || []
+      const hallList = hallsData.data || []
+      setStaff(members)
+      setHalls(hallList)
+      setForm(f => ({
+        staffId: f.staffId || members[0]?.id || '',
+        hallId: f.hallId || hallList[0]?.id || '',
+      }))
     }).catch(() => {})
   }, [])
 
@@ -91,7 +97,7 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
             <div>
               <Label className="text-xs">Staff Member</Label>
               <Select value={form.staffId} onValueChange={v => setForm(f => ({ ...f, staffId: v }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select staff" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={staff.length === 0 ? 'No staff available' : undefined} /></SelectTrigger>
                 <SelectContent>
                   {staff.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.role}</SelectItem>)}
                 </SelectContent>
@@ -100,7 +106,7 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
             <div>
               <Label className="text-xs">Assigned Hall</Label>
               <Select value={form.hallId} onValueChange={v => setForm(f => ({ ...f, hallId: v }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select hall" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={halls.length === 0 ? 'No halls available' : undefined} /></SelectTrigger>
                 <SelectContent>
                   {halls.map(h => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
                 </SelectContent>

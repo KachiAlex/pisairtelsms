@@ -89,7 +89,7 @@ export function TeacherTimetableTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
         <Select value={selectedTeacherId} onValueChange={setSelectedTeacherId}>
-          <SelectTrigger className="w-56"><SelectValue placeholder="Select teacher" /></SelectTrigger>
+          <SelectTrigger className="w-56"><SelectValue placeholder={staff.length === 0 ? 'No staff available' : undefined} /></SelectTrigger>
           <SelectContent>
             {staff.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.role}</SelectItem>)}
           </SelectContent>

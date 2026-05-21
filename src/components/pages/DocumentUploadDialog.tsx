@@ -91,7 +91,7 @@ export function DocumentUploadDialog({
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadStep, setUploadStep] = useState<'upload' | 'classify' | 'process'>('upload')
-  const [globalCategory, setGlobalCategory] = useState<string>('')
+  const [globalCategory, setGlobalCategory] = useState<string>(documentCategories[0])
   const [globalNotes, setGlobalNotes] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null)
@@ -220,6 +220,7 @@ export function DocumentUploadDialog({
       } catch (error) {
         console.error('Classification error:', error)
         uploadedFile.status = 'error'
+        uploadedFile.category = documentCategories[0]
         uploadedFile.errors = [...(uploadedFile.errors || []), 'Failed to classify document']
       }
     }
@@ -572,7 +573,7 @@ export function DocumentUploadDialog({
                   <Label className="text-sm text-blue-800">Category</Label>
                   <Select value={globalCategory} onValueChange={setGlobalCategory}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {documentCategories.map(category => (
@@ -632,11 +633,11 @@ export function DocumentUploadDialog({
                     <div>
                       <Label className="text-xs text-gray-600">Category</Label>
                       <Select
-                        value={file.category || ''}
+                        value={file.category || documentCategories[0]}
                         onValueChange={(value) => updateFileCategory(file.id, value)}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {documentCategories.map(category => (

@@ -28,7 +28,11 @@ export function HallAssignmentPanel({ exam, onRefresh }: Props) {
   useEffect(() => {
     fetch('/api/tenant/timetable/exam-schedules?halls=true')
       .then(r => r.json())
-      .then(d => setHalls(d.data || []))
+      .then(d => {
+        const hallList = d.data || []
+        setHalls(hallList)
+        if (hallList.length > 0) setForm(f => f.hallId ? f : { ...f, hallId: hallList[0].id })
+      })
       .catch(() => {})
   }, [])
 
@@ -76,7 +80,7 @@ export function HallAssignmentPanel({ exam, onRefresh }: Props) {
             <div>
               <Label className="text-xs">Hall</Label>
               <Select value={form.hallId} onValueChange={v => setForm(f => ({ ...f, hallId: v }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select hall" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={halls.length === 0 ? 'No halls available' : undefined} /></SelectTrigger>
                 <SelectContent>
                   {halls.map(h => <SelectItem key={h.id} value={h.id}>{h.name} (cap. {h.capacity})</SelectItem>)}
                 </SelectContent>

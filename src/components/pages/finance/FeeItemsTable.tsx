@@ -127,7 +127,7 @@ export function FeeItemsTable({
                   <Label htmlFor={`category-${index}`}>Category</Label>
                   <Select value={item.category} onValueChange={(value) => handleCategoryChange(index, value)}>
                     <SelectTrigger id={`category-${index}`}>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map(cat => (

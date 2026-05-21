@@ -37,8 +37,8 @@ export function StaffDirectory() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    name: '', role: '', department: '', email: '', phone: '',
-    hireDate: '', salary: '', qualification: '', gender: '', status: 'active'
+    name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '',
+    hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active'
   })
 
   useEffect(() => { fetchStaff() }, [])
@@ -60,7 +60,7 @@ export function StaffDirectory() {
 
   const openAdd = () => {
     setEditingStaff(null)
-    setForm({ name: '', role: '', department: '', email: '', phone: '', hireDate: '', salary: '', qualification: '', gender: '', status: 'active' })
+    setForm({ name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '', hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active' })
     setShowForm(true)
   }
 
@@ -225,14 +225,12 @@ export function StaffDirectory() {
             <div>
               <Label>Role *</Label>
               <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Select role</option>
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
             <div>
               <Label>Department *</Label>
               <select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Select department</option>
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
@@ -255,7 +253,6 @@ export function StaffDirectory() {
             <div>
               <Label>Gender</Label>
               <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Select gender</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="other">Other</option>

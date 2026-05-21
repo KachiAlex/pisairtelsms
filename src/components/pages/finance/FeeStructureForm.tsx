@@ -53,8 +53,8 @@ const FEE_CATEGORIES = [
 export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) {
   const [formData, setFormData] = useState({
     name: structure?.name || '',
-    academicSession: structure?.academicSession || '',
-    term: structure?.term || '',
+    academicSession: structure?.academicSession || ACADEMIC_SESSIONS[0],
+    term: structure?.term || TERMS[0],
     effectiveFrom: structure?.effectiveFrom?.split('T')[0] || '',
     effectiveTo: structure?.effectiveTo?.split('T')[0] || '',
   });
@@ -141,7 +141,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
 
   const handleAddFeeItem = () => {
     setFeeItems(prev => [...prev, {
-      category: '',
+      category: FEE_CATEGORIES[0],
       description: '',
       amount: 0,
       applicableClasses: [],
@@ -251,7 +251,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
               <Label htmlFor="academicSession">Academic Session</Label>
               <Select value={formData.academicSession} onValueChange={(value) => handleInputChange('academicSession', value)}>
                 <SelectTrigger className={validationErrors.academicSession ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select session" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {ACADEMIC_SESSIONS.map(session => (
@@ -268,7 +268,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
               <Label htmlFor="term">Term</Label>
               <Select value={formData.term} onValueChange={(value) => handleInputChange('term', value)}>
                 <SelectTrigger className={validationErrors.term ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select term" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {TERMS.map(term => (

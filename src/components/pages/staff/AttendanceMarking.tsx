@@ -54,7 +54,9 @@ export function AttendanceMarking() {
         }
 
         const data = await response.json()
-        setClasses(data.classes || [])
+        const classList = data.classes || []
+        setClasses(classList)
+        if (classList.length > 0) setSelectedClass(classList[0].id)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'An error occurred'
         setError(message)
@@ -228,7 +230,7 @@ export function AttendanceMarking() {
               onChange={(e) => setSelectedClass(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
             >
-              <option value="">Select a class</option>
+              {classes.length === 0 && <option value="">No classes available</option>}
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>
                   {cls.name} {cls.arm}

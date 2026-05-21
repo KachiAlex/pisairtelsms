@@ -99,7 +99,7 @@ export function ExamScheduleTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-          <SelectTrigger className="w-56"><SelectValue placeholder="Select exam period" /></SelectTrigger>
+          <SelectTrigger className="w-56"><SelectValue placeholder={examPeriods.length === 0 ? 'No exam periods' : undefined} /></SelectTrigger>
           <SelectContent>
             {examPeriods.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
           </SelectContent>

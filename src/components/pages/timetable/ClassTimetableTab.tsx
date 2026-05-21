@@ -133,13 +133,13 @@ export function ClassTimetableTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
         <Select value={selectedClass} onValueChange={setSelectedClass}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Select class" /></SelectTrigger>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={selectedTerm} onValueChange={setSelectedTerm}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Select term" /></SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue placeholder={terms.length === 0 ? 'No terms yet' : undefined} /></SelectTrigger>
           <SelectContent>
             {terms.map(t => <SelectItem key={t.id} value={t.id}>{t.name} ({t.academicYear})</SelectItem>)}
           </SelectContent>

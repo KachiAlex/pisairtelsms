@@ -55,8 +55,8 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
   const [showPreview, setShowPreview] = useState(false);
 
   const [formData, setFormData] = useState({
-    className: '',
-    feeCategory: '',
+    className: CLASSES[0],
+    feeCategory: FEE_CATEGORIES[0],
     originalAmount: 0,
     overrideAmount: 0,
     reason: '',
@@ -91,8 +91,8 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
   const handleAddOverride = () => {
     setEditingOverride(null);
     setFormData({
-      className: '',
-      feeCategory: '',
+      className: CLASSES[0],
+      feeCategory: FEE_CATEGORIES[0],
       originalAmount: 0,
       overrideAmount: 0,
       reason: '',
@@ -278,7 +278,7 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
                     <Label htmlFor="className">Class</Label>
                     <Select value={formData.className} onValueChange={(value) => setFormData(prev => ({ ...prev, className: value }))}>
                       <SelectTrigger id="className">
-                        <SelectValue placeholder="Select class" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {CLASSES.map(cls => (
@@ -292,7 +292,7 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
                     <Label htmlFor="feeCategory">Fee Category</Label>
                     <Select value={formData.feeCategory} onValueChange={(value) => setFormData(prev => ({ ...prev, feeCategory: value }))}>
                       <SelectTrigger id="feeCategory">
-                        <SelectValue placeholder="Select category" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {FEE_CATEGORIES.map(cat => (

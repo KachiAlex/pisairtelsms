@@ -290,7 +290,7 @@ export function SubjectsCatalog() {
                     <Label htmlFor="subject-type">Type</Label>
                     <Select value={newSubject.type} onValueChange={(value: 'Core' | 'Elective') => setNewSubject({ ...newSubject, type: value })}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Core">Core</SelectItem>
@@ -302,7 +302,7 @@ export function SubjectsCatalog() {
                     <Label htmlFor="subject-department">Department</Label>
                     <Select value={newSubject.department} onValueChange={(value) => setNewSubject({ ...newSubject, department: value })}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Sciences">Sciences</SelectItem>

@@ -34,7 +34,7 @@ export function LeaveManagement() {
   const [showForm, setShowForm] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [formData, setFormData] = useState({
-    leaveType: '',
+    leaveType: 'Annual',
     startDate: '',
     endDate: '',
     reason: '',
@@ -272,7 +272,6 @@ export function LeaveManagement() {
                 onChange={(e) => setFormData({ ...formData, leaveType: e.target.value })}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
               >
-                <option value="">Select leave type</option>
                 <option value="Annual">Annual Leave</option>
                 <option value="Sick">Sick Leave</option>
                 <option value="Casual">Casual Leave</option>

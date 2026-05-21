@@ -186,7 +186,7 @@ export default function StudentManagement() {
                 </div>
                 <Select value={selectedClass} onValueChange={setSelectedClass}>
                   <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Class" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Classes</SelectItem>

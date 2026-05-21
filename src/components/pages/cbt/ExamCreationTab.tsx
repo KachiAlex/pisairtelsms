@@ -247,6 +247,12 @@ export function ExamCreationTab() {
   }, [subjects]);
 
   useEffect(() => {
+    if (classes.length > 0) {
+      setForm((f) => f.class ? f : { ...f, class: `${classes[0].name} ${classes[0].arm}` });
+    }
+  }, [classes]);
+
+  useEffect(() => {
     if (isFormOpen) {
       fetchQuestions(questionSearch, questionTagFilter);
       fetchQuestionTags();
@@ -257,7 +263,8 @@ export function ExamCreationTab() {
 
   const openCreate = () => {
     setEditingExam(null);
-    setForm({ title: '', subject: subjects[0] || '', class: '', duration: '', passMark: '', totalMarks: '', scheduledDate: '', scheduledTime: '', description: '' });
+    const firstClass = classes.length > 0 ? `${classes[0].name} ${classes[0].arm}` : '';
+    setForm({ title: '', subject: subjects[0] || '', class: firstClass, duration: '', passMark: '', totalMarks: '', scheduledDate: '', scheduledTime: '', description: '' });
     setSelectedQuestions([]);
     setFormErrors({});
     setIsFormOpen(true);
@@ -456,9 +463,8 @@ export function ExamCreationTab() {
               <div>
                 <Label htmlFor="e-class">Class *</Label>
                 <select id="e-class" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.class} onChange={(e) => setForm((f) => ({ ...f, class: e.target.value }))}>
-                  <option value="">Select a class</option>
                   {classes.length === 0 ? (
-                    <option disabled>No classes found. Add classes in the Classes & Arms tab.</option>
+                    <option value="">No classes found. Add classes in the Classes &amp; Arms tab.</option>
                   ) : (
                     classes.map((c) => (
                       <option key={c.id} value={`${c.name} ${c.arm}`}>

@@ -48,7 +48,11 @@ export function PayrollManagement() {
     try {
       const res = await fetch('/api/tenant/staff', { headers: { 'x-tenant-id': 'default-tenant' } })
       const data = await res.json()
-      setStaff(data.data || [])
+      const members: Staff[] = data.data || []
+      setStaff(members)
+      if (members.length > 0) {
+        setForm(f => f.staffId ? f : { ...f, staffId: members[0].id, basicSalary: members[0].salary?.toString() || '' })
+      }
     } catch (err) {
       console.error('Failed to fetch staff')
     }
@@ -273,7 +277,7 @@ export function PayrollManagement() {
                 const s = staff.find(st => st.id === e.target.value)
                 setForm(f => ({ ...f, staffId: e.target.value, basicSalary: s?.salary?.toString() || '' }))
               }} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Select staff member</option>
+                {staff.length === 0 && <option value="">No staff available</option>}
                 {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>

@@ -21,7 +21,7 @@ interface StudentDTO {
 }
 
 export interface StudentPayload {
-  admissionNo: string;
+  admissionNo?: string;
   name: string;
   class: string;
   arm: string;
@@ -29,6 +29,19 @@ export interface StudentPayload {
   status: 'Active' | 'Suspended' | 'Graduated';
   guardian: string;
   phone: string;
+}
+
+/**
+ * Generate a unique admission number for a tenant
+ */
+async function generateAdmissionNo(tenantId: string): Promise<string> {
+  const year = new Date().getFullYear();
+  const row = await queryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1`,
+    [tenantId]
+  );
+  const next = parseInt(row?.count || '0') + 1;
+  return `SCH/${year}/${String(next).padStart(4, '0')}`;
 }
 
 /**
@@ -92,13 +105,14 @@ export async function getStudent(id: string, tenantId: string): Promise<StudentD
  */
 export async function createStudent(tenantId: string, studentData: StudentPayload): Promise<StudentDTO> {
   try {
+    const admissionNo = studentData.admissionNo || await generateAdmissionNo(tenantId);
     const row = await queryOne<any>(
       `INSERT INTO students (tenant_id, admission_no, name, class, arm, gender, status, guardian, phone)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at`,
       [
         tenantId,
-        studentData.admissionNo,
+        admissionNo,
         studentData.name,
         studentData.class,
         studentData.arm,

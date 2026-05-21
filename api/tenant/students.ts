@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // Handle bulk import (students array)
       if (body.students && Array.isArray(body.students)) {
-        const required = ['admissionNo', 'name', 'class', 'arm', 'gender', 'status', 'guardian', 'phone']
+        const required = ['name', 'class', 'gender', 'status', 'guardian']
         
         // Validate all students
         for (const student of body.students) {
@@ -96,14 +96,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Handle single student creation (student object or direct fields)
       const studentData = body.student || body
-      const required = ['admissionNo', 'name', 'class', 'arm', 'gender', 'status', 'guardian', 'phone']
+      const required = ['name', 'class', 'gender', 'status', 'guardian']
       const missing = required.filter(f => !studentData[f])
       if (missing.length > 0) {
         return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` })
       }
 
       const payload: StudentPayload = {
-        admissionNo: studentData.admissionNo,
+        admissionNo: studentData.admissionNo || undefined,
         name: studentData.name,
         class: studentData.class,
         arm: studentData.arm,

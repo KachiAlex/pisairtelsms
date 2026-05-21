@@ -3,7 +3,7 @@ export type { Student } from '../types'
 import type { Student } from '../types'
 
 export interface StudentPayload {
-  admissionNo: string
+  admissionNo?: string
   name: string
   class: string
   arm: string

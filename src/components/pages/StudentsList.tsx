@@ -97,12 +97,7 @@ export default function StudentsList() {
 
   const handleAddStudent = async () => {
     try {
-      // Generate admission number
-      const nextId = students.length + 1
-      const admissionNo = `SCH/2024/${String(nextId).padStart(3, '0')}`
-
       const studentPayload: StudentPayload = {
-        admissionNo,
         name: `${newStudent.firstName} ${newStudent.lastName}`,
         class: newStudent.class,
         arm: newStudent.arm,

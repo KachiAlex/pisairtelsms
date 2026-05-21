@@ -11,6 +11,7 @@ export interface StudentPayload {
   status: 'Active' | 'Suspended' | 'Graduated'
   guardian: string
   phone: string
+  guardianEmail?: string
 }
 
 interface ApiResponse<T> {

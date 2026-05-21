@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
+import { fetchParentByEmail, verifyPassword } from '../../tenant/_lib/parents.js'
 
 interface LoginRequest {
   email: string
@@ -44,30 +45,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    // TODO: In production, query parent database to validate credentials
-    // For now, we'll use mock data for testing
-    // This should:
-    // 1. Query parents table by email
-    // 2. Hash and compare password
-    // 3. Fetch linked children from parent_children junction table
+    const tenantId = (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
 
-    // Mock parent data - replace with actual database query
-    const mockParents: Record<string, { id: string; email: string; password: string; childrenIds: string[] }> = {
-      'parent@example.com': {
-        id: 'parent-001',
-        email: 'parent@example.com',
-        password: 'password123', // In production, this would be hashed
-        childrenIds: ['student-001', 'student-002']
-      }
+    const parent = await fetchParentByEmail(email, tenantId)
+
+    if (!parent) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid email or password' })
     }
 
-    const parent = mockParents[email]
-
-    // Validate credentials
-    if (!parent || parent.password !== password) {
-      return res.status(401).json({
-        error: 'Unauthorized: Invalid email or password'
-      })
+    const passwordValid = await verifyPassword(password, parent.passwordHash)
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid email or password' })
     }
 
     // Generate JWT token

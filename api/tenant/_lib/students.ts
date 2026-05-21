@@ -5,6 +5,7 @@
 
 import { queryAll, queryOne, query, transaction } from '../cbt/_lib/db.js';
 import { fetchTenantSettings } from './tenant-settings.js';
+import { createOrLinkParent } from './parents.js';
 
 // Internal API-layer Student type (camelCase, for API responses only)
 interface StudentDTO {
@@ -17,6 +18,7 @@ interface StudentDTO {
   status: 'Active' | 'Suspended' | 'Graduated';
   guardian: string;
   phone: string;
+  guardianEmail?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -30,6 +32,7 @@ export interface StudentPayload {
   status: 'Active' | 'Suspended' | 'Graduated';
   guardian: string;
   phone: string;
+  guardianEmail?: string;
 }
 
 /**
@@ -81,6 +84,7 @@ function rowToDTO(row: any): StudentDTO {
     status: row.status,
     guardian: row.guardian,
     phone: row.phone,
+    guardianEmail: row.guardian_email ?? undefined,
     created_at: row.created_at?.toISOString(),
     updated_at: row.updated_at?.toISOString(),
   };
@@ -92,7 +96,7 @@ function rowToDTO(row: any): StudentDTO {
 export async function fetchStudents(tenantId: string): Promise<StudentDTO[]> {
   try {
     const rows = await queryAll<any>(
-      `SELECT id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at
+      `SELECT id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email, created_at, updated_at
        FROM students
        WHERE tenant_id = $1 AND deleted_at IS NULL
        ORDER BY created_at DESC`,
@@ -111,7 +115,7 @@ export async function fetchStudents(tenantId: string): Promise<StudentDTO[]> {
 export async function getStudent(id: string, tenantId: string): Promise<StudentDTO | null> {
   try {
     const row = await queryOne<any>(
-      `SELECT id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at
+      `SELECT id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email, created_at, updated_at
        FROM students
        WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
       [id, tenantId]
@@ -130,9 +134,9 @@ export async function createStudent(tenantId: string, studentData: StudentPayloa
   try {
     const admissionNo = studentData.admissionNo || await generateAdmissionNo(tenantId);
     const row = await queryOne<any>(
-      `INSERT INTO students (tenant_id, admission_no, name, class, arm, gender, status, guardian, phone)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at`,
+      `INSERT INTO students (tenant_id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email, created_at, updated_at`,
       [
         tenantId,
         admissionNo,
@@ -143,6 +147,7 @@ export async function createStudent(tenantId: string, studentData: StudentPayloa
         studentData.status,
         studentData.guardian,
         studentData.phone,
+        studentData.guardianEmail ?? null,
       ]
     );
 
@@ -150,7 +155,23 @@ export async function createStudent(tenantId: string, studentData: StudentPayloa
       throw new Error('Failed to create student');
     }
 
-    return rowToDTO(row);
+    const dto = rowToDTO(row);
+
+    if (studentData.guardianEmail) {
+      try {
+        await createOrLinkParent({
+          tenantId,
+          studentId: dto.id,
+          guardianName: studentData.guardian,
+          guardianEmail: studentData.guardianEmail,
+          guardianPhone: studentData.phone,
+        });
+      } catch (parentErr) {
+        console.error('Parent provisioning failed (non-fatal):', parentErr);
+      }
+    }
+
+    return dto;
   } catch (error) {
     console.error('Error creating student:', error);
     throw new Error('Failed to create student');

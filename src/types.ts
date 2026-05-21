@@ -8,6 +8,7 @@ export interface Student {
   status: 'Active' | 'Suspended' | 'Graduated';
   guardian: string;
   phone: string;
+  guardianEmail?: string;
   created_at?: string;
   updated_at?: string;
 }

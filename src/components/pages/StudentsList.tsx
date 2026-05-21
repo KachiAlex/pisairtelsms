@@ -62,6 +62,7 @@ export default function StudentsList() {
     arm: '',
     guardianName: '',
     guardianPhone: '',
+    guardianEmail: '',
   })
 
   // Edit Student form state
@@ -105,6 +106,7 @@ export default function StudentsList() {
         status: 'Active',
         guardian: newStudent.guardianName,
         phone: newStudent.guardianPhone,
+        guardianEmail: newStudent.guardianEmail || undefined,
       }
 
       const createdStudent = await createStudent(studentPayload)
@@ -122,6 +124,7 @@ export default function StudentsList() {
         arm: '',
         guardianName: '',
         guardianPhone: '',
+        guardianEmail: '',
       })
       setIsAddDialogOpen(false)
     } catch (err) {
@@ -498,9 +501,11 @@ export default function StudentsList() {
                 <div className="flex items-center gap-2 text-sm text-gray-700">
                   <Phone className="w-4 h-4 text-gray-400" /> {selectedStudent.phone}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <Mail className="w-4 h-4 text-gray-400" /> guardian@school.edu
-                </div>
+                {selectedStudent.guardianEmail && (
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <Mail className="w-4 h-4 text-gray-400" /> {selectedStudent.guardianEmail}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -607,6 +612,18 @@ export default function StudentsList() {
                   value={newStudent.guardianPhone}
                   onChange={(e) => setNewStudent(prev => ({ ...prev, guardianPhone: e.target.value }))}
                 />
+              </div>
+              <div className="col-span-2">
+                <Label>Guardian Email</Label>
+                <Input
+                  type="email"
+                  placeholder="Enter guardian email (parent portal access will be sent here)"
+                  value={newStudent.guardianEmail}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, guardianEmail: e.target.value }))}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  An invitation with parent portal access will be sent to this email.
+                </p>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">

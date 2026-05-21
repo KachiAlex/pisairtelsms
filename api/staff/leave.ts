@@ -1,27 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-interface LeaveRequest {
-  id: string;
-  leaveType: string;
-  startDate: string;
-  endDate: string;
-  reason: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-  approvedBy?: string;
-  approvalDate?: string;
-}
+import { fetchLeaveRequests, createLeaveRequest, fetchStaffById } from '../tenant/_lib/staff';
 
 interface LeaveBalance {
   leaveType: string;
   totalDays: number;
   usedDays: number;
   remainingDays: number;
-}
-
-interface LeaveListResponse {
-  requests: LeaveRequest[];
-  balance: LeaveBalance[];
 }
 
 interface NewLeaveRequestBody {
@@ -31,15 +15,13 @@ interface NewLeaveRequestBody {
   reason: string;
 }
 
-interface NewLeaveRequestResponse {
-  id: string;
-  leaveType: string;
-  startDate: string;
-  endDate: string;
-  reason: string;
-  status: 'pending';
-  createdAt: string;
-}
+const LEAVE_ALLOWANCES: Record<string, number> = {
+  Annual: 21,
+  Sick: 10,
+  Casual: 7,
+  Maternity: 84,
+  Paternity: 5,
+};
 
 function extractStaffIdFromToken(req: VercelRequest): string | null {
   // Prefer x-user-id header (set by tenantApi and auth storage)
@@ -96,49 +78,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      // TODO: Fetch leave requests from database filtered by staffId
-      // For now, return mock data
+      const requests = await fetchLeaveRequests(staffId);
 
-      const response: LeaveListResponse = {
-        requests: [
-          {
-            id: 'leave-1',
-            leaveType: 'Annual Leave',
-            startDate: '2025-02-10',
-            endDate: '2025-02-14',
-            reason: 'Family vacation',
-            status: 'pending',
-            createdAt: '2025-01-15',
-          },
-          {
-            id: 'leave-2',
-            leaveType: 'Sick Leave',
-            startDate: '2025-01-10',
-            endDate: '2025-01-11',
-            reason: 'Medical appointment',
-            status: 'approved',
-            createdAt: '2025-01-08',
-            approvedBy: 'Principal',
-            approvalDate: '2025-01-09',
-          },
-        ],
-        balance: [
-          {
-            leaveType: 'Annual Leave',
-            totalDays: 21,
-            usedDays: 5,
-            remainingDays: 16,
-          },
-          {
-            leaveType: 'Sick Leave',
-            totalDays: 10,
-            usedDays: 2,
-            remainingDays: 8,
-          },
-        ],
-      };
+      const usedDays: Record<string, number> = {};
+      for (const r of requests) {
+        if (r.status === 'approved') {
+          usedDays[r.leaveType] = (usedDays[r.leaveType] ?? 0) + r.days;
+        }
+      }
 
-      return res.status(200).json(response);
+      const balance: LeaveBalance[] = Object.entries(LEAVE_ALLOWANCES).map(([leaveType, totalDays]) => {
+        const used = usedDays[leaveType] ?? 0;
+        return { leaveType, totalDays, usedDays: used, remainingDays: Math.max(0, totalDays - used) };
+      });
+
+      return res.status(200).json({ requests, balance });
     } catch (error) {
       console.error('Error fetching leave requests:', error);
       return res.status(500).json({ error: 'Failed to fetch leave requests' });
@@ -148,21 +102,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const body = await parseBody(req);
       const { leaveType, startDate, endDate, reason } = body as NewLeaveRequestBody;
 
-      // TODO: Validate required fields
-      // TODO: Validate date range (start <= end)
-      // TODO: Create leave request in database
+      if (!leaveType || !startDate || !endDate || !reason) {
+        return res.status(400).json({ error: 'leaveType, startDate, endDate, and reason are required' });
+      }
 
-      const response: NewLeaveRequestResponse = {
-        id: `leave-${Date.now()}`,
-        leaveType,
-        startDate,
-        endDate,
-        reason,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      };
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+        return res.status(400).json({ error: 'Invalid date range: startDate must be before or equal to endDate' });
+      }
 
-      return res.status(201).json(response);
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      const staffMember = await fetchStaffById(staffId);
+      const staffName = staffMember?.name ?? staffId;
+
+      const created = await createLeaveRequest({ staffId, staffName, leaveType, startDate, endDate, days, reason, status: 'pending' });
+      return res.status(201).json(created);
     } catch (error) {
       console.error('Error creating leave request:', error);
       return res.status(500).json({ error: 'Failed to create leave request' });

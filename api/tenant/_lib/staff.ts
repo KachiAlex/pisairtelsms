@@ -239,6 +239,16 @@ export async function ensureStaffTables(): Promise<void> {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `
+    // Backfill columns added after initial table creation
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS staff_id TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS salary NUMERIC`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS address TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS qualification TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS gender TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS date_of_birth DATE`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS emergency_contact TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS emergency_phone TEXT`
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_staff_id ON staff(staff_id) WHERE staff_id IS NOT NULL`
     await sql`CREATE INDEX IF NOT EXISTS idx_staff_department ON staff(department)`
     await sql`CREATE INDEX IF NOT EXISTS idx_staff_status ON staff(status)`
 

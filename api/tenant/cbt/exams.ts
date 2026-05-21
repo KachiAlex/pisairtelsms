@@ -30,6 +30,9 @@ function parseBody(req: VercelRequest) {
     } catch {
       return null
     }
+  }
+  return req.body
+}
 
 const ROUTE_ACTIONS = new Set(['stats', 'schedule', 'start', 'end'])
 
@@ -63,10 +66,6 @@ function extractPathParams(req: VercelRequest) {
     pathAction: ROUTE_ACTIONS.has(after[1]) ? after[1] : undefined,
   }
 }
-  }
-  return req.body
-}
-
 /**
  * Method not allowed response
  */

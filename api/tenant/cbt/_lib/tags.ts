@@ -203,6 +203,41 @@ export async function deleteTag(tenantId: string, tagId: string): Promise<void> 
   );
 }
 
+/**
+ * Delete a tag and all questions that belong exclusively to it (soft delete)
+ */
+export async function deleteTagWithQuestions(
+  tenantId: string,
+  tagId: string
+): Promise<{ deletedQuestions: number }> {
+  // Soft-delete questions that are ONLY linked to this tag (no other tags)
+  const result = await query(
+    `UPDATE questions_bank
+     SET deleted_at = CURRENT_TIMESTAMP
+     WHERE tenant_id = $1
+       AND deleted_at IS NULL
+       AND id IN (
+         SELECT question_id FROM question_tag_links WHERE tag_id = $2 AND tenant_id = $1
+       )
+       AND id NOT IN (
+         SELECT question_id FROM question_tag_links
+         WHERE tag_id <> $2 AND tenant_id = $1
+       )`,
+    [tenantId, tagId]
+  );
+
+  // Also remove all tag links for this tag
+  await query(
+    `DELETE FROM question_tag_links WHERE tag_id = $1 AND tenant_id = $2`,
+    [tagId, tenantId]
+  );
+
+  // Soft-delete the tag itself
+  await deleteTag(tenantId, tagId);
+
+  return { deletedQuestions: result.rowCount || 0 };
+}
+
 // ============================================================================
 // Tag-Question Link Operations
 // ============================================================================

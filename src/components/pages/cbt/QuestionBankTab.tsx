@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Search, Upload, Download, Trash2, FileText, RefreshCw, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Upload, Download, Trash2, FileText, RefreshCw, X, AlertCircle, CheckCircle2, Tag as TagIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
@@ -277,6 +277,20 @@ export function QuestionBankTab() {
     setFilterTag(tag.name);
     setViewMode('questions');
     setPage(1);
+  };
+
+  const handleDeleteTag = async (tag: Tag, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const confirmMsg = `Delete tag "#${tag.name}" and all ${tag.usageCount} question${tag.usageCount !== 1 ? 's' : ''} within it? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
+    try {
+      const res = await tenantApiFetch(`/api/tenant/cbt/tags?id=${tag.id}&withQuestions=true`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      fetchTagSummary();
+      fetchStats();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
+    }
   };
 
   const handleBackToTags = () => {
@@ -584,7 +598,17 @@ export function QuestionBankTab() {
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="font-semibold text-gray-900">#{tag.name}</h3>
-                          <Badge className="bg-blue-100 text-blue-700">{tag.usageCount} questions</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-blue-100 text-blue-700">{tag.usageCount} questions</Badge>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteTag(tag, e)}
+                              className="text-gray-400 hover:text-red-600 transition-colors"
+                              aria-label={`Delete tag ${tag.name}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         {tag.subject && (
                           <p className="text-sm text-gray-600 mb-1">Subject: {tag.subject}</p>

@@ -12,6 +12,7 @@ import {
   getQuestionTags,
   getQuestionsByTag,
   deleteTag,
+  deleteTagWithQuestions,
   getTagStats,
   cleanupUnusedTags,
   syncQuestionTags,
@@ -227,17 +228,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ============================================================================
-  // DELETE /tags?id={tagId} - Delete a tag
+  // DELETE /tags?id={tagId} - Delete a tag (and optionally all its questions)
   // ============================================================================
   if (req.method === 'DELETE' && tagId) {
     if (!validateUserId(userId, res)) return
 
+    const withQuestions = req.query.withQuestions === 'true'
+
     try {
-      await deleteTag(tenantId, tagId)
-      return res.status(200).json({
-        success: true,
-        data: { deleted: true },
-      })
+      if (withQuestions) {
+        const result = await deleteTagWithQuestions(tenantId, tagId)
+        return res.status(200).json({
+          success: true,
+          data: { deleted: true, deletedQuestions: result.deletedQuestions },
+        })
+      } else {
+        await deleteTag(tenantId, tagId)
+        return res.status(200).json({
+          success: true,
+          data: { deleted: true, deletedQuestions: 0 },
+        })
+      }
     } catch (error: any) {
       console.error('Error deleting tag:', error)
       return res.status(500).json({ success: false, error: 'Failed to delete tag' })

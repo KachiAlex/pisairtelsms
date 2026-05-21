@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import { sql } from '@vercel/postgres'
 
 export interface TeacherSchedule {
   id: string
@@ -6,91 +7,49 @@ export interface TeacherSchedule {
   teacherId: string
   teacherName: string
   termId: string
-  totalHours: number
-  totalClasses: number
-  maxHoursLimit: number | null
-  createdAt: string
-  updatedAt: string
-}
-
-export interface TeacherWorkloadEntry {
-  id: string
-  scheduleId: string
   classId: string
-  className: string
   subjectId: string
   subjectName: string
-  hoursPerWeek: number
-  dayOfWeek: number
   timeSlotId: string
+  dayOfWeek: number
   createdAt: string
   updatedAt: string
 }
 
-const schedulesStore = new Map<string, TeacherSchedule>()
-const workloadStore = new Map<string, TeacherWorkloadEntry>()
+function rowToSchedule(r: any): TeacherSchedule {
+  return { id: r.id, tenantId: r.tenant_id, teacherId: r.teacher_id, teacherName: r.teacher_name, termId: r.term_id, classId: r.class_id, subjectId: r.subject_id, subjectName: r.subject_name, timeSlotId: r.time_slot_id, dayOfWeek: Number(r.day_of_week), createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
+}
 
-function initMockData() {
-  if (schedulesStore.size > 0) return
-  const tenantId = 'demo-tenant-001'
-  const now = new Date().toISOString()
-
-  const teachers = [
-    { id: 'teacher-femi', name: 'Mr. Femi', totalHours: 32, totalClasses: 8 },
-    { id: 'teacher-obasi', name: 'Mr. Obasi', totalHours: 28, totalClasses: 7 },
-    { id: 'teacher-aminat', name: 'Mrs. Aminat', totalHours: 30, totalClasses: 7 },
-    { id: 'teacher-ada', name: 'Ms. Ada', totalHours: 24, totalClasses: 6 },
-  ]
-
-  for (const t of teachers) {
-    const schedule: TeacherSchedule = {
-      id: `ts-${t.id}`,
-      tenantId,
-      teacherId: t.id,
-      teacherName: t.name,
-      termId: 'term-1',
-      totalHours: t.totalHours,
-      totalClasses: t.totalClasses,
-      maxHoursLimit: 35,
-      createdAt: now,
-      updatedAt: now,
+export async function getTeacherSchedules(tenantId: string, teacherId?: string, termId?: string): Promise<TeacherSchedule[]> {
+  try {
+    if (teacherId && termId) {
+      const r = await sql`SELECT * FROM timetable_teacher_schedules WHERE tenant_id = ${tenantId} AND teacher_id = ${teacherId} AND term_id = ${termId}`
+      return r.rows.map(rowToSchedule)
+    } else if (teacherId) {
+      const r = await sql`SELECT * FROM timetable_teacher_schedules WHERE tenant_id = ${tenantId} AND teacher_id = ${teacherId}`
+      return r.rows.map(rowToSchedule)
+    } else if (termId) {
+      const r = await sql`SELECT * FROM timetable_teacher_schedules WHERE tenant_id = ${tenantId} AND term_id = ${termId}`
+      return r.rows.map(rowToSchedule)
+    } else {
+      const r = await sql`SELECT * FROM timetable_teacher_schedules WHERE tenant_id = ${tenantId}`
+      return r.rows.map(rowToSchedule)
     }
-    schedulesStore.set(schedule.id, schedule)
-  }
-
-  // Sample workload entries for Mr. Femi
-  const workloadEntries: Omit<TeacherWorkloadEntry, 'id' | 'createdAt' | 'updatedAt'>[] = [
-    { scheduleId: 'ts-teacher-femi', classId: 'JSS 1A', className: 'JSS 1A', subjectId: 'math', subjectName: 'Mathematics', hoursPerWeek: 4, dayOfWeek: 1, timeSlotId: 'slot-1' },
-    { scheduleId: 'ts-teacher-femi', classId: 'JSS 2A', className: 'JSS 2A', subjectId: 'math', subjectName: 'Mathematics', hoursPerWeek: 4, dayOfWeek: 2, timeSlotId: 'slot-2' },
-    { scheduleId: 'ts-teacher-femi', classId: 'SS 1C', className: 'SS 1C', subjectId: 'math', subjectName: 'Mathematics', hoursPerWeek: 4, dayOfWeek: 3, timeSlotId: 'slot-1' },
-  ]
-  for (const w of workloadEntries) {
-    const id = randomUUID()
-    workloadStore.set(id, { id, ...w, createdAt: now, updatedAt: now })
-  }
+  } catch { return [] }
 }
 
-export function getTeacherSchedules(tenantId: string, teacherId?: string, termId?: string): TeacherSchedule[] {
-  initMockData()
-  let schedules = Array.from(schedulesStore.values()).filter(s => s.tenantId === tenantId)
-  if (teacherId) schedules = schedules.filter(s => s.teacherId === teacherId)
-  if (termId) schedules = schedules.filter(s => s.termId === termId)
-  return schedules
+export async function createTeacherSchedule(tenantId: string, data: Omit<TeacherSchedule, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<TeacherSchedule> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_teacher_schedules (id, tenant_id, teacher_id, teacher_name, term_id, class_id, subject_id, subject_name, time_slot_id, day_of_week) VALUES (${id}, ${tenantId}, ${data.teacherId}, ${data.teacherName}, ${data.termId}, ${data.classId}, ${data.subjectId}, ${data.subjectName}, ${data.timeSlotId}, ${data.dayOfWeek}) RETURNING *`
+  return rowToSchedule(result.rows[0])
 }
 
-export function getTeacherScheduleById(id: string): (TeacherSchedule & { workload: TeacherWorkloadEntry[] }) | null {
-  initMockData()
-  const schedule = schedulesStore.get(id)
-  if (!schedule) return null
-  const workload = Array.from(workloadStore.values()).filter(w => w.scheduleId === id)
-  return { ...schedule, workload }
+export async function updateTeacherSchedule(id: string, data: Partial<TeacherSchedule>): Promise<TeacherSchedule | null> {
+  const result = await sql`UPDATE timetable_teacher_schedules SET teacher_name = COALESCE(${data.teacherName ?? null}, teacher_name), class_id = COALESCE(${data.classId ?? null}, class_id), subject_id = COALESCE(${data.subjectId ?? null}, subject_id), subject_name = COALESCE(${data.subjectName ?? null}, subject_name), time_slot_id = COALESCE(${data.timeSlotId ?? null}, time_slot_id), day_of_week = COALESCE(${data.dayOfWeek ?? null}, day_of_week), updated_at = NOW() WHERE id = ${id} RETURNING *`
+  return result.rows[0] ? rowToSchedule(result.rows[0]) : null
 }
 
-export function updateTeacherSchedule(id: string, data: Partial<TeacherSchedule>): TeacherSchedule | null {
-  initMockData()
-  const schedule = schedulesStore.get(id)
-  if (!schedule) return null
-  const updated = { ...schedule, ...data, updatedAt: new Date().toISOString() }
-  schedulesStore.set(id, updated)
-  return updated
+export async function deleteTeacherSchedule(id: string): Promise<boolean> {
+  const result = await sql`DELETE FROM timetable_teacher_schedules WHERE id = ${id}`
+  return (result.rowCount ?? 0) > 0
 }

@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS biometric_devices (
   consecutive_failures INTEGER DEFAULT 0,
   enrolled_students_count INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_device_tenant ON biometric_devices(tenant_id);
@@ -128,8 +128,7 @@ CREATE TABLE IF NOT EXISTS device_sync_logs (
   records_synced INTEGER DEFAULT 0,
   records_failed INTEGER DEFAULT 0,
   error_details TEXT,
-  sync_duration_ms INTEGER,
-  FOREIGN KEY (device_id) REFERENCES biometric_devices(id) ON DELETE CASCADE
+  sync_duration_ms INTEGER
 );
 
 CREATE INDEX idx_sync_logs_device ON device_sync_logs(device_id);
@@ -141,12 +140,18 @@ CREATE INDEX idx_sync_logs_status ON device_sync_logs(status);
 -- ============================================================================
 
 -- Ensure date is not in the future for attendance records
-ALTER TABLE attendance_records ADD CONSTRAINT check_attendance_date
-  CHECK (date <= CURRENT_DATE);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'check_attendance_date'
+  ) THEN
+    ALTER TABLE attendance_records ADD CONSTRAINT check_attendance_date
+      CHECK (date <= CURRENT_DATE);
+  END IF;
+END $$;
 
 -- ============================================================================
 -- MIGRATION METADATA
 -- ============================================================================
 INSERT INTO schema_migrations (version, description) 
-VALUES (2, 'Create attendance logging system schema')
+VALUES (9, 'Create attendance logging system schema')
 ON CONFLICT DO NOTHING;

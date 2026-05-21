@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import { sql } from '@vercel/postgres'
 
 export interface ExamSchedule {
   id: string
@@ -44,100 +45,90 @@ export interface Invigilator {
   updatedAt: string
 }
 
-const schedulesStore = new Map<string, ExamSchedule>()
-const hallsStore = new Map<string, ExamHall>()
-const assignmentsStore = new Map<string, ExamHallAssignment>()
-const invigilatorsStore = new Map<string, Invigilator>()
+const ts = (r: any) => r instanceof Date ? r.toISOString() : String(r)
+const d = (r: any) => r instanceof Date ? r.toISOString().split('T')[0] : String(r).split('T')[0]
 
-function initMockData() {
-  if (schedulesStore.size > 0) return
-  const tenantId = 'demo-tenant-001'
-  const now = new Date().toISOString()
-
-  const halls: ExamHall[] = [
-    { id: 'hall-1', tenantId, name: 'Hall 1', capacity: 200, createdAt: now, updatedAt: now },
-    { id: 'hall-2', tenantId, name: 'Hall 2', capacity: 150, createdAt: now, updatedAt: now },
-    { id: 'hall-3', tenantId, name: 'Lab A', capacity: 40, createdAt: now, updatedAt: now },
-  ]
-  for (const h of halls) hallsStore.set(h.id, h)
-
-  const exams: ExamSchedule[] = [
-    { id: 'exam-1', tenantId, examPeriodId: 'ep-1', subjectId: 'math', subjectName: 'Mathematics', examDate: '2024-11-25', startTime: '08:00', endTime: '10:00', durationMinutes: 120, examType: 'written', createdAt: now, updatedAt: now },
-    { id: 'exam-2', tenantId, examPeriodId: 'ep-1', subjectId: 'eng', subjectName: 'English Language', examDate: '2024-11-26', startTime: '08:00', endTime: '10:30', durationMinutes: 150, examType: 'written', createdAt: now, updatedAt: now },
-    { id: 'exam-3', tenantId, examPeriodId: 'ep-1', subjectId: 'ict', subjectName: 'ICT', examDate: '2024-11-27', startTime: '10:00', endTime: '11:30', durationMinutes: 90, examType: 'cbt', createdAt: now, updatedAt: now },
-  ]
-  for (const e of exams) schedulesStore.set(e.id, e)
-
-  const assignment: ExamHallAssignment = {
-    id: 'assign-1', examScheduleId: 'exam-1', hallId: 'hall-1', hallName: 'Hall 1', studentCount: 180, createdAt: now, updatedAt: now,
-  }
-  assignmentsStore.set(assignment.id, assignment)
-
-  const invigilator: Invigilator = {
-    id: 'inv-1', examScheduleId: 'exam-1', staffId: 'teacher-obasi', staffName: 'Mr. Obasi', hallId: 'hall-1', createdAt: now, updatedAt: now,
-  }
-  invigilatorsStore.set(invigilator.id, invigilator)
+function rowToExam(r: any): ExamSchedule {
+  return { id: r.id, tenantId: r.tenant_id, examPeriodId: r.exam_period_id, subjectId: r.subject_id, subjectName: r.subject_name, examDate: d(r.exam_date), startTime: String(r.start_time).slice(0,5), endTime: String(r.end_time).slice(0,5), durationMinutes: Number(r.duration_minutes), examType: r.exam_type, createdAt: ts(r.created_at), updatedAt: ts(r.updated_at) }
+}
+function rowToHall(r: any): ExamHall {
+  return { id: r.id, tenantId: r.tenant_id, name: r.name, capacity: Number(r.capacity), createdAt: ts(r.created_at), updatedAt: ts(r.updated_at) }
+}
+function rowToAssignment(r: any): ExamHallAssignment {
+  return { id: r.id, examScheduleId: r.exam_schedule_id, hallId: r.hall_id, hallName: r.hall_name, studentCount: Number(r.student_count), createdAt: ts(r.created_at), updatedAt: ts(r.updated_at) }
+}
+function rowToInvigilator(r: any): Invigilator {
+  return { id: r.id, examScheduleId: r.exam_schedule_id, staffId: r.staff_id, staffName: r.staff_name, hallId: r.hall_id, createdAt: ts(r.created_at), updatedAt: ts(r.updated_at) }
 }
 
-export function getExamHalls(tenantId: string): ExamHall[] {
-  initMockData()
-  return Array.from(hallsStore.values()).filter(h => h.tenantId === tenantId)
+export async function getExamHalls(tenantId: string): Promise<ExamHall[]> {
+  try {
+    const r = await sql`SELECT * FROM timetable_exam_halls WHERE tenant_id = ${tenantId} ORDER BY name ASC`
+    return r.rows.map(rowToHall)
+  } catch { return [] }
 }
 
-export function getExamSchedules(tenantId: string, examPeriodId?: string, subjectId?: string): ExamSchedule[] {
-  initMockData()
-  let schedules = Array.from(schedulesStore.values()).filter(s => s.tenantId === tenantId)
-  if (examPeriodId) schedules = schedules.filter(s => s.examPeriodId === examPeriodId)
-  if (subjectId) schedules = schedules.filter(s => s.subjectId === subjectId)
-  return schedules.sort((a, b) => a.examDate.localeCompare(b.examDate))
+export async function createExamHall(tenantId: string, name: string, capacity: number): Promise<ExamHall> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_exam_halls (id, tenant_id, name, capacity) VALUES (${id}, ${tenantId}, ${name}, ${capacity}) RETURNING *`
+  return rowToHall(result.rows[0])
 }
 
-export function getExamScheduleById(id: string): (ExamSchedule & { hallAssignments: ExamHallAssignment[]; invigilators: Invigilator[] }) | null {
-  initMockData()
-  const schedule = schedulesStore.get(id)
-  if (!schedule) return null
-  const hallAssignments = Array.from(assignmentsStore.values()).filter(a => a.examScheduleId === id)
-  const invigilators = Array.from(invigilatorsStore.values()).filter(i => i.examScheduleId === id)
-  return { ...schedule, hallAssignments, invigilators }
+export async function getExamSchedules(tenantId: string, examPeriodId?: string, subjectId?: string): Promise<ExamSchedule[]> {
+  try {
+    if (examPeriodId && subjectId) {
+      const r = await sql`SELECT * FROM timetable_exam_schedules WHERE tenant_id = ${tenantId} AND exam_period_id = ${examPeriodId} AND subject_id = ${subjectId} ORDER BY exam_date ASC`
+      return r.rows.map(rowToExam)
+    } else if (examPeriodId) {
+      const r = await sql`SELECT * FROM timetable_exam_schedules WHERE tenant_id = ${tenantId} AND exam_period_id = ${examPeriodId} ORDER BY exam_date ASC`
+      return r.rows.map(rowToExam)
+    } else {
+      const r = await sql`SELECT * FROM timetable_exam_schedules WHERE tenant_id = ${tenantId} ORDER BY exam_date ASC`
+      return r.rows.map(rowToExam)
+    }
+  } catch { return [] }
 }
 
-export function createExamSchedule(tenantId: string, data: Omit<ExamSchedule, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): ExamSchedule {
-  initMockData()
-  const now = new Date().toISOString()
-  const schedule: ExamSchedule = { id: randomUUID(), tenantId, ...data, createdAt: now, updatedAt: now }
-  schedulesStore.set(schedule.id, schedule)
-  return schedule
+export async function getExamScheduleById(id: string): Promise<(ExamSchedule & { hallAssignments: ExamHallAssignment[]; invigilators: Invigilator[] }) | null> {
+  try {
+    const sr = await sql`SELECT * FROM timetable_exam_schedules WHERE id = ${id}`
+    if (!sr.rows[0]) return null
+    const [ar, ir] = await Promise.all([
+      sql`SELECT * FROM timetable_exam_hall_assignments WHERE exam_schedule_id = ${id}`,
+      sql`SELECT * FROM timetable_invigilators WHERE exam_schedule_id = ${id}`,
+    ])
+    return { ...rowToExam(sr.rows[0]), hallAssignments: ar.rows.map(rowToAssignment), invigilators: ir.rows.map(rowToInvigilator) }
+  } catch { return null }
 }
 
-export function addHallAssignment(examScheduleId: string, hallId: string, studentCount: number): ExamHallAssignment | { error: string } {
-  initMockData()
-  const hall = hallsStore.get(hallId)
-  if (!hall) return { error: 'Hall not found' }
+export async function createExamSchedule(tenantId: string, data: Omit<ExamSchedule, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<ExamSchedule> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_exam_schedules (id, tenant_id, exam_period_id, subject_id, subject_name, exam_date, start_time, end_time, duration_minutes, exam_type) VALUES (${id}, ${tenantId}, ${data.examPeriodId}, ${data.subjectId}, ${data.subjectName}, ${data.examDate}, ${data.startTime}, ${data.endTime}, ${data.durationMinutes}, ${data.examType}) RETURNING *`
+  return rowToExam(result.rows[0])
+}
+
+export async function addHallAssignment(examScheduleId: string, hallId: string, studentCount: number): Promise<ExamHallAssignment | { error: string }> {
+  const hr = await sql`SELECT * FROM timetable_exam_halls WHERE id = ${hallId}`
+  if (!hr.rows[0]) return { error: 'Hall not found' }
+  const hall = rowToHall(hr.rows[0])
   if (studentCount > hall.capacity) return { error: `Student count (${studentCount}) exceeds hall capacity (${hall.capacity})` }
-  const now = new Date().toISOString()
-  const assignment: ExamHallAssignment = { id: randomUUID(), examScheduleId, hallId, hallName: hall.name, studentCount, createdAt: now, updatedAt: now }
-  assignmentsStore.set(assignment.id, assignment)
-  return assignment
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_exam_hall_assignments (id, exam_schedule_id, hall_id, hall_name, student_count) VALUES (${id}, ${examScheduleId}, ${hallId}, ${hall.name}, ${studentCount}) RETURNING *`
+  return rowToAssignment(result.rows[0])
 }
 
-export function addInvigilator(examScheduleId: string, staffId: string, staffName: string, hallId: string): Invigilator | { error: string } {
-  initMockData()
-  const exam = schedulesStore.get(examScheduleId)
-  if (!exam) return { error: 'Exam schedule not found' }
-  // Check for overlapping invigilator assignments on same date/time
-  const overlapping = Array.from(invigilatorsStore.values()).some(inv => {
-    if (inv.staffId !== staffId || inv.examScheduleId === examScheduleId) return false
-    const otherExam = schedulesStore.get(inv.examScheduleId)
-    if (!otherExam) return false
-    return otherExam.examDate === exam.examDate && otherExam.startTime < exam.endTime && otherExam.endTime > exam.startTime
-  })
-  if (overlapping) return { error: `${staffName} is already assigned to another exam at this time` }
-  const now = new Date().toISOString()
-  const invigilator: Invigilator = { id: randomUUID(), examScheduleId, staffId, staffName, hallId, createdAt: now, updatedAt: now }
-  invigilatorsStore.set(invigilator.id, invigilator)
-  return invigilator
+export async function addInvigilator(examScheduleId: string, staffId: string, staffName: string, hallId: string): Promise<Invigilator | { error: string }> {
+  const er = await sql`SELECT * FROM timetable_exam_schedules WHERE id = ${examScheduleId}`
+  if (!er.rows[0]) return { error: 'Exam schedule not found' }
+  const exam = rowToExam(er.rows[0])
+  const overlap = await sql`SELECT 1 FROM timetable_invigilators inv JOIN timetable_exam_schedules es ON es.id = inv.exam_schedule_id WHERE inv.staff_id = ${staffId} AND inv.exam_schedule_id != ${examScheduleId} AND es.exam_date = ${exam.examDate} AND es.start_time < ${exam.endTime} AND es.end_time > ${exam.startTime} LIMIT 1`
+  if (overlap.rows.length > 0) return { error: `${staffName} is already assigned to another exam at this time` }
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_invigilators (id, exam_schedule_id, staff_id, staff_name, hall_id) VALUES (${id}, ${examScheduleId}, ${staffId}, ${staffName}, ${hallId}) RETURNING *`
+  return rowToInvigilator(result.rows[0])
 }
 
-export function removeInvigilator(invigilatorId: string): boolean {
-  return invigilatorsStore.delete(invigilatorId)
+export async function removeInvigilator(invigilatorId: string): Promise<boolean> {
+  const result = await sql`DELETE FROM timetable_invigilators WHERE id = ${invigilatorId}`
+  return (result.rowCount ?? 0) > 0
 }

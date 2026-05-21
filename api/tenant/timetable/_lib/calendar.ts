@@ -1,5 +1,5 @@
-// In-memory mock storage for school calendar data
 import { randomUUID } from 'crypto'
+import { sql } from '@vercel/postgres'
 
 export interface SchoolTerm {
   id: string
@@ -34,166 +34,97 @@ export interface ExamPeriod {
   updatedAt: string
 }
 
-const termsStore = new Map<string, SchoolTerm>()
-const holidaysStore = new Map<string, Holiday>()
-const examPeriodsStore = new Map<string, ExamPeriod>()
-
-function initMockData() {
-  if (termsStore.size > 0) return
-  const tenantId = 'demo-tenant-001'
-  const now = new Date().toISOString()
-
-  const term1: SchoolTerm = {
-    id: 'term-1',
-    tenantId,
-    name: 'First Term',
-    startDate: '2024-09-09',
-    endDate: '2024-12-13',
-    academicYear: '2024/2025',
-    createdAt: now,
-    updatedAt: now,
-  }
-  const term2: SchoolTerm = {
-    id: 'term-2',
-    tenantId,
-    name: 'Second Term',
-    startDate: '2025-01-13',
-    endDate: '2025-04-04',
-    academicYear: '2024/2025',
-    createdAt: now,
-    updatedAt: now,
-  }
-  const term3: SchoolTerm = {
-    id: 'term-3',
-    tenantId,
-    name: 'Third Term',
-    startDate: '2025-04-28',
-    endDate: '2025-07-25',
-    academicYear: '2024/2025',
-    createdAt: now,
-    updatedAt: now,
-  }
-  termsStore.set(term1.id, term1)
-  termsStore.set(term2.id, term2)
-  termsStore.set(term3.id, term3)
-
-  const holiday1: Holiday = {
-    id: 'hol-1',
-    tenantId,
-    termId: 'term-1',
-    name: 'Mid-Term Break',
-    startDate: '2024-10-28',
-    endDate: '2024-11-01',
-    createdAt: now,
-    updatedAt: now,
-  }
-  holidaysStore.set(holiday1.id, holiday1)
-
-  const ep1: ExamPeriod = {
-    id: 'ep-1',
-    tenantId,
-    termId: 'term-1',
-    name: 'First Term Exams',
-    startDate: '2024-11-25',
-    endDate: '2024-12-06',
-    createdAt: now,
-    updatedAt: now,
-  }
-  examPeriodsStore.set(ep1.id, ep1)
+function rowToTerm(r: any): SchoolTerm {
+  return { id: r.id, tenantId: r.tenant_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), academicYear: r.academic_year, createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
+}
+function rowToHoliday(r: any): Holiday {
+  return { id: r.id, tenantId: r.tenant_id, termId: r.term_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
+}
+function rowToExamPeriod(r: any): ExamPeriod {
+  return { id: r.id, tenantId: r.tenant_id, termId: r.term_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
 }
 
 // Terms
-export function getTerms(tenantId: string, academicYear?: string): SchoolTerm[] {
-  initMockData()
-  let terms = Array.from(termsStore.values()).filter(t => t.tenantId === tenantId)
-  if (academicYear) terms = terms.filter(t => t.academicYear === academicYear)
-  return terms.sort((a, b) => a.startDate.localeCompare(b.startDate))
+export async function getTerms(tenantId: string, academicYear?: string): Promise<SchoolTerm[]> {
+  try {
+    const result = academicYear
+      ? await sql`SELECT * FROM timetable_terms WHERE tenant_id = ${tenantId} AND academic_year = ${academicYear} ORDER BY start_date ASC`
+      : await sql`SELECT * FROM timetable_terms WHERE tenant_id = ${tenantId} ORDER BY start_date ASC`
+    return result.rows.map(rowToTerm)
+  } catch { return [] }
 }
 
-export function createTerm(tenantId: string, data: Omit<SchoolTerm, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): SchoolTerm {
-  initMockData()
-  const now = new Date().toISOString()
-  const term: SchoolTerm = { id: randomUUID(), tenantId, ...data, createdAt: now, updatedAt: now }
-  termsStore.set(term.id, term)
-  return term
+export async function createTerm(tenantId: string, data: Omit<SchoolTerm, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<SchoolTerm> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_terms (id, tenant_id, name, start_date, end_date, academic_year) VALUES (${id}, ${tenantId}, ${data.name}, ${data.startDate}, ${data.endDate}, ${data.academicYear}) RETURNING *`
+  return rowToTerm(result.rows[0])
 }
 
-export function updateTerm(id: string, data: Partial<SchoolTerm>): SchoolTerm | null {
-  initMockData()
-  const term = termsStore.get(id)
-  if (!term) return null
-  const updated = { ...term, ...data, updatedAt: new Date().toISOString() }
-  termsStore.set(id, updated)
-  return updated
+export async function updateTerm(id: string, data: Partial<SchoolTerm>): Promise<SchoolTerm | null> {
+  const result = await sql`UPDATE timetable_terms SET name = COALESCE(${data.name ?? null}, name), start_date = COALESCE(${data.startDate ?? null}, start_date), end_date = COALESCE(${data.endDate ?? null}, end_date), academic_year = COALESCE(${data.academicYear ?? null}, academic_year), updated_at = NOW() WHERE id = ${id} RETURNING *`
+  return result.rows[0] ? rowToTerm(result.rows[0]) : null
 }
 
-export function deleteTerm(id: string): boolean {
-  initMockData()
-  return termsStore.delete(id)
+export async function deleteTerm(id: string): Promise<boolean> {
+  const result = await sql`DELETE FROM timetable_terms WHERE id = ${id}`
+  return (result.rowCount ?? 0) > 0
 }
 
-export function termsOverlap(tenantId: string, startDate: string, endDate: string, excludeId?: string): boolean {
-  const terms = getTerms(tenantId)
-  return terms.some(t => {
-    if (excludeId && t.id === excludeId) return false
-    return startDate <= t.endDate && endDate >= t.startDate
-  })
+export async function termsOverlap(tenantId: string, startDate: string, endDate: string, excludeId?: string): Promise<boolean> {
+  const result = excludeId
+    ? await sql`SELECT 1 FROM timetable_terms WHERE tenant_id = ${tenantId} AND id != ${excludeId} AND start_date <= ${endDate} AND end_date >= ${startDate} LIMIT 1`
+    : await sql`SELECT 1 FROM timetable_terms WHERE tenant_id = ${tenantId} AND start_date <= ${endDate} AND end_date >= ${startDate} LIMIT 1`
+  return result.rows.length > 0
 }
 
 // Holidays
-export function getHolidays(tenantId: string, termId?: string): Holiday[] {
-  initMockData()
-  let holidays = Array.from(holidaysStore.values()).filter(h => h.tenantId === tenantId)
-  if (termId) holidays = holidays.filter(h => h.termId === termId)
-  return holidays.sort((a, b) => a.startDate.localeCompare(b.startDate))
+export async function getHolidays(tenantId: string, termId?: string): Promise<Holiday[]> {
+  try {
+    const result = termId
+      ? await sql`SELECT * FROM timetable_holidays WHERE tenant_id = ${tenantId} AND term_id = ${termId} ORDER BY start_date ASC`
+      : await sql`SELECT * FROM timetable_holidays WHERE tenant_id = ${tenantId} ORDER BY start_date ASC`
+    return result.rows.map(rowToHoliday)
+  } catch { return [] }
 }
 
-export function createHoliday(tenantId: string, data: Omit<Holiday, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Holiday {
-  initMockData()
-  const now = new Date().toISOString()
-  const holiday: Holiday = { id: randomUUID(), tenantId, ...data, createdAt: now, updatedAt: now }
-  holidaysStore.set(holiday.id, holiday)
-  return holiday
+export async function createHoliday(tenantId: string, data: Omit<Holiday, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<Holiday> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_holidays (id, tenant_id, term_id, name, start_date, end_date) VALUES (${id}, ${tenantId}, ${data.termId}, ${data.name}, ${data.startDate}, ${data.endDate}) RETURNING *`
+  return rowToHoliday(result.rows[0])
 }
 
-export function updateHoliday(id: string, data: Partial<Holiday>): Holiday | null {
-  initMockData()
-  const holiday = holidaysStore.get(id)
-  if (!holiday) return null
-  const updated = { ...holiday, ...data, updatedAt: new Date().toISOString() }
-  holidaysStore.set(id, updated)
-  return updated
+export async function updateHoliday(id: string, data: Partial<Holiday>): Promise<Holiday | null> {
+  const result = await sql`UPDATE timetable_holidays SET name = COALESCE(${data.name ?? null}, name), start_date = COALESCE(${data.startDate ?? null}, start_date), end_date = COALESCE(${data.endDate ?? null}, end_date), updated_at = NOW() WHERE id = ${id} RETURNING *`
+  return result.rows[0] ? rowToHoliday(result.rows[0]) : null
 }
 
-export function deleteHoliday(id: string): boolean {
-  return holidaysStore.delete(id)
+export async function deleteHoliday(id: string): Promise<boolean> {
+  const result = await sql`DELETE FROM timetable_holidays WHERE id = ${id}`
+  return (result.rowCount ?? 0) > 0
 }
 
 // Exam Periods
-export function getExamPeriods(tenantId: string, termId?: string): ExamPeriod[] {
-  initMockData()
-  let periods = Array.from(examPeriodsStore.values()).filter(e => e.tenantId === tenantId)
-  if (termId) periods = periods.filter(e => e.termId === termId)
-  return periods.sort((a, b) => a.startDate.localeCompare(b.startDate))
+export async function getExamPeriods(tenantId: string, termId?: string): Promise<ExamPeriod[]> {
+  try {
+    const result = termId
+      ? await sql`SELECT * FROM timetable_exam_periods WHERE tenant_id = ${tenantId} AND term_id = ${termId} ORDER BY start_date ASC`
+      : await sql`SELECT * FROM timetable_exam_periods WHERE tenant_id = ${tenantId} ORDER BY start_date ASC`
+    return result.rows.map(rowToExamPeriod)
+  } catch { return [] }
 }
 
-export function createExamPeriod(tenantId: string, data: Omit<ExamPeriod, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): ExamPeriod {
-  initMockData()
-  const now = new Date().toISOString()
-  const period: ExamPeriod = { id: randomUUID(), tenantId, ...data, createdAt: now, updatedAt: now }
-  examPeriodsStore.set(period.id, period)
-  return period
+export async function createExamPeriod(tenantId: string, data: Omit<ExamPeriod, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<ExamPeriod> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_exam_periods (id, tenant_id, term_id, name, start_date, end_date) VALUES (${id}, ${tenantId}, ${data.termId}, ${data.name}, ${data.startDate}, ${data.endDate}) RETURNING *`
+  return rowToExamPeriod(result.rows[0])
 }
 
-export function updateExamPeriod(id: string, data: Partial<ExamPeriod>): ExamPeriod | null {
-  initMockData()
-  const period = examPeriodsStore.get(id)
-  if (!period) return null
-  const updated = { ...period, ...data, updatedAt: new Date().toISOString() }
-  examPeriodsStore.set(id, updated)
-  return updated
+export async function updateExamPeriod(id: string, data: Partial<ExamPeriod>): Promise<ExamPeriod | null> {
+  const result = await sql`UPDATE timetable_exam_periods SET name = COALESCE(${data.name ?? null}, name), start_date = COALESCE(${data.startDate ?? null}, start_date), end_date = COALESCE(${data.endDate ?? null}, end_date), updated_at = NOW() WHERE id = ${id} RETURNING *`
+  return result.rows[0] ? rowToExamPeriod(result.rows[0]) : null
 }
 
-export function deleteExamPeriod(id: string): boolean {
-  return examPeriodsStore.delete(id)
+export async function deleteExamPeriod(id: string): Promise<boolean> {
+  const result = await sql`DELETE FROM timetable_exam_periods WHERE id = ${id}`
+  return (result.rowCount ?? 0) > 0
 }

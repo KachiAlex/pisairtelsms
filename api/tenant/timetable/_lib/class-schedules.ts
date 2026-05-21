@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import { sql } from '@vercel/postgres'
 
 export interface ClassSchedule {
   id: string
@@ -18,90 +19,70 @@ export interface ClassScheduleEntry {
   teacherId: string
   teacherName: string
   roomId?: string
-  dayOfWeek: number  // 1=Mon … 5=Fri
+  dayOfWeek: number
   createdAt: string
   updatedAt: string
 }
 
-const schedulesStore = new Map<string, ClassSchedule>()
-const entriesStore = new Map<string, ClassScheduleEntry>()
-
-function initMockData() {
-  if (schedulesStore.size > 0) return
-  const tenantId = 'demo-tenant-001'
-  const now = new Date().toISOString()
-
-  const schedule: ClassSchedule = {
-    id: 'cs-jss1a-t1',
-    tenantId,
-    classId: 'JSS 1A',
-    termId: 'term-1',
-    createdAt: now,
-    updatedAt: now,
-  }
-  schedulesStore.set(schedule.id, schedule)
-
-  const entries: Omit<ClassScheduleEntry, 'id' | 'createdAt' | 'updatedAt'>[] = [
-    { scheduleId: 'cs-jss1a-t1', timeSlotId: 'slot-1', subjectId: 'math', subjectName: 'Mathematics', teacherId: 'teacher-femi', teacherName: 'Mr. Femi', dayOfWeek: 1 },
-    { scheduleId: 'cs-jss1a-t1', timeSlotId: 'slot-2', subjectId: 'eng', subjectName: 'English', teacherId: 'teacher-ada', teacherName: 'Ms. Ada', dayOfWeek: 1 },
-    { scheduleId: 'cs-jss1a-t1', timeSlotId: 'slot-1', subjectId: 'eng', subjectName: 'English', teacherId: 'teacher-ada', teacherName: 'Ms. Ada', dayOfWeek: 2 },
-    { scheduleId: 'cs-jss1a-t1', timeSlotId: 'slot-2', subjectId: 'math', subjectName: 'Mathematics', teacherId: 'teacher-femi', teacherName: 'Mr. Femi', dayOfWeek: 2 },
-  ]
-  for (const e of entries) {
-    const id = randomUUID()
-    entriesStore.set(id, { id, ...e, createdAt: now, updatedAt: now })
-  }
+function rowToSchedule(r: any): ClassSchedule {
+  return { id: r.id, tenantId: r.tenant_id, classId: r.class_id, termId: r.term_id, createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
+}
+function rowToEntry(r: any): ClassScheduleEntry {
+  return { id: r.id, scheduleId: r.schedule_id, timeSlotId: r.time_slot_id, subjectId: r.subject_id, subjectName: r.subject_name, teacherId: r.teacher_id, teacherName: r.teacher_name, roomId: r.room_id ?? undefined, dayOfWeek: Number(r.day_of_week), createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
 }
 
-export function getClassSchedules(tenantId: string, classId?: string, termId?: string): ClassSchedule[] {
-  initMockData()
-  let schedules = Array.from(schedulesStore.values()).filter(s => s.tenantId === tenantId)
-  if (classId) schedules = schedules.filter(s => s.classId === classId)
-  if (termId) schedules = schedules.filter(s => s.termId === termId)
-  return schedules
+export async function getClassSchedules(tenantId: string, classId?: string, termId?: string): Promise<ClassSchedule[]> {
+  try {
+    if (classId && termId) {
+      const r = await sql`SELECT * FROM timetable_class_schedules WHERE tenant_id = ${tenantId} AND class_id = ${classId} AND term_id = ${termId}`
+      return r.rows.map(rowToSchedule)
+    } else if (classId) {
+      const r = await sql`SELECT * FROM timetable_class_schedules WHERE tenant_id = ${tenantId} AND class_id = ${classId}`
+      return r.rows.map(rowToSchedule)
+    } else if (termId) {
+      const r = await sql`SELECT * FROM timetable_class_schedules WHERE tenant_id = ${tenantId} AND term_id = ${termId}`
+      return r.rows.map(rowToSchedule)
+    } else {
+      const r = await sql`SELECT * FROM timetable_class_schedules WHERE tenant_id = ${tenantId}`
+      return r.rows.map(rowToSchedule)
+    }
+  } catch { return [] }
 }
 
-export function getClassScheduleById(id: string): (ClassSchedule & { entries: ClassScheduleEntry[] }) | null {
-  initMockData()
-  const schedule = schedulesStore.get(id)
-  if (!schedule) return null
-  const entries = Array.from(entriesStore.values()).filter(e => e.scheduleId === id)
-  return { ...schedule, entries }
+export async function getClassScheduleById(id: string): Promise<(ClassSchedule & { entries: ClassScheduleEntry[] }) | null> {
+  try {
+    const sr = await sql`SELECT * FROM timetable_class_schedules WHERE id = ${id}`
+    if (!sr.rows[0]) return null
+    const er = await sql`SELECT * FROM timetable_class_schedule_entries WHERE schedule_id = ${id}`
+    return { ...rowToSchedule(sr.rows[0]), entries: er.rows.map(rowToEntry) }
+  } catch { return null }
 }
 
-export function createClassSchedule(tenantId: string, classId: string, termId: string): ClassSchedule {
-  initMockData()
-  const now = new Date().toISOString()
-  const schedule: ClassSchedule = { id: randomUUID(), tenantId, classId, termId, createdAt: now, updatedAt: now }
-  schedulesStore.set(schedule.id, schedule)
-  return schedule
+export async function createClassSchedule(tenantId: string, classId: string, termId: string): Promise<ClassSchedule> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_class_schedules (id, tenant_id, class_id, term_id) VALUES (${id}, ${tenantId}, ${classId}, ${termId}) ON CONFLICT (tenant_id, class_id, term_id) DO UPDATE SET updated_at = NOW() RETURNING *`
+  return rowToSchedule(result.rows[0])
 }
 
-export function addScheduleEntry(scheduleId: string, data: Omit<ClassScheduleEntry, 'id' | 'scheduleId' | 'createdAt' | 'updatedAt'>): ClassScheduleEntry {
-  initMockData()
-  const now = new Date().toISOString()
-  const entry: ClassScheduleEntry = { id: randomUUID(), scheduleId, ...data, createdAt: now, updatedAt: now }
-  entriesStore.set(entry.id, entry)
-  return entry
+export async function addScheduleEntry(scheduleId: string, data: Omit<ClassScheduleEntry, 'id' | 'scheduleId' | 'createdAt' | 'updatedAt'>): Promise<ClassScheduleEntry> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO timetable_class_schedule_entries (id, schedule_id, time_slot_id, subject_id, subject_name, teacher_id, teacher_name, room_id, day_of_week) VALUES (${id}, ${scheduleId}, ${data.timeSlotId}, ${data.subjectId}, ${data.subjectName}, ${data.teacherId}, ${data.teacherName}, ${data.roomId ?? null}, ${data.dayOfWeek}) RETURNING *`
+  return rowToEntry(result.rows[0])
 }
 
-export function updateScheduleEntry(entryId: string, data: Partial<ClassScheduleEntry>): ClassScheduleEntry | null {
-  initMockData()
-  const entry = entriesStore.get(entryId)
-  if (!entry) return null
-  const updated = { ...entry, ...data, updatedAt: new Date().toISOString() }
-  entriesStore.set(entryId, updated)
-  return updated
+export async function updateScheduleEntry(entryId: string, data: Partial<ClassScheduleEntry>): Promise<ClassScheduleEntry | null> {
+  const result = await sql`UPDATE timetable_class_schedule_entries SET time_slot_id = COALESCE(${data.timeSlotId ?? null}, time_slot_id), subject_id = COALESCE(${data.subjectId ?? null}, subject_id), subject_name = COALESCE(${data.subjectName ?? null}, subject_name), teacher_id = COALESCE(${data.teacherId ?? null}, teacher_id), teacher_name = COALESCE(${data.teacherName ?? null}, teacher_name), room_id = COALESCE(${data.roomId ?? null}, room_id), day_of_week = COALESCE(${data.dayOfWeek ?? null}, day_of_week), updated_at = NOW() WHERE id = ${entryId} RETURNING *`
+  return result.rows[0] ? rowToEntry(result.rows[0]) : null
 }
 
-export function deleteScheduleEntry(entryId: string): boolean {
-  return entriesStore.delete(entryId)
+export async function deleteScheduleEntry(entryId: string): Promise<boolean> {
+  const result = await sql`DELETE FROM timetable_class_schedule_entries WHERE id = ${entryId}`
+  return (result.rowCount ?? 0) > 0
 }
 
-export function isTeacherAvailable(teacherId: string, timeSlotId: string, dayOfWeek: number, excludeEntryId?: string): boolean {
-  initMockData()
-  return !Array.from(entriesStore.values()).some(e => {
-    if (excludeEntryId && e.id === excludeEntryId) return false
-    return e.teacherId === teacherId && e.timeSlotId === timeSlotId && e.dayOfWeek === dayOfWeek
-  })
+export async function isTeacherAvailable(teacherId: string, timeSlotId: string, dayOfWeek: number, excludeEntryId?: string): Promise<boolean> {
+  const result = excludeEntryId
+    ? await sql`SELECT 1 FROM timetable_class_schedule_entries WHERE teacher_id = ${teacherId} AND time_slot_id = ${timeSlotId} AND day_of_week = ${dayOfWeek} AND id != ${excludeEntryId} LIMIT 1`
+    : await sql`SELECT 1 FROM timetable_class_schedule_entries WHERE teacher_id = ${teacherId} AND time_slot_id = ${timeSlotId} AND day_of_week = ${dayOfWeek} LIMIT 1`
+  return result.rows.length === 0
 }

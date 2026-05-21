@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { sql, db } from '@vercel/postgres';
 
 export interface PromotionRecord {
   id: string;
@@ -135,53 +135,19 @@ export async function fetchPromotionRecords(academicSession?: string, term?: str
   try {
     await ensurePromotionTables();
 
-    let query = sql<PromotionRecord>`
-      SELECT
-        id,
-        student_id as "studentId",
-        student_name as "studentName",
-        from_class as "fromClass",
-        to_class as "toClass",
-        action,
-        academic_session as "academicSession",
-        term,
-        average_score as "averageScore",
-        attendance,
-        teacher_recommendation as "teacherRecommendation",
-        reason,
-        status,
-        approved_by as "approvedBy",
-        approved_at as "approvedAt",
-        created_at as "createdAt",
-        updated_at as "updatedAt"
-      FROM promotion_records
-    `;
-
-    const conditions = [];
-    const values = [];
-
-    if (academicSession) {
-      conditions.push(`academic_session = $${conditions.length + 1}`);
-      values.push(academicSession);
+    if (academicSession && term && fromClass) {
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE academic_session = ${academicSession} AND term = ${term} AND from_class = ${fromClass} ORDER BY created_at DESC`;
+      return r.rows as unknown as PromotionRecord[];
+    } else if (academicSession && term) {
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE academic_session = ${academicSession} AND term = ${term} ORDER BY created_at DESC`;
+      return r.rows as unknown as PromotionRecord[];
+    } else if (academicSession) {
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE academic_session = ${academicSession} ORDER BY created_at DESC`;
+      return r.rows as unknown as PromotionRecord[];
+    } else {
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records ORDER BY created_at DESC`;
+      return r.rows as unknown as PromotionRecord[];
     }
-    if (term) {
-      conditions.push(`term = $${conditions.length + 1}`);
-      values.push(term);
-    }
-    if (fromClass) {
-      conditions.push(`from_class = $${conditions.length + 1}`);
-      values.push(fromClass);
-    }
-
-    if (conditions.length > 0) {
-      query = sql<PromotionRecord>`${query} WHERE ${sql.raw(conditions.join(' AND '))}`;
-      query.values = values;
-    }
-
-    query = sql<PromotionRecord>`${query} ORDER BY created_at DESC`;
-
-    const result = await query;
-    return result.rows;
   } catch (error) {
     console.error('Error fetching promotion records:', error);
     return [];
@@ -251,64 +217,32 @@ export async function createBulkPromotionRecords(records: PromotionPayload[]): P
 export async function updatePromotionRecord(id: string, updates: Partial<PromotionPayload & { status: string; approvedBy?: string }>): Promise<PromotionRecord | null> {
   try {
     await ensurePromotionTables();
-
-    const updateFields = [];
-    const values = [];
-    let paramIndex = 1;
-
-    // Handle different types of updates
-    if (updates.action !== undefined) {
-      updateFields.push(`action = $${paramIndex++}`);
-      values.push(updates.action);
-    }
-    if (updates.toClass !== undefined) {
-      updateFields.push(`to_class = $${paramIndex++}`);
-      values.push(updates.toClass);
-    }
-    if (updates.reason !== undefined) {
-      updateFields.push(`reason = $${paramIndex++}`);
-      values.push(updates.reason);
-    }
-    if (updates.status !== undefined) {
-      updateFields.push(`status = $${paramIndex++}`);
-      values.push(updates.status);
-      if (updates.status === 'approved' && updates.approvedBy) {
-        updateFields.push(`approved_by = $${paramIndex++}, approved_at = NOW()`);
-        values.push(updates.approvedBy);
+    const client = await db.connect();
+    try {
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      let i = 1;
+      if (updates.action !== undefined) { setClauses.push(`action = $${i++}`); values.push(updates.action); }
+      if (updates.toClass !== undefined) { setClauses.push(`to_class = $${i++}`); values.push(updates.toClass); }
+      if (updates.reason !== undefined) { setClauses.push(`reason = $${i++}`); values.push(updates.reason); }
+      if (updates.status !== undefined) {
+        setClauses.push(`status = $${i++}`);
+        values.push(updates.status);
+        if (updates.status === 'approved' && updates.approvedBy) {
+          setClauses.push(`approved_by = $${i++}`, `approved_at = NOW()`);
+          values.push(updates.approvedBy);
+        }
       }
+      if (setClauses.length === 0) throw new Error('No fields to update');
+      values.push(id);
+      const result = await client.query(
+        `UPDATE promotion_records SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt"`,
+        values
+      );
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } finally {
+      client.release();
     }
-
-    if (updateFields.length === 0) {
-      throw new Error('No fields to update');
-    }
-
-    values.push(id); // Add ID at the end
-
-    const result = await sql<PromotionRecord>`
-      UPDATE promotion_records
-      SET ${sql.raw(updateFields.join(', '))}, updated_at = NOW()
-      WHERE id = $${paramIndex}
-      RETURNING
-        id,
-        student_id as "studentId",
-        student_name as "studentName",
-        from_class as "fromClass",
-        to_class as "toClass",
-        action,
-        academic_session as "academicSession",
-        term,
-        average_score as "averageScore",
-        attendance,
-        teacher_recommendation as "teacherRecommendation",
-        reason,
-        status,
-        approved_by as "approvedBy",
-        approved_at as "approvedAt",
-        created_at as "createdAt",
-        updated_at as "updatedAt"
-    `;
-
-    return result.rows.length > 0 ? result.rows[0] : null;
   } catch (error) {
     console.error('Error updating promotion record:', error);
     throw new Error('Failed to update promotion record');
@@ -342,49 +276,25 @@ export async function fetchPromotionRules(): Promise<PromotionRule[]> {
 export async function updatePromotionRule(id: string, updates: Partial<PromotionRule>): Promise<PromotionRule | null> {
   try {
     await ensurePromotionTables();
-
-    const updateFields = [];
-    const values = [];
-    let paramIndex = 1;
-
-    if (updates.name !== undefined) {
-      updateFields.push(`name = $${paramIndex++}`);
-      values.push(updates.name);
+    const client = await db.connect();
+    try {
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      let i = 1;
+      if (updates.name !== undefined) { setClauses.push(`name = $${i++}`); values.push(updates.name); }
+      if (updates.conditions !== undefined) { setClauses.push(`conditions = $${i++}`); values.push(JSON.stringify(updates.conditions)); }
+      if (updates.action !== undefined) { setClauses.push(`action = $${i++}`); values.push(updates.action); }
+      if (updates.isActive !== undefined) { setClauses.push(`is_active = $${i++}`); values.push(updates.isActive); }
+      if (setClauses.length === 0) throw new Error('No fields to update');
+      values.push(id);
+      const result = await client.query(
+        `UPDATE promotion_rules SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING id, name, conditions, action, is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"`,
+        values
+      );
+      return result.rows.length > 0 ? result.rows[0] : null;
+    } finally {
+      client.release();
     }
-    if (updates.conditions !== undefined) {
-      updateFields.push(`conditions = $${paramIndex++}`);
-      values.push(JSON.stringify(updates.conditions));
-    }
-    if (updates.action !== undefined) {
-      updateFields.push(`action = $${paramIndex++}`);
-      values.push(updates.action);
-    }
-    if (updates.isActive !== undefined) {
-      updateFields.push(`is_active = $${paramIndex++}`);
-      values.push(updates.isActive);
-    }
-
-    if (updateFields.length === 0) {
-      throw new Error('No fields to update');
-    }
-
-    values.push(id); // Add ID at the end
-
-    const result = await sql<PromotionRule>`
-      UPDATE promotion_rules
-      SET ${sql.raw(updateFields.join(', '))}, updated_at = NOW()
-      WHERE id = $${paramIndex}
-      RETURNING
-        id,
-        name,
-        conditions,
-        action,
-        is_active as "isActive",
-        created_at as "createdAt",
-        updated_at as "updatedAt"
-    `;
-
-    return result.rows.length > 0 ? result.rows[0] : null;
   } catch (error) {
     console.error('Error updating promotion rule:', error);
     throw new Error('Failed to update promotion rule');

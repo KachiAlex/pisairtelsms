@@ -902,8 +902,8 @@ export function QuestionBankTab() {
                       disabled={subjects.length === 0}
                     >
                       <option value="">{subjects.length === 0 ? 'No subjects available' : 'Select a subject'}</option>
-                      {subjects.map((s) => (
-                        <option key={s} value={s}>
+                      {subjects.map((s, idx) => (
+                        <option key={`${s}-${idx}`} value={s}>
                           {s}
                         </option>
                       ))}
@@ -976,8 +976,8 @@ export function QuestionBankTab() {
                         disabled={subjects.length === 0}
                       >
                         <option value="">{subjects.length === 0 ? 'Add subjects first' : 'Use from CSV'}</option>
-                        {subjects.map((s) => (
-                          <option key={s} value={s}>
+                        {subjects.map((s, idx) => (
+                          <option key={`${s}-${idx}`} value={s}>
                             {s}
                           </option>
                         ))}

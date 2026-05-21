@@ -38,7 +38,7 @@ export function StaffDirectory() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '',
-    hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active'
+    hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active', defaultPassword: ''
   })
 
   useEffect(() => { fetchStaff() }, [])
@@ -60,7 +60,7 @@ export function StaffDirectory() {
 
   const openAdd = () => {
     setEditingStaff(null)
-    setForm({ name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '', hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active' })
+    setForm({ name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '', hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active', defaultPassword: '' })
     setShowForm(true)
   }
 
@@ -70,7 +70,7 @@ export function StaffDirectory() {
       name: s.name, role: s.role, department: s.department,
       email: s.email, phone: s.phone, hireDate: s.hireDate,
       salary: s.salary?.toString() || '', qualification: s.qualification || '',
-      gender: s.gender || '', status: s.status
+      gender: s.gender || '', status: s.status, defaultPassword: ''
     })
     setShowForm(true)
   }
@@ -79,7 +79,8 @@ export function StaffDirectory() {
     if (!form.name || !form.role || !form.department || !form.hireDate) return
     setSaving(true)
     try {
-      const payload = { ...form, salary: form.salary ? Number(form.salary) : undefined }
+      const payload: Record<string, unknown> = { ...form, salary: form.salary ? Number(form.salary) : undefined }
+      if (editingStaff) delete payload.defaultPassword
       const url = editingStaff ? `/api/tenant/staff?id=${editingStaff.id}` : '/api/tenant/staff'
       const method = editingStaff ? 'PUT' : 'POST'
       const res = await fetch(url, {
@@ -262,6 +263,18 @@ export function StaffDirectory() {
               <Label>Qualification</Label>
               <Input value={form.qualification} onChange={e => setForm(f => ({ ...f, qualification: e.target.value }))} placeholder="B.Ed, M.Sc, etc." />
             </div>
+            {!editingStaff && (
+              <div className="col-span-2">
+                <Label>Default Password</Label>
+                <Input
+                  type="text"
+                  value={form.defaultPassword}
+                  onChange={e => setForm(f => ({ ...f, defaultPassword: e.target.value }))}
+                  placeholder="Leave blank to auto-generate (e.g. firstname@1234)"
+                />
+                <p className="text-xs text-gray-500 mt-1">Staff will use this to log in to their portal. They can change it later.</p>
+              </div>
+            )}
             <div>
               <Label>Status</Label>
               <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">

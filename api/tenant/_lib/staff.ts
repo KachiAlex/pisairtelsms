@@ -1,4 +1,26 @@
 import { sql } from '@vercel/postgres'
+import crypto from 'crypto'
+
+export async function hashPassword(password: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex')
+    crypto.scrypt(password, salt, 64, (err, derived) => {
+      if (err) reject(err)
+      else resolve(`${salt}:${derived.toString('hex')}`)
+    })
+  })
+}
+
+export async function verifyStaffPassword(password: string, hash: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const [salt, stored] = hash.split(':')
+    if (!salt || !stored) { resolve(false); return }
+    crypto.scrypt(password, salt, 64, (err, derived) => {
+      if (err) reject(err)
+      else resolve(derived.toString('hex') === stored)
+    })
+  })
+}
 
 export interface Staff {
   id: string
@@ -248,6 +270,7 @@ export async function ensureStaffTables(): Promise<void> {
     await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS date_of_birth DATE`
     await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS emergency_contact TEXT`
     await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS emergency_phone TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT`
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_staff_id ON staff(staff_id) WHERE staff_id IS NOT NULL`
     await sql`CREATE INDEX IF NOT EXISTS idx_staff_department ON staff(department)`
     await sql`CREATE INDEX IF NOT EXISTS idx_staff_status ON staff(status)`
@@ -347,18 +370,32 @@ export async function fetchStaffById(id: string): Promise<Staff | null> {
   }
 }
 
-export async function createStaffMember(payload: StaffPayload): Promise<Staff> {
+export async function fetchStaffByEmail(email: string): Promise<(Staff & { passwordHash: string | null }) | null> {
+  await ensureStaffTables()
+  try {
+    const result = await sql<StaffRow & { password_hash: string | null }>`SELECT * FROM staff WHERE email = ${email} LIMIT 1`
+    if (!result.rows[0]) return null
+    return { ...rowToStaff(result.rows[0]), passwordHash: result.rows[0].password_hash }
+  } catch (error) {
+    console.error('Error fetching staff by email:', error)
+    return null
+  }
+}
+
+export async function createStaffMember(payload: StaffPayload & { defaultPassword?: string }): Promise<Staff> {
   await ensureStaffTables()
   const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const staffId = payload.staffId || `STF${Date.now().toString().slice(-6)}`
+  const rawPassword = payload.defaultPassword || `${payload.name.split(' ')[0].toLowerCase()}@${Date.now().toString().slice(-4)}`
+  const passwordHash = await hashPassword(rawPassword)
   const result = await sql<StaffRow>`
     INSERT INTO staff (id, staff_id, name, role, department, status, email, phone, hire_date,
-                       salary, address, qualification, gender, date_of_birth, emergency_contact, emergency_phone)
+                       salary, address, qualification, gender, date_of_birth, emergency_contact, emergency_phone, password_hash)
     VALUES (${id}, ${staffId}, ${payload.name}, ${payload.role}, ${payload.department},
             ${payload.status || 'active'}, ${payload.email}, ${payload.phone}, ${payload.hireDate},
             ${payload.salary ?? null}, ${payload.address ?? null}, ${payload.qualification ?? null},
             ${payload.gender ?? null}, ${payload.dateOfBirth ?? null},
-            ${payload.emergencyContact ?? null}, ${payload.emergencyPhone ?? null})
+            ${payload.emergencyContact ?? null}, ${payload.emergencyPhone ?? null}, ${passwordHash})
     RETURNING *
   `
   return rowToStaff(result.rows[0])

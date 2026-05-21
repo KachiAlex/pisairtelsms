@@ -42,21 +42,34 @@ interface NewLeaveRequestResponse {
 }
 
 function extractStaffIdFromToken(req: VercelRequest): string | null {
+  // Prefer x-user-id header (set by tenantApi and auth storage)
+  const xUserId = req.headers['x-user-id'];
+  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
+    return xUserId.trim();
+  }
+
+  // Fall back to JWT Bearer token
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
 
   const token = authHeader.substring(7);
+  if (!token) return null;
+
+  // Try to decode as JWT
   try {
     const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    return payload.staffId || payload.userId || payload.sub || null;
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      return payload.staffId || payload.userId || payload.sub || null;
+    }
   } catch {
-    return null;
+    // not a JWT
   }
+
+  // Accept any non-empty opaque token as the staff identifier
+  return token || null;
 }
 
 function parseBody(req: VercelRequest): Promise<any> {

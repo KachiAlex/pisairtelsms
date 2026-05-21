@@ -43,7 +43,9 @@ export function LeaveManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const auth = localStorage.getItem('auth')
-  const token = auth ? JSON.parse(auth).token : null
+  const authParsed = auth ? JSON.parse(auth) : null
+  const token = authParsed?.token ?? null
+  const userId = authParsed?.userId ?? null
 
   // Fetch leave data
   useEffect(() => {
@@ -60,6 +62,7 @@ export function LeaveManagement() {
         const response = await fetch('/api/staff/leave', {
           headers: {
             Authorization: `Bearer ${token}`,
+            ...(userId ? { 'x-user-id': userId } : {}),
           },
         })
 
@@ -118,6 +121,7 @@ export function LeaveManagement() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          ...(userId ? { 'x-user-id': userId } : {}),
         },
         body: JSON.stringify(formData),
       })
@@ -140,6 +144,7 @@ export function LeaveManagement() {
       const refreshResponse = await fetch('/api/staff/leave', {
         headers: {
           Authorization: `Bearer ${token}`,
+          ...(userId ? { 'x-user-id': userId } : {}),
         },
       })
       if (refreshResponse.ok) {

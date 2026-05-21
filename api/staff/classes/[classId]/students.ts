@@ -12,21 +12,30 @@ interface ClassStudentsResponse {
 }
 
 function extractStaffIdFromToken(req: VercelRequest): string | null {
+  const xUserId = req.headers['x-user-id'];
+  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
+    return xUserId.trim();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
 
   const token = authHeader.substring(7);
+  if (!token) return null;
+
   try {
     const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    return payload.staffId || payload.userId || payload.sub || null;
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      return payload.staffId || payload.userId || payload.sub || null;
+    }
   } catch {
-    return null;
+    // not a JWT
   }
+
+  return token || null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

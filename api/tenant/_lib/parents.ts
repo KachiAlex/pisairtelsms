@@ -165,7 +165,7 @@ async function sendParentInviteEmail(payload: SendInvitePayload): Promise<void> 
   }
 
   const body = {
-    from: process.env.EMAIL_FROM || 'ScholarX <noreply@scholarx-app.vercel.app>',
+    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
     to: [email],
     subject: 'Your Parent Portal Access',
     html: `

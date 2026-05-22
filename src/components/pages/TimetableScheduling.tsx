@@ -242,8 +242,8 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
         const conflictsData = await conflictsRes.json()
         const requestsData = await requestsRes.json()
         const publishData = await publishRes.json()
-        const rawConflicts = conflictsData.data || []
-        const rawRequests = requestsData.data || []
+        const rawConflicts = Array.isArray(conflictsData.data) ? conflictsData.data : []
+        const rawRequests = Array.isArray(requestsData.data) ? requestsData.data : []
         setLiveConflicts(rawConflicts.map((c: { id: string; conflictType: string; owner: string; impact: string; severity: Severity }) => ({
           id: c.id, type: c.conflictType, owner: c.owner, impact: c.impact, severity: c.severity,
         })))

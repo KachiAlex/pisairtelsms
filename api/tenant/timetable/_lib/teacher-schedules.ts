@@ -38,6 +38,13 @@ export async function getTeacherSchedules(tenantId: string, teacherId?: string, 
   } catch { return [] }
 }
 
+export async function getTeacherScheduleById(id: string): Promise<TeacherSchedule | null> {
+  try {
+    const result = await sql`SELECT * FROM timetable_teacher_schedules WHERE id = ${id}`
+    return result.rows[0] ? rowToSchedule(result.rows[0]) : null
+  } catch { return null }
+}
+
 export async function createTeacherSchedule(tenantId: string, data: Omit<TeacherSchedule, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<TeacherSchedule> {
   const id = randomUUID()
   const result = await sql`INSERT INTO timetable_teacher_schedules (id, tenant_id, teacher_id, teacher_name, term_id, class_id, subject_id, subject_name, time_slot_id, day_of_week) VALUES (${id}, ${tenantId}, ${data.teacherId}, ${data.teacherName}, ${data.termId}, ${data.classId}, ${data.subjectId}, ${data.subjectName}, ${data.timeSlotId}, ${data.dayOfWeek}) RETURNING *`

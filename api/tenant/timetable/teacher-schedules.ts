@@ -15,20 +15,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (method === 'GET') {
     if (id) {
-      const schedule = getTeacherScheduleById(id)
+      const schedule = await getTeacherScheduleById(id)
       if (!schedule) return res.status(404).json({ error: 'Teacher schedule not found' })
       return res.status(200).json({ data: schedule })
     }
     const teacherId = query.teacherId as string | undefined
     const termId = query.termId as string | undefined
-    return res.status(200).json({ data: getTeacherSchedules(TENANT_ID, teacherId, termId) })
+    const schedules = await getTeacherSchedules(TENANT_ID, teacherId, termId)
+    return res.status(200).json({ data: schedules })
   }
 
   if (method === 'PUT') {
     if (!id) return res.status(400).json({ error: 'id query param is required' })
     const body = parseBody(req)
     if (!body) return res.status(400).json({ error: 'Request body is required' })
-    const updated = updateTeacherSchedule(id, body)
+    const updated = await updateTeacherSchedule(id, body)
     if (!updated) return res.status(404).json({ error: 'Teacher schedule not found' })
     return res.status(200).json({ data: updated })
   }

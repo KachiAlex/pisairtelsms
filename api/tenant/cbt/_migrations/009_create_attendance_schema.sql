@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS absence_reasons (
   UNIQUE(tenant_id, reason_name)
 );
 
-CREATE INDEX idx_absence_reasons_tenant ON absence_reasons(tenant_id);
-CREATE INDEX idx_absence_reasons_active ON absence_reasons(is_active);
+CREATE INDEX IF NOT EXISTS idx_absence_reasons_tenant ON absence_reasons(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_absence_reasons_active ON absence_reasons(is_active);
 
 -- ============================================================================
 -- 2. BIOMETRIC_DEVICES TABLE
@@ -44,10 +44,10 @@ CREATE TABLE IF NOT EXISTS biometric_devices (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_device_tenant ON biometric_devices(tenant_id);
-CREATE INDEX idx_device_status ON biometric_devices(status);
-CREATE INDEX idx_device_sync_status ON biometric_devices(sync_status);
-CREATE INDEX idx_device_serial_number ON biometric_devices(serial_number);
+CREATE INDEX IF NOT EXISTS idx_device_tenant ON biometric_devices(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_device_status ON biometric_devices(status);
+CREATE INDEX IF NOT EXISTS idx_device_sync_status ON biometric_devices(sync_status);
+CREATE INDEX IF NOT EXISTS idx_device_serial_number ON biometric_devices(serial_number);
 
 -- ============================================================================
 -- 3. ATTENDANCE_RECORDS TABLE
@@ -72,15 +72,15 @@ CREATE TABLE IF NOT EXISTS attendance_records (
   UNIQUE(tenant_id, student_id, date)
 );
 
-CREATE INDEX idx_attendance_student_date ON attendance_records(student_id, date);
-CREATE INDEX idx_attendance_class_date ON attendance_records(class, date);
-CREATE INDEX idx_attendance_device ON attendance_records(device_id);
-CREATE INDEX idx_attendance_source ON attendance_records(source);
-CREATE INDEX idx_attendance_tenant ON attendance_records(tenant_id);
-CREATE INDEX idx_attendance_status ON attendance_records(status);
-CREATE INDEX idx_attendance_academic_session ON attendance_records(academic_session);
-CREATE INDEX idx_attendance_term ON attendance_records(term);
-CREATE INDEX idx_attendance_date ON attendance_records(date);
+CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records(student_id, date);
+CREATE INDEX IF NOT EXISTS idx_attendance_class_date ON attendance_records(class, date);
+CREATE INDEX IF NOT EXISTS idx_attendance_device ON attendance_records(device_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_source ON attendance_records(source);
+CREATE INDEX IF NOT EXISTS idx_attendance_tenant ON attendance_records(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance_records(status);
+CREATE INDEX IF NOT EXISTS idx_attendance_academic_session ON attendance_records(academic_session);
+CREATE INDEX IF NOT EXISTS idx_attendance_term ON attendance_records(term);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_records(date);
 
 -- ============================================================================
 -- 4. ATTENDANCE_AUDIT_TRAIL TABLE
@@ -95,10 +95,10 @@ CREATE TABLE IF NOT EXISTS attendance_audit_trail (
   changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_audit_record ON attendance_audit_trail(attendance_record_id);
-CREATE INDEX idx_audit_timestamp ON attendance_audit_trail(changed_at);
-CREATE INDEX idx_audit_action ON attendance_audit_trail(action);
-CREATE INDEX idx_audit_changed_by ON attendance_audit_trail(changed_by);
+CREATE INDEX IF NOT EXISTS idx_audit_record ON attendance_audit_trail(attendance_record_id);
+CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON attendance_audit_trail(changed_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON attendance_audit_trail(action);
+CREATE INDEX IF NOT EXISTS idx_audit_changed_by ON attendance_audit_trail(changed_by);
 
 -- ============================================================================
 -- 5. DEVICE_ENROLLMENT TABLE
@@ -113,9 +113,9 @@ CREATE TABLE IF NOT EXISTS device_enrollment (
   UNIQUE(device_id, biometric_id)
 );
 
-CREATE INDEX idx_enrollment_device ON device_enrollment(device_id);
-CREATE INDEX idx_enrollment_student ON device_enrollment(student_id);
-CREATE INDEX idx_enrollment_biometric_id ON device_enrollment(biometric_id);
+CREATE INDEX IF NOT EXISTS idx_enrollment_device ON device_enrollment(device_id);
+CREATE INDEX IF NOT EXISTS idx_enrollment_student ON device_enrollment(student_id);
+CREATE INDEX IF NOT EXISTS idx_enrollment_biometric_id ON device_enrollment(biometric_id);
 
 -- ============================================================================
 -- 6. DEVICE_SYNC_LOGS TABLE
@@ -131,9 +131,9 @@ CREATE TABLE IF NOT EXISTS device_sync_logs (
   sync_duration_ms INTEGER
 );
 
-CREATE INDEX idx_sync_logs_device ON device_sync_logs(device_id);
-CREATE INDEX idx_sync_logs_timestamp ON device_sync_logs(sync_timestamp);
-CREATE INDEX idx_sync_logs_status ON device_sync_logs(status);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_device ON device_sync_logs(device_id);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_timestamp ON device_sync_logs(sync_timestamp);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_status ON device_sync_logs(status);
 
 -- ============================================================================
 -- CONSTRAINTS AND VALIDATIONS
@@ -152,6 +152,3 @@ END $$;
 -- ============================================================================
 -- MIGRATION METADATA
 -- ============================================================================
-INSERT INTO schema_migrations (version, description) 
-VALUES (9, 'Create attendance logging system schema')
-ON CONFLICT DO NOTHING;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Settings, Calendar, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs'
+import { AcademicYearManager } from './AcademicYearManager'
 import { TermManager } from './TermManager'
 import { HolidayManager } from './HolidayManager'
 import { ExamPeriodManager } from './ExamPeriodManager'
@@ -118,6 +119,7 @@ export function ConfigureTab() {
         </TabsList>
 
         <TabsContent value="calendar" className="space-y-6 mt-4">
+          <AcademicYearManager terms={terms} onRefresh={fetchAll} />
           <TermManager terms={terms} onRefresh={fetchAll} />
           <HolidayManager holidays={holidays} terms={terms} onRefresh={fetchAll} />
           <ExamPeriodManager examPeriods={examPeriods} terms={terms} onRefresh={fetchAll} />

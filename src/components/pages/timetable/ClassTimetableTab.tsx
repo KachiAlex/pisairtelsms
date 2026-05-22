@@ -149,7 +149,7 @@ export function ClassTimetableTab() {
         <Button variant="outline" size="sm" onClick={loadSchedule}>
           <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setShowAutoSchedule(true)} className="border-blue-200 text-blue-600 hover:bg-blue-50">
+        <Button variant="outline" size="sm" onClick={() => setShowAutoSchedule(true)} disabled={!selectedTerm} className="border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50">
           <Wand2 className="h-4 w-4 mr-1" /> Auto Schedule
         </Button>
       </div>

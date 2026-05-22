@@ -65,6 +65,10 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
   }
 
   async function handleAutoSchedule() {
+    if (!classId || !termId) {
+      setError('Class and term must be selected')
+      return
+    }
     if (subjects.length === 0) {
       setError('Add at least one subject')
       return

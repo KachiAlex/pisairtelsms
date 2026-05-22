@@ -243,6 +243,10 @@ export async function updateStudent(
       updates.push(`phone = $${paramIndex++}`);
       values.push(studentData.phone);
     }
+    if (studentData.guardianEmail !== undefined) {
+      updates.push(`guardian_email = $${paramIndex++}`);
+      values.push(studentData.guardianEmail ?? null);
+    }
 
     if (updates.length === 0) {
       return getStudent(id, tenantId);
@@ -254,11 +258,28 @@ export async function updateStudent(
       `UPDATE students
        SET ${updates.join(', ')}
        WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-       RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, created_at, updated_at`,
+       RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email, created_at, updated_at`,
       values
     );
 
-    return row ? rowToDTO(row) : null;
+    if (!row) return null;
+    const dto = rowToDTO(row);
+
+    if (studentData.guardianEmail) {
+      try {
+        await createOrLinkParent({
+          tenantId,
+          studentId: dto.id,
+          guardianName: dto.guardian,
+          guardianEmail: studentData.guardianEmail,
+          guardianPhone: dto.phone,
+        });
+      } catch (parentErr) {
+        console.error('Parent provisioning failed (non-fatal):', parentErr);
+      }
+    }
+
+    return dto;
   } catch (error) {
     console.error('Error updating student:', error);
     throw new Error('Failed to update student');

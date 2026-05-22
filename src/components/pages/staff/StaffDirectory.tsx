@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { UserPlus, Search, Edit, Trash2, AlertCircle, X } from 'lucide-react'
+import { UserPlus, Search, Edit, Trash2, AlertCircle, X, KeyRound } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
@@ -36,6 +36,9 @@ export function StaffDirectory() {
   const [showForm, setShowForm] = useState(false)
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
   const [saving, setSaving] = useState(false)
+  const [resetTarget, setResetTarget] = useState<Staff | null>(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetSaving, setResetSaving] = useState(false)
   const [form, setForm] = useState({
     name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '',
     hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active', defaultPassword: ''
@@ -199,6 +202,7 @@ export function StaffDirectory() {
                         <TableCell>
                           <div className="flex gap-1">
                             <Button variant="ghost" size="sm" onClick={() => openEdit(s)}><Edit className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" title="Set Password" onClick={() => { setResetTarget(s); setResetPassword('') }}><KeyRound className="w-4 h-4 text-yellow-600" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => handleDelete(s.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                           </div>
                         </TableCell>
@@ -211,6 +215,52 @@ export function StaffDirectory() {
           </CardContent>
         </Card>
       )}
+
+      {/* Set Password Dialog */}
+      <Dialog open={!!resetTarget} onOpenChange={(open) => { if (!open) setResetTarget(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Set Password — {resetTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label>New Password</Label>
+              <Input
+                type="text"
+                value={resetPassword}
+                onChange={e => setResetPassword(e.target.value)}
+                placeholder="Min 6 characters"
+              />
+              <p className="text-xs text-gray-500 mt-1">Staff will use this to log in. They can change it after login.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setResetTarget(null)}>Cancel</Button>
+              <Button
+                disabled={resetSaving || resetPassword.length < 6}
+                onClick={async () => {
+                  if (!resetTarget) return
+                  setResetSaving(true)
+                  try {
+                    const res = await fetch('/api/tenant/staff/reset-password', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+                      body: JSON.stringify({ id: resetTarget.id, newPassword: resetPassword }),
+                    })
+                    if (!res.ok) throw new Error('Failed')
+                    setResetTarget(null)
+                  } catch {
+                    alert('Failed to set password. Please try again.')
+                  } finally {
+                    setResetSaving(false)
+                  }
+                }}
+              >
+                {resetSaving ? 'Saving...' : 'Set Password'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>

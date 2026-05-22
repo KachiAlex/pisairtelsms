@@ -74,6 +74,7 @@ export default function StudentsList() {
     arm: '',
     guardianName: '',
     guardianPhone: '',
+    guardianEmail: '',
     status: 'Active' as const,
   })
 
@@ -153,6 +154,7 @@ export default function StudentsList() {
       arm: student.arm,
       guardianName: student.guardian,
       guardianPhone: student.phone,
+      guardianEmail: student.guardianEmail || '',
       status: student.status,
     })
     setSelectedStudent(student)
@@ -171,6 +173,7 @@ export default function StudentsList() {
         arm: editStudent.arm,
         guardian: editStudent.guardianName,
         phone: editStudent.guardianPhone,
+        guardianEmail: editStudent.guardianEmail || undefined,
         status: editStudent.status,
       }
 
@@ -753,6 +756,18 @@ export default function StudentsList() {
                   value={editStudent.guardianPhone}
                   onChange={(e) => setEditStudent(prev => ({ ...prev, guardianPhone: e.target.value }))}
                 />
+              </div>
+              <div className="col-span-2">
+                <Label>Guardian Email</Label>
+                <Input
+                  type="email"
+                  placeholder="Enter guardian email"
+                  value={editStudent.guardianEmail}
+                  onChange={(e) => setEditStudent(prev => ({ ...prev, guardianEmail: e.target.value }))}
+                />
+                {!selectedStudent?.guardianEmail && editStudent.guardianEmail && (
+                  <p className="text-xs text-blue-600 mt-1">Saving will provision parent portal access and send an invite email.</p>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">

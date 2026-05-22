@@ -439,6 +439,17 @@ export async function deleteStaffMember(id: string): Promise<boolean> {
   }
 }
 
+export async function resetStaffPassword(id: string, newPassword: string): Promise<boolean> {
+  try {
+    const passwordHash = await hashPassword(newPassword)
+    const result = await sql`UPDATE staff SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${id}`
+    return (result.rowCount ?? 0) > 0
+  } catch (error) {
+    console.error('Error resetting staff password:', error)
+    return false
+  }
+}
+
 // ── Leave ───────────────────────────────────────────────────────────────────
 
 export async function fetchLeaveRequests(staffId?: string, status?: string): Promise<LeaveRequest[]> {

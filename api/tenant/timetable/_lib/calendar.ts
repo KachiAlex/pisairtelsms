@@ -46,8 +46,12 @@ export interface ExamPeriod {
   updatedAt: string
 }
 
+function rowToAcademicYear(r: any): AcademicYear {
+  return { id: r.id, tenantId: r.tenant_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), isCurrent: r.is_current, createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
+}
+
 function rowToTerm(r: any): SchoolTerm {
-  return { id: r.id, tenantId: r.tenant_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), academicYear: r.academic_year, createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
+  return { id: r.id, tenantId: r.tenant_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), academicYear: r.academic_year, academicYearId: r.academic_year_id, createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
 }
 function rowToHoliday(r: any): Holiday {
   return { id: r.id, tenantId: r.tenant_id, termId: r.term_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }

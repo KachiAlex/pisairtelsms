@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS parents (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 CREATE INDEX IF NOT EXISTS idx_parents_email ON parents(email);
 CREATE INDEX IF NOT EXISTS idx_parents_tenant ON parents(tenant_id);
 
@@ -29,9 +30,6 @@ CREATE TABLE IF NOT EXISTS parent_students (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(parent_id, student_id)
 );
+
 CREATE INDEX IF NOT EXISTS idx_parent_students_parent ON parent_students(parent_id);
 CREATE INDEX IF NOT EXISTS idx_parent_students_student ON parent_students(student_id);
-
-INSERT INTO schema_migrations (version, description)
-VALUES (11, 'Create parents schema and guardian_email on students')
-ON CONFLICT DO NOTHING;

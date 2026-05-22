@@ -29,7 +29,7 @@ export function HallAssignmentPanel({ exam, onRefresh }: Props) {
     fetch('/api/tenant/timetable/exam-schedules?halls=true')
       .then(r => r.json())
       .then(d => {
-        const hallList = d.data || []
+        const hallList = Array.isArray(d.data) ? d.data : []
         setHalls(hallList)
         if (hallList.length > 0) setForm(f => f.hallId ? f : { ...f, hallId: hallList[0].id })
       })
@@ -105,11 +105,11 @@ export function HallAssignmentPanel({ exam, onRefresh }: Props) {
           </div>
         )}
 
-        {exam.hallAssignments.length === 0 && !showForm && (
+        {(!exam.hallAssignments || exam.hallAssignments.length === 0) && !showForm && (
           <p className="text-xs text-gray-400 text-center py-2">No halls assigned yet</p>
         )}
 
-        {exam.hallAssignments.map(a => (
+        {(exam.hallAssignments || []).map(a => (
           <div key={a.id} className="flex items-center justify-between text-xs rounded-lg border border-gray-100 p-2">
             <span className="font-medium text-gray-800">{a.hallName}</span>
             <span className="text-gray-500">{a.studentCount} students</span>

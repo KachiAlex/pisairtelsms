@@ -36,8 +36,8 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
       fetch('/api/tenant/staff').then(r => r.json()),
       fetch('/api/tenant/timetable/exam-schedules?halls=true').then(r => r.json()),
     ]).then(([staffData, hallsData]) => {
-      const members = staffData.data || []
-      const hallList = hallsData.data || []
+      const members = Array.isArray(staffData.data) ? staffData.data : []
+      const hallList = Array.isArray(hallsData.data) ? hallsData.data : []
       setStaff(members)
       setHalls(hallList)
       setForm(f => ({
@@ -119,11 +119,11 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
           </div>
         )}
 
-        {exam.invigilators.length === 0 && !showForm && (
+        {(!exam.invigilators || exam.invigilators.length === 0) && !showForm && (
           <p className="text-xs text-gray-400 text-center py-2">No invigilators assigned yet</p>
         )}
 
-        {exam.invigilators.map(inv => (
+        {(exam.invigilators || []).map(inv => (
           <div key={inv.id} className="flex items-center justify-between text-xs rounded-lg border border-gray-100 p-2">
             <span className="font-medium text-gray-800">{inv.staffName}</span>
             <div className="flex items-center gap-2">

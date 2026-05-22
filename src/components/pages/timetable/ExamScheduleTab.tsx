@@ -158,11 +158,11 @@ export function ExamScheduleTab() {
                 <div className="flex items-center gap-3 text-xs text-gray-500">
                   <span className="flex items-center gap-1">
                     <Building2 className="h-3.5 w-3.5" />
-                    {exam.hallAssignments.length} hall{exam.hallAssignments.length !== 1 ? 's' : ''}
+                    {(exam.hallAssignments || []).length} hall{(exam.hallAssignments || []).length !== 1 ? 's' : ''}
                   </span>
                   <span className="flex items-center gap-1">
                     <UserCheck className="h-3.5 w-3.5" />
-                    {exam.invigilators.length} invigilator{exam.invigilators.length !== 1 ? 's' : ''}
+                    {(exam.invigilators || []).length} invigilator{(exam.invigilators || []).length !== 1 ? 's' : ''}
                   </span>
                 </div>
               </div>

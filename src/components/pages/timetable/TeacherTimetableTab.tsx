@@ -46,7 +46,7 @@ export function TeacherTimetableTab() {
     fetch('/api/tenant/staff')
       .then(r => r.json())
       .then(d => {
-        const members: StaffMember[] = d.data || []
+        const members: StaffMember[] = Array.isArray(d.data) ? d.data : []
         setStaff(members)
         if (members.length > 0) setSelectedTeacherId(members[0].id)
       })

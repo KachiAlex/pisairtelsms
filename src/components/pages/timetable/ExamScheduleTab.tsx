@@ -68,7 +68,7 @@ export function ExamScheduleTab() {
       const res = await fetch(`/api/tenant/timetable/exam-schedules?examPeriodId=${selectedPeriod}`)
       const data = await res.json()
       // Fetch full details for each exam
-      const examIds: string[] = (data.data || []).map((e: ExamSchedule) => e.id)
+      const examIds: string[] = Array.isArray(data.data) ? data.data.map((e: ExamSchedule) => e.id) : []
       const details = await Promise.all(
         examIds.map(id => fetch(`/api/tenant/timetable/exam-schedules?examId=${id}`).then(r => r.json()).then(d => d.data))
       )

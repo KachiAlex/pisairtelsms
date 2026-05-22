@@ -61,10 +61,10 @@ export function ConfigureTab() {
       if (!calRes.ok || !slotsRes.ok) throw new Error('Failed to load configuration data')
       const calData = await calRes.json()
       const slotsData = await slotsRes.json()
-      setTerms(calData.data.terms || [])
-      setHolidays(calData.data.holidays || [])
-      setExamPeriods(calData.data.examPeriods || [])
-      setTimeSlots(slotsData.data || [])
+      setTerms(Array.isArray(calData.data?.terms) ? calData.data.terms : [])
+      setHolidays(Array.isArray(calData.data?.holidays) ? calData.data.holidays : [])
+      setExamPeriods(Array.isArray(calData.data?.examPeriods) ? calData.data.examPeriods : [])
+      setTimeSlots(Array.isArray(slotsData.data) ? slotsData.data : [])
     } catch (e) {
       setError('Failed to load configuration. Please try again.')
     } finally {

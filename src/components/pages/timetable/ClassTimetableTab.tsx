@@ -63,9 +63,9 @@ export function ClassTimetableTab() {
         ])
         const calData = await calRes.json()
         const slotsData = await slotsRes.json()
-        const fetchedTerms: Term[] = calData.data?.terms || []
+        const fetchedTerms: Term[] = Array.isArray(calData.data?.terms) ? calData.data.terms : []
         setTerms(fetchedTerms)
-        setTimeSlots((slotsData.data || []).filter((s: TimeSlot) => !s.isBreak))
+        setTimeSlots(Array.isArray(slotsData.data) ? slotsData.data.filter((s: TimeSlot) => !s.isBreak) : [])
         if (fetchedTerms.length > 0) setSelectedTerm(fetchedTerms[0].id)
       } catch {
         setError('Failed to load configuration')

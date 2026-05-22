@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, RefreshCcw } from 'lucide-react'
+import { Plus, RefreshCcw, Wand2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table'
 import { Badge } from '../../ui/badge'
 import { TimetableEntryModal } from './TimetableEntryModal'
+import { AutoScheduleDialog } from './AutoScheduleDialog'
 
 const DAY_HEADERS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const DAY_NUMS = [1, 2, 3, 4, 5]
@@ -53,6 +54,7 @@ export function ClassTimetableTab() {
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [modalSlot, setModalSlot] = useState<{ timeSlotId: string; dayOfWeek: number } | null>(null)
+  const [showAutoSchedule, setShowAutoSchedule] = useState(false)
 
   useEffect(() => {
     async function loadConfig() {
@@ -147,6 +149,9 @@ export function ClassTimetableTab() {
         <Button variant="outline" size="sm" onClick={loadSchedule}>
           <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setShowAutoSchedule(true)} className="border-blue-200 text-blue-600 hover:bg-blue-50">
+          <Wand2 className="h-4 w-4 mr-1" /> Auto Schedule
+        </Button>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -226,6 +231,17 @@ export function ClassTimetableTab() {
           ensureSchedule={ensureScheduleExists}
         />
       )}
+
+      <AutoScheduleDialog
+        classId={selectedClass}
+        termId={selectedTerm}
+        open={showAutoSchedule}
+        onClose={() => setShowAutoSchedule(false)}
+        onScheduled={() => {
+          setShowAutoSchedule(false)
+          loadSchedule()
+        }}
+      />
     </div>
   )
 }

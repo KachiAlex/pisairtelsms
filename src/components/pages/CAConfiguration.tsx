@@ -35,7 +35,9 @@ export function CAConfiguration() {
         const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}`)
         if (response.ok) {
           const config = await response.json()
-          setWeights(config)
+          if (config && typeof config === 'object') {
+            setWeights(config)
+          }
         }
       } catch (error) {
         console.error('Failed to load CA config:', error)
@@ -61,6 +63,7 @@ export function CAConfiguration() {
   }
 
   const validateWeights = (levelWeights: typeof weights.primary) => {
+    if (!levelWeights) return false
     const total = Object.values(levelWeights).reduce((sum, val) => sum + val, 0)
     return total === 100
   }
@@ -123,7 +126,7 @@ export function CAConfiguration() {
   }
 
   const WeightConfigurator = ({ level, levelName }: { level: keyof typeof weights, levelName: string }) => {
-    const levelWeights = weights[level]
+    const levelWeights = weights[level] || defaultWeights[level]
     const isValid = validateWeights(levelWeights)
 
     return (
@@ -143,13 +146,13 @@ export function CAConfiguration() {
             <Alert className="border-amber-200 bg-amber-50">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Weights must total 100%. Current total: {Object.values(levelWeights).reduce((sum, val) => sum + val, 0)}%
+                Weights must total 100%. Current total: {Object.values(levelWeights || {}).reduce((sum, val) => sum + val, 0)}%
               </AlertDescription>
             </Alert>
           )}
 
           <div className="space-y-4">
-            {Object.entries(levelWeights).map(([type, value]) => (
+            {Object.entries(levelWeights || {}).map(([type, value]) => (
               <div key={type} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium capitalize">
@@ -185,7 +188,7 @@ export function CAConfiguration() {
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">Total Weight:</span>
               <span className={`font-semibold ${isValid ? 'text-green-600' : 'text-amber-600'}`}>
-                {Object.values(levelWeights).reduce((sum, val) => sum + val, 0)}%
+                {Object.values(levelWeights || {}).reduce((sum, val) => sum + val, 0)}%
               </span>
             </div>
           </div>
@@ -304,7 +307,7 @@ export function CAConfiguration() {
             </div>
             <p className="text-xs text-gray-500 mt-3">Validation status</p>
             <p className="text-lg font-semibold text-gray-900">
-              {Object.values(weights).every(w => validateWeights(w)) ? 'Valid' : 'Needs fixing'}
+              {weights && Object.values(weights).every(w => validateWeights(w)) ? 'Valid' : 'Needs fixing'}
             </p>
             <p className="text-xs text-gray-500">All weights must = 100%</p>
           </CardContent>

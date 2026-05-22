@@ -65,6 +65,41 @@ export function AcademicYearManager({ terms, onRefresh }: Props) {
   // Note: Academic years are managed through terms. 
   // This UI shows existing years and allows updating all terms with that year.
   
+  async function handleAddYear(year: string) {
+    if (!year.trim()) {
+      setError('Academic year is required')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+
+    try {
+      // Create a default term with the new academic year
+      const res = await fetch('/api/tenant/timetable/calendar?resource=terms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'First Term',
+          academicYear: year,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().split('T')[0],
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create academic year')
+      }
+
+      cancelForm()
+      onRefresh()
+    } catch (e: any) {
+      setError(e.message || 'Failed to create academic year')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleUpdateYear(oldYear: string, newYearValue: string) {
     if (!newYearValue.trim()) {
       setError('Academic year is required')
@@ -139,16 +174,7 @@ export function AcademicYearManager({ terms, onRefresh }: Props) {
               <Button variant="outline" size="sm" onClick={cancelForm}>Cancel</Button>
               <Button 
                 size="sm" 
-                onClick={() => {
-                  if (!newYear.trim()) {
-                    setError('Academic year is required')
-                    return
-                  }
-                  // Just a helper - actual creation happens when creating a term
-                  setShowForm(false)
-                  setNewYear('')
-                  alert(`Academic year "${newYear}" ready. Now create a term with this year.`)
-                }}
+                onClick={() => handleAddYear(newYear)}
                 disabled={saving}
               >
                 {saving ? 'Saving…' : 'Save'}

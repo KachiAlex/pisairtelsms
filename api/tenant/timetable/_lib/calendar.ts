@@ -1,6 +1,17 @@
 import { randomUUID } from 'crypto'
 import { sql } from '@vercel/postgres'
 
+export interface AcademicYear {
+  id: string
+  tenantId: string
+  name: string
+  startDate: string
+  endDate: string
+  isCurrent: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SchoolTerm {
   id: string
   tenantId: string
@@ -8,6 +19,7 @@ export interface SchoolTerm {
   startDate: string
   endDate: string
   academicYear: string
+  academicYearId?: string
   createdAt: string
   updatedAt: string
 }

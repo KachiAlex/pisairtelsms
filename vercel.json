@@ -24,6 +24,8 @@
     { "src": "/api/tenant/timetable/conflicts", "dest": "/api/tenant/timetable/conflicts.ts" },
     { "src": "/api/tenant/timetable/change-requests", "dest": "/api/tenant/timetable/change-requests.ts" },
     { "src": "/api/tenant/timetable/publish", "dest": "/api/tenant/timetable/publish.ts" },
+    { "src": "/api/tenant/finance/fee-structures/([^/]+)/copy", "dest": "/api/tenant/finance/fee-structures.ts" },
+    { "src": "/api/tenant/finance/fee-structures/([^/]+)/history", "dest": "/api/tenant/finance/fee-structures.ts" },
     { "src": "/api/tenant/finance/fee-structures/([^/]+)", "dest": "/api/tenant/finance/fee-structures.ts" },
     { "src": "/api/tenant/finance/fee-structures", "dest": "/api/tenant/finance/fee-structures.ts" },
     { "src": "/api/tenant/finance/fee-assignments", "dest": "/api/tenant/finance/fee-assignments.ts" },

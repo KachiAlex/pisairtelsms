@@ -76,7 +76,8 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
     try {
       const response = await financeApiGet(`/api/tenant/finance/fee-structures/${structure.id}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch fee structure details');
+        const text = await response.text();
+        throw new Error(`Failed to fetch fee structure details: ${response.status} ${text}`);
       }
       const result = await response.json();
       const data = result.data;

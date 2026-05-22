@@ -457,3 +457,64 @@ model DeviceSyncLog {
   @@index([status])
   @@map("device_sync_logs")
 }
+
+// ============================================================================
+// Fee Management Models
+// ============================================================================
+
+model FeeAssignment {
+  id              String   @id @default(cuid())
+  studentId       String
+  feeStructureId  String
+  academicSession String
+  term            String
+  totalAmount     Decimal  @db.Decimal(12, 2)
+  totalPaid       Decimal  @db.Decimal(12, 2) @default(0)
+  totalBalance    Decimal  @db.Decimal(12, 2)
+  status          String   @default("pending") // 'pending', 'partial', 'paid'
+  dueDate         DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([feeStructureId])
+  @@index([academicSession, term])
+  @@map("fee_assignments")
+}
+
+model Exemption {
+  id              String   @id @default(cuid())
+  studentId       String
+  feeAssignmentId String
+  exemptionType   String
+  amount          Decimal? @db.Decimal(12, 2)
+  percentage      Decimal? @db.Decimal(5, 2)
+  reason          String
+  approvedBy      String
+  approvalDate    DateTime @default(now())
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([studentId])
+  @@index([feeAssignmentId])
+  @@map("exemptions")
+}
+
+model StudentPayment {
+  id              String   @id @default(cuid())
+  studentId       String
+  feeStructureId  String
+  amount          Decimal  @db.Decimal(12, 2)
+  paymentMethod   String   // 'cash', 'bank_transfer', 'card', 'pos'
+  reference       String?
+  receiptUrl      String?
+  paidAt          DateTime @default(now())
+  recordedBy      String?
+  notes           String?
+
+  @@index([studentId])
+  @@index([feeStructureId])
+  @@index([paidAt])
+  @@map("student_payments")
+}

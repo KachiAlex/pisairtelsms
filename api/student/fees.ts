@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getStudentFeeSummary, getStudentPayments, getFeeAssignments } from '../../api/tenant/finance/_lib/fee-assignments.js';
+import { getFeeStructureWithItems } from '../../api/tenant/finance/_lib/fee-structures.js';
 
 interface FeeSummary {
   totalFees: number;
@@ -59,32 +61,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
     }
 
-    // TODO: Fetch actual fee data from database filtered by studentId
-    // For now, return mock data
+    // Fetch fee summary from database
+    const feeSummary = await getStudentFeeSummary(studentId);
+
+    // Fetch fee assignments to get due date
+    const assignments = await getFeeAssignments(studentId);
+    const dueDate = assignments.length > 0 ? assignments[0].dueDate : '2025-03-31';
+
     const summary: FeeSummary = {
-      totalFees: 150000,
-      paidAmount: 150000,
-      balance: 0,
-      status: 'paid',
-      dueDate: '2025-03-31',
+      totalFees: feeSummary.totalFees,
+      paidAmount: feeSummary.totalPaid,
+      balance: feeSummary.totalBalance,
+      status: feeSummary.status === 'paid' ? 'paid' : feeSummary.status === 'partial' ? 'partial' : 'unpaid',
+      dueDate,
     };
 
-    const payments: Payment[] = [
-      {
-        date: '2025-01-15',
-        amount: 75000,
-        method: 'Bank Transfer',
-        reference: 'TRF-2025-001',
-        receipt: 'RCP-2025-001',
-      },
-      {
-        date: '2025-01-20',
-        amount: 75000,
-        method: 'Bank Transfer',
-        reference: 'TRF-2025-002',
-        receipt: 'RCP-2025-002',
-      },
-    ];
+    // Fetch payments from database
+    const studentPayments = await getStudentPayments(studentId);
+    const payments: Payment[] = studentPayments.map(p => ({
+      date: p.paidAt.split('T')[0],
+      amount: p.amount,
+      method: p.paymentMethod,
+      reference: p.reference || '',
+      receipt: p.receiptUrl || '',
+    }));
 
     const response: StudentFeesResponse = {
       summary,

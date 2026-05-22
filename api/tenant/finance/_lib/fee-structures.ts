@@ -1,5 +1,6 @@
 import { sql } from '@vercel/postgres'
 import { v4 as uuidv4 } from 'uuid'
+import { createFeeAssignment } from './fee-assignments.js'
 
 export interface FeeItem {
   id: string
@@ -163,6 +164,49 @@ export async function createFeeStructure(
       VALUES
         (${itemId}, ${id}, ${item.category}, ${item.description}, ${item.amount}, ${JSON.stringify(item.applicableClasses)}, ${item.isMandatory}, ${item.sequence})
     `
+  }
+
+  // Auto-assign fee structure to students in applicable classes
+  const allApplicableClasses = new Set<string>()
+  for (const item of feeItems) {
+    for (const className of item.applicableClasses) {
+      allApplicableClasses.add(className)
+    }
+  }
+
+  if (allApplicableClasses.size > 0) {
+    const totalFees = feeItems.reduce((sum, item) => sum + item.amount, 0)
+    const dueDate = effectiveTo || effectiveFrom
+    const studentIds = new Set<string>()
+
+    // Query students for each applicable class
+    for (const className of allApplicableClasses) {
+      const studentsResult = await sql<{ id: string }>`
+        SELECT id FROM students
+        WHERE class = ${className}
+        AND deleted_at IS NULL
+      `
+      for (const student of studentsResult.rows) {
+        studentIds.add(student.id)
+      }
+    }
+
+    // Assign fee structure to all found students
+    for (const studentId of studentIds) {
+      try {
+        await createFeeAssignment(
+          studentId,
+          id,
+          academicSession,
+          term,
+          totalFees,
+          dueDate
+        )
+      } catch (error) {
+        console.error(`Failed to assign fee structure to student ${studentId}:`, error)
+        // Continue with other students even if one fails
+      }
+    }
   }
 
   return feeStructure

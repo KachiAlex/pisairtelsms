@@ -16,6 +16,19 @@ export interface FeeAssignment {
   updatedAt: string
 }
 
+export interface StudentPayment {
+  id: string
+  studentId: string
+  feeStructureId: string
+  amount: number
+  paymentMethod: string
+  reference: string | null
+  receiptUrl: string | null
+  paidAt: string
+  recordedBy: string | null
+  notes: string | null
+}
+
 export interface Exemption {
   id: string
   studentId: string
@@ -44,6 +57,19 @@ interface FeeAssignmentRow {
   due_date: Date
   created_at: Date
   updated_at: Date
+}
+
+interface StudentPaymentRow {
+  id: string
+  student_id: string
+  fee_structure_id: string
+  amount: string
+  payment_method: string
+  reference: string | null
+  receipt_url: string | null
+  paid_at: Date
+  recorded_by: string | null
+  notes: string | null
 }
 
 interface ExemptionRow {
@@ -75,6 +101,21 @@ function rowToFeeAssignment(row: FeeAssignmentRow): FeeAssignment {
     dueDate: row.due_date.toISOString().split('T')[0],
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+function rowToStudentPayment(row: StudentPaymentRow): StudentPayment {
+  return {
+    id: row.id,
+    studentId: row.student_id,
+    feeStructureId: row.fee_structure_id,
+    amount: parseFloat(row.amount),
+    paymentMethod: row.payment_method,
+    reference: row.reference,
+    receiptUrl: row.receipt_url,
+    paidAt: row.paid_at.toISOString(),
+    recordedBy: row.recorded_by,
+    notes: row.notes,
   }
 }
 
@@ -135,6 +176,24 @@ export async function ensureFeeAssignmentTables(): Promise<void> {
     `
     await sql`CREATE INDEX IF NOT EXISTS idx_exemptions_student_id ON exemptions(student_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_exemptions_fee_assignment_id ON exemptions(fee_assignment_id)`
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS student_payments (
+        id TEXT PRIMARY KEY,
+        student_id TEXT NOT NULL,
+        fee_structure_id TEXT NOT NULL,
+        amount NUMERIC(12,2) NOT NULL,
+        payment_method TEXT NOT NULL,
+        reference TEXT,
+        receipt_url TEXT,
+        paid_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        recorded_by TEXT,
+        notes TEXT
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_student_payments_student_id ON student_payments(student_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_student_payments_fee_structure_id ON student_payments(fee_structure_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_student_payments_paid_at ON student_payments(paid_at)`
   } catch (error) {
     console.error('Error ensuring fee assignment tables:', error)
   }
@@ -281,5 +340,95 @@ export async function getFeeAssignmentLedger(feeAssignmentId: string): Promise<{
   return {
     assignment,
     exemptions,
+  }
+}
+
+export async function createPayment(
+  studentId: string,
+  feeStructureId: string,
+  amount: number,
+  paymentMethod: string,
+  reference: string | null,
+  receiptUrl: string | null,
+  recordedBy: string | null,
+  notes: string | null
+): Promise<StudentPayment> {
+  await ensureFeeAssignmentTables()
+  const id = uuidv4()
+
+  const result = await sql<StudentPaymentRow>`
+    INSERT INTO student_payments
+      (id, student_id, fee_structure_id, amount, payment_method, reference, receipt_url, recorded_by, notes)
+    VALUES
+      (${id}, ${studentId}, ${feeStructureId}, ${amount}, ${paymentMethod}, ${reference}, ${receiptUrl}, ${recordedBy}, ${notes})
+    RETURNING *
+  `
+
+  // Update fee assignment totals
+  await sql`
+    UPDATE fee_assignments
+    SET
+      total_paid = total_paid + ${amount},
+      total_balance = total_balance - ${amount},
+      status = CASE
+        WHEN total_balance - ${amount} <= 0 THEN 'paid'
+        ELSE 'partial'
+      END,
+      updated_at = NOW()
+    WHERE student_id = ${studentId} AND fee_structure_id = ${feeStructureId}
+  `
+
+  return rowToStudentPayment(result.rows[0])
+}
+
+export async function getStudentPayments(
+  studentId: string,
+  feeStructureId?: string
+): Promise<StudentPayment[]> {
+  await ensureFeeAssignmentTables()
+
+  let query = sql<StudentPaymentRow>`
+    SELECT * FROM student_payments WHERE student_id = ${studentId}
+  `
+
+  if (feeStructureId) {
+    query = sql<StudentPaymentRow>`
+      SELECT * FROM student_payments
+      WHERE student_id = ${studentId} AND fee_structure_id = ${feeStructureId}
+    `
+  }
+
+  const result = await query
+  return result.rows.map(rowToStudentPayment)
+}
+
+export async function getStudentFeeSummary(studentId: string): Promise<{
+  totalFees: number
+  totalPaid: number
+  totalBalance: number
+  status: 'pending' | 'partial' | 'paid'
+}> {
+  await ensureFeeAssignmentTables()
+
+  const result = await sql<{ total_amount: string; total_paid: string; total_balance: string; status: string }>`
+    SELECT
+      COALESCE(SUM(total_amount), 0) as total_amount,
+      COALESCE(SUM(total_paid), 0) as total_paid,
+      COALESCE(SUM(total_balance), 0) as total_balance,
+      CASE
+        WHEN COALESCE(SUM(total_balance), 0) = 0 THEN 'paid'
+        WHEN COALESCE(SUM(total_paid), 0) = 0 THEN 'pending'
+        ELSE 'partial'
+      END as status
+    FROM fee_assignments
+    WHERE student_id = ${studentId}
+  `
+
+  const row = result.rows[0]
+  return {
+    totalFees: parseFloat(row.total_amount),
+    totalPaid: parseFloat(row.total_paid),
+    totalBalance: parseFloat(row.total_balance),
+    status: row.status as 'pending' | 'partial' | 'paid',
   }
 }

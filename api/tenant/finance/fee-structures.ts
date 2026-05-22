@@ -10,7 +10,7 @@ import {
 } from './_lib/fee-structures.js'
 
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,POST,PUT')
+  res.setHeader('Allow', 'GET,POST,PUT,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -179,6 +179,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       console.error('Error copying fee structure:', error)
       return res.status(500).json({ error: 'Failed to copy fee structure' })
+    }
+  }
+
+  // DELETE /api/tenant/finance/fee-structures/:id
+  if (req.method === 'DELETE' && id && !action) {
+    try {
+      const { sql } = await import('@vercel/postgres')
+      
+      // Delete fee items first (due to foreign key)
+      await sql`DELETE FROM fee_items WHERE fee_structure_id = ${id}`
+      
+      // Delete fee assignments
+      await sql`DELETE FROM fee_assignments WHERE fee_structure_id = ${id}`
+      
+      // Delete the fee structure
+      const result = await sql`DELETE FROM fee_structures WHERE id = ${id} RETURNING id`
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Fee structure not found' })
+      }
+      
+      return res.status(200).json({ message: 'Fee structure deleted successfully' })
+    } catch (error) {
+      console.error('Error deleting fee structure:', error)
+      return res.status(500).json({ error: 'Failed to delete fee structure' })
     }
   }
 

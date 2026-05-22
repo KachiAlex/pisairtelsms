@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
+import { getStudentFeeSummary, getStudentPayments, getFeeAssignments } from '../../api/tenant/finance/_lib/fee-assignments.js'
+import { getFeeStructureWithItems } from '../../api/tenant/finance/_lib/fee-structures.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -27,61 +29,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
+    // Fetch fee summary from database
+    const feeSummary = await getStudentFeeSummary(childId)
+
+    // Fetch fee assignments to get due date and fee structure details
+    const assignments = await getFeeAssignments(childId)
+    const dueDate = assignments.length > 0 ? assignments[0].dueDate : '2025-02-28'
+
+    // Build fee structure breakdown
+    let feeStructure: Array<{ id: string; name: string; amount: number; dueDate: string; status: 'paid' | 'pending' | 'overdue' }> = []
+    if (assignments.length > 0) {
+      for (const assignment of assignments) {
+        const structure = await getFeeStructureWithItems(assignment.feeStructureId)
+        if (structure && structure.feeItems) {
+          const totalPaid = assignment.totalPaid
+          const totalAmount = assignment.totalAmount
+          const isPaid = totalPaid >= totalAmount
+          
+          feeStructure = structure.feeItems.map(item => ({
+            id: item.id,
+            name: item.category,
+            amount: item.amount,
+            dueDate: dueDate,
+            status: isPaid ? 'paid' : 'pending' as 'paid' | 'pending' | 'overdue',
+          }))
+        }
+      }
+    }
+
+    // Fetch payments from database
+    const studentPayments = await getStudentPayments(childId)
+    const paymentHistory = studentPayments.map(p => ({
+      id: p.id,
+      date: p.paidAt.split('T')[0],
+      amount: p.amount,
+      method: p.paymentMethod,
+      reference: p.reference || '',
+      receiptUrl: p.receiptUrl || '',
+      status: 'completed' as const,
+    }))
+
     const response = {
       summary: {
-        totalFees: 500000,
-        paidAmount: 450000,
-        outstandingBalance: 50000,
-        dueDate: '2025-02-28',
-        status: 'partial' as const,
+        totalFees: feeSummary.totalFees,
+        paidAmount: feeSummary.totalPaid,
+        outstandingBalance: feeSummary.totalBalance,
+        dueDate,
+        status: feeSummary.status as 'paid' | 'partial' | 'overdue',
       },
-      feeStructure: [
-        { id: '1', name: 'Tuition', amount: 300000, dueDate: '2025-01-31', status: 'paid' as const },
-        { id: '2', name: 'Accommodation', amount: 100000, dueDate: '2025-01-31', status: 'paid' as const },
-        { id: '3', name: 'Utilities', amount: 50000, dueDate: '2025-02-28', status: 'pending' as const },
-        { id: '4', name: 'Activities', amount: 50000, dueDate: '2025-02-28', status: 'pending' as const },
-      ],
-      paymentHistory: [
-        {
-          id: '1',
-          date: '2025-01-15',
-          amount: 300000,
-          method: 'Bank Transfer',
-          reference: 'TRF-001',
-          receiptUrl: '/receipts/receipt-001.pdf',
-          status: 'completed' as const,
-        },
-        {
-          id: '2',
-          date: '2025-01-10',
-          amount: 150000,
-          method: 'Card',
-          reference: 'CARD-001',
-          receiptUrl: '/receipts/receipt-002.pdf',
-          status: 'completed' as const,
-        },
-      ],
-      paymentPlans: [
-        {
-          id: '1',
-          startDate: '2025-01-01',
-          endDate: '2025-03-31',
-          installments: [
-            { id: '1', dueDate: '2025-01-31', amount: 166667, status: 'paid' as const, paidDate: '2025-01-15' },
-            { id: '2', dueDate: '2025-02-28', amount: 166667, status: 'pending' as const },
-            { id: '3', dueDate: '2025-03-31', amount: 166666, status: 'pending' as const },
-          ],
-        },
-      ],
-      exemptions: [
-        {
-          id: '1',
-          type: 'Scholarship',
-          amount: 50000,
-          reason: 'Academic Excellence',
-          approvedDate: '2025-01-01',
-        },
-      ],
+      feeStructure,
+      paymentHistory,
+      paymentPlans: [],
+      exemptions: [],
     }
 
     return res.status(200).json(response)

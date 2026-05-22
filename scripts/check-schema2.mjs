@@ -3,7 +3,7 @@ import pg from 'pg';
 const { Pool } = pg;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: false, require: true },
 });
 
 async function run() {
@@ -42,6 +42,24 @@ async function run() {
       WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = 'exams'
     `);
     console.log('exams FKs:', JSON.stringify(fks.rows));
+
+    // Check fee structures with no fee items
+    const feeStructures = await client.query(`
+      SELECT fs.id, fs.name, fs.academic_session, fs.term, 
+             COUNT(fi.id) as fee_items_count
+      FROM fee_structures fs
+      LEFT JOIN fee_items fi ON fs.id = fi.fee_structure_id
+      GROUP BY fs.id, fs.name, fs.academic_session, fs.term
+      ORDER BY fs.created_at DESC
+    `);
+    console.log('\nFee Structures:');
+    console.table(feeStructures.rows);
+    
+    const emptyStructures = feeStructures.rows.filter(row => parseInt(row.fee_items_count) === 0);
+    if (emptyStructures.length > 0) {
+      console.log('\n⚠️  Structures with no fee items (should be deleted):');
+      console.table(emptyStructures);
+    }
 
   } finally {
     client.release();

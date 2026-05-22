@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, BookOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { Term } from './ConfigureTab'
 
 interface Props {
@@ -26,6 +27,12 @@ export function TermManager({ terms, onRefresh }: Props) {
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Extract unique academic years from existing terms, sorted descending
+  const academicYears = useMemo(() => {
+    const years = Array.from(new Set(terms.map(t => t.academicYear).filter(Boolean)))
+    return years.sort((a, b) => b.localeCompare(a))
+  }, [terms])
 
   function startEdit(term: Term) {
     setEditId(term.id)
@@ -107,7 +114,23 @@ export function TermManager({ terms, onRefresh }: Props) {
               </div>
               <div>
                 <Label className="text-xs">Academic Year</Label>
-                <Input value={form.academicYear} onChange={e => setForm(f => ({ ...f, academicYear: e.target.value }))} placeholder="e.g. 2024/2025" />
+                <Select value={form.academicYear} onValueChange={v => setForm(f => ({ ...f, academicYear: v }))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={academicYears.length === 0 ? 'No academic years yet' : 'Select academic year'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicYears.length === 0 ? (
+                      <SelectItem value="" disabled>No academic years available</SelectItem>
+                    ) : (
+                      academicYears.map(year => (
+                        <SelectItem key={year} value={year}>{year}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {academicYears.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">Create a term with a new academic year first</p>
+                )}
               </div>
               <div>
                 <Label className="text-xs">Start Date</Label>

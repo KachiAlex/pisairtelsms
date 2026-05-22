@@ -178,12 +178,13 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
         term: formData.term,
         effectiveFrom: formData.effectiveFrom,
         effectiveTo: formData.effectiveTo || null,
-        feeItems: feeItems.map(item => ({
+        feeItems: feeItems.map((item, index) => ({
           category: item.category,
           description: item.description,
           amount: parseFloat(item.amount.toString()),
           applicableClasses: item.applicableClasses,
           isMandatory: item.isMandatory,
+          sequence: index + 1,
         })),
         createdBy: 'current-user', // TODO: Get from auth context
       };

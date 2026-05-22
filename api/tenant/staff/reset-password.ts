@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { resetStaffPassword } from '../../_lib/staff.js'
+import { resetStaffPassword } from '../_lib/staff.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

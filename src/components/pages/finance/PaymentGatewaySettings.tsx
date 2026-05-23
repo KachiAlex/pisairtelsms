@@ -37,7 +37,12 @@ export function PaymentGatewaySettings() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/tenant/finance/payments?action=settings');
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+      if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
+
+      const response = await fetch('/api/tenant/finance/payments?action=settings', { headers });
       if (!response.ok) throw new Error('Failed to fetch settings');
       const result = await response.json();
       const map: Record<string, PaymentGatewayConfig> = {};
@@ -66,9 +71,14 @@ export function PaymentGatewaySettings() {
     setSaveSuccess(null);
 
     try {
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+      if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
+
       const response = await fetch('/api/tenant/finance/payments?action=settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           gateway,
           publicKey: config.publicKey,

@@ -29,6 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { method, query } = req
+  const tenantId = (req.headers['x-tenant-id'] as string) || TENANT_ID
+  
   // Route: /api/tenant/timetable/calendar?resource=terms|holidays|exam-periods
   const resource = (query.resource as string) || 'all'
   const id = query.id as string | undefined
@@ -38,24 +40,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const academicYear = query.academicYear as string | undefined
     const termId = query.termId as string | undefined
     if (resource === 'academic-years') {
-      return res.status(200).json({ data: await getAcademicYears(TENANT_ID) })
+      return res.status(200).json({ data: await getAcademicYears(tenantId) })
     }
     if (resource === 'terms') {
-      return res.status(200).json({ data: await getTerms(TENANT_ID, academicYear) })
+      return res.status(200).json({ data: await getTerms(tenantId, academicYear) })
     }
     if (resource === 'holidays') {
-      return res.status(200).json({ data: await getHolidays(TENANT_ID, termId) })
+      return res.status(200).json({ data: await getHolidays(tenantId, termId) })
     }
     if (resource === 'exam-periods') {
-      return res.status(200).json({ data: await getExamPeriods(TENANT_ID, termId) })
+      return res.status(200).json({ data: await getExamPeriods(tenantId, termId) })
     }
     // Default: return all
     return res.status(200).json({
       data: {
-        academicYears: await getAcademicYears(TENANT_ID),
-        terms: await getTerms(TENANT_ID, academicYear),
-        holidays: await getHolidays(TENANT_ID, termId),
-        examPeriods: await getExamPeriods(TENANT_ID, termId),
+        academicYears: await getAcademicYears(tenantId),
+        terms: await getTerms(tenantId, academicYear),
+        holidays: await getHolidays(tenantId, termId),
+        examPeriods: await getExamPeriods(tenantId, termId),
       },
     })
   }
@@ -73,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (startDate >= endDate) {
         return res.status(400).json({ error: 'startDate must be before endDate' })
       }
-      return res.status(201).json({ data: await createAcademicYear(TENANT_ID, { name, startDate, endDate, isCurrent: isCurrent || false }) })
+      return res.status(201).json({ data: await createAcademicYear(tenantId, { name, startDate, endDate, isCurrent: isCurrent || false }) })
     }
 
     if (resource === 'terms') {
@@ -84,10 +86,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (startDate >= endDate) {
         return res.status(400).json({ error: 'startDate must be before endDate' })
       }
-      if (await termsOverlap(TENANT_ID, startDate, endDate)) {
+      if (await termsOverlap(tenantId, startDate, endDate)) {
         return res.status(400).json({ error: 'Term dates overlap with an existing term' })
       }
-      return res.status(201).json({ data: await createTerm(TENANT_ID, { name, startDate, endDate, academicYear }) })
+      return res.status(201).json({ data: await createTerm(tenantId, { name, startDate, endDate, academicYear }) })
     }
 
     if (resource === 'holidays') {
@@ -98,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (startDate >= endDate) {
         return res.status(400).json({ error: 'startDate must be before endDate' })
       }
-      return res.status(201).json({ data: await createHoliday(TENANT_ID, { termId, name, startDate, endDate }) })
+      return res.status(201).json({ data: await createHoliday(tenantId, { termId, name, startDate, endDate }) })
     }
 
     if (resource === 'exam-periods') {
@@ -109,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (startDate >= endDate) {
         return res.status(400).json({ error: 'startDate must be before endDate' })
       }
-      return res.status(201).json({ data: await createExamPeriod(TENANT_ID, { termId, name, startDate, endDate }) })
+      return res.status(201).json({ data: await createExamPeriod(tenantId, { termId, name, startDate, endDate }) })
     }
 
     return res.status(400).json({ error: 'resource query param must be academic-years, terms, holidays, or exam-periods' })
@@ -122,6 +124,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!body) return res.status(400).json({ error: 'Request body is required' })
 
     if (resource === 'academic-years') {
+      // Handle setting current academic year
+      if (body.isCurrent === true) {
+        await setCurrentAcademicYear(tenantId, id)
+      }
       const updated = await updateAcademicYear(id, body)
       if (!updated) return res.status(404).json({ error: 'Academic year not found' })
       return res.status(200).json({ data: updated })

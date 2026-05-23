@@ -34,8 +34,6 @@ interface FeeStructureFormProps {
   onClose: () => void;
 }
 
-const ACADEMIC_SESSIONS = ['2024/2025', '2025/2026', '2026/2027'];
-const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 const CLASSES = ['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'];
 const FEE_CATEGORIES = [
   'Tuition',
@@ -51,10 +49,12 @@ const FEE_CATEGORIES = [
 ];
 
 export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) {
+  const [academicYears, setAcademicYears] = useState<string[]>([]);
+  const [terms, setTerms] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: structure?.name || '',
-    academicSession: structure?.academicSession || ACADEMIC_SESSIONS[0],
-    term: structure?.term || TERMS[0],
+    academicSession: structure?.academicSession || '',
+    term: structure?.term || '',
     effectiveFrom: structure?.effectiveFrom?.split('T')[0] || '',
     effectiveTo: structure?.effectiveTo?.split('T')[0] || '',
   });
@@ -65,10 +65,39 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    fetchAcademicData();
     if (structure?.id) {
       fetchStructureDetails();
     }
   }, [structure?.id]);
+
+  const fetchAcademicData = async () => {
+    try {
+      // Fetch academic years
+      const yearsRes = await fetch('/api/tenant/timetable/calendar?resource=academic-years');
+      const yearsData = await yearsRes.json();
+      const years = yearsData.data?.map((y: any) => y.name) || [];
+      setAcademicYears(years);
+
+      // Fetch terms
+      const termsRes = await fetch('/api/tenant/timetable/calendar?resource=terms');
+      const termsData = await termsRes.json();
+      const termNames = termsData.data?.map((t: any) => t.name) || [];
+      setTerms(termNames);
+
+      // Set default values if not already set
+      setFormData(prev => ({
+        ...prev,
+        academicSession: prev.academicSession || (years[0] || ''),
+        term: prev.term || (termNames[0] || ''),
+      }));
+    } catch (err) {
+      console.error('Failed to fetch academic data:', err);
+      // Fallback to hardcoded values
+      setAcademicYears(['2024/2025', '2025/2026', '2026/2027']);
+      setTerms(['Term 1', 'Term 2', 'Term 3']);
+    }
+  };
 
   const fetchStructureDetails = async () => {
     if (!structure?.id) return;
@@ -256,7 +285,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ACADEMIC_SESSIONS.map(session => (
+                  {academicYears.map(session => (
                     <SelectItem key={session} value={session}>{session}</SelectItem>
                   ))}
                 </SelectContent>
@@ -273,7 +302,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TERMS.map(term => (
+                  {terms.map(term => (
                     <SelectItem key={term} value={term}>{term}</SelectItem>
                   ))}
                 </SelectContent>

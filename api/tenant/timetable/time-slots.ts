@@ -1,7 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot, timeSlotsOverlap } from './_lib/time-slots.js'
+import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 
 const TENANT_ID = 'demo-tenant-001'
+let migrationsInitialized = false
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return null
@@ -10,6 +12,17 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Ensure migrations are run on first request
+  if (!migrationsInitialized) {
+    migrationsInitialized = true
+    try {
+      initializeDatabase()
+      await runMigrations()
+    } catch (err) {
+      console.error('Migration initialization error:', err)
+    }
+  }
+
   try {
     const { method, query } = req
     const id = query.id as string | undefined
@@ -23,6 +36,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (method === 'POST') {
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
+
+      // Batch insert for auto-configure
+      if (body.slots && Array.isArray(body.slots)) {
+        const created = []
+        for (const slot of body.slots) {
+          const { name, startTime, endTime, dayOfWeek, isBreak, sequence } = slot
+          if (!name || !startTime || !endTime || dayOfWeek === undefined) continue
+          if (startTime >= endTime) continue
+          if (await timeSlotsOverlap(TENANT_ID, dayOfWeek, startTime, endTime)) continue
+          const start = new Date(`1970-01-01T${startTime}:00`)
+          const end = new Date(`1970-01-01T${endTime}:00`)
+          const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
+          const existing = await getTimeSlots(TENANT_ID, dayOfWeek)
+          const seq = sequence ?? (existing.length + 1)
+          const newSlot = await createTimeSlot(TENANT_ID, { name, startTime, endTime, durationMinutes, dayOfWeek, isBreak: !!isBreak, sequence: seq })
+          created.push(newSlot)
+        }
+        return res.status(201).json({ data: created })
+      }
+
+      // Single slot insert
       const { name, startTime, endTime, dayOfWeek, isBreak, sequence } = body
       if (!name || !startTime || !endTime || dayOfWeek === undefined) {
         return res.status(400).json({ error: 'name, startTime, endTime, dayOfWeek are required' })

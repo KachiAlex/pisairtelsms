@@ -19,37 +19,68 @@ interface ResultsData {
   term: string;
 }
 
-const SESSIONS = ['2025/2026', '2024/2025', '2023/2024'];
-const TERMS = ['First', 'Second', 'Third'];
-
 export function MyResults() {
+  const [sessions, setSessions] = useState<string[]>([]);
+  const [terms, setTerms] = useState<string[]>([]);
   const [data, setData] = useState<ResultsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [session, setSession] = useState('2025/2026');
-  const [term, setTerm] = useState('First');
+  const [session, setSession] = useState('');
+  const [term, setTerm] = useState('');
 
   useEffect(() => {
-    const fetchResults = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const auth = localStorage.getItem('auth');
-        if (!auth) { setError('Not authenticated'); return; }
-        const { token } = JSON.parse(auth);
-        const res = await fetch(`/api/student/results?academicSession=${encodeURIComponent(session)}&term=${encodeURIComponent(term)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error('Failed to fetch results');
-        setData(await res.json());
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchResults();
+    fetchAcademicData();
+  }, []);
+
+  useEffect(() => {
+    if (session && term) {
+      fetchResults();
+    }
   }, [session, term]);
+
+  const fetchAcademicData = async () => {
+    try {
+      const yearsRes = await fetch('/api/tenant/timetable/calendar?resource=academic-years');
+      const yearsData = await yearsRes.json();
+      const years = yearsData.data?.map((y: any) => y.name) || [];
+      setSessions(years);
+
+      const termsRes = await fetch('/api/tenant/timetable/calendar?resource=terms');
+      const termsData = await termsRes.json();
+      const termNames = termsData.data?.map((t: any) => t.name) || [];
+      setTerms(termNames);
+
+      // Set defaults
+      if (years.length > 0) setSession(years[0]);
+      if (termNames.length > 0) setTerm(termNames[0]);
+    } catch (err) {
+      console.error('Failed to fetch academic data:', err);
+      // Fallback
+      setSessions(['2025/2026', '2024/2025', '2023/2024']);
+      setTerms(['First', 'Second', 'Third']);
+      setSession('2025/2026');
+      setTerm('First');
+    }
+  };
+
+  const fetchResults = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const auth = localStorage.getItem('auth');
+      if (!auth) { setError('Not authenticated'); return; }
+      const { token } = JSON.parse(auth);
+      const res = await fetch(`/api/student/results?academicSession=${encodeURIComponent(session)}&term=${encodeURIComponent(term)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch results');
+      setData(await res.json());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const gradeColor = (grade: string) => {
     if (grade === 'A') return 'text-green-700 bg-green-50';
@@ -68,14 +99,14 @@ export function MyResults() {
             onChange={e => setSession(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
           >
-            {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            {sessions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <select
             value={term}
             onChange={e => setTerm(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
           >
-            {TERMS.map(t => <option key={t} value={t}>{t} Term</option>)}
+            {terms.map(t => <option key={t} value={t}>{t} Term</option>)}
           </select>
         </div>
       </div>

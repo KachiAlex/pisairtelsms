@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, ChevronDown } from 'lucide-react';
+import { Trash2, ChevronDown, Plus } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
@@ -28,16 +28,16 @@ interface FeeItemsTableProps {
   items: FeeItem[];
   onUpdate: (index: number, item: FeeItem) => void;
   onRemove: (index: number) => void;
+  onAdd: () => void;
   categories: string[];
-  classes: string[];
 }
 
 export function FeeItemsTable({
   items,
   onUpdate,
   onRemove,
+  onAdd,
   categories,
-  classes,
 }: FeeItemsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
@@ -63,16 +63,8 @@ export function FeeItemsTable({
 
   const handleAmountChange = (index: number, amount: string) => {
     const item = items[index];
-    onUpdate(index, { ...item, amount: parseFloat(amount) || 0 });
-  };
-
-  const handleClassToggle = (index: number, className: string) => {
-    const item = items[index];
-    const applicableClasses = item.applicableClasses || [];
-    const updated = applicableClasses.includes(className)
-      ? applicableClasses.filter(c => c !== className)
-      : [...applicableClasses, className];
-    onUpdate(index, { ...item, applicableClasses: updated });
+    const parsed = amount === '' ? 0 : parseFloat(amount);
+    onUpdate(index, { ...item, amount: isNaN(parsed) ? 0 : parsed });
   };
 
   const handleMandatoryToggle = (index: number) => {
@@ -98,10 +90,10 @@ export function FeeItemsTable({
               </div>
               <div className="text-right">
                 <p className="font-semibold text-gray-900">
-                  ₦{item.amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ₦{(item.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {item.applicableClasses?.length || 0} classes
+                  {item.isMandatory ? 'Mandatory' : 'Optional'}
                 </p>
               </div>
             </div>
@@ -144,7 +136,7 @@ export function FeeItemsTable({
                     type="number"
                     step="0.01"
                     min="0"
-                    value={item.amount}
+                    value={item.amount === 0 ? '' : item.amount}
                     onChange={(e) => handleAmountChange(index, e.target.value)}
                     placeholder="0.00"
                   />
@@ -161,27 +153,6 @@ export function FeeItemsTable({
                 />
               </div>
 
-              <div>
-                <Label>Applicable Classes</Label>
-                <div className="grid grid-cols-2 gap-3 mt-2 p-3 bg-gray-50 rounded-lg">
-                  {classes.map(className => (
-                    <div key={className} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`class-${index}-${className}`}
-                        checked={item.applicableClasses?.includes(className) || false}
-                        onCheckedChange={() => handleClassToggle(index, className)}
-                      />
-                      <Label
-                        htmlFor={`class-${index}-${className}`}
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {className}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <Checkbox
                   id={`mandatory-${index}`}
@@ -194,6 +165,19 @@ export function FeeItemsTable({
                 >
                   This is a mandatory fee
                 </Label>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-gray-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onAdd}
+                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Another Item
+                </Button>
               </div>
             </div>
           )}

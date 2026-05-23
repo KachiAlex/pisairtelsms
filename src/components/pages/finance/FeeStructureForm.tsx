@@ -59,6 +59,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
     effectiveTo: structure?.effectiveTo?.split('T')[0] || '',
   });
 
+  const [applicableClasses, setApplicableClasses] = useState<string[]>([]);
   const [feeItems, setFeeItems] = useState<FeeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +120,9 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
         effectiveTo: data.effectiveTo?.split('T')[0] || '',
       });
 
+      if (data.applicableClasses) {
+        setApplicableClasses(data.applicableClasses);
+      }
       if (data.feeItems) {
         setFeeItems(data.feeItems.map((item: any) => ({
           id: item.id,
@@ -148,6 +152,9 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
       }
     }
 
+    if (applicableClasses.length === 0) {
+      errors.applicableClasses = 'At least one class must be selected';
+    }
     if (feeItems.length === 0) {
       errors.feeItems = 'At least one fee item is required';
     }
@@ -174,7 +181,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
       category: FEE_CATEGORIES[0],
       description: '',
       amount: 0,
-      applicableClasses: [],
+      applicableClasses: applicableClasses,
       isMandatory: true,
     }]);
   };
@@ -208,11 +215,12 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
         term: formData.term,
         effectiveFrom: formData.effectiveFrom,
         effectiveTo: formData.effectiveTo || null,
+        applicableClasses,
         feeItems: feeItems.map((item, index) => ({
           category: item.category,
           description: item.description,
           amount: parseFloat(item.amount.toString()),
-          applicableClasses: item.applicableClasses,
+          applicableClasses: applicableClasses,
           isMandatory: item.isMandatory,
           sequence: index + 1,
         })),
@@ -313,6 +321,35 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
             </div>
           </div>
 
+          <div>
+            <Label>Applicable Classes</Label>
+            <div className="grid grid-cols-3 gap-3 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              {CLASSES.map(className => (
+                <div key={className} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`structure-class-${className}`}
+                    checked={applicableClasses.includes(className)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setApplicableClasses(prev => [...prev, className]);
+                      } else {
+                        setApplicableClasses(prev => prev.filter(c => c !== className));
+                      }
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor={`structure-class-${className}`} className="text-sm cursor-pointer">
+                    {className}
+                  </label>
+                </div>
+              ))}
+            </div>
+            {validationErrors.applicableClasses && (
+              <p className="text-sm text-red-600 mt-1">{validationErrors.applicableClasses}</p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="effectiveFrom">Effective From</Label>
@@ -374,8 +411,8 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
               items={feeItems}
               onUpdate={handleUpdateFeeItem}
               onRemove={handleRemoveFeeItem}
+              onAdd={handleAddFeeItem}
               categories={FEE_CATEGORIES}
-              classes={CLASSES}
             />
           )}
 

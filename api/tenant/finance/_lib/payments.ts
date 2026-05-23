@@ -273,6 +273,13 @@ export async function ensurePaymentTables(): Promise<void> {
     await sql`CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)`
     await sql`CREATE INDEX IF NOT EXISTS idx_payments_gateway_ref ON payments(gateway_ref)`
 
+    // Add tenant_id column if it doesn't exist (for backward compatibility)
+    try {
+      await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS tenant_id TEXT`
+    } catch (e) {
+      // Column might already exist, ignore error
+    }
+
     await sql`
       CREATE TABLE IF NOT EXISTS tenant_payment_settings (
         id TEXT PRIMARY KEY,
@@ -287,6 +294,13 @@ export async function ensurePaymentTables(): Promise<void> {
       )
     `
     await sql`CREATE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_id ON tenant_payment_settings(tenant_id)`
+
+    // Add tenant_id column if it doesn't exist (for backward compatibility)
+    try {
+      await sql`ALTER TABLE tenant_payment_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT`
+    } catch (e) {
+      // Column might already exist, ignore error
+    }
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_gateway ON tenant_payment_settings(tenant_id, gateway)`
 
     await sql`
@@ -620,19 +634,100 @@ export async function getPayments(
 ): Promise<Payment[]> {
   await ensurePaymentTables()
 
-  const conditions: string[] = ['tenant_id = $1']
-  const values: (string | number | undefined)[] = [tenantId]
-  let idx = 2
+  let result
+  if (feeAssignmentId && paymentDate && status && gateway && dateFrom && dateTo) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND fee_assignment_id = ${feeAssignmentId}
+        AND payment_date = ${paymentDate}
+        AND status = ${status}
+        AND gateway = ${gateway}
+        AND payment_date >= ${dateFrom}
+        AND payment_date <= ${dateTo}
+      ORDER BY created_at DESC
+    `
+  } else if (feeAssignmentId && paymentDate && status && gateway) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND fee_assignment_id = ${feeAssignmentId}
+        AND payment_date = ${paymentDate}
+        AND status = ${status}
+        AND gateway = ${gateway}
+      ORDER BY created_at DESC
+    `
+  } else if (feeAssignmentId && paymentDate && status) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND fee_assignment_id = ${feeAssignmentId}
+        AND payment_date = ${paymentDate}
+        AND status = ${status}
+      ORDER BY created_at DESC
+    `
+  } else if (feeAssignmentId && paymentDate) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND fee_assignment_id = ${feeAssignmentId}
+        AND payment_date = ${paymentDate}
+      ORDER BY created_at DESC
+    `
+  } else if (feeAssignmentId) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND fee_assignment_id = ${feeAssignmentId}
+      ORDER BY created_at DESC
+    `
+  } else if (paymentDate) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND payment_date = ${paymentDate}
+      ORDER BY created_at DESC
+    `
+  } else if (status) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND status = ${status}
+      ORDER BY created_at DESC
+    `
+  } else if (gateway) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND gateway = ${gateway}
+      ORDER BY created_at DESC
+    `
+  } else if (dateFrom && dateTo) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND payment_date >= ${dateFrom}
+        AND payment_date <= ${dateTo}
+      ORDER BY created_at DESC
+    `
+  } else if (dateFrom) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND payment_date >= ${dateFrom}
+      ORDER BY created_at DESC
+    `
+  } else if (dateTo) {
+    result = await sql`
+      SELECT * FROM payments
+      WHERE tenant_id = ${tenantId}
+        AND payment_date <= ${dateTo}
+      ORDER BY created_at DESC
+    `
+  } else {
+    result = await sql`SELECT * FROM payments WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`
+  }
 
-  if (feeAssignmentId) { conditions.push(`fee_assignment_id = $${idx++}`); values.push(feeAssignmentId) }
-  if (paymentDate) { conditions.push(`payment_date = $${idx++}`); values.push(paymentDate) }
-  if (status) { conditions.push(`status = $${idx++}`); values.push(status) }
-  if (gateway) { conditions.push(`gateway = $${idx++}`); values.push(gateway) }
-  if (dateFrom) { conditions.push(`payment_date >= $${idx++}`); values.push(dateFrom) }
-  if (dateTo) { conditions.push(`payment_date <= $${idx++}`); values.push(dateTo) }
-
-  const query = `SELECT * FROM payments WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`
-  const result = await sql.unsafe(query, values as any)
   return (result.rows || []).map(rowToPayment)
 }
 

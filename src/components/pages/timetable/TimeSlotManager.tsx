@@ -15,17 +15,71 @@ interface Props {
 
 const DAY_NAMES = ['All Days', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
-const COMMON_SLOTS = [
-  { name: 'Period 1', startTime: '08:00', endTime: '08:40', isBreak: false },
-  { name: 'Period 2', startTime: '08:40', endTime: '09:20', isBreak: false },
-  { name: 'Period 3', startTime: '09:20', endTime: '10:00', isBreak: false },
-  { name: 'Short Break', startTime: '10:00', endTime: '10:20', isBreak: true },
-  { name: 'Period 4', startTime: '10:20', endTime: '11:00', isBreak: false },
-  { name: 'Period 5', startTime: '11:00', endTime: '11:40', isBreak: false },
-  { name: 'Lunch Break', startTime: '11:40', endTime: '12:20', isBreak: true },
-  { name: 'Period 6', startTime: '12:20', endTime: '13:00', isBreak: false },
-  { name: 'Period 7', startTime: '13:00', endTime: '13:40', isBreak: false },
-]
+// Generate progressive time slots that fill the school day with no gaps
+function generateProgressiveSlots(
+  startTime = '08:00',
+  endTime = '15:20',
+  periodDuration = 40,
+  shortBreakDuration = 20,
+  lunchBreakDuration = 40,
+  periodsBeforeShortBreak = 2,
+  periodsBeforeLunch = 4,
+) {
+  const slots: { name: string; startTime: string; endTime: string; isBreak: boolean }[] = []
+
+  function addMinutes(timeStr: string, mins: number): string {
+    const [h, m] = timeStr.split(':').map(Number)
+    const total = h * 60 + m + mins
+    const hh = String(Math.floor(total / 60)).padStart(2, '0')
+    const mm = String(total % 60).padStart(2, '0')
+    return `${hh}:${mm}`
+  }
+
+  function timeToMinutes(timeStr: string): number {
+    const [h, m] = timeStr.split(':').map(Number)
+    return h * 60 + m
+  }
+
+  let current = startTime
+  let periodCount = 0
+
+  while (timeToMinutes(current) < timeToMinutes(endTime)) {
+    // Check if we can fit a lunch break
+    if (periodCount > 0 && periodCount % periodsBeforeLunch === 0) {
+      const lunchEnd = addMinutes(current, lunchBreakDuration)
+      if (timeToMinutes(lunchEnd) <= timeToMinutes(endTime)) {
+        slots.push({ name: 'Lunch Break', startTime: current, endTime: lunchEnd, isBreak: true })
+        current = lunchEnd
+        continue
+      }
+    }
+
+    // Check if we can fit a short break
+    if (periodCount > 0 && periodCount % periodsBeforeShortBreak === 0 && periodCount % periodsBeforeLunch !== 0) {
+      const breakEnd = addMinutes(current, shortBreakDuration)
+      if (timeToMinutes(breakEnd) <= timeToMinutes(endTime)) {
+        slots.push({ name: 'Short Break', startTime: current, endTime: breakEnd, isBreak: true })
+        current = breakEnd
+        continue
+      }
+    }
+
+    // Try to add a teaching period
+    const periodEnd = addMinutes(current, periodDuration)
+    if (timeToMinutes(periodEnd) <= timeToMinutes(endTime)) {
+      periodCount++
+      slots.push({ name: `Period ${periodCount}`, startTime: current, endTime: periodEnd, isBreak: false })
+      current = periodEnd
+    } else {
+      // Not enough time for a full period - stop
+      break
+    }
+  }
+
+  return slots
+}
+
+const COMMON_SLOTS = generateProgressiveSlots()
 
 export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
   const [showForm, setShowForm] = useState(false)

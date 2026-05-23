@@ -4,10 +4,21 @@ import {
   getPayments,
   getPaymentById,
   updatePaymentStatus,
+  getTenantPaymentSettings,
+  upsertTenantPaymentSetting,
+  getActivePaymentGateway,
+  initiatePayment,
+  verifyPayment,
+  createManualPayment,
+  addPaymentProof,
+  getPaymentProofs,
+  confirmPayment,
+  rejectPayment,
+  getPendingPayments,
 } from './_lib/payments.js'
 
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,POST')
+  res.setHeader('Allow', 'GET,POST,PUT')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -23,19 +34,281 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
+function getTenantId(req: VercelRequest): string | null {
+  return (req.headers['x-tenant-id'] as string) || null
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { id, action } = req.query
+  const tenantId = getTenantId(req)
+
+  console.log('Payments request:', { method: req.method, id, action, tenantId })
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'x-tenant-id header is required' })
+  }
+
+  // ─── PAYMENT SETTINGS ─────────────────────────────────────────────────────
+
+  // GET /api/tenant/finance/payments?action=settings
+  if (req.method === 'GET' && !id && action === 'settings') {
+    try {
+      const settings = await getTenantPaymentSettings(tenantId)
+      return res.status(200).json({ data: settings })
+    } catch (error) {
+      console.error('Error fetching payment settings:', error)
+      return res.status(500).json({ error: 'Failed to fetch payment settings' })
+    }
+  }
+
+  // PUT /api/tenant/finance/payments?action=settings
+  if (req.method === 'PUT' && !id && action === 'settings') {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' })
+    }
+
+    const { gateway, publicKey, secretKey, isActive, metadata } = body
+    if (!gateway || !publicKey || !secretKey) {
+      return res.status(400).json({ error: 'Missing required fields', details: ['gateway', 'publicKey', 'secretKey'] })
+    }
+
+    try {
+      const setting = await upsertTenantPaymentSetting(tenantId, gateway, publicKey, secretKey, !!isActive, metadata)
+      return res.status(200).json({ data: setting })
+    } catch (error) {
+      console.error('Error saving payment settings:', error)
+      return res.status(500).json({ error: 'Failed to save payment settings' })
+    }
+  }
+
+  // ─── ACTIVE GATEWAY ───────────────────────────────────────────────────────
+
+  // GET /api/tenant/finance/payments?action=active-gateway
+  if (req.method === 'GET' && !id && action === 'active-gateway') {
+    try {
+      const gateway = await getActivePaymentGateway(tenantId)
+      if (!gateway) {
+        return res.status(404).json({ error: 'No active payment gateway configured' })
+      }
+      // Never return secret key to client
+      return res.status(200).json({
+        data: {
+          id: gateway.id,
+          gateway: gateway.gateway,
+          publicKey: gateway.publicKey,
+          isActive: gateway.isActive,
+          metadata: gateway.metadata,
+        }
+      })
+    } catch (error) {
+      console.error('Error fetching active gateway:', error)
+      return res.status(500).json({ error: 'Failed to fetch active gateway' })
+    }
+  }
+
+  // ─── INITIATE ONLINE PAYMENT ────────────────────────────────────────────────
+
+  // POST /api/tenant/finance/payments?action=initiate
+  if (req.method === 'POST' && !id && action === 'initiate') {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' })
+    }
+
+    const { studentId, feeAssignmentId, feeStructureId, amount, gatewayRef } = body
+
+    const missing: string[] = []
+    if (!studentId) missing.push('studentId')
+    if (!feeAssignmentId) missing.push('feeAssignmentId')
+    if (!feeStructureId) missing.push('feeStructureId')
+    if (amount === undefined) missing.push('amount')
+    if (!gatewayRef) missing.push('gatewayRef')
+
+    if (missing.length > 0) {
+      return res.status(400).json({ error: 'Missing required fields', details: missing })
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'amount must be greater than 0' })
+    }
+
+    // Check active gateway
+    const activeGateway = await getActivePaymentGateway(tenantId)
+    if (!activeGateway) {
+      return res.status(400).json({ error: 'No active payment gateway configured for this institution' })
+    }
+
+    try {
+      const payment = await initiatePayment(
+        tenantId,
+        studentId,
+        feeAssignmentId,
+        feeStructureId,
+        amount,
+        activeGateway.gateway,
+        gatewayRef
+      )
+      return res.status(201).json({ data: payment })
+    } catch (error) {
+      console.error('Error initiating payment:', error)
+      return res.status(500).json({ error: 'Failed to initiate payment' })
+    }
+  }
+
+  // ─── VERIFY PAYMENT (WEBHOOK / CALLBACK) ──────────────────────────────────
+
+  // POST /api/tenant/finance/payments?action=verify
+  if (req.method === 'POST' && !id && action === 'verify') {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' })
+    }
+
+    const { gatewayRef, gatewayResponse } = body
+    if (!gatewayRef) {
+      return res.status(400).json({ error: 'gatewayRef is required' })
+    }
+
+    try {
+      const payment = await verifyPayment(gatewayRef, gatewayResponse)
+      if (!payment) {
+        return res.status(404).json({ error: 'Payment not found or already processed' })
+      }
+      return res.status(200).json({ data: payment })
+    } catch (error) {
+      console.error('Error verifying payment:', error)
+      return res.status(500).json({ error: 'Failed to verify payment' })
+    }
+  }
+
+  // ─── MANUAL PAYMENT UPLOAD ────────────────────────────────────────────────
+
+  // POST /api/tenant/finance/payments?action=manual
+  if (req.method === 'POST' && !id && action === 'manual') {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' })
+    }
+
+    const { studentId, feeAssignmentId, feeStructureId, amount, paymentMethod, notes, proofUrl, proofType } = body
+
+    const missing: string[] = []
+    if (!studentId) missing.push('studentId')
+    if (!feeAssignmentId) missing.push('feeAssignmentId')
+    if (!feeStructureId) missing.push('feeStructureId')
+    if (amount === undefined) missing.push('amount')
+    if (!paymentMethod) missing.push('paymentMethod')
+
+    if (missing.length > 0) {
+      return res.status(400).json({ error: 'Missing required fields', details: missing })
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'amount must be greater than 0' })
+    }
+
+    try {
+      const payment = await createManualPayment(
+        tenantId,
+        studentId,
+        feeAssignmentId,
+        feeStructureId,
+        amount,
+        paymentMethod,
+        notes
+      )
+
+      // Attach proof if provided
+      if (proofUrl) {
+        await addPaymentProof(payment.id, proofUrl, proofType || 'receipt')
+      }
+
+      return res.status(201).json({ data: payment })
+    } catch (error) {
+      console.error('Error creating manual payment:', error)
+      return res.status(500).json({ error: 'Failed to create manual payment' })
+    }
+  }
+
+  // ─── PENDING PAYMENTS QUEUE ───────────────────────────────────────────────
+
+  // GET /api/tenant/finance/payments?action=pending
+  if (req.method === 'GET' && !id && action === 'pending') {
+    try {
+      const payments = await getPendingPayments(tenantId)
+      return res.status(200).json({ data: payments })
+    } catch (error) {
+      console.error('Error fetching pending payments:', error)
+      return res.status(500).json({ error: 'Failed to fetch pending payments' })
+    }
+  }
+
+  // ─── ADMIN CONFIRM / REJECT ───────────────────────────────────────────────
+
+  // POST /api/tenant/finance/payments/:id/confirm
+  if (req.method === 'POST' && id && action === 'confirm') {
+    const body = parseBody(req)
+    const confirmedBy = body?.confirmedBy || 'admin'
+
+    try {
+      const payment = await confirmPayment(id as string, confirmedBy)
+      if (!payment) {
+        return res.status(404).json({ error: 'Payment not found or not pending' })
+      }
+      return res.status(200).json({ data: payment })
+    } catch (error) {
+      console.error('Error confirming payment:', error)
+      return res.status(500).json({ error: 'Failed to confirm payment' })
+    }
+  }
+
+  // POST /api/tenant/finance/payments/:id/reject
+  if (req.method === 'POST' && id && action === 'reject') {
+    const body = parseBody(req)
+    const reason = body?.reason
+
+    try {
+      const payment = await rejectPayment(id as string, reason)
+      if (!payment) {
+        return res.status(404).json({ error: 'Payment not found or not pending' })
+      }
+      return res.status(200).json({ data: payment })
+    } catch (error) {
+      console.error('Error rejecting payment:', error)
+      return res.status(500).json({ error: 'Failed to reject payment' })
+    }
+  }
+
+  // ─── GET PAYMENT PROOFS ───────────────────────────────────────────────────
+
+  // GET /api/tenant/finance/payments/:id/proofs
+  if (req.method === 'GET' && id && action === 'proofs') {
+    try {
+      const proofs = await getPaymentProofs(id as string)
+      return res.status(200).json({ data: proofs })
+    } catch (error) {
+      console.error('Error fetching payment proofs:', error)
+      return res.status(500).json({ error: 'Failed to fetch payment proofs' })
+    }
+  }
+
+  // ─── EXISTING ADMIN RECORDED PAYMENTS ─────────────────────────────────────
 
   // GET /api/tenant/finance/payments
-  if (req.method === 'GET' && !id) {
-    const { feeAssignmentId, paymentDate, status } = req.query
+  if (req.method === 'GET' && !id && !action) {
+    const { feeAssignmentId, paymentDate, status, studentId } = req.query
     try {
       const payments = await getPayments(
         feeAssignmentId as string | undefined,
         paymentDate as string | undefined,
         status as string | undefined
       )
-      return res.status(200).json({ data: payments })
+      // Filter by student if requested
+      const filtered = studentId
+        ? payments.filter(p => p.studentId === studentId)
+        : payments
+      return res.status(200).json({ data: filtered })
     } catch (error) {
       console.error('Error fetching payments:', error)
       return res.status(500).json({ error: 'Failed to fetch payments' })
@@ -56,7 +329,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // POST /api/tenant/finance/payments
+  // POST /api/tenant/finance/payments (admin recorded)
   if (req.method === 'POST' && !id && !action) {
     const body = parseBody(req)
     if (!body) {
@@ -64,7 +337,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const {
+      studentId,
       feeAssignmentId,
+      feeStructureId,
       amount,
       paymentMethod,
       referenceNumber,
@@ -76,14 +351,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } = body
 
     const missing: string[] = []
+    if (!studentId) missing.push('studentId')
     if (!feeAssignmentId) missing.push('feeAssignmentId')
+    if (!feeStructureId) missing.push('feeStructureId')
     if (amount === undefined) missing.push('amount')
     if (!paymentMethod) missing.push('paymentMethod')
     if (!referenceNumber) missing.push('referenceNumber')
     if (!receiptNumber) missing.push('receiptNumber')
     if (!paymentDate) missing.push('paymentDate')
     if (!paymentTime) missing.push('paymentTime')
-    if (!recordedBy) missing.push('recordedBy')
 
     if (missing.length > 0) {
       return res.status(400).json({ error: 'Missing required fields', details: missing })
@@ -95,14 +371,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const payment = await createPayment(
+        tenantId,
+        studentId,
         feeAssignmentId,
+        feeStructureId,
         amount,
         paymentMethod,
         referenceNumber,
         receiptNumber,
         paymentDate,
         paymentTime,
-        recordedBy,
+        recordedBy || null,
         notes
       )
       return res.status(201).json({ data: payment })
@@ -129,7 +408,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const created = []
       for (const payment of paymentsList) {
         const {
+          studentId,
           feeAssignmentId,
+          feeStructureId,
           amount,
           paymentMethod,
           referenceNumber,
@@ -141,14 +422,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } = payment
 
         const missing: string[] = []
+        if (!studentId) missing.push('studentId')
         if (!feeAssignmentId) missing.push('feeAssignmentId')
+        if (!feeStructureId) missing.push('feeStructureId')
         if (amount === undefined) missing.push('amount')
         if (!paymentMethod) missing.push('paymentMethod')
         if (!referenceNumber) missing.push('referenceNumber')
         if (!receiptNumber) missing.push('receiptNumber')
         if (!paymentDate) missing.push('paymentDate')
         if (!paymentTime) missing.push('paymentTime')
-        if (!recordedBy) missing.push('recordedBy')
 
         if (missing.length > 0) {
           return res.status(400).json({ error: 'Missing required fields in payment', details: missing })
@@ -159,14 +441,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const result = await createPayment(
+          tenantId,
+          studentId,
           feeAssignmentId,
+          feeStructureId,
           amount,
           paymentMethod,
           referenceNumber,
           receiptNumber,
           paymentDate,
           paymentTime,
-          recordedBy,
+          recordedBy || null,
           notes
         )
         created.push(result)
@@ -201,7 +486,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(404).json({ error: 'Payment not found' })
       }
 
-      // Return receipt data (in a real app, this would generate a PDF)
       const receipt = {
         receiptNumber: payment.receiptNumber,
         paymentDate: payment.paymentDate,
@@ -211,6 +495,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         referenceNumber: payment.referenceNumber,
         recordedBy: payment.recordedBy,
         notes: payment.notes,
+        status: payment.status,
+        paidAt: payment.paidAt,
       }
 
       return res.status(200).json({ data: receipt })

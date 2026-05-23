@@ -21,6 +21,8 @@ import PaymentProcessing from './finance/PaymentProcessing';
 import Reconciliation from './finance/Reconciliation';
 import ReportViewer from './finance/ReportViewer';
 import AuditLog from './finance/AuditLog';
+import { PaymentGatewaySettings } from './finance/PaymentGatewaySettings';
+import { PendingPayments } from './finance/PendingPayments';
 
 interface FeeRecord {
   id: string;
@@ -184,11 +186,13 @@ export function FinanceManagement() {
 
       {/* Tab Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="fee-config">Fee Config</TabsTrigger>
           <TabsTrigger value="student-accounts">Student Accounts</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="gateway">Gateway</TabsTrigger>
           <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
@@ -355,6 +359,16 @@ export function FinanceManagement() {
         {/* Payments Tab */}
         <TabsContent value="payments" className="space-y-4">
           <PaymentProcessing />
+        </TabsContent>
+
+        {/* Pending Payments Tab */}
+        <TabsContent value="pending" className="space-y-4">
+          <PendingPayments />
+        </TabsContent>
+
+        {/* Gateway Settings Tab */}
+        <TabsContent value="gateway" className="space-y-4">
+          <PaymentGatewaySettings />
         </TabsContent>
 
         {/* Reconciliation Tab */}

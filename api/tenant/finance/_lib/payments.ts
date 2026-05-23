@@ -243,6 +243,32 @@ function rowToPaymentPlanInstallment(row: PaymentPlanInstallmentRow): PaymentPla
 
 export async function ensurePaymentTables(): Promise<void> {
   try {
+    // Check if payments table exists and has tenant_id column
+    const paymentsTableCheck = await sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'payments' AND column_name = 'tenant_id'
+    `
+
+    // If payments table exists but doesn't have tenant_id, add it
+    if (paymentsTableCheck.rows.length === 0) {
+      try {
+        // Check if table exists at all
+        const tableExists = await sql`
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_name = 'payments'
+        `
+        if (tableExists.rows.length > 0) {
+          // Table exists, add the column
+          await sql`ALTER TABLE payments ADD COLUMN tenant_id TEXT`
+        }
+      } catch (e) {
+        // Table might not exist, will be created below
+      }
+    }
+
+    // Create payments table with tenant_id (will only create if doesn't exist)
     await sql`
       CREATE TABLE IF NOT EXISTS payments (
         id TEXT PRIMARY KEY,
@@ -266,20 +292,48 @@ export async function ensurePaymentTables(): Promise<void> {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `
-    await sql`CREATE INDEX IF NOT EXISTS idx_payments_tenant_id ON payments(tenant_id)`
+
+    // Create indexes only if column exists
+    const tenantIdExists = await sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'payments' AND column_name = 'tenant_id'
+    `
+    if (tenantIdExists.rows.length > 0) {
+      await sql`CREATE INDEX IF NOT EXISTS idx_payments_tenant_id ON payments(tenant_id)`
+    }
     await sql`CREATE INDEX IF NOT EXISTS idx_payments_student_id ON payments(student_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_payments_fee_assignment_id ON payments(fee_assignment_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_payments_payment_date ON payments(payment_date)`
     await sql`CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)`
     await sql`CREATE INDEX IF NOT EXISTS idx_payments_gateway_ref ON payments(gateway_ref)`
 
-    // Add tenant_id column if it doesn't exist (for backward compatibility)
-    try {
-      await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS tenant_id TEXT`
-    } catch (e) {
-      // Column might already exist, ignore error
+    // Check if tenant_payment_settings table exists and has tenant_id column
+    const settingsTableCheck = await sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'tenant_payment_settings' AND column_name = 'tenant_id'
+    `
+
+    // If tenant_payment_settings table exists but doesn't have tenant_id, add it
+    if (settingsTableCheck.rows.length === 0) {
+      try {
+        // Check if table exists at all
+        const tableExists = await sql`
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_name = 'tenant_payment_settings'
+        `
+        if (tableExists.rows.length > 0) {
+          // Table exists, add the column
+          await sql`ALTER TABLE tenant_payment_settings ADD COLUMN tenant_id TEXT`
+        }
+      } catch (e) {
+        // Table might not exist, will be created below
+      }
     }
 
+    // Create tenant_payment_settings table with tenant_id (will only create if doesn't exist)
     await sql`
       CREATE TABLE IF NOT EXISTS tenant_payment_settings (
         id TEXT PRIMARY KEY,
@@ -293,15 +347,17 @@ export async function ensurePaymentTables(): Promise<void> {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `
-    await sql`CREATE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_id ON tenant_payment_settings(tenant_id)`
 
-    // Add tenant_id column if it doesn't exist (for backward compatibility)
-    try {
-      await sql`ALTER TABLE tenant_payment_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT`
-    } catch (e) {
-      // Column might already exist, ignore error
+    // Create indexes only if column exists
+    const settingsTenantIdExists = await sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'tenant_payment_settings' AND column_name = 'tenant_id'
+    `
+    if (settingsTenantIdExists.rows.length > 0) {
+      await sql`CREATE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_id ON tenant_payment_settings(tenant_id)`
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_gateway ON tenant_payment_settings(tenant_id, gateway)`
     }
-    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_gateway ON tenant_payment_settings(tenant_id, gateway)`
 
     await sql`
       CREATE TABLE IF NOT EXISTS payment_proofs (

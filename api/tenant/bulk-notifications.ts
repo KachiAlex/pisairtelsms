@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { initializeDatabase, query } from './cbt/_lib/db.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -26,9 +27,24 @@ interface BulkNotification {
 
 async function initializeTable() {
   try {
-    await supabase.rpc('create_bulk_notifications_table', {})
+    initializeDatabase()
+    await query(`
+      CREATE TABLE IF NOT EXISTS bulk_notifications (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        channels TEXT[],
+        recipient_count INTEGER DEFAULT 0,
+        scheduled_for TIMESTAMP WITH TIME ZONE,
+        sent_at TIMESTAMP WITH TIME ZONE,
+        status TEXT DEFAULT 'scheduled',
+        delivery_status JSONB,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
   } catch (err) {
-    // Table might already exist
+    console.error('bulk_notifications init error:', err)
   }
 }
 

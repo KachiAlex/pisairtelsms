@@ -50,6 +50,7 @@ export function ConfigureTab() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('calendar')
 
   async function fetchAll() {
     setLoading(true)
@@ -106,7 +107,7 @@ export function ConfigureTab() {
         </div>
       </div>
 
-      <Tabs defaultValue="calendar">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="calendar">
             <Calendar className="h-4 w-4 mr-2" />

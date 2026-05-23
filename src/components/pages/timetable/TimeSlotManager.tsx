@@ -6,6 +6,7 @@ import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Switch } from '../../ui/switch'
 import { Badge } from '../../ui/badge'
+import { Checkbox } from '../../ui/checkbox'
 import type { TimeSlot } from './ConfigureTab'
 
 interface Props {
@@ -84,6 +85,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ name: '', startTime: '', endTime: '', isBreak: false })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   function cancelForm() {
     setShowForm(false)
@@ -134,10 +136,41 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
     try {
       const res = await fetch(`/api/tenant/timetable/time-slots?id=${id}`, { method: 'DELETE' })
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete'); return }
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; })
       onRefresh()
     } catch {
       alert('Network error')
     }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Delete ${selectedIds.size} selected time slot(s)?`)) return
+    try {
+      const res = await fetch(`/api/tenant/timetable/time-slots?ids=${Array.from(selectedIds).join(',')}`, { method: 'DELETE' })
+      if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete'); return }
+      setSelectedIds(new Set())
+      onRefresh()
+    } catch {
+      alert('Network error')
+    }
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(timeSlots.map(s => s.id)))
+  }
+
+  function deselectAll() {
+    setSelectedIds(new Set())
   }
 
   async function handleUpdate(id: string) {
@@ -200,6 +233,11 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
           <CardDescription>Define the daily schedule structure</CardDescription>
         </div>
         <div className="flex gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              <Trash2 className="h-4 w-4 mr-1" /> Delete ({selectedIds.size})
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleAutoConfigure} disabled={saving} className="border-blue-200 text-blue-600 hover:bg-blue-50">
             <Wand2 className="h-4 w-4 mr-1" /> Auto Configure
           </Button>
@@ -248,7 +286,15 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
 
         {teachingSlots.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Teaching Periods</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Teaching Periods</p>
+              <div className="flex items-center gap-2">
+                <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Select All</button>
+                {selectedIds.size > 0 && (
+                  <button onClick={deselectAll} className="text-xs text-gray-500 hover:underline">Deselect All</button>
+                )}
+              </div>
+            </div>
             <div className="space-y-2">
               {teachingSlots.map(slot => (
                 <div key={slot.id} className="flex items-center justify-between rounded-xl border border-gray-200 p-3">
@@ -267,6 +313,11 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
                   ) : (
                     <>
                       <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={selectedIds.has(slot.id)}
+                          onCheckedChange={() => toggleSelection(slot.id)}
+                          aria-label={`Select ${slot.name}`}
+                        />
                         <Badge className="bg-blue-100 text-blue-700 text-xs">{slot.startTime} – {slot.endTime}</Badge>
                         <div>
                           <p className="font-semibold text-gray-900 text-sm">{slot.name}</p>
@@ -310,6 +361,11 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
                   ) : (
                     <>
                       <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={selectedIds.has(slot.id)}
+                          onCheckedChange={() => toggleSelection(slot.id)}
+                          aria-label={`Select ${slot.name}`}
+                        />
                         <Badge className="bg-amber-100 text-amber-700 text-xs">{slot.startTime} – {slot.endTime}</Badge>
                         <div>
                           <p className="font-semibold text-gray-900 text-sm">{slot.name}</p>

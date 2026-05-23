@@ -91,6 +91,22 @@ function rowToDTO(row: any): StudentDTO {
 }
 
 /**
+ * Fetch active student count with phone for a tenant
+ */
+export async function fetchStudentCount(tenantId: string): Promise<number> {
+  try {
+    const row = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND deleted_at IS NULL AND phone IS NOT NULL AND phone <> ''`,
+      [tenantId]
+    );
+    return parseInt(row?.count || '0', 10);
+  } catch (error) {
+    console.error('Error fetching student count:', error);
+    return 0;
+  }
+}
+
+/**
  * Fetch all students for a tenant
  */
 export async function fetchStudents(tenantId: string): Promise<StudentDTO[]> {

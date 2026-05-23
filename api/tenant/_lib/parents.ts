@@ -122,6 +122,22 @@ export async function createOrLinkParent(payload: CreateOrLinkParentPayload): Pr
   return rowToParent(parentRow);
 }
 
+/**
+ * Fetch parent count with phone for a tenant
+ */
+export async function fetchParentCount(tenantId: string): Promise<number> {
+  try {
+    const row = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM parents WHERE tenant_id = $1 AND phone IS NOT NULL AND phone <> ''`,
+      [tenantId]
+    );
+    return parseInt(row?.count || '0', 10);
+  } catch (error) {
+    console.error('Error fetching parent count:', error);
+    return 0;
+  }
+}
+
 export async function fetchParentByEmail(email: string, tenantId: string): Promise<ParentWithHash | null> {
   const row = await queryOne<ParentRow & { student_id: string }>(
     `SELECT p.*, ps.student_id FROM parents p

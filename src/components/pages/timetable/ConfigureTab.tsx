@@ -119,7 +119,7 @@ export function ConfigureTab() {
         </TabsList>
 
         <TabsContent value="calendar" className="space-y-6 mt-4">
-          <AcademicYearManager terms={terms} onRefresh={fetchAll} />
+          <AcademicYearManager onRefresh={fetchAll} />
           <TermManager terms={terms} onRefresh={fetchAll} />
           <HolidayManager holidays={holidays} terms={terms} onRefresh={fetchAll} />
           <ExamPeriodManager examPeriods={examPeriods} terms={terms} onRefresh={fetchAll} />

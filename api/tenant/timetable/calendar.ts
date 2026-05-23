@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
+  getAcademicYears, createAcademicYear, updateAcademicYear, deleteAcademicYear, setCurrentAcademicYear,
   getTerms, createTerm, updateTerm, deleteTerm, termsOverlap,
   getHolidays, createHoliday, updateHoliday, deleteHoliday,
   getExamPeriods, createExamPeriod, updateExamPeriod, deleteExamPeriod,
@@ -36,6 +37,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (method === 'GET') {
     const academicYear = query.academicYear as string | undefined
     const termId = query.termId as string | undefined
+    if (resource === 'academic-years') {
+      return res.status(200).json({ data: await getAcademicYears(TENANT_ID) })
+    }
     if (resource === 'terms') {
       return res.status(200).json({ data: await getTerms(TENANT_ID, academicYear) })
     }
@@ -48,6 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Default: return all
     return res.status(200).json({
       data: {
+        academicYears: await getAcademicYears(TENANT_ID),
         terms: await getTerms(TENANT_ID, academicYear),
         holidays: await getHolidays(TENANT_ID, termId),
         examPeriods: await getExamPeriods(TENANT_ID, termId),
@@ -59,6 +64,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (method === 'POST') {
     const body = parseBody(req)
     if (!body) return res.status(400).json({ error: 'Request body is required' })
+
+    if (resource === 'academic-years') {
+      const { name, startDate, endDate, isCurrent } = body
+      if (!name || !startDate || !endDate) {
+        return res.status(400).json({ error: 'name, startDate, endDate are required' })
+      }
+      if (startDate >= endDate) {
+        return res.status(400).json({ error: 'startDate must be before endDate' })
+      }
+      return res.status(201).json({ data: await createAcademicYear(TENANT_ID, { name, startDate, endDate, isCurrent: isCurrent || false }) })
+    }
 
     if (resource === 'terms') {
       const { name, startDate, endDate, academicYear } = body
@@ -96,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(201).json({ data: await createExamPeriod(TENANT_ID, { termId, name, startDate, endDate }) })
     }
 
-    return res.status(400).json({ error: 'resource query param must be terms, holidays, or exam-periods' })
+    return res.status(400).json({ error: 'resource query param must be academic-years, terms, holidays, or exam-periods' })
   }
 
   // PUT — update
@@ -104,6 +120,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!id) return res.status(400).json({ error: 'id query param is required' })
     const body = parseBody(req)
     if (!body) return res.status(400).json({ error: 'Request body is required' })
+
+    if (resource === 'academic-years') {
+      const updated = await updateAcademicYear(id, body)
+      if (!updated) return res.status(404).json({ error: 'Academic year not found' })
+      return res.status(200).json({ data: updated })
+    }
 
     if (resource === 'terms') {
       const updated = await updateTerm(id, body)
@@ -120,12 +142,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!updated) return res.status(404).json({ error: 'Exam period not found' })
       return res.status(200).json({ data: updated })
     }
-    return res.status(400).json({ error: 'resource query param must be terms, holidays, or exam-periods' })
+    return res.status(400).json({ error: 'resource query param must be academic-years, terms, holidays, or exam-periods' })
   }
 
   // DELETE
   if (method === 'DELETE') {
     if (!id) return res.status(400).json({ error: 'id query param is required' })
+    if (resource === 'academic-years') {
+      const ok = await deleteAcademicYear(id)
+      if (!ok) return res.status(404).json({ error: 'Academic year not found' })
+      return res.status(204).end()
+    }
     if (resource === 'terms') {
       const ok = await deleteTerm(id)
       if (!ok) return res.status(404).json({ error: 'Term not found' })
@@ -141,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!ok) return res.status(404).json({ error: 'Exam period not found' })
       return res.status(204).end()
     }
-    return res.status(400).json({ error: 'resource query param must be terms, holidays, or exam-periods' })
+    return res.status(400).json({ error: 'resource query param must be academic-years, terms, holidays, or exam-periods' })
   }
 
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')

@@ -60,6 +60,42 @@ function rowToExamPeriod(r: any): ExamPeriod {
   return { id: r.id, tenantId: r.tenant_id, termId: r.term_id, name: r.name, startDate: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date), endDate: r.end_date instanceof Date ? r.end_date.toISOString().split('T')[0] : String(r.end_date), createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
 }
 
+// Academic Years
+export async function getAcademicYears(tenantId: string): Promise<AcademicYear[]> {
+  try {
+    const result = await sql`SELECT * FROM academic_years WHERE tenant_id = ${tenantId} ORDER BY start_date DESC`
+    return result.rows.map(rowToAcademicYear)
+  } catch { return [] }
+}
+
+export async function getAcademicYear(id: string): Promise<AcademicYear | null> {
+  try {
+    const result = await sql`SELECT * FROM academic_years WHERE id = ${id} LIMIT 1`
+    return result.rows[0] ? rowToAcademicYear(result.rows[0]) : null
+  } catch { return null }
+}
+
+export async function createAcademicYear(tenantId: string, data: Omit<AcademicYear, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<AcademicYear> {
+  const id = randomUUID()
+  const result = await sql`INSERT INTO academic_years (id, tenant_id, name, start_date, end_date, is_current) VALUES (${id}, ${tenantId}, ${data.name}, ${data.startDate}, ${data.endDate}, ${data.isCurrent}) RETURNING *`
+  return rowToAcademicYear(result.rows[0])
+}
+
+export async function updateAcademicYear(id: string, data: Partial<AcademicYear>): Promise<AcademicYear | null> {
+  const result = await sql`UPDATE academic_years SET name = COALESCE(${data.name ?? null}, name), start_date = COALESCE(${data.startDate ?? null}, start_date), end_date = COALESCE(${data.endDate ?? null}, end_date), is_current = COALESCE(${data.isCurrent ?? null}, is_current), updated_at = NOW() WHERE id = ${id} RETURNING *`
+  return result.rows[0] ? rowToAcademicYear(result.rows[0]) : null
+}
+
+export async function deleteAcademicYear(id: string): Promise<boolean> {
+  const result = await sql`DELETE FROM academic_years WHERE id = ${id}`
+  return (result.rowCount ?? 0) > 0
+}
+
+export async function setCurrentAcademicYear(tenantId: string, id: string): Promise<void> {
+  await sql`UPDATE academic_years SET is_current = false WHERE tenant_id = ${tenantId}`
+  await sql`UPDATE academic_years SET is_current = true WHERE id = ${id}`
+}
+
 // Terms
 export async function getTerms(tenantId: string, academicYear?: string): Promise<SchoolTerm[]> {
   try {

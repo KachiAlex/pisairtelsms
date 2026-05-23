@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Plus, Pencil, Trash2, BookOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
@@ -6,6 +6,14 @@ import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { Term } from './ConfigureTab'
+
+interface AcademicYear {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  isCurrent: boolean
+}
 
 interface Props {
   terms: Term[]
@@ -27,12 +35,21 @@ export function TermManager({ terms, onRefresh }: Props) {
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
 
-  // Extract unique academic years from existing terms, sorted descending
-  const academicYears = useMemo(() => {
-    const years = Array.from(new Set(terms.map(t => t.academicYear).filter(Boolean)))
-    return years.sort((a, b) => b.localeCompare(a))
-  }, [terms])
+  useEffect(() => {
+    fetchAcademicYears()
+  }, [])
+
+  async function fetchAcademicYears() {
+    try {
+      const res = await fetch('/api/tenant/timetable/calendar?resource=academic-years')
+      const data = await res.json()
+      setAcademicYears(Array.isArray(data.data) ? data.data : [])
+    } catch {
+      setAcademicYears([])
+    }
+  }
 
   function startEdit(term: Term) {
     setEditId(term.id)
@@ -122,8 +139,8 @@ export function TermManager({ terms, onRefresh }: Props) {
                     {academicYears.length === 0 ? (
                       <SelectItem value="" disabled>No academic years available</SelectItem>
                     ) : (
-                      academicYears.map(year => (
-                        <SelectItem key={year} value={year}>{year}</SelectItem>
+                      academicYears.map(ay => (
+                        <SelectItem key={ay.id} value={ay.name}>{ay.name}</SelectItem>
                       ))
                     )}
                   </SelectContent>

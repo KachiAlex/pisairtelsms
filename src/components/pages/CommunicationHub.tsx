@@ -61,20 +61,32 @@ interface CommunicationLog {
   createdAt: string
 }
 
-const audienceSegments = [
-  { id: 'all', label: 'All guardians', reach: '2,140 recipients' },
-  { id: 'senior', label: 'Senior school', reach: '860 recipients' },
-  { id: 'boarding', label: 'Boarding houses', reach: '420 recipients' },
-  { id: 'transport', label: 'Bus routes', reach: '510 recipients' },
-]
+interface AudienceSegment {
+  id: string
+  label: string
+  reach: string
+  count: number
+}
+
+const TENANT_ID = (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
+
+function tenantHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'x-tenant-id': TENANT_ID,
+  }
+}
 
 const CHANNELS = ['email', 'sms', 'push', 'in-app']
 
 export function CommunicationHub() {
   const [activeTab, setActiveTab] = useState('announcements')
 
+  // Audience segments
+  const [audienceSegments, setAudienceSegments] = useState<AudienceSegment[]>([])
+
   // Announcements state
-  const [selectedSegment, setSelectedSegment] = useState('senior')
+  const [selectedSegment, setSelectedSegment] = useState('all')
   const [subject, setSubject] = useState('')
   const [schedule, setSchedule] = useState('')
   const [messageBody, setMessageBody] = useState('')
@@ -118,17 +130,32 @@ export function CommunicationHub() {
 
   useEffect(() => {
     fetchAllData()
+    fetchAudienceSegments()
   }, [])
+
+  const fetchAudienceSegments = async () => {
+    try {
+      const res = await fetch('/api/tenant/communication/audiences', { headers: tenantHeaders() })
+      if (res.ok) {
+        const r = await res.json()
+        if (r.data && r.data.length > 0) {
+          setAudienceSegments(r.data)
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching audience segments:', err)
+    }
+  }
 
   const fetchAllData = async () => {
     try {
       setLoading(true)
       setError(null)
       const [annRes, notifRes, msgRes, logRes] = await Promise.allSettled([
-        fetch('/api/tenant/communication'),
-        fetch('/api/tenant/bulk-notifications'),
-        fetch('/api/tenant/parent-messages'),
-        fetch('/api/tenant/communication-logs'),
+        fetch('/api/tenant/communication', { headers: tenantHeaders() }),
+        fetch('/api/tenant/bulk-notifications', { headers: tenantHeaders() }),
+        fetch('/api/tenant/parent-messages', { headers: tenantHeaders() }),
+        fetch('/api/tenant/communication-logs', { headers: tenantHeaders() }),
       ])
       if (annRes.status === 'fulfilled' && annRes.value.ok) {
         const r = await annRes.value.json(); setAnnouncements(r.data || [])
@@ -158,7 +185,7 @@ export function CommunicationHub() {
       if (logRecipientFilter) params.set('recipient', logRecipientFilter)
       if (logStartDate) params.set('startDate', logStartDate)
       if (logEndDate) params.set('endDate', logEndDate)
-      const res = await fetch(`/api/tenant/communication-logs?${params}`)
+      const res = await fetch(`/api/tenant/communication-logs?${params}`, { headers: tenantHeaders() })
       if (res.ok) { const r = await res.json(); setCommunicationLogs(r.data || []) }
     } catch { /* silent */ }
   }
@@ -174,7 +201,7 @@ export function CommunicationHub() {
     setAnnouncements(prev => [optimistic, ...prev])
     try {
       const res = await fetch('/api/tenant/communication', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: tenantHeaders(),
         body: JSON.stringify({ title: subject, body: messageBody, audience: selectedSegment, status: 'sent', sentBy: 'Admin' }),
       })
       if (!res.ok) throw new Error('Failed')
@@ -192,7 +219,7 @@ export function CommunicationHub() {
     setBulkSubmitting(true)
     try {
       const res = await fetch('/api/tenant/bulk-notifications', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: tenantHeaders(),
         body: JSON.stringify({
           title: bulkTitle, message: bulkMessage, channels: bulkChannels,
           recipientCount: parseInt(bulkRecipients), scheduledFor: bulkSchedule || new Date().toISOString(),
@@ -213,7 +240,7 @@ export function CommunicationHub() {
     setPmSubmitting(true)
     try {
       const res = await fetch('/api/tenant/parent-messages', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: tenantHeaders(),
         body: JSON.stringify({ parentName: pmParentName, studentName: pmStudentName, message: pmMessage, messageType: pmType, priority: pmPriority }),
       })
       if (res.ok) {

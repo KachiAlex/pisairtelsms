@@ -88,7 +88,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (method === 'DELETE') {
-      if (!id) return res.status(400).json({ error: 'id query param is required' })
+      // Bulk delete via ids query param
+      const ids = query.ids as string | undefined
+      if (ids) {
+        const idList = ids.split(',').filter(Boolean)
+        let deleted = 0
+        for (const slotId of idList) {
+          const ok = await deleteTimeSlot(slotId)
+          if (ok) deleted++
+        }
+        return res.status(200).json({ data: { deleted } })
+      }
+      // Single delete via id query param
+      if (!id) return res.status(400).json({ error: 'id or ids query param is required' })
       const ok = await deleteTimeSlot(id)
       if (!ok) return res.status(404).json({ error: 'Time slot not found' })
       return res.status(204).end()

@@ -234,8 +234,18 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
         </div>
         <div className="flex gap-2">
           {selectedIds.size > 0 && (
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-              <Trash2 className="h-4 w-4 mr-1" /> Delete ({selectedIds.size})
+            <>
+              <Button variant="ghost" size="sm" onClick={deselectAll} className="text-gray-500">
+                Deselect All
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                <Trash2 className="h-4 w-4 mr-1" /> Delete ({selectedIds.size})
+              </Button>
+            </>
+          )}
+          {timeSlots.length > 0 && selectedIds.size === 0 && (
+            <Button variant="ghost" size="sm" onClick={selectAll} className="text-blue-600">
+              Select All
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={handleAutoConfigure} disabled={saving} className="border-blue-200 text-blue-600 hover:bg-blue-50">
@@ -286,15 +296,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
 
         {teachingSlots.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Teaching Periods</p>
-              <div className="flex items-center gap-2">
-                <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Select All</button>
-                {selectedIds.size > 0 && (
-                  <button onClick={deselectAll} className="text-xs text-gray-500 hover:underline">Deselect All</button>
-                )}
-              </div>
-            </div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Teaching Periods</p>
             <div className="space-y-2">
               {teachingSlots.map(slot => (
                 <div key={slot.id} className="flex items-center justify-between rounded-xl border border-gray-200 p-3">

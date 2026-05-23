@@ -120,13 +120,14 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
     }
     setSaving(true)
     try {
-      for (const slot of COMMON_SLOTS) {
-        await fetch('/api/tenant/timetable/time-slots', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...slot, dayOfWeek: 0 }),
-        })
-      }
+      const slotsToCreate = COMMON_SLOTS.map((slot, i) => ({ ...slot, dayOfWeek: 0, sequence: i + 1 }))
+      const res = await fetch('/api/tenant/timetable/time-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slots: slotsToCreate }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || 'Failed to auto-configure'); return }
       onRefresh()
     } catch {
       alert('Failed to auto-configure time slots')

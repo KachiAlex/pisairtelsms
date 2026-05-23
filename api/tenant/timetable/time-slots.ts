@@ -16,7 +16,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (method === 'GET') {
       const dayOfWeek = query.dayOfWeek !== undefined ? Number(query.dayOfWeek) : undefined
-      return res.status(200).json({ data: getTimeSlots(TENANT_ID, dayOfWeek) })
+      const slots = await getTimeSlots(TENANT_ID, dayOfWeek)
+      return res.status(200).json({ data: slots })
     }
 
     if (method === 'POST') {
@@ -29,16 +30,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (startTime >= endTime) {
         return res.status(400).json({ error: 'startTime must be before endTime' })
       }
-      if (timeSlotsOverlap(TENANT_ID, dayOfWeek, startTime, endTime)) {
+      if (await timeSlotsOverlap(TENANT_ID, dayOfWeek, startTime, endTime)) {
         return res.status(400).json({ error: 'Time slot overlaps with an existing slot on this day' })
       }
       const start = new Date(`1970-01-01T${startTime}:00`)
       const end = new Date(`1970-01-01T${endTime}:00`)
       const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
-      const existing = getTimeSlots(TENANT_ID, dayOfWeek)
+      const existing = await getTimeSlots(TENANT_ID, dayOfWeek)
       const seq = sequence ?? (existing.length + 1)
+      const newSlot = await createTimeSlot(TENANT_ID, { name, startTime, endTime, durationMinutes, dayOfWeek, isBreak: !!isBreak, sequence: seq })
       return res.status(201).json({
-        data: createTimeSlot(TENANT_ID, { name, startTime, endTime, durationMinutes, dayOfWeek, isBreak: !!isBreak, sequence: seq }),
+        data: newSlot,
       })
     }
 
@@ -46,14 +48,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!id) return res.status(400).json({ error: 'id query param is required' })
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
-      const updated = updateTimeSlot(id, body)
+      const updated = await updateTimeSlot(id, body)
       if (!updated) return res.status(404).json({ error: 'Time slot not found' })
       return res.status(200).json({ data: updated })
     }
 
     if (method === 'DELETE') {
       if (!id) return res.status(400).json({ error: 'id query param is required' })
-      const ok = deleteTimeSlot(id)
+      const ok = await deleteTimeSlot(id)
       if (!ok) return res.status(404).json({ error: 'Time slot not found' })
       return res.status(204).end()
     }

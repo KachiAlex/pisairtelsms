@@ -30,6 +30,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { id, action } = req.query
   const tenantId = req.headers['x-tenant-id'] as string
 
+  console.log('Fee structures request:', { method: req.method, id, action, tenantId })
+
   if (!tenantId) {
     return res.status(400).json({ error: 'x-tenant-id header is required' })
   }

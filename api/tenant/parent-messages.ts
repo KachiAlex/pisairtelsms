@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { initializeDatabase, query } from './cbt/_lib/db.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -27,9 +28,24 @@ interface ParentMessage {
 
 async function initializeTable() {
   try {
-    await supabase.rpc('create_parent_messages_table', {})
+    initializeDatabase()
+    await query(`
+      CREATE TABLE IF NOT EXISTS parent_messages (
+        id TEXT PRIMARY KEY,
+        parent_name TEXT NOT NULL,
+        student_name TEXT NOT NULL,
+        message TEXT NOT NULL,
+        message_type TEXT DEFAULT 'update',
+        priority TEXT DEFAULT 'normal',
+        sent_at TIMESTAMP WITH TIME ZONE,
+        status TEXT DEFAULT 'sent',
+        replies JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
   } catch (err) {
-    // Table might already exist
+    console.error('parent_messages init error:', err)
   }
 }
 

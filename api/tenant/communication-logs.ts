@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { initializeDatabase, query } from './cbt/_lib/db.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
@@ -21,9 +22,23 @@ interface CommunicationLog {
 
 async function initializeTable() {
   try {
-    await supabase.rpc('create_communication_logs_table', {})
+    initializeDatabase()
+    await query(`
+      CREATE TABLE IF NOT EXISTS communication_logs (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        recipient TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        sent_at TIMESTAMP WITH TIME ZONE,
+        delivered_at TIMESTAMP WITH TIME ZONE,
+        read_at TIMESTAMP WITH TIME ZONE,
+        status TEXT DEFAULT 'sent',
+        error_message TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
   } catch (err) {
-    // Table might already exist
+    console.error('communication_logs init error:', err)
   }
 }
 

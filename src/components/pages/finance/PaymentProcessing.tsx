@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader, AlertCircle, Download } from 'lucide-react';
+import { Loader, AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -8,6 +8,7 @@ import { Label } from '../../ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
 import { PaymentForm } from './PaymentForm';
 import BulkPaymentUpload from './BulkPaymentUpload';
+import { PaymentReceipt } from './PaymentReceipt';
 
 interface Payment {
   id: string;
@@ -32,8 +33,13 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMethod, setFilterMethod] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterGateway, setFilterGateway] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [activeTab, setActiveTab] = useState('single');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   // Fetch payments
   useEffect(() => {
@@ -41,11 +47,19 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
       setLoading(true);
       setError(null);
       try {
+        const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+        if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
+
         const params = new URLSearchParams();
         if (filterMethod !== 'all') params.append('paymentMethod', filterMethod);
         if (filterStatus !== 'all') params.append('status', filterStatus);
+        if (filterGateway !== 'all') params.append('gateway', filterGateway);
+        if (dateFrom) params.append('dateFrom', dateFrom);
+        if (dateTo) params.append('dateTo', dateTo);
 
-        const response = await fetch(`/api/tenant/finance/payments?${params.toString()}`);
+        const response = await fetch(`/api/tenant/finance/payments?${params.toString()}`, { headers });
         if (!response.ok) {
           throw new Error('Failed to fetch payments');
         }
@@ -60,7 +74,7 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
     };
 
     fetchPayments();
-  }, [filterMethod, filterStatus, refreshTrigger]);
+  }, [filterMethod, filterStatus, filterGateway, dateFrom, dateTo, refreshTrigger]);
 
   const filteredPayments = payments.filter((payment) => {
     const searchLower = searchTerm.toLowerCase();
@@ -90,17 +104,34 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
+      case 'success':
       case 'verified':
         return 'bg-green-100 text-green-800';
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
       case 'reconciled':
         return 'bg-blue-100 text-blue-800';
+      case 'failed':
       case 'reversed':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const handleExportCSV = () => {
+    if (filteredPayments.length === 0) return;
+    const headers = ['ID', 'Student Name', 'Amount', 'Method', 'Reference', 'Receipt', 'Date', 'Status'];
+    const rows = filteredPayments.map((p) => [
+      p.id, p.studentName, p.amount, p.paymentMethod, p.referenceNumber, p.receiptNumber, p.paymentDate, p.status,
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `payments-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   };
 
   return (
@@ -144,7 +175,7 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Search and Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="search">Search</Label>
                   <Input
@@ -181,11 +212,44 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
                   >
                     <option value="all">All Status</option>
                     <option value="pending">Pending</option>
+                    <option value="success">Success</option>
                     <option value="verified">Verified</option>
+                    <option value="failed">Failed</option>
                     <option value="reconciled">Reconciled</option>
                     <option value="reversed">Reversed</option>
                   </select>
                 </div>
+                <div>
+                  <Label htmlFor="gateway">Gateway</Label>
+                  <select
+                    id="gateway"
+                    value={filterGateway}
+                    onChange={(e) => setFilterGateway(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md mt-1"
+                  >
+                    <option value="all">All Gateways</option>
+                    <option value="paystack">Paystack</option>
+                    <option value="flutterwave">Flutterwave</option>
+                    <option value="moniepoint">Moniepoint</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="cash">Cash</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="dateFrom">Date From</Label>
+                  <Input id="dateFrom" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="dateTo">Date To</Label>
+                  <Input id="dateTo" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={filteredPayments.length === 0}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  Export CSV
+                </Button>
               </div>
 
               {/* Error Message */}
@@ -216,6 +280,7 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
                         <TableHead>Receipt #</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -231,6 +296,22 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
                             <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusBadgeColor(payment.status)}`}>
                               {payment.status}
                             </span>
+                          </TableCell>
+                          <TableCell>
+                            {(payment.status === 'success' || payment.status === 'verified') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs gap-1"
+                                onClick={() => {
+                                  setSelectedPayment(payment);
+                                  setReceiptDialogOpen(true);
+                                }}
+                              >
+                                <Download className="w-3 h-3" />
+                                Receipt
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -258,6 +339,22 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Receipt Dialog */}
+      {selectedPayment && (
+        <PaymentReceipt
+          payment={{
+            ...selectedPayment,
+            studentName: selectedPayment.studentName,
+            feeDescription: 'Fee Payment',
+          }}
+          open={receiptDialogOpen}
+          onClose={() => {
+            setReceiptDialogOpen(false);
+            setSelectedPayment(null);
+          }}
+        />
+      )}
     </div>
   );
 }

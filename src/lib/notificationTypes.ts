@@ -16,12 +16,13 @@ interface GuardianContact {
 
 interface NotificationEvent {
   id: string
-  type: 'document_request' | 'approval_required' | 'document_approved' | 'document_rejected' | 'deadline_reminder' | 'escalation_warning' | 'final_notice'
+  type: 'document_request' | 'approval_required' | 'document_approved' | 'document_rejected' | 'deadline_reminder' | 'escalation_warning' | 'final_notice' | 'payment_pending' | 'payment_confirmed' | 'payment_rejected'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   documentId?: string
   workflowId?: string
   studentId: string
-  guardianId: string
+  guardianId?: string
+  adminId?: string
   scheduledFor: string
   sentAt?: string
   status: 'scheduled' | 'sent' | 'delivered' | 'failed' | 'cancelled'
@@ -137,6 +138,39 @@ const defaultNotificationTemplates: NotificationTemplate[] = [
     variables: ['guardian_name', 'student_name', 'document_name', 'document_category', 'rejection_reason', 'approver_name', 'school_name'],
     priority: 'high',
     cooldownHours: 12
+  },
+  {
+    id: 'payment_pending',
+    name: 'Manual Payment Pending Review',
+    eventType: 'payment_pending',
+    channels: ['email', 'in_app'],
+    subject: 'Manual Payment Requires Review - {student_name}',
+    body: 'A manual payment has been submitted for review.\n\nStudent: {student_name}\nAmount: {amount}\nPayment Method: {payment_method}\nReference: {reference_number}\nNotes: {notes}\n\nPlease review the payment proof in the finance portal and confirm or reject.\n\nBest regards,\n{school_name} Finance',
+    variables: ['student_name', 'amount', 'payment_method', 'reference_number', 'notes', 'school_name'],
+    priority: 'medium',
+    cooldownHours: 0
+  },
+  {
+    id: 'payment_confirmed',
+    name: 'Payment Confirmed',
+    eventType: 'payment_confirmed',
+    channels: ['email', 'in_app'],
+    subject: 'Payment Confirmed - {student_name}',
+    body: 'The manual payment has been confirmed.\n\nStudent: {student_name}\nAmount: {amount}\nReceipt: {receipt_number}\nConfirmed by: {admin_name}\n\nBest regards,\n{school_name} Finance',
+    variables: ['student_name', 'amount', 'receipt_number', 'admin_name', 'school_name'],
+    priority: 'low',
+    cooldownHours: 0
+  },
+  {
+    id: 'payment_rejected',
+    name: 'Payment Rejected',
+    eventType: 'payment_rejected',
+    channels: ['email', 'in_app'],
+    subject: 'Payment Rejected - {student_name}',
+    body: 'The manual payment has been rejected.\n\nStudent: {student_name}\nAmount: {amount}\nReference: {reference_number}\nReason: {rejection_reason}\nRejected by: {admin_name}\n\nPlease contact the finance office for assistance.\n\nBest regards,\n{school_name} Finance',
+    variables: ['student_name', 'amount', 'reference_number', 'rejection_reason', 'admin_name', 'school_name'],
+    priority: 'high',
+    cooldownHours: 0
   }
 ]
 

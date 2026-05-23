@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Badge } from '../../ui/badge'
+import { PaymentReceipt } from '../finance/PaymentReceipt'
 
 interface FeeAssignment {
   id: string
@@ -79,6 +80,8 @@ export function FeeManagement() {
   const [manualNotes, setManualNotes] = useState('')
   const [manualProofUrl, setManualProofUrl] = useState('')
   const [submittingManual, setSubmittingManual] = useState(false)
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false)
+  const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null)
 
   const auth = getAuth()
   const tenantId = auth?.tenantId
@@ -337,7 +340,17 @@ export function FeeManagement() {
                     </div>
                   </div>
                   {(payment.status === 'success' || payment.status === 'verified') && (
-                    <Button variant="ghost" size="sm" className="text-xs gap-1"><Download className="w-3 h-3" /> Receipt</Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() => {
+                        setSelectedPayment(payment);
+                        setReceiptDialogOpen(true);
+                      }}
+                    >
+                      <Download className="w-3 h-3" /> Receipt
+                    </Button>
                   )}
                 </div>
               ))}
@@ -401,6 +414,22 @@ export function FeeManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Receipt Dialog */}
+      {selectedPayment && (
+        <PaymentReceipt
+          payment={{
+            ...selectedPayment,
+            studentName: selectedChild?.fullName,
+            feeDescription: 'Fee Payment',
+          }}
+          open={receiptDialogOpen}
+          onClose={() => {
+            setReceiptDialogOpen(false);
+            setSelectedPayment(null);
+          }}
+        />
+      )}
     </div>
   )
 }

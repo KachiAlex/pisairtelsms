@@ -152,7 +152,7 @@ export function SubjectsCatalog() {
   const fetchSubjects = async () => {
     try {
       setLoading(true)
-      const res = await tenantApiGet('/api/tenant/cbt/subjects')
+      const res = await tenantApiGet('/api/tenant/academics/subjects')
       if (res.ok) {
         const data = await res.json()
         setSubjects(data.data || [])
@@ -175,7 +175,7 @@ export function SubjectsCatalog() {
     }
 
     try {
-      const res = await tenantApiPost('/api/tenant/cbt/subjects', newSubject);
+      const res = await tenantApiPost('/api/tenant/academics/subjects', newSubject);
 
       if (res.ok) {
         const data = await res.json();

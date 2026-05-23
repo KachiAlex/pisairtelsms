@@ -196,7 +196,7 @@ export function QuestionBankTab() {
 
   const fetchSubjects = async () => {
     try {
-      const res = await tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true');
+      const res = await tenantApiGet('/api/tenant/academics/subjects?namesOnly=true');
       if (!res.ok) {
         setSubjects([]);
         return;

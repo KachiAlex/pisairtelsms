@@ -202,7 +202,7 @@ export function ExamCreationTab() {
       }
 
       // Fetch subjects from admin-created subjects
-      const subjectsRes = await tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true');
+      const subjectsRes = await tenantApiGet('/api/tenant/academics/subjects?namesOnly=true');
       if (subjectsRes.ok) {
         const subjectsData = await subjectsRes.json();
         console.log('Subjects response:', subjectsData);

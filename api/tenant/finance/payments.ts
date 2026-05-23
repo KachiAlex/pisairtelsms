@@ -16,6 +16,10 @@ import {
   rejectPayment,
   getPendingPayments,
 } from './_lib/payments.js'
+import {
+  createAdminNotification,
+  ensureAdminNotificationsTable,
+} from './_lib/admin-notifications.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT')
@@ -191,7 +195,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Request body is required' })
     }
 
-    const { studentId, feeAssignmentId, feeStructureId, amount, paymentMethod, notes, proofUrl, proofType } = body
+    const { studentId, feeAssignmentId, feeStructureId, amount, paymentMethod, notes, proofUrl, proofType, studentName } = body
 
     const missing: string[] = []
     if (!studentId) missing.push('studentId')
@@ -209,6 +213,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      await ensureAdminNotificationsTable()
+
       const payment = await createManualPayment(
         tenantId,
         studentId,
@@ -223,6 +229,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (proofUrl) {
         await addPaymentProof(payment.id, proofUrl, proofType || 'receipt')
       }
+
+      // Create admin notification for manual payment review
+      await createAdminNotification(
+        tenantId,
+        'payment_pending',
+        payment.id,
+        studentId,
+        studentName,
+        amount,
+        { paymentMethod, notes }
+      )
 
       return res.status(201).json({ data: payment })
     } catch (error) {
@@ -252,10 +269,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const confirmedBy = body?.confirmedBy || 'admin'
 
     try {
+      await ensureAdminNotificationsTable()
       const payment = await confirmPayment(id as string, confirmedBy)
       if (!payment) {
         return res.status(404).json({ error: 'Payment not found or not pending' })
       }
+
+      // Create admin notification for confirmed payment
+      await createAdminNotification(
+        tenantId,
+        'payment_confirmed',
+        payment.id,
+        payment.studentId,
+        body?.studentName,
+        payment.amount,
+        { confirmedBy }
+      )
+
       return res.status(200).json({ data: payment })
     } catch (error) {
       console.error('Error confirming payment:', error)
@@ -269,10 +299,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const reason = body?.reason
 
     try {
+      await ensureAdminNotificationsTable()
       const payment = await rejectPayment(id as string, reason)
       if (!payment) {
         return res.status(404).json({ error: 'Payment not found or not pending' })
       }
+
+      // Create admin notification for rejected payment
+      await createAdminNotification(
+        tenantId,
+        'payment_rejected',
+        payment.id,
+        payment.studentId,
+        body?.studentName,
+        payment.amount,
+        { rejectionReason: reason, rejectedBy: body?.rejectedBy || 'admin' }
+      )
+
       return res.status(200).json({ data: payment })
     } catch (error) {
       console.error('Error rejecting payment:', error)
@@ -297,12 +340,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // GET /api/tenant/finance/payments
   if (req.method === 'GET' && !id && !action) {
-    const { feeAssignmentId, paymentDate, status, studentId } = req.query
+    const { feeAssignmentId, paymentDate, status, studentId, gateway, dateFrom, dateTo } = req.query
     try {
       const payments = await getPayments(
+        tenantId,
         feeAssignmentId as string | undefined,
         paymentDate as string | undefined,
-        status as string | undefined
+        status as string | undefined,
+        gateway as string | undefined,
+        dateFrom as string | undefined,
+        dateTo as string | undefined
       )
       // Filter by student if requested
       const filtered = studentId

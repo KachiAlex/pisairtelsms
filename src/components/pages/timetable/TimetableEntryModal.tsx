@@ -42,7 +42,7 @@ export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId
       })
       .catch(() => setStaff([]))
 
-    tenantApiGet('/api/tenant/cbt/subjects?namesOnly=true')
+    tenantApiGet('/api/tenant/academics/subjects?namesOnly=true')
       .then(r => r.json())
       .then(d => {
         const list: string[] = Array.isArray(d.data) ? d.data.filter(Boolean) : []

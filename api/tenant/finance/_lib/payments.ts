@@ -610,41 +610,30 @@ export async function getPendingPayments(tenantId?: string): Promise<Payment[]> 
 }
 
 export async function getPayments(
+  tenantId: string,
   feeAssignmentId?: string,
   paymentDate?: string,
-  status?: string
+  status?: string,
+  gateway?: string,
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<Payment[]> {
   await ensurePaymentTables()
 
-  let query = sql<PaymentRow>`SELECT * FROM payments`
+  const conditions: string[] = ['tenant_id = $1']
+  const values: (string | number | undefined)[] = [tenantId]
+  let idx = 2
 
-  if (feeAssignmentId && paymentDate && status) {
-    query = sql<PaymentRow>`
-      SELECT * FROM payments
-      WHERE fee_assignment_id = ${feeAssignmentId} AND payment_date = ${paymentDate} AND status = ${status}
-      ORDER BY created_at DESC
-    `
-  } else if (feeAssignmentId) {
-    query = sql<PaymentRow>`
-      SELECT * FROM payments WHERE fee_assignment_id = ${feeAssignmentId}
-      ORDER BY created_at DESC
-    `
-  } else if (paymentDate) {
-    query = sql<PaymentRow>`
-      SELECT * FROM payments WHERE payment_date = ${paymentDate}
-      ORDER BY created_at DESC
-    `
-  } else if (status) {
-    query = sql<PaymentRow>`
-      SELECT * FROM payments WHERE status = ${status}
-      ORDER BY created_at DESC
-    `
-  } else {
-    query = sql<PaymentRow>`SELECT * FROM payments ORDER BY created_at DESC`
-  }
+  if (feeAssignmentId) { conditions.push(`fee_assignment_id = $${idx++}`); values.push(feeAssignmentId) }
+  if (paymentDate) { conditions.push(`payment_date = $${idx++}`); values.push(paymentDate) }
+  if (status) { conditions.push(`status = $${idx++}`); values.push(status) }
+  if (gateway) { conditions.push(`gateway = $${idx++}`); values.push(gateway) }
+  if (dateFrom) { conditions.push(`payment_date >= $${idx++}`); values.push(dateFrom) }
+  if (dateTo) { conditions.push(`payment_date <= $${idx++}`); values.push(dateTo) }
 
-  const result = await query
-  return result.rows.map(rowToPayment)
+  const query = `SELECT * FROM payments WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`
+  const result = await sql.unsafe(query, values as any)
+  return (result.rows || []).map(rowToPayment)
 }
 
 export async function getPaymentById(id: string): Promise<Payment | null> {

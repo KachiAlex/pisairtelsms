@@ -1,11 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
-import { initializeDatabase, query } from './cbt/_lib/db.js'
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
-)
+import { initializeDatabase, query, queryOne } from './cbt/_lib/db.js'
 
 interface CommunicationLog {
   id: string
@@ -52,39 +46,32 @@ export default async function handler(
     try {
       const { type, channel, status, recipient, startDate, endDate } = req.query
 
-      let query = supabase.from('communication_logs').select('*')
+      let sql = 'SELECT * FROM communication_logs WHERE 1=1'
+      const params: any[] = []
+      let p = 0
 
       if (type) {
-        query = query.eq('type', type)
+        p++; sql += ` AND type = $${p}`; params.push(type)
       }
-
       if (channel) {
-        query = query.eq('channel', channel)
+        p++; sql += ` AND channel = $${p}`; params.push(channel)
       }
-
       if (status) {
-        query = query.eq('status', status)
+        p++; sql += ` AND status = $${p}`; params.push(status)
       }
-
       if (recipient) {
-        query = query.ilike('recipient', `%${recipient}%`)
+        p++; sql += ` AND recipient ILIKE $${p}`; params.push(`%${recipient}%`)
       }
-
       if (startDate) {
-        query = query.gte('sent_at', startDate)
+        p++; sql += ` AND sent_at >= $${p}`; params.push(startDate)
       }
-
       if (endDate) {
-        query = query.lte('sent_at', endDate)
+        p++; sql += ` AND sent_at <= $${p}`; params.push(endDate)
       }
+      sql += ' ORDER BY sent_at DESC LIMIT 100'
 
-      const { data, error } = await query
-        .order('sent_at', { ascending: false })
-        .limit(100)
-
-      if (error) throw error
-
-      res.status(200).json({ data: data || [] })
+      const result = await query(sql, params)
+      res.status(200).json({ data: result.rows || [] })
     } catch (err) {
       console.error('Error fetching communication logs:', err)
       res.status(500).json({ error: 'Failed to fetch communication logs' })
@@ -97,27 +84,20 @@ export default async function handler(
         return res.status(400).json({ error: 'Missing required fields' })
       }
 
-      const log: CommunicationLog = {
-        id: `log_${Date.now()}`,
-        type,
-        recipient,
-        channel,
-        sentAt: new Date().toISOString(),
-        deliveredAt: status === 'delivered' || status === 'read' ? new Date().toISOString() : null,
-        readAt: status === 'read' ? new Date().toISOString() : null,
-        status: status || 'sent',
-        errorMessage: errorMessage || null,
-        createdAt: new Date().toISOString(),
-      }
+      const id = `log_${Date.now()}`
+      const now = new Date().toISOString()
+      const deliveredAt = status === 'delivered' || status === 'read' ? now : null
+      const readAtVal = status === 'read' ? now : null
+      const statusVal = status || 'sent'
 
-      const { data, error } = await supabase
-        .from('communication_logs')
-        .insert([log])
-        .select()
+      const result = await query(
+        `INSERT INTO communication_logs (id, type, recipient, channel, sent_at, delivered_at, read_at, status, error_message, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [id, type, recipient, channel, now, deliveredAt, readAtVal, statusVal, errorMessage || null, now]
+      )
 
-      if (error) throw error
-
-      res.status(201).json({ data: data?.[0] })
+      res.status(201).json({ data: result.rows[0] })
     } catch (err) {
       console.error('Error creating communication log:', err)
       res.status(500).json({ error: 'Failed to create communication log' })
@@ -130,29 +110,35 @@ export default async function handler(
         return res.status(400).json({ error: 'Log ID is required' })
       }
 
-      const updateData: any = { status }
+      const fields: string[] = []
+      const values: any[] = []
+      let p = 0
 
-      if (deliveredAt) {
-        updateData.delivered_at = deliveredAt
+      if (status !== undefined) {
+        p++; fields.push(`status = $${p}`); values.push(status)
       }
-
-      if (readAt) {
-        updateData.read_at = readAt
+      if (deliveredAt !== undefined) {
+        p++; fields.push(`delivered_at = $${p}`); values.push(deliveredAt)
       }
+      if (readAt !== undefined) {
+        p++; fields.push(`read_at = $${p}`); values.push(readAt)
+      }
+      if (fields.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' })
+      }
+      p++; fields.push(`updated_at = $${p}`); values.push(new Date().toISOString())
+      p++; values.push(id)
 
-      const { data, error } = await supabase
-        .from('communication_logs')
-        .update(updateData)
-        .eq('id', id)
-        .select()
+      const result = await query(
+        `UPDATE communication_logs SET ${fields.join(', ')} WHERE id = $${p} RETURNING *`,
+        values
+      )
 
-      if (error) throw error
-
-      if (!data || data.length === 0) {
+      if (!result.rows || result.rows.length === 0) {
         return res.status(404).json({ error: 'Log not found' })
       }
 
-      res.status(200).json({ data: data[0] })
+      res.status(200).json({ data: result.rows[0] })
     } catch (err) {
       console.error('Error updating communication log:', err)
       res.status(500).json({ error: 'Failed to update communication log' })

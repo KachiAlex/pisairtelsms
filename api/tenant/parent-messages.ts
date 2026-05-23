@@ -1,11 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
-import { initializeDatabase, query } from './cbt/_lib/db.js'
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
-)
+import { initializeDatabase, query, queryOne } from './cbt/_lib/db.js'
 
 interface ParentMessage {
   id: string
@@ -59,21 +53,20 @@ export default async function handler(
     try {
       const { studentName, status } = req.query
 
-      let query = supabase.from('parent_messages').select('*')
+      let sql = 'SELECT * FROM parent_messages WHERE 1=1'
+      const params: any[] = []
+      let p = 0
 
       if (studentName) {
-        query = query.eq('student_name', studentName)
+        p++; sql += ` AND student_name = $${p}`; params.push(studentName)
       }
-
       if (status) {
-        query = query.eq('status', status)
+        p++; sql += ` AND status = $${p}`; params.push(status)
       }
+      sql += ' ORDER BY created_at DESC'
 
-      const { data, error } = await query.order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      res.status(200).json({ data: data || [] })
+      const result = await query(sql, params)
+      res.status(200).json({ data: result.rows || [] })
     } catch (err) {
       console.error('Error fetching parent messages:', err)
       res.status(500).json({ error: 'Failed to fetch parent messages' })
@@ -86,28 +79,17 @@ export default async function handler(
         return res.status(400).json({ error: 'Missing required fields' })
       }
 
-      const parentMessage: ParentMessage = {
-        id: `msg_${Date.now()}`,
-        parentName,
-        studentName,
-        message,
-        messageType: messageType || 'update',
-        priority: priority || 'normal',
-        sentAt: new Date().toISOString(),
-        status: 'sent',
-        replies: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
+      const id = `msg_${Date.now()}`
+      const now = new Date().toISOString()
 
-      const { data, error } = await supabase
-        .from('parent_messages')
-        .insert([parentMessage])
-        .select()
+      const result = await query(
+        `INSERT INTO parent_messages (id, parent_name, student_name, message, message_type, priority, sent_at, status, replies, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
+         RETURNING *`,
+        [id, parentName, studentName, message, messageType || 'update', priority || 'normal', now, 'sent', '[]', now, now]
+      )
 
-      if (error) throw error
-
-      res.status(201).json({ data: data?.[0] })
+      res.status(201).json({ data: result.rows[0] })
     } catch (err) {
       console.error('Error creating parent message:', err)
       res.status(500).json({ error: 'Failed to create parent message' })
@@ -120,44 +102,41 @@ export default async function handler(
         return res.status(400).json({ error: 'Message ID is required' })
       }
 
-      let updateData: any = {
-        status,
-        updated_at: new Date().toISOString(),
-      }
-
       if (reply) {
-        // Add reply to the replies array
-        const { data: existing } = await supabase
-          .from('parent_messages')
-          .select('replies')
-          .eq('id', id)
-          .single()
-
-        const replies = existing?.replies || []
-        replies.push({
+        const newReply = {
           id: `reply_${Date.now()}`,
           message: reply,
           sentAt: new Date().toISOString(),
           sentBy: 'Parent',
-        })
+        }
 
-        updateData.replies = replies
-        updateData.status = 'replied'
+        const result = await query(
+          `UPDATE parent_messages
+           SET replies = replies || $1::jsonb,
+               status = 'replied',
+               updated_at = $2
+           WHERE id = $3
+           RETURNING *`,
+          [JSON.stringify([newReply]), new Date().toISOString(), id]
+        )
+
+        if (!result.rows || result.rows.length === 0) {
+          return res.status(404).json({ error: 'Message not found' })
+        }
+
+        return res.status(200).json({ data: result.rows[0] })
       }
 
-      const { data, error } = await supabase
-        .from('parent_messages')
-        .update(updateData)
-        .eq('id', id)
-        .select()
+      const result = await query(
+        `UPDATE parent_messages SET status = $1, updated_at = $2 WHERE id = $3 RETURNING *`,
+        [status, new Date().toISOString(), id]
+      )
 
-      if (error) throw error
-
-      if (!data || data.length === 0) {
+      if (!result.rows || result.rows.length === 0) {
         return res.status(404).json({ error: 'Message not found' })
       }
 
-      res.status(200).json({ data: data[0] })
+      res.status(200).json({ data: result.rows[0] })
     } catch (err) {
       console.error('Error updating parent message:', err)
       res.status(500).json({ error: 'Failed to update parent message' })

@@ -1,11 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
-import { initializeDatabase, query } from './cbt/_lib/db.js'
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
-)
+import { initializeDatabase, query, queryOne } from './cbt/_lib/db.js'
 
 interface BulkNotification {
   id: string
@@ -56,14 +50,10 @@ export default async function handler(
 
   if (req.method === 'GET') {
     try {
-      const { data, error } = await supabase
-        .from('bulk_notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      res.status(200).json({ data: data || [] })
+      const result = await query(
+        'SELECT * FROM bulk_notifications ORDER BY created_at DESC'
+      )
+      res.status(200).json({ data: result.rows || [] })
     } catch (err) {
       console.error('Error fetching bulk notifications:', err)
       res.status(500).json({ error: 'Failed to fetch bulk notifications' })
@@ -76,32 +66,23 @@ export default async function handler(
         return res.status(400).json({ error: 'Missing required fields' })
       }
 
-      const notification: BulkNotification = {
-        id: `notif_${Date.now()}`,
-        title,
-        message,
-        channels,
-        recipientCount,
-        scheduledFor,
-        sentAt: null,
-        status: 'scheduled',
-        deliveryStatus: {
-          pending: recipientCount,
-          delivered: 0,
-          failed: 0,
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
+      const id = `notif_${Date.now()}`
+      const deliveryStatus = JSON.stringify({
+        pending: recipientCount,
+        delivered: 0,
+        failed: 0,
+      })
+      const now = new Date().toISOString()
 
-      const { data, error } = await supabase
-        .from('bulk_notifications')
-        .insert([notification])
-        .select()
+      const result = await query(
+        `INSERT INTO bulk_notifications
+         (id, title, message, channels, recipient_count, scheduled_for, sent_at, status, delivery_status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING *`,
+        [id, title, message, channels, recipientCount, scheduledFor || null, null, 'scheduled', deliveryStatus, now, now]
+      )
 
-      if (error) throw error
-
-      res.status(201).json({ data: data?.[0] })
+      res.status(201).json({ data: result.rows[0] })
     } catch (err) {
       console.error('Error creating bulk notification:', err)
       res.status(500).json({ error: 'Failed to create bulk notification' })
@@ -114,24 +95,22 @@ export default async function handler(
         return res.status(400).json({ error: 'Notification ID is required' })
       }
 
-      const { data, error } = await supabase
-        .from('bulk_notifications')
-        .update({
-          status,
-          delivery_status: deliveryStatus,
-          sent_at: status === 'sent' ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
+      const sentAt = status === 'sent' ? new Date().toISOString() : null
+      const now = new Date().toISOString()
 
-      if (error) throw error
+      const result = await query(
+        `UPDATE bulk_notifications
+         SET status = $1, delivery_status = $2, sent_at = $3, updated_at = $4
+         WHERE id = $5
+         RETURNING *`,
+        [status, JSON.stringify(deliveryStatus), sentAt, now, id]
+      )
 
-      if (!data || data.length === 0) {
+      if (!result.rows || result.rows.length === 0) {
         return res.status(404).json({ error: 'Notification not found' })
       }
 
-      res.status(200).json({ data: data[0] })
+      res.status(200).json({ data: result.rows[0] })
     } catch (err) {
       console.error('Error updating bulk notification:', err)
       res.status(500).json({ error: 'Failed to update bulk notification' })

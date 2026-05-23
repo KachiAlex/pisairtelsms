@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Megaphone, Send, Clock4, BellRing, Sparkles, Download,
-  Filter, Radio, Mail, Share2, AlertCircle, CheckCircle2,
+  Megaphone, Send, Clock4, BellRing,
+  Filter, Mail, AlertCircle, CheckCircle2,
   Clock, X, Plus, RefreshCw, Search, MessageSquare,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -256,12 +256,6 @@ export function CommunicationHub() {
           <Button variant="outline" onClick={fetchAllData}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
-          <Button variant="outline">
-            <Share2 className="h-4 w-4 mr-2" /> Share snapshot
-          </Button>
-          <Button>
-            <Download className="h-4 w-4 mr-2" /> Export
-          </Button>
         </div>
       </div>
 
@@ -330,16 +324,6 @@ export function CommunicationHub() {
                   <Button onClick={handleSendBroadcast} disabled={!subject.trim() || !messageBody.trim()}>
                     <Send className="h-4 w-4 mr-2" /> Send broadcast
                   </Button>
-                  <Button variant="outline"><Sparkles className="h-4 w-4 mr-2" /> Generate draft</Button>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle>Channel performance</CardTitle></CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
-                  <Radio className="w-8 h-8 text-gray-300" />
-                  <p className="text-sm text-gray-500">Analytics coming soon.</p>
                 </div>
               </CardContent>
             </Card>

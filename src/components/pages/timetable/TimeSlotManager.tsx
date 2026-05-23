@@ -15,15 +15,14 @@ interface Props {
 
 const DAY_NAMES = ['All Days', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
-// Generate progressive time slots that fill the school day with no gaps
+// Generate the optimal progressive time slots that fill the school day with no gaps
+// Pattern: P1, P2, Short, P3, P4, Lunch, P5, P6, Short, P7, P8, Lunch
 function generateProgressiveSlots(
   startTime = '08:00',
   endTime = '15:20',
   periodDuration = 40,
   shortBreakDuration = 20,
   lunchBreakDuration = 40,
-  periodsBeforeShortBreak = 2,
-  periodsBeforeLunch = 4,
 ) {
   const slots: { name: string; startTime: string; endTime: string; isBreak: boolean }[] = []
 
@@ -40,39 +39,36 @@ function generateProgressiveSlots(
     return h * 60 + m
   }
 
+  // Explicit pattern: period, period, short break, period, period, lunch, period, period, short break, period, period, lunch
+  const pattern: ('period' | 'short' | 'lunch')[] = [
+    'period', 'period', 'short',
+    'period', 'period', 'lunch',
+    'period', 'period', 'short',
+    'period', 'period', 'lunch',
+  ]
+
   let current = startTime
   let periodCount = 0
 
-  while (timeToMinutes(current) < timeToMinutes(endTime)) {
-    // Check if we can fit a lunch break
-    if (periodCount > 0 && periodCount % periodsBeforeLunch === 0) {
-      const lunchEnd = addMinutes(current, lunchBreakDuration)
-      if (timeToMinutes(lunchEnd) <= timeToMinutes(endTime)) {
-        slots.push({ name: 'Lunch Break', startTime: current, endTime: lunchEnd, isBreak: true })
-        current = lunchEnd
-        continue
-      }
-    }
+  for (const item of pattern) {
+    if (timeToMinutes(current) >= timeToMinutes(endTime)) break
 
-    // Check if we can fit a short break
-    if (periodCount > 0 && periodCount % periodsBeforeShortBreak === 0 && periodCount % periodsBeforeLunch !== 0) {
-      const breakEnd = addMinutes(current, shortBreakDuration)
-      if (timeToMinutes(breakEnd) <= timeToMinutes(endTime)) {
-        slots.push({ name: 'Short Break', startTime: current, endTime: breakEnd, isBreak: true })
-        current = breakEnd
-        continue
-      }
-    }
-
-    // Try to add a teaching period
-    const periodEnd = addMinutes(current, periodDuration)
-    if (timeToMinutes(periodEnd) <= timeToMinutes(endTime)) {
+    if (item === 'period') {
+      const periodEnd = addMinutes(current, periodDuration)
+      if (timeToMinutes(periodEnd) > timeToMinutes(endTime)) break
       periodCount++
       slots.push({ name: `Period ${periodCount}`, startTime: current, endTime: periodEnd, isBreak: false })
       current = periodEnd
-    } else {
-      // Not enough time for a full period - stop
-      break
+    } else if (item === 'short') {
+      const breakEnd = addMinutes(current, shortBreakDuration)
+      if (timeToMinutes(breakEnd) > timeToMinutes(endTime)) break
+      slots.push({ name: 'Short Break', startTime: current, endTime: breakEnd, isBreak: true })
+      current = breakEnd
+    } else if (item === 'lunch') {
+      const breakEnd = addMinutes(current, lunchBreakDuration)
+      if (timeToMinutes(breakEnd) > timeToMinutes(endTime)) break
+      slots.push({ name: 'Lunch Break', startTime: current, endTime: breakEnd, isBreak: true })
+      current = breakEnd
     }
   }
 

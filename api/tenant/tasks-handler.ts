@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import tasksApi from './tasks';
+import tasksApi from './_lib/tasks';
 
 /**
  * Tasks API Handler

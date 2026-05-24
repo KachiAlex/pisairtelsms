@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import reportTemplatesApi from './report-templates';
+import reportTemplatesApi from './_lib/report-templates';
 
 /**
  * Report Templates API Handler

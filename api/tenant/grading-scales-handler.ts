@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import gradingScalesApi from './grading-scales';
+import gradingScalesApi from './_lib/grading-scales';
 
 /**
  * Grading Scales API Handler

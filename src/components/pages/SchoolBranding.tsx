@@ -1,13 +1,32 @@
-import { useState, useEffect } from 'react'
-import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Loader } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Loader, X, CheckCircle2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Input } from '../ui/input'
+import { useToast } from '../ui/use-toast'
 
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+const MAX_SIZE_MB = 2
+const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
+
+function getAuth() {
+  try {
+    const stored = localStorage.getItem('auth')
+    if (stored) {
+      const auth = JSON.parse(stored)
+      return {
+        tenantId: auth.tenantId || 'default-tenant',
+        userId: auth.userId || auth.email || 'system',
+      }
+    }
+  } catch { /* fall through */ }
+  return { tenantId: 'default-tenant', userId: 'system' }
+}
 
 export function SchoolBranding() {
+  const { toast } = useToast()
   const [branding, setBranding] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -20,6 +39,12 @@ export function SchoolBranding() {
     accentColor: '#F59E0B',
   })
 
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     loadBranding()
   }, [])
@@ -28,8 +53,9 @@ export function SchoolBranding() {
     try {
       setLoading(true)
       setError(null)
+      const { tenantId, userId } = getAuth()
       const response = await fetch('/api/tenant/branding', {
-        headers: { 'x-tenant-id': 'default-tenant', 'x-user-id': 'current-user' },
+        headers: { 'x-tenant-id': tenantId, 'x-user-id': userId },
       })
       if (!response.ok) throw new Error('Failed to load branding')
       const result = await response.json()
@@ -53,18 +79,20 @@ export function SchoolBranding() {
     try {
       setSaving(true)
       setError(null)
+      const { tenantId, userId } = getAuth()
       const response = await fetch('/api/tenant/branding', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'default-tenant',
-          'x-user-id': 'current-user',
+          'x-tenant-id': tenantId,
+          'x-user-id': userId,
         },
         body: JSON.stringify(formData),
       })
       if (!response.ok) throw new Error('Failed to save branding')
       const result = await response.json()
       setBranding(result.data)
+      toast({ title: 'Branding saved', description: 'Your changes have been applied.' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save branding')
     } finally {
@@ -81,6 +109,101 @@ export function SchoolBranding() {
         secondaryColor: branding.secondary_color || branding.secondaryColor || '#10B981',
         accentColor: branding.accent_color || branding.accentColor || '#F59E0B',
       })
+    }
+  }
+
+  const validateAndStageFile = useCallback((file: File) => {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: `Accepted formats: PNG, JPG, WebP, SVG`,
+        variant: 'destructive',
+      })
+      return
+    }
+    if (file.size > MAX_SIZE_BYTES) {
+      toast({
+        title: 'File too large',
+        description: `Maximum size is ${MAX_SIZE_MB} MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)} MB.`,
+        variant: 'destructive',
+      })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setLogoPreview(e.target?.result as string)
+      setLogoFile(file)
+    }
+    reader.readAsDataURL(file)
+  }, [toast])
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) validateAndStageFile(file)
+    e.target.value = ''
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) validateAndStageFile(file)
+  }
+
+  const handleUploadConfirm = async () => {
+    if (!logoFile || !logoPreview) return
+    setUploadingLogo(true)
+    try {
+      const { tenantId, userId } = getAuth()
+      const res = await fetch('/api/tenant/branding/logo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({ logoUrl: logoPreview, fileName: logoFile.name }),
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const result = await res.json()
+      setBranding(result.data)
+      setLogoPreview(null)
+      setLogoFile(null)
+      toast({ title: 'Logo uploaded', description: `${logoFile.name} is now your active logo.` })
+    } catch (err) {
+      toast({
+        title: 'Upload failed',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
+  const handleCancelPreview = () => {
+    setLogoPreview(null)
+    setLogoFile(null)
+  }
+
+  const handleRemoveLogo = async () => {
+    const { tenantId, userId } = getAuth()
+    try {
+      const res = await fetch('/api/tenant/branding/logo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({ logoUrl: null, fileName: null }),
+      })
+      if (!res.ok) throw new Error('Remove failed')
+      const result = await res.json()
+      setBranding(result.data)
+      toast({ title: 'Logo removed' })
+    } catch (err) {
+      toast({ title: 'Remove failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -231,27 +354,103 @@ export function SchoolBranding() {
       <Card>
         <CardHeader>
           <CardTitle>Brand assets</CardTitle>
-          <CardDescription>Logos and crests synced across apps.</CardDescription>
+          <CardDescription>PNG, JPG, WebP or SVG · max {MAX_SIZE_MB} MB · recommended 400×400 px</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {(branding?.logo_url || branding?.logoUrl) ? (
-            <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
-              <div>
+        <CardContent className="space-y-4">
+
+          {/* Current active logo */}
+          {(branding?.logo_url || branding?.logoUrl) && !logoPreview && (
+            <div className="rounded-2xl border border-gray-100 p-4 flex items-center gap-4">
+              <img
+                src={branding.logo_url || branding.logoUrl}
+                alt="Current logo"
+                className="h-16 w-16 rounded-lg object-contain border border-gray-100 bg-white p-1"
+              />
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900">Primary logo</p>
-                <p className="text-sm text-gray-500">File: {branding.logo_file_name || branding.logoFileName || 'logo.png'}</p>
-                <p className="text-xs text-gray-400">Updated {new Date(branding.updated_at || branding.updatedAt).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-500 truncate">{branding.logo_file_name || branding.logoFileName || 'logo'}</p>
+                <p className="text-xs text-gray-400">
+                  {branding.updated_at || branding.updatedAt
+                    ? `Updated ${new Date(branding.updated_at || branding.updatedAt).toLocaleDateString()}`
+                    : ''}
+                </p>
               </div>
-              <Badge variant="default">Active</Badge>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center">
-              <ImageIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">No logo uploaded yet</p>
+              <div className="flex flex-col gap-2">
+                <Badge variant="default" className="justify-center">Active</Badge>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 text-xs"
+                  onClick={handleRemoveLogo}
+                >
+                  <X className="h-3 w-3 mr-1" /> Remove
+                </Button>
+              </div>
             </div>
           )}
-          <Button variant="outline" size="sm" className="w-full">
-            <Upload className="h-4 w-4 mr-2" /> Upload logo
-          </Button>
+
+          {/* Staged preview — shown after a file is selected, before confirm */}
+          {logoPreview && (
+            <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/40 p-4">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">Preview — not yet saved</p>
+              <div className="flex items-center gap-4">
+                <img
+                  src={logoPreview}
+                  alt="Logo preview"
+                  className="h-20 w-20 rounded-xl object-contain border border-blue-100 bg-white p-1 shadow-sm"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{logoFile?.name}</p>
+                  <p className="text-sm text-gray-500">{logoFile ? `${(logoFile.size / 1024).toFixed(0)} KB` : ''}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleUploadConfirm}
+                    disabled={uploadingLogo}
+                    className="gap-1"
+                  >
+                    {uploadingLogo
+                      ? <Loader className="h-3.5 w-3.5 animate-spin" />
+                      : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    {uploadingLogo ? 'Uploading…' : 'Confirm upload'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleCancelPreview} disabled={uploadingLogo}>
+                    <X className="h-3.5 w-3.5 mr-1" /> Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Drag-and-drop / click-to-upload zone */}
+          {!logoPreview && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
+                dragOver
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-gray-300 hover:border-blue-300 hover:bg-gray-50'
+              }`}
+            >
+              <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-700">
+                {dragOver ? 'Drop to upload' : 'Drag & drop your logo here'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">or click to browse · PNG, JPG, WebP, SVG · max {MAX_SIZE_MB} MB</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_TYPES.join(',')}
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+            </div>
+          )}
+
         </CardContent>
       </Card>
 

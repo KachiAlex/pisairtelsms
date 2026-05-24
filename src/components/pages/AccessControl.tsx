@@ -1,22 +1,35 @@
-import React from 'react'
-import { ShieldCheck, Lock, KeyRound, AlertTriangle, Activity, UserCheck, BadgeCheck, RefreshCcw } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { ShieldCheck, Lock, KeyRound, AlertTriangle, Activity, UserCheck, BadgeCheck, RefreshCcw, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 
-const privilegedRoles = [
-  { role: 'Super Admin', members: 3, lastReview: 'Today 08:12', mfa: '100%' },
-  { role: 'Finance Officer', members: 7, lastReview: 'Yesterday 14:45', mfa: '86%' },
-  { role: 'Data Ops', members: 4, lastReview: 'Mon 11:00', mfa: '75%' },
-]
-
-const approvalMatrix = [
-  { action: 'Modify grading policy', policy: 'Dual approval', owners: 'Academic Dir + QA', sla: '4 hrs' },
-  { action: 'Export student data', policy: 'Scoped approval', owners: 'Data Ops', sla: '2 hrs' },
-  { action: 'Disable 2FA', policy: 'Blocked centrally', owners: 'Security Office', sla: 'n/a' },
-]
+interface AccessControlData {
+  privilegedIdentities: number
+  pendingReviews: number
+  mfaCoverage: number
+  anomalyAlerts: number
+  privilegedRoles: Array<{
+    role: string
+    members: number
+    lastReview: string
+    mfa: string
+  }>
+  approvalMatrix: Array<{
+    action: string
+    policy: string
+    owners: string
+    sla: string
+  }>
+  activityFeed: Array<{
+    id: string
+    actor: string
+    event: string
+    time: string
+  }>
+}
 
 const automationRules = [
   { id: 'AUTO-41', label: 'Dormant staff access cleanup', status: 'Live', detail: 'Revoke accounts inactive > 45 days' },
@@ -24,13 +37,48 @@ const automationRules = [
   { id: 'AUTO-33', label: 'Privilege escalation sandbox', status: 'Paused', detail: 'Require ticket reference ID' },
 ]
 
-const activityFeed = [
-  { id: 'ACT-992', actor: 'Adaeze N.', event: 'Approved temporary finance role', time: '26 mins ago' },
-  { id: 'ACT-991', actor: 'System', event: 'Revoked 2 dormant accounts', time: '1 hr ago' },
-  { id: 'ACT-988', actor: 'Principal', event: 'Denied data export request', time: 'Yesterday' },
-]
-
 export function AccessControl() {
+  const [data, setData] = useState<AccessControlData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchWithAuth = async (url: string) => {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+    if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId
+    const response = await fetch(url, { headers })
+    if (!response.ok) throw new Error('Failed to fetch data')
+    return response.json()
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const result = await fetchWithAuth('/api/tenant/security/access-control')
+      setData(result.data)
+    } catch (error) {
+      console.error('Error loading access control data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  const privilegedRoles = data?.privilegedRoles || []
+  const approvalMatrix = data?.approvalMatrix || []
+  const activityFeed = data?.activityFeed || []
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -40,7 +88,7 @@ export function AccessControl() {
           <p className="text-sm text-gray-600">Oversee privileged roles, approval guardrails, and automated revocation policies.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Sync directory
           </Button>
           <Button>
@@ -53,28 +101,28 @@ export function AccessControl() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Privileged identities</p>
-            <p className="text-3xl font-semibold text-gray-900">48</p>
-            <p className="text-xs text-gray-500">Across 6 critical roles</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.privilegedIdentities || 0}</p>
+            <p className="text-xs text-gray-500">Across {privilegedRoles.length} critical roles</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Pending reviews</p>
-            <p className="text-3xl font-semibold text-rose-600">5</p>
-            <p className="text-xs text-gray-500">Must close before Mar 01</p>
+            <p className="text-3xl font-semibold text-rose-600">{data?.pendingReviews || 0}</p>
+            <p className="text-xs text-gray-500">Must close soon</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">MFA coverage</p>
-            <p className="text-3xl font-semibold text-gray-900">92%</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.mfaCoverage || 0}%</p>
             <p className="text-xs text-gray-500">+6% vs last term</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Anomaly alerts</p>
-            <p className="text-3xl font-semibold text-amber-600">3</p>
+            <p className="text-3xl font-semibold text-amber-600">{data?.anomalyAlerts || 0}</p>
             <p className="text-xs text-gray-500">Auto-paused risky changes</p>
           </CardContent>
         </Card>
@@ -183,7 +231,7 @@ export function AccessControl() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
         <div className="flex items-center gap-3">
           <UserCheck className="h-5 w-5" />
-          <p>Next quarterly privileged access review auto-starts <span className="font-semibold">Mar 18</span>. Ensure owners are assigned.</p>
+          <p>Next quarterly privileged access review auto-starts soon. Ensure owners are assigned.</p>
         </div>
         <Button size="sm">
           <BadgeCheck className="h-4 w-4 mr-2" /> Assign reviewers

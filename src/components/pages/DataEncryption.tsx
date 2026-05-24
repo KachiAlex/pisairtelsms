@@ -1,5 +1,5 @@
-import React from 'react'
-import { Lock, ShieldCheck, ServerCog, AlertTriangle, Key, RefreshCcw, Database, GlobeLock, ClipboardList } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Lock, ShieldCheck, ServerCog, AlertTriangle, Key, RefreshCcw, Database, GlobeLock, ClipboardList, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -7,29 +7,37 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
 
-const encryptionInventory = [
-  { surface: 'Student records API', algorithm: 'AES-256-GCM', keyRotation: '30 days', owner: 'Data Ops', status: 'Healthy' },
-  { surface: 'Exam results archive', algorithm: 'RSA-4096', keyRotation: '180 days', owner: 'Compliance', status: 'Review due' },
-  { surface: 'Guardian portal cache', algorithm: 'ChaCha20-Poly1305', keyRotation: '7 days', owner: 'Engineering', status: 'Healthy' },
-]
-
-const keyVaults = [
-  { id: 'vault-1', label: 'Primary KMS cluster', keys: 142, health: 'Operational', lastRotation: 'Today 06:00' },
-  { id: 'vault-2', label: 'Disaster recovery vault', keys: 48, health: 'Operational', lastRotation: '3 days ago' },
-  { id: 'vault-3', label: 'Legacy on-prem HSM', keys: 21, health: 'Degraded', lastRotation: '28 days ago' },
-]
-
-const complianceTasks = [
-  { id: 'task-981', label: 'PCI scope attestation', owner: 'Finance Ops', due: 'Mar 04', status: 'In progress' },
-  { id: 'task-978', label: 'GDPR key audit', owner: 'Legal', due: 'Feb 28', status: 'Due soon' },
-  { id: 'task-975', label: 'NITDA encryption statement', owner: 'Compliance', due: 'Mar 12', status: 'Scheduled' },
-]
-
-const coverageMetrics = [
-  { label: 'At-rest encryption', value: 98 },
-  { label: 'In-transit TLS 1.3', value: 94 },
-  { label: 'Key rotation compliance', value: 88 },
-]
+interface DataEncryptionData {
+  encryptedServices: number
+  keysExpiringSoon: number
+  complianceTasksOpen: number
+  tlsAdoption: number
+  encryptionInventory: Array<{
+    surface: string
+    algorithm: string
+    keyRotation: string
+    owner: string
+    status: string
+  }>
+  keyVaults: Array<{
+    id: string
+    label: string
+    keys: number
+    health: string
+    lastRotation: string
+  }>
+  complianceTasks: Array<{
+    id: string
+    label: string
+    owner: string
+    due: string
+    status: string
+  }>
+  coverageMetrics: Array<{
+    label: string
+    value: number
+  }>
+}
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   Healthy: 'default',
@@ -39,6 +47,48 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
 }
 
 export function DataEncryption() {
+  const [data, setData] = useState<DataEncryptionData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchWithAuth = async (url: string) => {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+    if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId
+    const response = await fetch(url, { headers })
+    if (!response.ok) throw new Error('Failed to fetch data')
+    return response.json()
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const result = await fetchWithAuth('/api/tenant/security/data-encryption')
+      setData(result.data)
+    } catch (error) {
+      console.error('Error loading data encryption data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  const encryptionInventory = data?.encryptionInventory || []
+  const keyVaults = data?.keyVaults || []
+  const complianceTasks = data?.complianceTasks || []
+  const coverageMetrics = data?.coverageMetrics || []
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -48,7 +98,7 @@ export function DataEncryption() {
           <p className="text-sm text-gray-600">Monitor cryptography posture, rotation cadences, and audit readiness from one pane.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Sync KMS status
           </Button>
           <Button>
@@ -61,28 +111,28 @@ export function DataEncryption() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Encrypted services</p>
-            <p className="text-3xl font-semibold text-gray-900">34</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.encryptedServices || 0}</p>
             <p className="text-xs text-gray-500">+4 added this term</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Keys expiring soon</p>
-            <p className="text-3xl font-semibold text-rose-600">6</p>
+            <p className="text-3xl font-semibold text-rose-600">{data?.keysExpiringSoon || 0}</p>
             <p className="text-xs text-gray-500">Auto alerts sent</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Compliance tasks</p>
-            <p className="text-3xl font-semibold text-gray-900">3 open</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.complianceTasksOpen || 0} open</p>
             <p className="text-xs text-gray-500">Two due this week</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">TLS adoption</p>
-            <p className="text-3xl font-semibold text-emerald-600">97%</p>
+            <p className="text-3xl font-semibold text-emerald-600">{data?.tlsAdoption || 0}%</p>
             <p className="text-xs text-gray-500">Target 100% by April</p>
           </CardContent>
         </Card>

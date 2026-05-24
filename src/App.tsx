@@ -192,6 +192,8 @@ export default function App() {
       case 'academic-calendar':
         return <AcademicCalendar />;
       case 'results':
+      case 'security':
+        return <SecurityCompliance />;
       case 'access-control':
         return <AccessControl />;
       case 'session-management':

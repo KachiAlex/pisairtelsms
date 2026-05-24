@@ -1,33 +1,49 @@
-import React from 'react'
-import { Activity, AlertTriangle, Clock3, LogOut, MonitorSmartphone, RefreshCcw, Shield, Smartphone, Zap } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Activity, AlertTriangle, Clock3, LogOut, MonitorSmartphone, RefreshCcw, Shield, Smartphone, Zap, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 
-const activeSessions = [
-  { id: 'sess-3201', user: 'Adaeze N.', role: 'Super Admin', device: 'MacBook • Lagos', lastActive: '2 mins ago', risk: 'Low' },
-  { id: 'sess-3194', user: 'Mr. Idris Lawal', role: 'Academic Director', device: 'Windows • Abuja', lastActive: '14 mins ago', risk: 'Medium' },
-  { id: 'sess-3188', user: 'Mrs. Bello', role: 'School Admin', device: 'iPad • Enugu', lastActive: '42 mins ago', risk: 'Low' },
-  { id: 'sess-3181', user: 'System Bot', role: 'Automation', device: 'Data Center', lastActive: 'Just now', risk: 'Low' },
-]
-
-const anomalySignals = [
-  { id: 'anom-92', label: 'Unusual location change', owner: 'Security Ops', severity: 'medium', action: 'Force MFA challenge' },
-  { id: 'anom-89', label: 'Concurrent login flagged', owner: 'Automation', severity: 'high', action: 'Auto terminate session' },
-]
+interface SessionManagementData {
+  activeSessions: Array<{
+    id: string
+    user: string
+    role: string
+    device: string
+    lastActive: string
+    risk: string
+  }>
+  activeCount: number
+  terminatedToday: number
+  highRiskSignals: number
+  avgSessionLength: number
+  anomalySignals: Array<{
+    id: string
+    label: string
+    owner: string
+    severity: string
+    action: string
+  }>
+  sessionControls: Array<{
+    id: string
+    label: string
+    value: string
+    status: string
+  }>
+  historyLog: Array<{
+    id: string
+    user: string
+    action: string
+    time: string
+  }>
+}
 
 const sessionControls = [
   { id: 'control-1', label: 'Adaptive idle timeout', value: '15 mins (critical roles)', status: 'Live' },
   { id: 'control-2', label: 'Device trust checks', value: 'Last seen < 30 days', status: 'Live' },
   { id: 'control-3', label: 'Emergency kill switch', value: 'Available', status: 'Ready' },
-]
-
-const historyLog = [
-  { id: 'log-771', user: 'Finance Bot', action: 'Force logged out 7 sessions', time: 'Yesterday' },
-  { id: 'log-768', user: 'Security Ops', action: 'Updated idle timeout policy', time: 'Mon 08:10' },
-  { id: 'log-762', user: 'System', action: 'Detected risky device • SS1 arm', time: 'Sun 21:55' },
 ]
 
 const severityVariant: Record<string, 'default' | 'warning' | 'destructive'> = {
@@ -39,6 +55,47 @@ const severityVariant: Record<string, 'default' | 'warning' | 'destructive'> = {
 }
 
 export function SessionManagement() {
+  const [data, setData] = useState<SessionManagementData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchWithAuth = async (url: string) => {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+    if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId
+    const response = await fetch(url, { headers })
+    if (!response.ok) throw new Error('Failed to fetch data')
+    return response.json()
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const result = await fetchWithAuth('/api/tenant/security/session-management')
+      setData(result.data)
+    } catch (error) {
+      console.error('Error loading session management data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  const activeSessions = data?.activeSessions || []
+  const anomalySignals = data?.anomalySignals || []
+  const historyLog = data?.historyLog || []
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -48,7 +105,7 @@ export function SessionManagement() {
           <p className="text-sm text-gray-600">Spot risky devices, enforce adaptive timeouts, and terminate sessions on demand.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh sessions
           </Button>
           <Button>
@@ -61,28 +118,28 @@ export function SessionManagement() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Active sessions</p>
-            <p className="text-3xl font-semibold text-gray-900">142</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.activeCount || 0}</p>
             <p className="text-xs text-gray-500">+12 vs last hour</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Terminated today</p>
-            <p className="text-3xl font-semibold text-gray-900">19</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.terminatedToday || 0}</p>
             <p className="text-xs text-gray-500">Auto by guardrails</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">High-risk signals</p>
-            <p className="text-3xl font-semibold text-rose-600">2</p>
+            <p className="text-3xl font-semibold text-rose-600">{data?.highRiskSignals || 0}</p>
             <p className="text-xs text-gray-500">Escalations in progress</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Avg. session length</p>
-            <p className="text-3xl font-semibold text-gray-900">47 mins</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.avgSessionLength || 0} mins</p>
             <p className="text-xs text-gray-500">Adaptive threshold</p>
           </CardContent>
         </Card>

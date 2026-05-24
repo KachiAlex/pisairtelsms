@@ -518,3 +518,193 @@ model StudentPayment {
   @@index([paidAt])
   @@map("student_payments")
 }
+
+// ============================================================================
+// Security & Compliance Models
+// ============================================================================
+
+model UserSession {
+  id            String   @id @default(cuid())
+  tenantId      String
+  userId        String
+  deviceInfo    Json?    // Device type, OS, browser
+  ipAddress     String?
+  location      String?
+  riskLevel     String   @default("low") // 'low', 'medium', 'high'
+  lastActivity  DateTime @default(now())
+  expiresAt     DateTime
+  terminatedAt  DateTime?
+  terminatedBy  String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([lastActivity])
+  @@index([riskLevel])
+  @@map("user_sessions")
+}
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  eventType   String   // 'login', 'logout', 'access_denied', 'privilege_escalation', 'anomaly_detected'
+  severity    String   // 'low', 'medium', 'high', 'critical'
+  description String   @db.Text
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([eventType])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("security_events")
+}
+
+model PrivilegedRole {
+  id              String   @id @default(cuid())
+  tenantId        String
+  roleName        String   @unique
+  description     String?
+  mfaRequired     Boolean  @default(true)
+  lastReviewDate  DateTime?
+  nextReviewDate  DateTime
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([roleName])
+  @@map("privileged_roles")
+}
+
+model RoleAssignment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String
+  roleId          String
+  assignedBy      String
+  assignedAt      DateTime @default(now())
+  expiresAt       DateTime?
+  isActive        Boolean  @default(true)
+
+  @@unique([userId, roleId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("role_assignments")
+}
+
+model ApprovalPolicy {
+  id              String   @id @default(cuid())
+  tenantId        String
+  actionType      String   // 'modify_grading', 'export_data', 'disable_2fa', etc.
+  policyType      String   // 'dual_approval', 'scoped_approval', 'blocked'
+  approvers       Json     // Array of approver IDs or roles
+  slaHours        Int?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([actionType])
+  @@map("approval_policies")
+}
+
+model EncryptionKey {
+  id              String   @id @default(cuid())
+  tenantId        String
+  keyId           String   @unique
+  keyName         String
+  algorithm       String   // 'AES-256-GCM', 'RSA-4096', 'ChaCha20-Poly1305'
+  surface         String   // What this key encrypts
+  rotationDays    Int
+  lastRotation    DateTime
+  nextRotation    DateTime
+  status          String   @default("active") // 'active', 'expiring', 'expired', 'revoked'
+  vaultId         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([keyId])
+  @@index([status])
+  @@index([nextRotation])
+  @@map("encryption_keys")
+}
+
+model KeyVault {
+  id              String   @id @default(cuid())
+  tenantId        String
+  vaultName       String
+  vaultType       String   // 'kms', 'hsm', 'software'
+  region          String?
+  keysCount       Int      @default(0)
+  healthStatus    String   @default("operational") // 'operational', 'degraded', 'offline'
+  lastRotation    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([vaultName])
+  @@map("key_vaults")
+}
+
+model BackupJob {
+  id              String   @id @default(cuid())
+  tenantId        String
+  jobType         String   // 'full', 'differential', 'incremental'
+  schedule        String   // 'hourly', 'daily', 'weekly'
+  status          String   @default("pending") // 'pending', 'running', 'succeeded', 'failed'
+  sizeBytes       BigInt?
+  location        String   // Storage location
+  startedAt       DateTime?
+  completedAt     DateTime?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("backup_jobs")
+}
+
+model RestoreRequest {
+  id              String   @id @default(cuid())
+  tenantId        String
+  backupJobId     String
+  scope           String   // What to restore
+  requestedBy     String
+  status          String   @default("pending") // 'pending', 'approved', 'processing', 'completed', 'rejected'
+  approvedBy      String?
+  approvedAt      DateTime?
+  completedAt     DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([requestedBy])
+  @@map("restore_requests")
+}
+
+model ComplianceTask {
+  id              String   @id @default(cuid())
+  tenantId        String
+  taskName        String
+  taskType        String   // 'pci_attestation', 'gdpr_audit', 'nitda_statement', 'bcp_drill'
+  owner           String
+  dueDate         DateTime
+  status          String   @default("scheduled") // 'scheduled', 'in_progress', 'due_soon', 'completed', 'overdue'
+  completedAt     DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("compliance_tasks")
+}

@@ -1,5 +1,5 @@
-import React from 'react'
-import { CloudUpload, CloudDownload, History, Shield, RefreshCcw, HardDrive, AlertTriangle, Download, Upload, ArchiveRestore } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { CloudUpload, CloudDownload, History, Shield, RefreshCcw, HardDrive, AlertTriangle, Download, Upload, ArchiveRestore, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -7,27 +7,47 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
 
-const backupJobs = [
-  { id: 'BK-4121', type: 'Nightly full', window: '02:00 - 02:18', status: 'Succeeded', size: '24.6 GB', location: 'Azure West EU' },
-  { id: 'BK-4110', type: 'Hourly diff', window: '10:00 - 10:03', status: 'Succeeded', size: '1.2 GB', location: 'S3 eu-west-2' },
-  { id: 'BK-4099', type: 'Exam archive', window: 'Yesterday 21:00', status: 'Running', size: '—', location: 'Local NAS' },
-]
-
-const restoreRequests = [
-  { id: 'RS-118', cohort: 'JSS 2', scope: 'Result snapshots', requestedBy: 'Academics', eta: 'Ready', status: 'Ready' },
-  { id: 'RS-115', cohort: 'Finance', scope: 'Invoices Q1', requestedBy: 'Finance Ops', eta: 'In 40 mins', status: 'Processing' },
-  { id: 'RS-112', cohort: 'Student docs', scope: 'Admissions 2024', requestedBy: 'Admissions', eta: 'Awaiting approval', status: 'Pending' },
-]
+interface BackupRestoreData {
+  successfulJobs: number
+  restoreRequestsActive: number
+  storageUtilization: number
+  bcpCompliance: number
+  backupJobs: Array<{
+    id: string
+    type: string
+    window: string
+    location: string
+    size: string
+    status: string
+  }>
+  restoreRequests: Array<{
+    id: string
+    cohort: string
+    scope: string
+    requestedBy: string
+    eta: string
+    status: string
+  }>
+  redundancyMatrix: Array<{
+    id: string
+    label: string
+    region: string
+    retention: string
+    integrity: number
+  }>
+  complianceSignals: Array<{
+    id: string
+    label: string
+    owner: string
+    due: string
+    status: string
+  }>
+}
 
 const redundancyMatrix = [
   { id: 'tier-1', label: 'Primary cloud', region: 'Azure West EU', retention: '35 days', integrity: 99 },
   { id: 'tier-2', label: 'Secondary cloud', region: 'AWS eu-west-2', retention: '180 days', integrity: 96 },
   { id: 'tier-3', label: 'On-prem NAS', region: 'Lagos data room', retention: '14 days', integrity: 91 },
-]
-
-const complianceSignals = [
-  { id: 'cmp-78', label: 'BCP drill due', owner: 'IT Operations', due: 'Mar 06', status: 'Scheduled' },
-  { id: 'cmp-76', label: 'WAEC archive verification', owner: 'Exam Office', due: 'Feb 29', status: 'Due soon' },
 ]
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
@@ -39,6 +59,47 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
 }
 
 export function BackupRestore() {
+  const [data, setData] = useState<BackupRestoreData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchWithAuth = async (url: string) => {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+    if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId
+    const response = await fetch(url, { headers })
+    if (!response.ok) throw new Error('Failed to fetch data')
+    return response.json()
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const result = await fetchWithAuth('/api/tenant/security/backup-restore')
+      setData(result.data)
+    } catch (error) {
+      console.error('Error loading backup restore data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  const backupJobs = data?.backupJobs || []
+  const restoreRequests = data?.restoreRequests || []
+  const complianceSignals = data?.complianceSignals || []
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -48,7 +109,7 @@ export function BackupRestore() {
           <p className="text-sm text-gray-600">Coordinate snapshots, redundancy layers, and quick restores for every academic surface.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh status
           </Button>
           <Button>
@@ -61,28 +122,28 @@ export function BackupRestore() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Successful jobs (24h)</p>
-            <p className="text-3xl font-semibold text-gray-900">28</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.successfulJobs || 0}</p>
             <p className="text-xs text-gray-500">100% success rate</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Restore requests</p>
-            <p className="text-3xl font-semibold text-gray-900">3 active</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.restoreRequestsActive || 0} active</p>
             <p className="text-xs text-gray-500">1 awaiting approval</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Storage utilization</p>
-            <p className="text-3xl font-semibold text-gray-900">62%</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.storageUtilization || 0}%</p>
             <p className="text-xs text-gray-500">Across 3 tiers</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">BCP compliance</p>
-            <p className="text-3xl font-semibold text-emerald-600">95%</p>
+            <p className="text-3xl font-semibold text-emerald-600">{data?.bcpCompliance || 0}%</p>
             <p className="text-xs text-gray-500">Next drill in 12 days</p>
           </CardContent>
         </Card>

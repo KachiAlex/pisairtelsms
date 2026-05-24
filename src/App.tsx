@@ -49,10 +49,7 @@ const TaskManagement = lazy(() => import('./components/pages/TaskManagement'));
 const SchoolBranding = lazy(() => import('./components/pages/SchoolBranding'));
 const ReportTemplates = lazy(() => import('./components/pages/ReportTemplates'));
 const GradingScale = lazy(() => import('./components/pages/GradingScale'));
-const PaymentGateway = lazy(() => import('./components/pages/PaymentGateway'));
-const BiometricDevices = lazy(() => import('./components/pages/BiometricDevices'));
-const LMSIntegration = lazy(() => import('./components/pages/LMSIntegration'));
-const APIManagement = lazy(() => import('./components/pages/APIManagement'));
+const IntegrationsHub = lazy(() => import('./components/pages/IntegrationsHub'));
 const CBTExaminations = lazy(() => import('./components/pages/cbt/CBTExaminations'));
 const OfflineCBTSync = lazy(() => import('./components/pages/OfflineCBTSync'));
 const ExamItemAnalysis = lazy(() => import('./components/pages/ExamItemAnalysis'));
@@ -258,6 +255,7 @@ export default function App() {
       case 'import-export':
         return <ImportExport />;
       case 'integrations':
+        return <IntegrationsHub />;
       case 'tenant-settings':
         return <TenantSettings tenantId="default" tenantName="Default School" />;
       default:

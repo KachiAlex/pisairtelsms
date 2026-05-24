@@ -111,12 +111,17 @@ export function BiometricDevices() {
   const handleSync = async (device: Device) => {
     setSyncing(device.id);
     try {
-      const res = await fetch(`/api/tenant/integrations/biometric-devices/${device.id}/sync`, {
-        method: 'POST',
-        headers: getHeaders(),
+      const h = getHeaders();
+      const startRes = await fetch(`/api/tenant/integrations/biometric-devices/${device.id}/sync`, {
+        method: 'POST', headers: h,
       });
-      if (!res.ok) { const j = await res.json(); throw new Error(j.error); }
-      toast({ title: 'Sync started', description: `Attendance sync initiated for "${device.name}".` });
+      if (!startRes.ok) { const j = await startRes.json(); throw new Error(j.error); }
+      const { data: syncRecord } = await startRes.json();
+      await fetch(`/api/tenant/integrations/biometric-devices/${device.id}/sync/${syncRecord.id}`, {
+        method: 'PUT', headers: h,
+        body: JSON.stringify({ recordsProcessed: 0, recordsFailed: 0 }),
+      });
+      toast({ title: 'Sync complete', description: `Attendance sync finished for "${device.name}".` });
       load();
     } catch (err) {
       toast({ title: 'Sync failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' });

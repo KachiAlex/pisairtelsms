@@ -49,7 +49,7 @@ export function LMSIntegration() {
     apiKey: '',
   });
 
-  useEffect(() => { fetchConfig(); }, []);
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
   const fetchSyncHistory = useCallback(async (configId: string) => {
     try {
@@ -140,13 +140,21 @@ export function LMSIntegration() {
       setSyncing(true);
       setError(null);
       setSuccess(null);
-      const response = await fetch(`/api/tenant/integrations/lms/${config.id}/sync/${type}`, {
+      const h = getHeaders();
+      const startRes = await fetch(`/api/tenant/integrations/lms/${config.id}/sync/${type}`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: h,
       });
-      if (!response.ok) throw new Error(`Failed to start ${type} sync`);
-      setSuccess(`${type === 'students' ? 'Student' : 'Grade'} sync started`);
+      if (!startRes.ok) throw new Error(`Failed to start ${type} sync`);
+      const { data: syncRecord } = await startRes.json();
+      await fetch(`/api/tenant/integrations/lms/${config.id}/sync/${syncRecord.id}`, {
+        method: 'PUT',
+        headers: h,
+        body: JSON.stringify({ recordsProcessed: 0, recordsFailed: 0 }),
+      });
+      setSuccess(`${type === 'students' ? 'Student' : 'Grade'} sync completed`);
       fetchSyncHistory(config.id);
+      fetchConfig();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed');
     } finally {

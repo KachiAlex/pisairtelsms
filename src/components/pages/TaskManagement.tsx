@@ -530,6 +530,112 @@ export function TaskManagement() {
           <Users className="h-4 w-4 mr-2" /> {smartTriageEnabled ? 'Disable smart triage' : 'Turn on smart triage'}
         </Button>
       </div>
+
+      {/* Create Task Dialog */}
+      <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Task</DialogTitle>
+            <DialogDescription>Fill in the details to create a new task.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="task-title">Title</Label>
+              <Input id="task-title" value={taskForm.title} onChange={e => setTaskForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Enter task title" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-desc">Description</Label>
+              <Textarea id="task-desc" value={taskForm.description} onChange={e => setTaskForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Enter task description" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-priority">Priority</Label>
+              <Select value={taskForm.priority} onValueChange={v => setTaskForm(prev => ({ ...prev, priority: v }))}>
+                <SelectTrigger id="task-priority"><SelectValue placeholder="Select priority" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-assigned">Assigned To</Label>
+              <Input id="task-assigned" value={taskForm.assignedTo} onChange={e => setTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))} placeholder="Enter assignee name or email" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-due">Due Date</Label>
+              <Input id="task-due" type="date" value={taskForm.dueDate} onChange={e => setTaskForm(prev => ({ ...prev, dueDate: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTaskOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateTask} disabled={submitting || !taskForm.title.trim()}>{submitting ? 'Creating...' : 'Create Task'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Squad Dialog */}
+      <Dialog open={createSquadOpen} onOpenChange={setCreateSquadOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Squad</DialogTitle>
+            <DialogDescription>Define a new squad with an owner and risk profile.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="squad-name">Squad Name</Label>
+              <Input id="squad-name" value={squadForm.squadName} onChange={e => setSquadForm(prev => ({ ...prev, squadName: e.target.value }))} placeholder="e.g. Platform Team" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="squad-owner">Owner</Label>
+              <Input id="squad-owner" value={squadForm.owner} onChange={e => setSquadForm(prev => ({ ...prev, owner: e.target.value }))} placeholder="Enter owner name" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="squad-focus">Focus Area</Label>
+              <Input id="squad-focus" value={squadForm.focus} onChange={e => setSquadForm(prev => ({ ...prev, focus: e.target.value }))} placeholder="e.g. Infrastructure, Product, QA" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="squad-risk">Risk Level</Label>
+              <Select value={squadForm.risk} onValueChange={v => setSquadForm(prev => ({ ...prev, risk: v }))}>
+                <SelectTrigger id="squad-risk"><SelectValue placeholder="Select risk level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateSquadOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateSquad} disabled={submitting || !squadForm.squadName.trim() || !squadForm.owner.trim()}>{submitting ? 'Creating...' : 'Create Squad'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Workstream Dialog */}
+      <Dialog open={createWorkstreamOpen} onOpenChange={setCreateWorkstreamOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Workstream</DialogTitle>
+            <DialogDescription>Create a macro initiative to track cross-functional progress.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="ws-label">Label</Label>
+              <Input id="ws-label" value={workstreamForm.label} onChange={e => setWorkstreamForm(prev => ({ ...prev, label: e.target.value }))} placeholder="e.g. Q4 Product Launch" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ws-milestone">Next Milestone</Label>
+              <Input id="ws-milestone" value={workstreamForm.nextMilestone} onChange={e => setWorkstreamForm(prev => ({ ...prev, nextMilestone: e.target.value }))} placeholder="e.g. Beta release by Nov 15" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateWorkstreamOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateWorkstream} disabled={submitting || !workstreamForm.label.trim()}>{submitting ? 'Creating...' : 'Create Workstream'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

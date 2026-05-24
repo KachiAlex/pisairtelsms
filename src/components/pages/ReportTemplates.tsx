@@ -1,38 +1,21 @@
 import React, { useState, useEffect } from 'react'
-import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Settings, Palette, Loader, AlertCircle } from 'lucide-react'
+import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Palette, Loader, AlertCircle, CheckCircle } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
-import { Progress } from '../ui/progress'
 import { Input } from '../ui/input'
 
-const layoutBlocks = [
-  { label: 'Hero / Cover', components: ['Student avatar', 'School crest', 'Term summary'], editable: true },
-  { label: 'Subject table', components: ['Subject grid', 'Teacher remarks', 'Assessment tags'], editable: true },
-  { label: 'Attendance & conduct', components: ['Attendance bar', 'Conduct badges'], editable: false },
-  { label: 'Promotion section', components: ['Promotion status', 'Signature block'], editable: true },
-]
-
-const mergeFields = [
-  { key: '{{student.name}}', description: 'Full legal name of student', category: 'Identity' },
-  { key: '{{term.average}}', description: 'Term cumulative average', category: 'Scores' },
-  { key: '{{guardian.phone}}', description: 'Primary guardian phone number', category: 'Contacts' },
-  { key: '{{principal.signature}}', description: 'Base64 encoded signature image', category: 'Brand' },
-]
-
-const distributionStats = [
-  { label: 'PDF downloads', value: 78, trend: '+12% vs last term' },
-  { label: 'Portal views', value: 92, trend: '+4% vs last term' },
-  { label: 'Email deliveries', value: 85, trend: '98% success' },
-]
-
 const statusVariant: Record<string, 'default' | 'secondary'> = {
+  live: 'default',
   Live: 'default',
+  draft: 'secondary',
   Draft: 'secondary',
 }
+
+const TENANT_ID = localStorage.getItem('tenantId') || 'default-tenant'
+const HEADERS = { 'x-tenant-id': TENANT_ID, 'Content-Type': 'application/json' }
 
 export function ReportTemplates() {
   const [templates, setTemplates] = useState<any[]>([])
@@ -45,19 +28,14 @@ export function ReportTemplates() {
     loadTemplates()
   }, [])
 
-  const loadTemplates = () => {
+  const loadTemplates = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with actual API call
-      // const result = reportTemplatesApi.list('tenant-1')
-      const result = {
-        data: [
-          { id: 'TMP-01', name: 'Classic Term Report', audience: 'parents', format: 'PDF + Portal', version: 1, status: 'live', updatedAt: new Date() },
-          { id: 'TMP-02', name: 'Transcript Export', audience: 'universities', format: 'PDF + XML', version: 1, status: 'live', updatedAt: new Date() },
-        ],
-        total: 2,
-      }
-      setTemplates(result.data)
+      setError(null)
+      const res = await fetch('/api/tenant/report-templates', { headers: HEADERS })
+      if (!res.ok) throw new Error('Failed to load templates')
+      const json = await res.json()
+      setTemplates(json.data || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load templates')
     } finally {
@@ -69,23 +47,32 @@ export function ReportTemplates() {
     if (!newTemplateName.trim()) return
     try {
       setCreating(true)
-      // TODO: Replace with actual API call
-      // const template = reportTemplatesApi.create('tenant-1', 'user-1', { name: newTemplateName, audience: 'internal', format: 'PDF' })
-      const template = {
-        id: `TMP-${Date.now()}`,
-        name: newTemplateName,
-        audience: 'internal',
-        format: 'PDF',
-        version: 1,
-        status: 'draft',
-        updatedAt: new Date(),
-      }
-      setTemplates([template, ...templates])
+      setError(null)
+      const res = await fetch('/api/tenant/report-templates', {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify({ name: newTemplateName, audience: 'parents', format: 'PDF' }),
+      })
+      if (!res.ok) throw new Error('Failed to create template')
+      const json = await res.json()
+      setTemplates([json.data, ...templates])
       setNewTemplateName('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create template')
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handlePublish = async (templateId: string) => {
+    try {
+      const res = await fetch(`/api/tenant/report-templates?id=${templateId}&action=publish`, {
+        method: 'POST', headers: HEADERS,
+      })
+      if (!res.ok) throw new Error('Failed to publish template')
+      await loadTemplates()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to publish')
     }
   }
 
@@ -197,6 +184,7 @@ export function ReportTemplates() {
                     <TableHead>Format</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -208,6 +196,13 @@ export function ReportTemplates() {
                       <TableCell>v{template.version}</TableCell>
                       <TableCell>
                         <Badge variant={statusVariant[template.status] || 'secondary'}>{template.status}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {template.status === 'draft' && (
+                          <Button size="sm" variant="outline" onClick={() => handlePublish(template.id)}>
+                            <CheckCircle className="h-3 w-3 mr-1" /> Publish
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -223,63 +218,11 @@ export function ReportTemplates() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="layout" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="layout">Layout blocks</TabsTrigger>
-          <TabsTrigger value="merge-fields">Merge fields</TabsTrigger>
-          <TabsTrigger value="distribution">Distribution</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="layout" className="space-y-3">
-          {layoutBlocks.map((block) => (
-            <div key={block.label} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="font-medium text-gray-900">{block.label}</p>
-                <p className="text-sm text-gray-600">{block.components.join(', ')}</p>
-              </div>
-              <Button variant={block.editable ? 'outline' : 'ghost'} size="sm" disabled={!block.editable}>
-                <Settings className="h-4 w-4 mr-2" /> {block.editable ? 'Configure' : 'Locked'}
-              </Button>
-            </div>
-          ))}
-        </TabsContent>
-
-        <TabsContent value="merge-fields" className="space-y-3">
-          {mergeFields.map((field) => (
-            <div key={field.key} className="rounded-2xl border border-gray-100 p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-mono text-sm text-gray-900">{field.key}</p>
-                <Badge variant="secondary">{field.category}</Badge>
-              </div>
-              <p className="text-xs text-gray-600 mt-1">{field.description}</p>
-            </div>
-          ))}
-        </TabsContent>
-
-        <TabsContent value="distribution" className="grid gap-4 md:grid-cols-3">
-          {distributionStats.map((stat) => (
-            <Card key={stat.label}>
-              <CardHeader>
-                <CardTitle className="text-sm text-gray-500">{stat.label}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-semibold text-gray-900">{stat.value}%</p>
-                <p className="text-xs text-gray-500">{stat.trend}</p>
-                <Progress className="mt-2" value={stat.value} />
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-      </Tabs>
-
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
         <div className="flex items-center gap-3">
           <Eye className="h-5 w-5" />
           <p>Create and manage report templates to customize academic reports for different audiences.</p>
         </div>
-        <Button size="sm">
-          <FileText className="h-4 w-4 mr-2" /> Learn more
-        </Button>
       </div>
     </div>
   )

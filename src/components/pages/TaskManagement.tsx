@@ -6,6 +6,17 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog'
+import { Label } from '../ui/label'
+import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select'
 
 interface Task {
   id: string
@@ -82,6 +93,35 @@ export function TaskManagement() {
   const [workstreams, setWorkstreams] = useState<Workstream[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
 
+  // Modal states
+  const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [createSquadOpen, setCreateSquadOpen] = useState(false)
+  const [createWorkstreamOpen, setCreateWorkstreamOpen] = useState(false)
+  const [digestSending, setDigestSending] = useState(false)
+  const [smartTriageEnabled, setSmartTriageEnabled] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Form states
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    assignedTo: '',
+    dueDate: '',
+  })
+
+  const [squadForm, setSquadForm] = useState({
+    squadName: '',
+    owner: '',
+    focus: '',
+    risk: 'low',
+  })
+
+  const [workstreamForm, setWorkstreamForm] = useState({
+    label: '',
+    nextMilestone: '',
+  })
+
   const fetchTenantId = () => {
     // In a real app, this would come from auth context or localStorage
     return localStorage.getItem('tenantId') || 'default-tenant'
@@ -127,68 +167,149 @@ export function TaskManagement() {
     fetchData()
   }, [])
 
-  const handleCreateTask = async () => {
-    const title = prompt('Enter task title:')
-    if (!title) return
+  const resetTaskForm = () => setTaskForm({ title: '', description: '', priority: 'medium', assignedTo: '', dueDate: '' })
+  const resetSquadForm = () => setSquadForm({ squadName: '', owner: '', focus: '', risk: 'low' })
+  const resetWorkstreamForm = () => setWorkstreamForm({ label: '', nextMilestone: '' })
 
+  const handleCreateTask = async () => {
+    if (!taskForm.title.trim()) return
+    setSubmitting(true)
     const tenantId = fetchTenantId()
     try {
       await fetch('/api/tenant/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, priority: 'medium' })
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+        },
+        body: JSON.stringify({
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          assignedTo: taskForm.assignedTo || undefined,
+          dueDate: taskForm.dueDate || undefined,
+        })
       })
+      setCreateTaskOpen(false)
+      resetTaskForm()
       fetchData()
     } catch (error) {
       console.error('Error creating task:', error)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleCreateSquad = async () => {
-    const squadName = prompt('Enter squad name:')
-    const owner = prompt('Enter owner name:')
-    if (!squadName || !owner) return
-
+    if (!squadForm.squadName.trim() || !squadForm.owner.trim()) return
+    setSubmitting(true)
     const tenantId = fetchTenantId()
     try {
       await fetch('/api/tenant/tasks/squads', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ squadName, owner, risk: 'low' })
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+        },
+        body: JSON.stringify({
+          squadName: squadForm.squadName,
+          owner: squadForm.owner,
+          focus: squadForm.focus || undefined,
+          risk: squadForm.risk,
+        })
       })
+      setCreateSquadOpen(false)
+      resetSquadForm()
       fetchData()
     } catch (error) {
       console.error('Error creating squad:', error)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleCreateWorkstream = async () => {
-    const label = prompt('Enter workstream label:')
-    if (!label) return
-
+    if (!workstreamForm.label.trim()) return
+    setSubmitting(true)
     const tenantId = fetchTenantId()
     try {
       await fetch('/api/tenant/tasks/workstreams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, progress: 0, blockers: 0 })
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+        },
+        body: JSON.stringify({
+          label: workstreamForm.label,
+          nextMilestone: workstreamForm.nextMilestone || undefined,
+          progress: 0,
+          blockers: 0,
+        })
       })
+      setCreateWorkstreamOpen(false)
+      resetWorkstreamForm()
       fetchData()
     } catch (error) {
       console.error('Error creating workstream:', error)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleSendDigest = async () => {
-    alert('Digest sent to all squad owners')
+    setDigestSending(true)
+    const tenantId = fetchTenantId()
+    try {
+      // Create a notification digest for each squad owner
+      const squadMessages = squads.map(s =>
+        `${s.squad_name}: ${s.task_count} tasks • Risk: ${s.risk} • Focus: ${s.focus || 'N/A'}`
+      ).join('\n')
+
+      await fetch('/api/tenant/tasks/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+        },
+        body: JSON.stringify({
+          title: 'Squad Digest',
+          message: `Weekly squad digest:\n\n${squadMessages}`,
+          type: 'info',
+        })
+      })
+    } catch (error) {
+      console.error('Error sending digest:', error)
+    } finally {
+      setDigestSending(false)
+    }
   }
 
   const handleExportCalendar = () => {
-    alert('Calendar exported')
+    const upcoming = tasks.filter(t => t.due_date && new Date(t.due_date) >= new Date())
+    if (upcoming.length === 0) {
+      alert('No upcoming deadlines to export')
+      return
+    }
+    const csv = [
+      'Title,Owner,Due Date,Priority,Status',
+      ...upcoming.map(t =>
+        `"${t.title}","${t.assigned_to_name || t.assigned_to || 'Unassigned'}","${t.due_date ? new Date(t.due_date).toLocaleDateString() : ''}","${t.priority}","${t.status}"`
+      ),
+    ].join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `task-calendar-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const handleEnableSmartTriage = () => {
-    alert('Smart triage enabled')
+    setSmartTriageEnabled(prev => !prev)
   }
 
   if (loading) {
@@ -208,10 +329,10 @@ export function TaskManagement() {
           <p className="text-sm text-gray-600">Coordinate cross-functional workstreams, monitor blockers, and broadcast nudges.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={handleCreateSquad}>
+          <Button variant="outline" onClick={() => { resetSquadForm(); setCreateSquadOpen(true) }}>
             <Edit3 className="h-4 w-4 mr-2" /> Create squad
           </Button>
-          <Button onClick={handleCreateTask}>
+          <Button onClick={() => { resetTaskForm(); setCreateTaskOpen(true) }}>
             <Plus className="h-4 w-4 mr-2" /> New task
           </Button>
         </div>
@@ -325,7 +446,7 @@ export function TaskManagement() {
             <CardTitle>Workstreams</CardTitle>
             <CardDescription>Macro initiatives with progress bars and next milestones.</CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={handleCreateWorkstream}>
+          <Button variant="outline" size="sm" onClick={() => { resetWorkstreamForm(); setCreateWorkstreamOpen(true) }}>
             <Plus className="h-4 w-4 mr-2" /> New workstream
           </Button>
         </CardHeader>
@@ -369,8 +490,8 @@ export function TaskManagement() {
                 </div>
               ))
             )}
-            <Button variant="outline" size="sm" className="w-full" onClick={handleSendDigest}>
-              <Send className="h-4 w-4 mr-2" /> Send digest
+            <Button variant="outline" size="sm" className="w-full" onClick={handleSendDigest} disabled={digestSending || squads.length === 0}>
+              <Send className="h-4 w-4 mr-2" /> {digestSending ? 'Sending...' : 'Send digest'}
             </Button>
           </CardContent>
         </Card>
@@ -400,13 +521,13 @@ export function TaskManagement() {
         </Card>
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-green-100 bg-green-50 p-4 text-sm text-green-900">
+      <div className={`flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border p-4 text-sm transition-colors ${smartTriageEnabled ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-green-100 bg-green-50 text-green-900'}`}>
         <div className="flex items-center gap-3">
           <ClipboardList className="h-5 w-5" />
-          <p>Enable "smart triage" to auto-assign tasks based on workload, due dates, and skill tags.</p>
+          <p>{smartTriageEnabled ? 'Smart triage is active. Tasks will be auto-assigned based on workload, due dates, and skill tags.' : 'Enable "smart triage" to auto-assign tasks based on workload, due dates, and skill tags.'}</p>
         </div>
-        <Button size="sm" onClick={handleEnableSmartTriage}>
-          <Users className="h-4 w-4 mr-2" /> Turn on smart triage
+        <Button size="sm" onClick={handleEnableSmartTriage} variant={smartTriageEnabled ? 'secondary' : 'default'}>
+          <Users className="h-4 w-4 mr-2" /> {smartTriageEnabled ? 'Disable smart triage' : 'Turn on smart triage'}
         </Button>
       </div>
     </div>

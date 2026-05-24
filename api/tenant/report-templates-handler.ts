@@ -1,21 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import reportTemplatesApi from './_lib/report-templates';
+import { sql } from '@vercel/postgres';
 
 /**
- * Report Templates API Handler
- * Routes:
- *   GET    /api/tenant/report-templates                          - List templates
- *   POST   /api/tenant/report-templates                         - Create template
- *   GET    /api/tenant/report-templates/:id                     - Get template by ID
- *   PUT    /api/tenant/report-templates/:id                     - Update template
- *   DELETE /api/tenant/report-templates/:id                     - Delete template
- *   POST   /api/tenant/report-templates/:id/publish             - Publish template
- *   POST   /api/tenant/report-templates/:id/archive             - Archive template
- *   POST   /api/tenant/report-templates/:id/duplicate           - Duplicate template
- *   GET    /api/tenant/report-templates/:id/versions            - Get versions
- *   POST   /api/tenant/report-templates/:id/fields              - Add/update field
- *   DELETE /api/tenant/report-templates/:id/fields/:fieldId     - Remove field
- *   PUT    /api/tenant/report-templates/:id/fields/reorder      - Reorder fields
+ * Report Templates API Handler — backed by real DB
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId =
@@ -29,91 +16,120 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'system';
 
   const { id, action, fieldId } = req.query;
+  const idStr      = Array.isArray(id)      ? id[0]      : id;
+  const actionStr  = Array.isArray(action)  ? action[0]  : action;
+  const fieldIdStr = Array.isArray(fieldId) ? fieldId[0] : fieldId;
 
   try {
-    // POST /api/tenant/report-templates/:id/publish
-    if (req.method === 'POST' && id && action === 'publish') {
-      const template = reportTemplatesApi.publish(tenantId, userId, id as string);
-      return res.status(200).json({ data: template });
+    // POST /:id/publish
+    if (req.method === 'POST' && idStr && actionStr === 'publish') {
+      const r = await sql.query(
+        `UPDATE report_templates SET status='live', published_at=NOW(), published_by=$1, updated_at=NOW()
+         WHERE tenant_id=$2 AND id=$3 RETURNING *`,
+        [userId, tenantId, idStr]
+      );
+      if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found' });
+      return res.status(200).json({ success: true, data: r.rows[0] });
     }
 
-    // POST /api/tenant/report-templates/:id/archive
-    if (req.method === 'POST' && id && action === 'archive') {
-      const template = reportTemplatesApi.archive(tenantId, userId, id as string);
-      return res.status(200).json({ data: template });
+    // POST /:id/archive
+    if (req.method === 'POST' && idStr && actionStr === 'archive') {
+      const r = await sql.query(
+        `UPDATE report_templates SET status='archived', updated_by=$1, updated_at=NOW() WHERE tenant_id=$2 AND id=$3 RETURNING *`,
+        [userId, tenantId, idStr]
+      );
+      if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found' });
+      return res.status(200).json({ success: true, data: r.rows[0] });
     }
 
-    // POST /api/tenant/report-templates/:id/duplicate
-    if (req.method === 'POST' && id && action === 'duplicate') {
-      const { name } = req.body || {};
-      const template = reportTemplatesApi.duplicate(tenantId, userId, id as string, name || 'Copy');
-      return res.status(201).json({ data: template });
+    // DELETE /:id/fields/:fieldId
+    if (req.method === 'DELETE' && idStr && actionStr === 'fields' && fieldIdStr) {
+      await sql.query(`DELETE FROM report_template_fields WHERE id=$1 AND template_id=$2`, [fieldIdStr, idStr]);
+      return res.status(200).json({ success: true });
     }
 
-    // GET /api/tenant/report-templates/:id/versions
-    if (req.method === 'GET' && id && action === 'versions') {
-      const versions = reportTemplatesApi.getVersions(tenantId, id as string);
-      return res.status(200).json({ data: versions });
+    // POST /:id/fields
+    if (req.method === 'POST' && idStr && actionStr === 'fields') {
+      const { name, label, type, required, sortOrder, config } = req.body || {};
+      const r = await sql.query(
+        `INSERT INTO report_template_fields(id,template_id,tenant_id,name,label,type,required,sort_order,config)
+         VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [idStr, tenantId, name, label, type||'text', required||false, sortOrder||0, config ? JSON.stringify(config) : null]
+      );
+      return res.status(201).json({ success: true, data: r.rows[0] });
     }
 
-    // DELETE /api/tenant/report-templates/:id/fields/:fieldId
-    if (req.method === 'DELETE' && id && action === 'fields' && fieldId) {
-      const template = reportTemplatesApi.removeField(tenantId, userId, id as string, fieldId as string);
-      return res.status(200).json({ data: template });
+    // GET /:id/fields
+    if (req.method === 'GET' && idStr && actionStr === 'fields') {
+      const r = await sql.query(
+        `SELECT * FROM report_template_fields WHERE template_id=$1 ORDER BY sort_order ASC`, [idStr]
+      );
+      return res.status(200).json({ success: true, data: r.rows });
     }
 
-    // PUT /api/tenant/report-templates/:id/fields/reorder
-    if (req.method === 'PUT' && id && action === 'fields-reorder') {
-      const { fieldIds } = req.body || {};
-      const template = reportTemplatesApi.reorderFields(tenantId, userId, id as string, fieldIds);
-      return res.status(200).json({ data: template });
+    // GET /:id (single template with fields)
+    if (req.method === 'GET' && idStr && !actionStr) {
+      const r = await sql.query(`SELECT * FROM report_templates WHERE tenant_id=$1 AND id=$2`, [tenantId, idStr]);
+      if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found' });
+      const fields = await sql.query(`SELECT * FROM report_template_fields WHERE template_id=$1 ORDER BY sort_order`, [idStr]);
+      return res.status(200).json({ success: true, data: { ...r.rows[0], fields: fields.rows } });
     }
 
-    // POST /api/tenant/report-templates/:id/fields
-    if (req.method === 'POST' && id && action === 'fields') {
-      const template = reportTemplatesApi.addField(tenantId, userId, id as string, req.body);
-      return res.status(200).json({ data: template });
+    // PUT /:id
+    if (req.method === 'PUT' && idStr) {
+      const { name, description, audience, format } = req.body || {};
+      const r = await sql.query(
+        `UPDATE report_templates SET
+           name=COALESCE($1,name), description=COALESCE($2,description),
+           audience=COALESCE($3,audience), format=COALESCE($4,format),
+           updated_by=$5, updated_at=NOW()
+         WHERE tenant_id=$6 AND id=$7 RETURNING *`,
+        [name||null, description||null, audience||null, format||null, userId, tenantId, idStr]
+      );
+      if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found' });
+      return res.status(200).json({ success: true, data: r.rows[0] });
     }
 
-    // GET /api/tenant/report-templates/:id
-    if (req.method === 'GET' && id && !action) {
-      const template = reportTemplatesApi.getById(tenantId, id as string);
-      return res.status(200).json({ data: template });
+    // DELETE /:id
+    if (req.method === 'DELETE' && idStr) {
+      await sql.query(`DELETE FROM report_templates WHERE tenant_id=$1 AND id=$2`, [tenantId, idStr]);
+      return res.status(200).json({ success: true });
     }
 
-    // PUT /api/tenant/report-templates/:id
-    if (req.method === 'PUT' && id) {
-      const template = reportTemplatesApi.update(tenantId, userId, id as string, req.body || {});
-      return res.status(200).json({ data: template });
-    }
-
-    // DELETE /api/tenant/report-templates/:id
-    if (req.method === 'DELETE' && id) {
-      const result = reportTemplatesApi.delete(tenantId, id as string);
-      return res.status(200).json(result);
-    }
-
-    // GET /api/tenant/report-templates
+    // GET / (list)
     if (req.method === 'GET') {
-      const limit = parseInt((req.query.limit as string) || '50');
-      const offset = parseInt((req.query.offset as string) || '0');
-      const status = req.query.status as string | undefined;
+      const limit    = parseInt((req.query.limit    as string) || '50');
+      const offset   = parseInt((req.query.offset   as string) || '0');
+      const status   = req.query.status   as string | undefined;
       const audience = req.query.audience as string | undefined;
-      const result = reportTemplatesApi.list(tenantId, { status, audience, limit, offset });
-      return res.status(200).json(result);
+      let q = `SELECT * FROM report_templates WHERE tenant_id=$1`;
+      const params: any[] = [tenantId];
+      let p = 2;
+      if (status)   { q += ` AND status=$${p++}`;   params.push(status); }
+      if (audience) { q += ` AND audience=$${p++}`; params.push(audience); }
+      q += ` ORDER BY created_at DESC LIMIT $${p++} OFFSET $${p++}`;
+      params.push(limit, offset);
+      const r = await sql.query(q, params);
+      return res.status(200).json({ success: true, data: r.rows });
     }
 
-    // POST /api/tenant/report-templates
+    // POST / (create)
     if (req.method === 'POST') {
-      const template = reportTemplatesApi.create(tenantId, userId, req.body || {});
-      return res.status(201).json({ data: template });
+      const { name, description, audience, format } = req.body || {};
+      if (!name) return res.status(400).json({ success: false, error: 'name required' });
+      const r = await sql.query(
+        `INSERT INTO report_templates(id,tenant_id,name,description,audience,format,created_by,updated_by)
+         VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$6) RETURNING *`,
+        [tenantId, name, description||null, audience||'parents', format||'PDF', userId]
+      );
+      return res.status(201).json({ success: true, data: r.rows[0] });
     }
 
     res.setHeader('Allow', 'GET, POST, PUT, DELETE');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
   } catch (error) {
+    console.error('[report-templates-handler]', error);
     const message = error instanceof Error ? error.message : 'Internal server error';
-    const status = message.includes('not found') ? 404 : 400;
-    return res.status(status).json({ error: message });
+    return res.status(500).json({ success: false, error: message });
   }
 }

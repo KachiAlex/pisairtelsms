@@ -1,55 +1,49 @@
 import React, { useState, useEffect } from 'react'
-import { Scale, Edit3, Save, ShieldCheck, Calculator, AlertTriangle, FileText, ArrowUpWideNarrow, Loader } from 'lucide-react'
+import { Scale, Save, ShieldCheck, Calculator, AlertTriangle, FileText, ArrowUpWideNarrow, Loader, AlertCircle } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
-import { Progress } from '../ui/progress'
 import { Input } from '../ui/input'
 
-const equivalencySets = [
-  { id: 'WAEC', status: 'Live', description: 'Nigeria senior secondary examinations equivalence', coverage: 100 },
-  { id: 'Cambridge', status: 'Draft', description: 'IGCSE/A-Level translation for transcripts', coverage: 72 },
-  { id: 'Local Primary', status: 'Live', description: 'Primary bands for term reports', coverage: 94 },
-]
-
 const statusVariant: Record<string, 'default' | 'secondary'> = {
+  live: 'default',
   Live: 'default',
+  draft: 'secondary',
   Draft: 'secondary',
 }
 
+const TENANT_ID = localStorage.getItem('tenantId') || 'default-tenant'
+const HEADERS = { 'x-tenant-id': TENANT_ID, 'Content-Type': 'application/json' }
+
 export function GradingScale() {
   const [scales, setScales] = useState<any[]>([])
+  const [auditLog, setAuditLog] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [newScaleName, setNewScaleName] = useState('')
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    loadScales()
+    loadAll()
   }, [])
 
-  const loadScales = () => {
+  const loadAll = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with actual API call
-      // const result = gradingScalesApi.list('tenant-1')
-      const result = {
-        data: [
-          {
-            id: 'GS-01',
-            name: 'Primary Grading Scale',
-            type: 'primary',
-            version: 1,
-            status: 'live',
-            bands: [],
-            createdAt: new Date(),
-          },
-        ],
-        total: 1,
+      setError(null)
+      const [scalesRes, auditRes] = await Promise.all([
+        fetch('/api/tenant/grading-scales', { headers: HEADERS }),
+        fetch('/api/tenant/grading-scales?id=audit', { headers: HEADERS }),
+      ])
+      if (!scalesRes.ok) throw new Error('Failed to load grading scales')
+      const scalesJson = await scalesRes.json()
+      setScales(scalesJson.data || [])
+      if (auditRes.ok) {
+        const auditJson = await auditRes.json()
+        setAuditLog(auditJson.data || [])
       }
-      setScales(result.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load grading scales')
     } finally {
@@ -61,23 +55,32 @@ export function GradingScale() {
     if (!newScaleName.trim()) return
     try {
       setCreating(true)
-      // TODO: Replace with actual API call
-      // const scale = gradingScalesApi.create('tenant-1', 'user-1', { name: newScaleName, type: 'primary', bands: [] })
-      const scale = {
-        id: `GS-${Date.now()}`,
-        name: newScaleName,
-        type: 'primary',
-        version: 1,
-        status: 'draft',
-        bands: [],
-        createdAt: new Date(),
-      }
-      setScales([scale, ...scales])
+      setError(null)
+      const res = await fetch('/api/tenant/grading-scales', {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify({ name: newScaleName, type: 'primary' }),
+      })
+      if (!res.ok) throw new Error('Failed to create scale')
+      const json = await res.json()
+      setScales([json.data, ...scales])
       setNewScaleName('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create scale')
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handlePublish = async (scaleId: string) => {
+    try {
+      const res = await fetch(`/api/tenant/grading-scales?id=${scaleId}&action=publish`, {
+        method: 'POST', headers: HEADERS,
+      })
+      if (!res.ok) throw new Error('Failed to publish scale')
+      await loadAll()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to publish')
     }
   }
 
@@ -100,15 +103,14 @@ export function GradingScale() {
           <h1 className="text-2xl font-bold text-gray-900">Grading scale</h1>
           <p className="text-sm text-gray-600">Control grade bands, GPA weights, and equivalency mappings for every division.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <Edit3 className="h-4 w-4 mr-2" /> Edit ranges
-          </Button>
-          <Button>
-            <Save className="h-4 w-4 mr-2" /> Publish update
-          </Button>
-        </div>
       </div>
+
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-900 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -180,6 +182,7 @@ export function GradingScale() {
                     <TableHead>Version</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -191,7 +194,14 @@ export function GradingScale() {
                       <TableCell>
                         <Badge variant={statusVariant[scale.status] || 'secondary'}>{scale.status}</Badge>
                       </TableCell>
-                      <TableCell>{new Date(scale.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(scale.created_at || scale.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {scale.status === 'draft' && (
+                          <Button size="sm" variant="outline" onClick={() => handlePublish(scale.id)}>
+                            <Save className="h-3 w-3 mr-1" /> Publish
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -210,19 +220,25 @@ export function GradingScale() {
         <Card>
           <CardHeader>
             <CardTitle>Equivalency sets</CardTitle>
-            <CardDescription>Map Scholix scores to regional reporting standards.</CardDescription>
+            <CardDescription>Map scores to regional reporting standards.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {equivalencySets.map((set) => (
-              <div key={set.id} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{set.id}</p>
-                  <p className="text-sm text-gray-600">{set.description}</p>
-                  <p className="text-xs text-gray-400">Coverage: {set.coverage}% of subjects</p>
-                </div>
-                <Badge variant={statusVariant[set.status] || 'secondary'}>{set.status}</Badge>
+            {scales.filter(s => s.type === 'equivalency').length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <ArrowUpWideNarrow className="h-7 w-7 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No equivalency sets configured yet.</p>
               </div>
-            ))}
+            ) : (
+              scales.filter(s => s.type === 'equivalency').map((set) => (
+                <div key={set.id} className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{set.name}</p>
+                    <p className="text-sm text-gray-600">{set.description || '—'}</p>
+                  </div>
+                  <Badge variant={statusVariant[set.status] || 'secondary'}>{set.status}</Badge>
+                </div>
+              ))
+            )}
             <Button variant="outline" size="sm" className="w-full">
               <ArrowUpWideNarrow className="h-4 w-4 mr-2" /> Import mapping
             </Button>
@@ -232,30 +248,39 @@ export function GradingScale() {
         <Card>
           <CardHeader>
             <CardTitle>Policy rules</CardTitle>
-            <CardDescription>Guardrails consumed by result computation.</CardDescription>
+            <CardDescription>Guardrails from your active grading scales.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Minimum pass mark</p>
-                <p className="text-sm text-gray-500">45%</p>
+            {scales.filter(s => s.status === 'live' && (s.minimum_pass_mark || s.distinction_threshold || s.remediation_trigger)).length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <Scale className="h-7 w-7 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No policy rules set. Edit a grading scale to configure thresholds.</p>
               </div>
-              <Badge variant="secondary">Owner: Academics</Badge>
-            </div>
-            <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Distinction threshold</p>
-                <p className="text-sm text-gray-500">80%</p>
-              </div>
-              <Badge variant="secondary">Owner: Academic Board</Badge>
-            </div>
-            <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Remediation trigger</p>
-                <p className="text-sm text-gray-500">Average &lt; 50%</p>
-              </div>
-              <Badge variant="secondary">Owner: Student Support</Badge>
-            </div>
+            ) : (
+              scales.filter(s => s.status === 'live').map((scale) => (
+                <div key={scale.id} className="rounded-2xl border border-gray-100 p-4 space-y-2">
+                  <p className="font-medium text-gray-900 text-sm">{scale.name}</p>
+                  {scale.minimum_pass_mark != null && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Minimum pass mark</span>
+                      <Badge variant="secondary">{scale.minimum_pass_mark}%</Badge>
+                    </div>
+                  )}
+                  {scale.distinction_threshold != null && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Distinction threshold</span>
+                      <Badge variant="secondary">{scale.distinction_threshold}%</Badge>
+                    </div>
+                  )}
+                  {scale.remediation_trigger != null && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Remediation trigger</span>
+                      <Badge variant="secondary">&lt; {scale.remediation_trigger}%</Badge>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
             <Button variant="ghost" size="sm" className="w-full">
               <Scale className="h-4 w-4 mr-2" /> Edit policy
             </Button>
@@ -269,13 +294,22 @@ export function GradingScale() {
           <CardDescription>Every grading scale change is logged with actor context.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="rounded-2xl border border-gray-100 p-3 flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">System</p>
-              <p className="text-sm text-gray-500">Grading scales initialized</p>
+          {auditLog.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">
+              <FileText className="h-7 w-7 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No changes logged yet.</p>
             </div>
-            <p className="text-xs text-gray-400">Today</p>
-          </div>
+          ) : (
+            auditLog.slice(0, 10).map((entry) => (
+              <div key={entry.id} className="rounded-2xl border border-gray-100 p-3 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{entry.performed_by || 'System'}</p>
+                  <p className="text-sm text-gray-500">{entry.description || entry.action}</p>
+                </div>
+                <p className="text-xs text-gray-400">{new Date(entry.created_at).toLocaleDateString()}</p>
+              </div>
+            ))
+          )}
           <Button variant="ghost" size="sm" className="w-full">
             <FileText className="h-4 w-4 mr-2" /> Export change log
           </Button>

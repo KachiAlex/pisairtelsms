@@ -1,30 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Globe, Loader } from 'lucide-react'
+import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Loader } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Input } from '../ui/input'
 
-const typographyStack = [
-  { layer: 'Headings', font: 'Space Grotesk', weights: '500-700', usage: 'Page titles, widget headers' },
-  { layer: 'Body', font: 'Inter', weights: '400-500', usage: 'Paragraph copy, table cells' },
-  { layer: 'Accent', font: 'Libre Baskerville', weights: '400', usage: 'Certificates, transcripts' },
-]
-
-const portalThemes = [
-  { id: 'guardian', label: 'Guardian portal', preview: 'Deep blue hero + accent gradient', status: 'Live' },
-  { id: 'teacher', label: 'Teacher workspace', preview: 'Slate base + emerald highlights', status: 'Configured' },
-  { id: 'student', label: 'Student portal', preview: 'Minimal light mode', status: 'Draft' },
-]
-
-const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
-  Active: 'default',
-  Review: 'warning',
-  Live: 'default',
-  Configured: 'secondary',
-  Draft: 'secondary',
-}
 
 export function SchoolBranding() {
   const [branding, setBranding] = useState<any>(null)
@@ -55,11 +36,11 @@ export function SchoolBranding() {
       const config = result.data
       setBranding(config)
       setFormData({
-        schoolName: config.schoolName,
-        schoolMotto: config.schoolMotto || '',
-        primaryColor: config.primaryColor,
-        secondaryColor: config.secondaryColor,
-        accentColor: config.accentColor,
+        schoolName: config.school_name || config.schoolName || '',
+        schoolMotto: config.school_motto || config.schoolMotto || '',
+        primaryColor: config.primary_color || config.primaryColor || '#1E3A8A',
+        secondaryColor: config.secondary_color || config.secondaryColor || '#10B981',
+        accentColor: config.accent_color || config.accentColor || '#F59E0B',
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load branding')
@@ -94,11 +75,11 @@ export function SchoolBranding() {
   const handleReset = () => {
     if (branding) {
       setFormData({
-        schoolName: branding.schoolName,
-        schoolMotto: branding.schoolMotto || '',
-        primaryColor: branding.primaryColor,
-        secondaryColor: branding.secondaryColor,
-        accentColor: branding.accentColor,
+        schoolName: branding.school_name || branding.schoolName || '',
+        schoolMotto: branding.school_motto || branding.schoolMotto || '',
+        primaryColor: branding.primary_color || branding.primaryColor || '#1E3A8A',
+        secondaryColor: branding.secondary_color || branding.secondaryColor || '#10B981',
+        accentColor: branding.accent_color || branding.accentColor || '#F59E0B',
       })
     }
   }
@@ -151,7 +132,7 @@ export function SchoolBranding() {
             </div>
             <p className="text-xs text-gray-500 mt-3">Active color palette</p>
             <p className="text-3xl font-semibold text-gray-900">3 swatches</p>
-            <p className="text-xs text-gray-500">Updated {branding?.updatedAt ? new Date(branding.updatedAt).toLocaleDateString() : 'today'}</p>
+            <p className="text-xs text-gray-500">Updated {branding?.updated_at || branding?.updatedAt ? new Date(branding.updated_at || branding.updatedAt).toLocaleDateString() : 'Not yet saved'}</p>
           </CardContent>
         </Card>
         <Card>
@@ -170,7 +151,7 @@ export function SchoolBranding() {
               <ImageIcon className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Version</p>
-            <p className="text-3xl font-semibold text-gray-900">v{branding?.version || 1}</p>
+            <p className="text-3xl font-semibold text-gray-900">v{branding?.version ?? 1}</p>
             <p className="text-xs text-gray-500">Current active version</p>
           </CardContent>
         </Card>
@@ -180,7 +161,7 @@ export function SchoolBranding() {
               <Wand2 className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Status</p>
-            <p className="text-3xl font-semibold text-gray-900">{branding?.isActive ? 'Active' : 'Inactive'}</p>
+            <p className="text-3xl font-semibold text-gray-900">{branding?.is_published || branding?.isActive ? 'Published' : 'Draft'}</p>
             <p className="text-xs text-gray-500">Configuration status</p>
           </CardContent>
         </Card>
@@ -246,47 +227,6 @@ export function SchoolBranding() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Typography stack</CardTitle>
-            <CardDescription>Headings, body copy, and special documents.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {typographyStack.map((layer) => (
-              <div key={layer.layer} className="rounded-2xl border border-gray-100 p-4">
-                <p className="font-medium text-gray-900">{layer.layer}</p>
-                <p className="text-sm text-gray-600">{layer.font} • {layer.weights}</p>
-                <p className="text-xs text-gray-500">{layer.usage}</p>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" className="w-full">
-              <Wand2 className="h-4 w-4 mr-2" /> Sync from Figma
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Portal themes</CardTitle>
-            <CardDescription>Preview experience layers before publishing.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {portalThemes.map((theme) => (
-              <div key={theme.id} className="rounded-2xl border border-gray-100 p-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">{theme.label}</p>
-                  <p className="text-sm text-gray-600">{theme.preview}</p>
-                </div>
-                <Badge variant={statusVariant[theme.status]}> {theme.status}</Badge>
-              </div>
-            ))}
-            <Button variant="ghost" size="sm" className="w-full">
-              <Globe className="h-4 w-4 mr-2" /> Theme marketplace
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
 
       <Card>
         <CardHeader>
@@ -294,17 +234,16 @@ export function SchoolBranding() {
           <CardDescription>Logos and crests synced across apps.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {branding?.logoUrl && (
+          {(branding?.logo_url || branding?.logoUrl) ? (
             <div className="rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
               <div>
                 <p className="font-medium text-gray-900">Primary logo</p>
-                <p className="text-sm text-gray-500">File: {branding.logoFileName || 'logo.png'}</p>
-                <p className="text-xs text-gray-400">Updated {new Date(branding.updatedAt).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-500">File: {branding.logo_file_name || branding.logoFileName || 'logo.png'}</p>
+                <p className="text-xs text-gray-400">Updated {new Date(branding.updated_at || branding.updatedAt).toLocaleDateString()}</p>
               </div>
               <Badge variant="default">Active</Badge>
             </div>
-          )}
-          {!branding?.logoUrl && (
+          ) : (
             <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center">
               <ImageIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-600">No logo uploaded yet</p>
@@ -316,15 +255,6 @@ export function SchoolBranding() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-900">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5" />
-          <p>Guardian portal shows outdated crest. Deploy refreshed assets before the next PTA announcement.</p>
-        </div>
-        <Button size="sm">
-          <ImageIcon className="h-4 w-4 mr-2" /> Replace crest
-        </Button>
-      </div>
     </div>
   )
 }

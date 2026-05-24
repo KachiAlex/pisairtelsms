@@ -14,9 +14,11 @@ import {
   Bell,
   LogOut,
   Briefcase,
+  GraduationCap,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
+import { useBranding } from '../../contexts/BrandingContext'
 
 import { StaffDashboard } from '../pages/staff/StaffDashboard'
 import { MyTimetable } from '../pages/staff/MyTimetable'
@@ -46,6 +48,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const auth = getAuthFromStorage()
+  const { branding } = useBranding()
 
   // Extract current page from URL path
   const pathSegments = location.pathname.split('/')
@@ -117,11 +120,19 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Briefcase className="w-5 h-5 text-white" />
-            </div>
+            {branding.logoUrl ? (
+              <img
+                src={branding.logoUrl}
+                alt={branding.schoolName}
+                className="w-8 h-8 rounded-lg object-contain"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-white" />
+              </div>
+            )}
             <div>
-              <p className="text-sm font-bold text-gray-900">ScholarX</p>
+              <p className="text-sm font-bold text-gray-900 truncate max-w-[140px]">{branding.schoolName}</p>
               <p className="text-xs text-blue-600">Staff Portal</p>
             </div>
           </div>

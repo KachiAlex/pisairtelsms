@@ -6,6 +6,7 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Input } from '../ui/input'
 import { useToast } from '../ui/use-toast'
+import { useBranding } from '../../contexts/BrandingContext'
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 const MAX_SIZE_MB = 2
@@ -27,6 +28,7 @@ function getAuth() {
 
 export function SchoolBranding() {
   const { toast } = useToast()
+  const { refresh: refreshBranding } = useBranding()
   const [branding, setBranding] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -92,6 +94,7 @@ export function SchoolBranding() {
       if (!response.ok) throw new Error('Failed to save branding')
       const result = await response.json()
       setBranding(result.data)
+      await refreshBranding()
       toast({ title: 'Branding saved', description: 'Your changes have been applied.' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save branding')
@@ -169,6 +172,7 @@ export function SchoolBranding() {
       setBranding(result.data)
       setLogoPreview(null)
       setLogoFile(null)
+      await refreshBranding()
       toast({ title: 'Logo uploaded', description: `${logoFile.name} is now your active logo.` })
     } catch (err) {
       toast({
@@ -201,6 +205,7 @@ export function SchoolBranding() {
       if (!res.ok) throw new Error('Remove failed')
       const result = await res.json()
       setBranding(result.data)
+      await refreshBranding()
       toast({ title: 'Logo removed' })
     } catch (err) {
       toast({ title: 'Remove failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })

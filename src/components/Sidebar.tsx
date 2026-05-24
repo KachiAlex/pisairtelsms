@@ -1,4 +1,5 @@
 import React from 'react';
+import { useBranding } from '../contexts/BrandingContext';
 import {
   LayoutDashboard,
   Users,
@@ -242,6 +243,7 @@ const navItems: NavItem[] = [
 
 export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProps) {
   const [openSections, setOpenSections] = React.useState<string[]>(['system']);
+  const { branding } = useBranding();
 
   const toggleSection = (id: string) => {
     setOpenSections(prev =>
@@ -268,10 +270,20 @@ export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProp
         {/* Header */}
         <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-xl text-gray-900">SCHOLIX</span>
+            {branding.logoUrl ? (
+              <img
+                src={branding.logoUrl}
+                alt={branding.schoolName}
+                className="w-8 h-8 rounded-lg object-contain"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-white" />
+              </div>
+            )}
+            <span className="font-bold text-xl text-gray-900 truncate max-w-[160px]">
+              {branding.schoolName}
+            </span>
           </div>
           <button
             onClick={onClose}

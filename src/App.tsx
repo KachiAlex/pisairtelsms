@@ -70,7 +70,8 @@ import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
 import { StudentLayout } from './components/layouts/StudentLayout';
 import { StaffLayout } from './components/layouts/StaffLayout';
 import { ParentLayout } from './components/layouts/ParentLayout';
-import { ParentContextProvider } from './contexts/ParentContext';
+import { ParentContextProvider } from './contexts/ParentContext'
+import { BrandingProvider } from './contexts/BrandingContext';
 import { ParentLoginPage } from './components/auth/ParentLoginPage';
 import { clearAuthFromStorage } from './lib/auth';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
@@ -387,6 +388,7 @@ export default function App() {
 
   return (
     <TenantProvider>
+      <BrandingProvider>
       <Routes>
         <Route path="/" element={<HomePage onNavigateToDashboard={() => navigate('/login')} />} />
         <Route
@@ -404,6 +406,7 @@ export default function App() {
         <Route path="/parent/*" element={<RoleBasedRoute allowedRoles={['parent']} redirectTo="/parent/login"><ParentContextProvider><Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}><ParentLayout /></Suspense></ParentContextProvider></RoleBasedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </BrandingProvider>
     </TenantProvider>
   );
 }

@@ -17,24 +17,11 @@ async function runMigration() {
   try {
     console.log('Connected to database');
     
-    // Check if users table already exists
-    const checkResult = await client.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name = 'users'
-    `);
-    
-    if (checkResult.rows.length > 0) {
-      console.log('users table already exists. Migration already applied.');
-      return;
-    }
-    
     // Read the migration SQL
     const migrationPath = join(__dirname, 'add-users-table.sql');
     const migrationSQL = readFileSync(migrationPath, 'utf8');
     
-    console.log('Applying users table migration...');
+    console.log('Applying missing columns migration...');
     
     // Run migration in a transaction
     await client.query('BEGIN');
@@ -48,15 +35,7 @@ async function runMigration() {
       throw err;
     }
     
-    // Verify table was created
-    const verifyResult = await client.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name = 'users'
-    `);
-    
-    console.log('✅ Users table created successfully!');
+    console.log('✅ Migration complete!');
     
   } finally {
     client.release();

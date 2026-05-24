@@ -96,5 +96,22 @@ BEGIN
 END $$;
 
 -- Add foreign key constraints for students and staff (skip users foreign key to tenants since tenants table doesn't exist)
-ALTER TABLE students ADD CONSTRAINT fk_students_user FOREIGN KEY (user_id) REFERENCES users(id);
-ALTER TABLE staff ADD CONSTRAINT fk_staff_user FOREIGN KEY (user_id) REFERENCES users(id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE table_name = 'students' AND constraint_name = 'fk_students_user'
+  ) THEN
+    ALTER TABLE students ADD CONSTRAINT fk_students_user FOREIGN KEY (user_id) REFERENCES users(id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE table_name = 'staff' AND constraint_name = 'fk_staff_user'
+  ) THEN
+    ALTER TABLE staff ADD CONSTRAINT fk_staff_user FOREIGN KEY (user_id) REFERENCES users(id);
+  END IF;
+END $$;

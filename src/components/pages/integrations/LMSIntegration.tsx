@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Link, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -8,28 +8,31 @@ import { Badge } from '../../ui/badge';
 
 interface LMSConfig {
   id: string;
-  provider: 'moodle' | 'canvas';
-  baseUrl: string;
-  apiKey: string;
-  syncStatus: 'synced' | 'pending' | 'failed';
-  lastSyncAt?: string;
+  provider: string;
+  base_url: string;
+  api_key: string;
+  sync_status: string;
+  last_sync_at?: string;
 }
 
 interface SyncRecord {
   id: string;
-  syncType: 'student' | 'grade';
-  status: 'in_progress' | 'completed' | 'failed';
-  recordsProcessed: number;
-  recordsFailed: number;
-  startedAt: string;
-  completedAt?: string;
+  sync_type: string;
+  status: string;
+  records_processed: number;
+  records_failed: number;
+  started_at: string;
+  completed_at?: string;
   error?: string;
 }
 
-const TENANT_HEADERS = {
-  'x-tenant-id': 'default-tenant',
-  'x-user-id': 'current-user',
-};
+function getHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'x-tenant-id': localStorage.getItem('tenantId') || '',
+    'x-user-id':   localStorage.getItem('userId')   || '',
+  };
+}
 
 export function LMSIntegration() {
   const [config, setConfig] = useState<LMSConfig | null>(null);
@@ -46,16 +49,27 @@ export function LMSIntegration() {
     apiKey: '',
   });
 
-  useEffect(() => {
-    fetchConfig();
+  useEffect(() => { fetchConfig(); }, []);
+
+  const fetchSyncHistory = useCallback(async (configId: string) => {
+    try {
+      const response = await fetch(`/api/tenant/integrations/lms/${configId}/sync-history`, {
+        headers: getHeaders(),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setSyncHistory(data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch sync history:', err);
+    }
   }, []);
 
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/tenant/integrations/lms/config', {
-        headers: TENANT_HEADERS,
+        headers: getHeaders(),
       });
       if (!response.ok) throw new Error('Failed to fetch LMS config');
       const data = await response.json();
@@ -63,8 +77,8 @@ export function LMSIntegration() {
         setConfig(data.data);
         setFormData({
           provider: data.data.provider,
-          baseUrl: data.data.baseUrl,
-          apiKey: data.data.apiKey,
+          baseUrl: data.data.base_url,
+          apiKey: data.data.api_key,
         });
         fetchSyncHistory(data.data.id);
       }
@@ -73,20 +87,7 @@ export function LMSIntegration() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchSyncHistory = async (configId: string) => {
-    try {
-      const response = await fetch(`/api/tenant/integrations/lms/${configId}/sync-history`, {
-        headers: TENANT_HEADERS,
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      setSyncHistory(data.data || []);
-    } catch (err) {
-      console.error('Failed to fetch sync history:', err);
-    }
-  };
+  }, [fetchSyncHistory]);
 
   const handleSaveConfig = async () => {
     try {
@@ -95,7 +96,7 @@ export function LMSIntegration() {
       setSuccess(null);
       const response = await fetch('/api/tenant/integrations/lms/config', {
         method: 'PUT',
-        headers: { ...TENANT_HEADERS, 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(formData),
       });
       if (!response.ok) throw new Error('Failed to save LMS config');
@@ -117,12 +118,12 @@ export function LMSIntegration() {
       setSuccess(null);
       const response = await fetch(`/api/tenant/integrations/lms/${config.id}/test`, {
         method: 'POST',
-        headers: TENANT_HEADERS,
+        headers: getHeaders(),
       });
       if (!response.ok) throw new Error('Connection test failed');
       const data = await response.json();
       if (data.success) {
-        setSuccess('Connection test successful!');
+        setSuccess('Connection test initiated. Check your LMS for connectivity.');
       } else {
         setError('Connection test failed. Check your credentials.');
       }
@@ -141,7 +142,7 @@ export function LMSIntegration() {
       setSuccess(null);
       const response = await fetch(`/api/tenant/integrations/lms/${config.id}/sync/${type}`, {
         method: 'POST',
-        headers: TENANT_HEADERS,
+        headers: getHeaders(),
       });
       if (!response.ok) throw new Error(`Failed to start ${type} sync`);
       setSuccess(`${type === 'students' ? 'Student' : 'Grade'} sync started`);
@@ -274,14 +275,14 @@ export function LMSIntegration() {
               </div>
               <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
                 <span className="text-sm font-medium">Sync Status</span>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSyncStatusColor(config.syncStatus)}`}>
-                  {config.syncStatus}
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSyncStatusColor(config.sync_status)}`}>
+                  {config.sync_status}
                 </span>
               </div>
-              {config.lastSyncAt && (
+              {config.last_sync_at && (
                 <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
                   <span className="text-sm font-medium">Last Sync</span>
-                  <span className="text-sm text-gray-600">{new Date(config.lastSyncAt).toLocaleString()}</span>
+                  <span className="text-sm text-gray-600">{new Date(config.last_sync_at).toLocaleString()}</span>
                 </div>
               )}
             </div>
@@ -303,14 +304,14 @@ export function LMSIntegration() {
                     <tbody>
                       {syncHistory.slice(0, 5).map(record => (
                         <tr key={record.id} className="border-b hover:bg-gray-50">
-                          <td className="py-2 px-3 capitalize">{record.syncType}</td>
+                          <td className="py-2 px-3 capitalize">{record.sync_type}</td>
                           <td className="py-2 px-3">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSyncStatusColor(record.status)}`}>
                               {record.status.replace('_', ' ')}
                             </span>
                           </td>
-                          <td className="py-2 px-3">{record.recordsProcessed}</td>
-                          <td className="py-2 px-3 text-xs">{new Date(record.startedAt).toLocaleString()}</td>
+                          <td className="py-2 px-3">{record.records_processed}</td>
+                          <td className="py-2 px-3 text-xs">{new Date(record.started_at).toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>

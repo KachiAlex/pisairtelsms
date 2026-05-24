@@ -1,312 +1,423 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Loader, CreditCard, AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Plus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card';
+import { Button } from '../../ui/button';
+import { Badge } from '../../ui/badge';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
 import {
-  Box,
-  Card,
-  CardContent,
-  CardHeader,
-  TextField,
-  Button,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Switch,
-  FormControlLabel,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  CircularProgress,
-  Alert,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  Chip,
-  Grid,
-  Typography,
-} from '@mui/material';
-import { paymentGatewayApi } from '../../../api/tenant/integrations/payment-gateway';
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from '../../ui/dialog';
+import { useToast } from '../../ui/use-toast';
 
-interface PaymentGatewayConfig {
+interface GatewayConfig {
   id: string;
-  provider: 'stripe' | 'paystack';
-  mode: 'test' | 'live';
-  apiKey: string;
-  secretKey: string;
-  webhookUrl?: string;
-  webhookSecret?: string;
-  isActive: boolean;
+  provider: string;
+  mode: string;
+  api_key: string;
+  secret_key: string;
+  webhook_url?: string;
+  webhook_secret?: string;
+  is_active: boolean;
+  updated_at: string;
 }
 
 interface Transaction {
   id: string;
-  provider: 'stripe' | 'paystack';
-  referenceId: string;
-  amount: number;
+  provider: string;
+  reference_id: string;
+  amount: string;
   currency: string;
-  status: 'pending' | 'success' | 'failed' | 'refunded';
-  studentId?: string;
+  status: string;
   description?: string;
-  createdAt: Date;
+  created_at: string;
+}
+
+interface Stats {
+  totalAmount: number;
+  successCount: number;
+  failedCount: number;
+  pendingCount: number;
+  totalTransactions: number;
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  success:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  failed:   'bg-red-50 text-red-700 border-red-200',
+  pending:  'bg-amber-50 text-amber-700 border-amber-200',
+  refunded: 'bg-blue-50 text-blue-700 border-blue-200',
+};
+
+function getHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'x-tenant-id': localStorage.getItem('tenantId') || '',
+    'x-user-id':   localStorage.getItem('userId')   || '',
+  };
 }
 
 export default function PaymentGateway() {
-  const [config, setConfig] = useState<PaymentGatewayConfig | null>(null);
+  const { toast } = useToast();
+  const [config, setConfig]           = useState<GatewayConfig | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [formData, setFormData] = useState({
-    provider: 'stripe' as 'stripe' | 'paystack',
-    mode: 'test' as 'test' | 'live',
-    apiKey: '',
-    secretKey: '',
-    webhookUrl: '',
+  const [stats, setStats]             = useState<Stats | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [dialogOpen, setDialogOpen]   = useState(false);
+  const [form, setForm] = useState({
+    provider:      'paystack',
+    mode:          'test',
+    apiKey:        '',
+    secretKey:     '',
+    webhookUrl:    '',
     webhookSecret: '',
   });
 
-  const tenantId = 'tenant-1'; // Replace with actual tenant ID
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const cfg = paymentGatewayApi.getConfig(tenantId);
-      setConfig(cfg);
-      if (cfg) {
-        setFormData({
-          provider: cfg.provider,
-          mode: cfg.mode,
-          apiKey: cfg.apiKey,
-          secretKey: cfg.secretKey,
-          webhookUrl: cfg.webhookUrl || '',
-          webhookSecret: cfg.webhookSecret || '',
-        });
+      const headers = getHeaders();
+      const [cfgRes, txnRes, statsRes] = await Promise.all([
+        fetch('/api/tenant/integrations/payment-gateway/config',       { headers }),
+        fetch('/api/tenant/integrations/payment-gateway/transactions?limit=20', { headers }),
+        fetch('/api/tenant/integrations/payment-gateway/statistics',   { headers }),
+      ]);
+
+      if (!cfgRes.ok || !txnRes.ok || !statsRes.ok) {
+        throw new Error('Failed to load payment gateway data');
       }
 
-      const txns = paymentGatewayApi.getTransactions(tenantId, 10, 0);
-      setTransactions(txns.data);
+      const [cfgJson, txnJson, statsJson] = await Promise.all([
+        cfgRes.json(), txnRes.json(), statsRes.json(),
+      ]);
+
+      const cfg: GatewayConfig | null = cfgJson.data;
+      setConfig(cfg);
+      setTransactions(txnJson.data || []);
+      setStats(statsJson.data || null);
+
+      if (cfg) {
+        setForm({
+          provider:      cfg.provider,
+          mode:          cfg.mode,
+          apiKey:        cfg.api_key,
+          secretKey:     cfg.secret_key,
+          webhookUrl:    cfg.webhook_url    || '',
+          webhookSecret: cfg.webhook_secret || '',
+        });
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      toast({ title: 'Load error', description: err instanceof Error ? err.message : 'Failed to load data', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleSaveConfig = () => {
-    try {
-      setError(null);
-      const userId = 'user-1'; // Replace with actual user ID
-      const newConfig = paymentGatewayApi.upsertConfig(tenantId, userId, formData);
-      setConfig(newConfig);
-      setSuccess('Payment gateway configuration saved successfully');
-      setOpenDialog(false);
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save configuration');
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleSaveConfig = async () => {
+    if (!form.apiKey || !form.secretKey) {
+      toast({ title: 'Missing fields', description: 'API key and Secret key are required.', variant: 'destructive' });
+      return;
     }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'success':
-        return 'success';
-      case 'failed':
-        return 'error';
-      case 'pending':
-        return 'warning';
-      case 'refunded':
-        return 'info';
-      default:
-        return 'default';
+    setSaving(true);
+    try {
+      const res = await fetch('/api/tenant/integrations/payment-gateway/config', {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || 'Failed to save configuration');
+      }
+      const json = await res.json();
+      setConfig(json.data);
+      setDialogOpen(false);
+      toast({ title: 'Configuration saved', description: `${form.provider} gateway is now active in ${form.mode} mode.` });
+      loadData();
+    } catch (err) {
+      toast({ title: 'Save failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
   };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
+      <div className="flex items-center justify-center h-96">
+        <Loader className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ mb: 3 }}>
-        Payment Gateway Integration
-      </Typography>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Integrations</p>
+          <h1 className="text-2xl font-bold text-gray-900">Payment Gateway</h1>
+          <p className="text-sm text-gray-600">Connect Stripe or Paystack to process school fee payments.</p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" size="sm" onClick={loadData}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+          <Button onClick={() => setDialogOpen(true)}>
+            <Settings className="h-4 w-4 mr-2" />
+            {config ? 'Edit configuration' : 'Configure gateway'}
+          </Button>
+        </div>
+      </div>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      {/* Stats */}
+      {stats && (
+        <div className="grid gap-4 grid-cols-2 xl:grid-cols-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="rounded-full bg-emerald-50 text-emerald-600 w-10 h-10 flex items-center justify-center mb-3">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <p className="text-xs text-gray-500">Successful</p>
+              <p className="text-3xl font-semibold text-gray-900">{stats.successCount}</p>
+              <p className="text-xs text-gray-500">transactions</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center mb-3">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <p className="text-xs text-gray-500">Total volume</p>
+              <p className="text-3xl font-semibold text-gray-900">{stats.totalAmount.toLocaleString()}</p>
+              <p className="text-xs text-gray-500">all time</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="rounded-full bg-amber-50 text-amber-600 w-10 h-10 flex items-center justify-center mb-3">
+                <Clock className="h-5 w-5" />
+              </div>
+              <p className="text-xs text-gray-500">Pending</p>
+              <p className="text-3xl font-semibold text-gray-900">{stats.pendingCount}</p>
+              <p className="text-xs text-gray-500">awaiting confirmation</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="rounded-full bg-red-50 text-red-600 w-10 h-10 flex items-center justify-center mb-3">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <p className="text-xs text-gray-500">Failed</p>
+              <p className="text-3xl font-semibold text-gray-900">{stats.failedCount}</p>
+              <p className="text-xs text-gray-500">transactions</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {/* Configuration Card */}
-      <Card sx={{ mb: 3 }}>
-        <CardHeader
-          title="Payment Gateway Configuration"
-          action={
-            <Button variant="contained" onClick={() => setOpenDialog(true)}>
-              {config ? 'Edit' : 'Configure'}
-            </Button>
-          }
-        />
+      {/* Active config */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Active configuration</CardTitle>
+          <CardDescription>Current payment provider settings.</CardDescription>
+        </CardHeader>
         <CardContent>
           {config ? (
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Provider
-                </Typography>
-                <Typography variant="body1">{config.provider.toUpperCase()}</Typography>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Mode
-                </Typography>
-                <Chip label={config.mode.toUpperCase()} color={config.mode === 'live' ? 'error' : 'default'} />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  API Key
-                </Typography>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                  {config.apiKey.substring(0, 10)}...
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Status
-                </Typography>
-                <Chip label={config.isActive ? 'Active' : 'Inactive'} color={config.isActive ? 'success' : 'default'} />
-              </Grid>
-            </Grid>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Provider</p>
+                <p className="font-semibold text-gray-900 capitalize">{config.provider}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Mode</p>
+                <Badge className={config.mode === 'live'
+                  ? 'bg-red-50 text-red-700 border border-red-200'
+                  : 'bg-gray-100 text-gray-700 border border-gray-200'
+                }>
+                  {config.mode.toUpperCase()}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">API Key</p>
+                <p className="font-mono text-sm text-gray-700">{config.api_key.slice(0, 12)}•••</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</p>
+                <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Active</Badge>
+              </div>
+            </div>
           ) : (
-            <Typography color="textSecondary">No payment gateway configured yet</Typography>
+            <div className="text-center py-10 text-gray-500">
+              <CreditCard className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-gray-700">No gateway configured</p>
+              <p className="text-sm mt-1">Click <strong>Configure gateway</strong> to get started.</p>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Transaction History */}
+      {/* Transactions */}
       <Card>
-        <CardHeader title="Transaction History" />
+        <CardHeader>
+          <CardTitle>Recent transactions</CardTitle>
+          <CardDescription>Last 20 payment events recorded by the gateway.</CardDescription>
+        </CardHeader>
         <CardContent>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                  <TableCell>Reference ID</TableCell>
-                  <TableCell>Provider</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Date</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {transactions.length > 0 ? (
-                  transactions.map(txn => (
+          {transactions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Provider</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transactions.map(txn => (
                     <TableRow key={txn.id}>
-                      <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                        {txn.referenceId.substring(0, 12)}...
+                      <TableCell className="font-mono text-xs text-gray-600">
+                        {txn.reference_id.length > 14 ? txn.reference_id.slice(0, 14) + '…' : txn.reference_id}
                       </TableCell>
-                      <TableCell>{txn.provider.toUpperCase()}</TableCell>
-                      <TableCell align="right">
-                        {txn.currency} {txn.amount.toFixed(2)}
+                      <TableCell className="capitalize">{txn.provider}</TableCell>
+                      <TableCell className="text-gray-600 text-sm">{txn.description || '—'}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {txn.currency} {parseFloat(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
-                        <Chip label={txn.status} color={getStatusColor(txn.status) as any} size="small" />
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                          STATUS_STYLES[txn.status] || 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}>
+                          {txn.status}
+                        </span>
                       </TableCell>
-                      <TableCell>{new Date(txn.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-sm text-gray-500">
+                        {new Date(txn.created_at).toLocaleDateString()}
+                      </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                      No transactions yet
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <CreditCard className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-gray-700">No transactions yet</p>
+              <p className="text-sm mt-1">Transactions will appear here once payments are processed.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Configuration Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Configure Payment Gateway</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Provider</InputLabel>
-            <Select
-              value={formData.provider}
-              onChange={e => setFormData({ ...formData, provider: e.target.value as 'stripe' | 'paystack' })}
-              label="Provider"
-            >
-              <MenuItem value="stripe">Stripe</MenuItem>
-              <MenuItem value="paystack">Paystack</MenuItem>
-            </Select>
-          </FormControl>
+      {/* Configure Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => setDialogOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure payment gateway</DialogTitle>
+            <DialogDescription>Enter your provider credentials. Keys are stored securely in the database.</DialogDescription>
+          </DialogHeader>
 
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Mode</InputLabel>
-            <Select
-              value={formData.mode}
-              onChange={e => setFormData({ ...formData, mode: e.target.value as 'test' | 'live' })}
-              label="Mode"
-            >
-              <MenuItem value="test">Test</MenuItem>
-              <MenuItem value="live">Live</MenuItem>
-            </Select>
-          </FormControl>
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="pg-provider">Provider</Label>
+                <select
+                  id="pg-provider"
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={form.provider}
+                  onChange={e => setForm(f => ({ ...f, provider: e.target.value }))}
+                >
+                  <option value="paystack">Paystack</option>
+                  <option value="stripe">Stripe</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pg-mode">Mode</Label>
+                <select
+                  id="pg-mode"
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={form.mode}
+                  onChange={e => setForm(f => ({ ...f, mode: e.target.value }))}
+                >
+                  <option value="test">Test</option>
+                  <option value="live">Live</option>
+                </select>
+              </div>
+            </div>
 
-          <TextField
-            fullWidth
-            label="API Key"
-            value={formData.apiKey}
-            onChange={e => setFormData({ ...formData, apiKey: e.target.value })}
-            sx={{ mb: 2 }}
-            type="password"
-          />
+            <div className="space-y-1.5">
+              <Label htmlFor="pg-apikey">API Key <span className="text-red-500">*</span></Label>
+              <Input
+                id="pg-apikey"
+                type="password"
+                placeholder="pk_test_••••••••"
+                value={form.apiKey}
+                onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
+              />
+            </div>
 
-          <TextField
-            fullWidth
-            label="Secret Key"
-            value={formData.secretKey}
-            onChange={e => setFormData({ ...formData, secretKey: e.target.value })}
-            sx={{ mb: 2 }}
-            type="password"
-          />
+            <div className="space-y-1.5">
+              <Label htmlFor="pg-secret">Secret Key <span className="text-red-500">*</span></Label>
+              <Input
+                id="pg-secret"
+                type="password"
+                placeholder="sk_test_••••••••"
+                value={form.secretKey}
+                onChange={e => setForm(f => ({ ...f, secretKey: e.target.value }))}
+              />
+            </div>
 
-          <TextField
-            fullWidth
-            label="Webhook URL"
-            value={formData.webhookUrl}
-            onChange={e => setFormData({ ...formData, webhookUrl: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+            <div className="space-y-1.5">
+              <Label htmlFor="pg-webhook">Webhook URL <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                id="pg-webhook"
+                placeholder="https://yourschool.com/webhooks/payment"
+                value={form.webhookUrl}
+                onChange={e => setForm(f => ({ ...f, webhookUrl: e.target.value }))}
+              />
+            </div>
 
-          <TextField
-            fullWidth
-            label="Webhook Secret"
-            value={formData.webhookSecret}
-            onChange={e => setFormData({ ...formData, webhookSecret: e.target.value })}
-            type="password"
-          />
+            <div className="space-y-1.5">
+              <Label htmlFor="pg-whsecret">Webhook Secret <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                id="pg-whsecret"
+                type="password"
+                value={form.webhookSecret}
+                onChange={e => setForm(f => ({ ...f, webhookSecret: e.target.value }))}
+              />
+            </div>
+
+            {form.mode === 'live' && (
+              <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800 flex gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span><strong>Live mode</strong> — real transactions will be processed. Ensure keys are correct before saving.</span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-6">
+            <DialogClose asChild>
+              <Button variant="outline" disabled={saving}>Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleSaveConfig} disabled={saving || !form.apiKey || !form.secretKey}>
+              {saving ? <Loader className="h-4 w-4 animate-spin mr-2" /> : <Settings className="h-4 w-4 mr-2" />}
+              Save configuration
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button onClick={handleSaveConfig} variant="contained">
-            Save
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
+    </div>
   );
 }

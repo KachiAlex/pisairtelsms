@@ -122,32 +122,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ success: true, data })
   } catch (error) {
     console.error('Error fetching performance analytics:', error)
-    // Return mock data as fallback
-    const data = {
-      overallAverage: 68.5,
-      overallPassRate: 78,
-      atRiskStudents: 125,
-      topPerformers: 312,
-      termTrend: [
-        { term: 'Term 1', average: 65.2, passRate: 74 },
-        { term: 'Term 2', average: 66.8, passRate: 76 },
-        { term: 'Term 3', average: 68.5, passRate: 78 },
-      ],
-      gradeDistribution: [
-        { grade: 'A', count: 187, percentage: 15 },
-        { grade: 'B', count: 312, percentage: 25 },
-        { grade: 'C', count: 375, percentage: 30 },
-        { grade: 'D', count: 187, percentage: 15 },
-        { grade: 'E', count: 125, percentage: 10 },
-        { grade: 'F', count: 64, percentage: 5 },
-      ],
-      subjectRanking: [
-        { subject: 'Mathematics', average: 72.3, rank: 1 },
-        { subject: 'English', average: 70.1, rank: 2 },
-        { subject: 'Science', average: 68.5, rank: 3 },
-        { subject: 'History', average: 65.8, rank: 4 },
-      ],
-    }
-    return res.status(200).json({ success: true, data })
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch performance analytics',
+      details: error instanceof Error ? error.message : undefined,
+    })
   }
 }

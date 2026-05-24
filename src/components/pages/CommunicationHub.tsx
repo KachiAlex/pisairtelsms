@@ -20,6 +20,15 @@ interface Announcement {
   sentAt: string | null
   status: 'draft' | 'sent'
   createdAt: string
+  readCount?: number
+}
+
+interface AnnouncementReader {
+  id: string
+  readerId: string
+  readerType: 'student' | 'parent' | 'staff'
+  readerName: string
+  readAt: string
 }
 
 interface BulkNotification {
@@ -91,6 +100,9 @@ export function CommunicationHub() {
   const [schedule, setSchedule] = useState('')
   const [messageBody, setMessageBody] = useState('')
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [viewingReaders, setViewingReaders] = useState<string | null>(null)
+  const [readersList, setReadersList] = useState<AnnouncementReader[]>([])
+  const [readersLoading, setReadersLoading] = useState(false)
 
   // Bulk Notifications state
   const [bulkNotifications, setBulkNotifications] = useState<BulkNotification[]>([])
@@ -188,6 +200,22 @@ export function CommunicationHub() {
       const res = await fetch(`/api/tenant/communication-logs?${params}`, { headers: tenantHeaders() })
       if (res.ok) { const r = await res.json(); setCommunicationLogs(r.data || []) }
     } catch { /* silent */ }
+  }
+
+  const fetchReaders = async (announcementId: string) => {
+    try {
+      setReadersLoading(true)
+      const res = await fetch(`/api/tenant/communication?id=${announcementId}`, { headers: tenantHeaders() })
+      if (res.ok) {
+        const r = await res.json()
+        setReadersList(r.data?.readers || [])
+        setViewingReaders(announcementId)
+      }
+    } catch (err) {
+      console.error('Error fetching readers:', err)
+    } finally {
+      setReadersLoading(false)
+    }
   }
 
   const handleSendBroadcast = async () => {
@@ -373,6 +401,7 @@ export function CommunicationHub() {
                       <TableRow>
                         <TableHead>Title</TableHead><TableHead>Audience</TableHead>
                         <TableHead>Sent by</TableHead><TableHead>Date</TableHead>
+                        <TableHead>Seen</TableHead>
                         <TableHead className="text-right">Status</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -383,6 +412,19 @@ export function CommunicationHub() {
                           <TableCell><Badge variant="outline" className="capitalize">{a.audience}</Badge></TableCell>
                           <TableCell>{a.sentBy}</TableCell>
                           <TableCell className="text-gray-500 text-sm">{a.sentAt ? new Date(a.sentAt).toLocaleDateString() : '—'}</TableCell>
+                          <TableCell>
+                            {a.status === 'sent' ? (
+                              <button
+                                onClick={() => fetchReaders(a.id)}
+                                className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
+                                title="Click to see who read this"
+                              >
+                                {a.readCount ?? 0} seen
+                              </button>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <Badge className={a.status === 'sent' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
                               {a.status === 'sent' ? 'Sent' : 'Draft'}
@@ -798,6 +840,45 @@ export function CommunicationHub() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Readers Modal */}
+      {viewingReaders && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingReaders(null)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">
+                {announcements.find(a => a.id === viewingReaders)?.title || 'Announcement'} — Readers
+              </h3>
+              <button onClick={() => setViewingReaders(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              {readersLoading ? (
+                <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />)}</div>
+              ) : readersList.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm">No one has seen this announcement yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {readersList.map(reader => (
+                    <div key={reader.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="capitalize text-xs">{reader.readerType}</Badge>
+                        <span className="text-sm font-medium text-gray-900">{reader.readerName}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">{new Date(reader.readAt).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-600 flex justify-between">
+              <span>Total readers:</span>
+              <span className="font-semibold text-gray-900">{readersList.length}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

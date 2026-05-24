@@ -25,16 +25,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Get total students from users table
+    // Get total students from students table
     const studentsResult = await sql`
-      SELECT COUNT(*) as count FROM users 
-      WHERE tenant_id = ${tenantId} AND role = 'student'
+      SELECT COUNT(*) as count FROM students WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
     `
     const totalStudents = parseInt(studentsResult.rows[0]?.count || '0')
 
-    // Calculate student progress (improving vs declining)
-    const improvingStudents = Math.round(totalStudents * 0.42)
-    const decliningStudents = Math.round(totalStudents * 0.14)
+    // Calculate student progress (improving vs declining) - based on exam results
+    const progressStatsResult = await sql`
+      SELECT 
+        COUNT(DISTINCT CASE WHEN AVG(er.score) >= 75 THEN er.student_id END) as excelling,
+        COUNT(DISTINCT CASE WHEN AVG(er.score) >= 50 AND AVG(er.score) < 75 THEN er.student_id END) as on_track,
+        COUNT(DISTINCT CASE WHEN AVG(er.score) >= 40 AND AVG(er.score) < 50 THEN er.student_id END) as at_risk,
+        COUNT(DISTINCT CASE WHEN AVG(er.score) < 40 THEN er.student_id END) as critical
+      FROM exam_results er
+      JOIN exams e ON er.exam_id = e.id
+      WHERE e.tenant_id = ${tenantId}
+      GROUP BY er.student_id
+    `
+    const excelling = parseInt(progressStatsResult.rows[0]?.excelling || '0')
+    const onTrack = parseInt(progressStatsResult.rows[0]?.on_track || '0')
+    const atRisk = parseInt(progressStatsResult.rows[0]?.at_risk || '0')
+    const critical = parseInt(progressStatsResult.rows[0]?.critical || '0')
+    
+    const improvingStudents = onTrack + excelling
+    const decliningStudents = atRisk + critical
     const stableStudents = totalStudents - improvingStudents - decliningStudents
 
     // Get progress by class from exam results
@@ -76,10 +91,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Get risk categories
     const riskCategories = [
-      { category: 'On Track', count: Math.round(totalStudents * 0.60), percentage: 60 },
-      { category: 'At Risk', count: Math.round(totalStudents * 0.20), percentage: 20 },
-      { category: 'Critical', count: Math.round(totalStudents * 0.08), percentage: 8 },
-      { category: 'Excelling', count: Math.round(totalStudents * 0.12), percentage: 12 },
+      { category: 'On Track', count: onTrack, percentage: totalStudents > 0 ? Math.round((onTrack / totalStudents) * 100) : 0 },
+      { category: 'At Risk', count: atRisk, percentage: totalStudents > 0 ? Math.round((atRisk / totalStudents) * 100) : 0 },
+      { category: 'Critical', count: critical, percentage: totalStudents > 0 ? Math.round((critical / totalStudents) * 100) : 0 },
+      { category: 'Excelling', count: excelling, percentage: totalStudents > 0 ? Math.round((excelling / totalStudents) * 100) : 0 },
     ]
 
     const data = {
@@ -95,32 +110,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ success: true, data })
   } catch (error) {
     console.error('Error fetching student progress analytics:', error)
-    // Return mock data as fallback
-    const totalStudents = 1250
-    const data = {
-      totalStudents,
-      improvingStudents: 525,
-      decliningStudents: 175,
-      stableStudents: 550,
-      progressByClass: [
-        { class: 'JSS 1', averageImprovement: '4.2', studentsOnTrack: 106, studentsBehind: 19 },
-        { class: 'JSS 2', averageImprovement: '3.8', studentsOnTrack: 102, studentsBehind: 23 },
-        { class: 'JSS 3', averageImprovement: '3.5', studentsOnTrack: 98, studentsBehind: 27 },
-        { class: 'SSS 1', averageImprovement: '4.5', studentsOnTrack: 110, studentsBehind: 15 },
-      ],
-      subjectProgress: [
-        { subject: 'Mathematics', currentAverage: 72.3, previousAverage: 68.7, improvement: '3.6' },
-        { subject: 'English', currentAverage: 70.1, previousAverage: 66.6, improvement: '3.5' },
-        { subject: 'Science', currentAverage: 68.5, previousAverage: 65.1, improvement: '3.4' },
-        { subject: 'History', currentAverage: 65.8, previousAverage: 62.5, improvement: '3.3' },
-      ],
-      riskCategories: [
-        { category: 'On Track', count: 750, percentage: 60 },
-        { category: 'At Risk', count: 250, percentage: 20 },
-        { category: 'Critical', count: 100, percentage: 8 },
-        { category: 'Excelling', count: 150, percentage: 12 },
-      ],
-    }
-    return res.status(200).json({ success: true, data })
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch student progress analytics',
+      details: error instanceof Error ? error.message : undefined,
+    })
   }
 }

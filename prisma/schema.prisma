@@ -23,6 +23,10 @@ model Tenant {
 
   // Relations
   users                 User[]
+  students              Student[]
+  staff                 Staff[]
+  classes               Class[]
+  subjects              Subject[]
   questionsBank         QuestionBank[]
   exams                 Exam[]
   studentExamProgress   StudentExamProgress[]
@@ -34,6 +38,19 @@ model Tenant {
   absenceReasons        AbsenceReason[]
   biometricDevices      BiometricDevice[]
   attendanceRecords     AttendanceRecord[]
+  feeStructures         FeeStructure[]
+  feeAssignments        FeeAssignment[]
+  studentPayments       StudentPayment[]
+  userSessions          UserSession[]
+  securityEvents        SecurityEvent[]
+  privilegedRoles       PrivilegedRole[]
+  roleAssignments       RoleAssignment[]
+  approvalPolicies      ApprovalPolicy[]
+  encryptionKeys        EncryptionKey[]
+  keyVaults             KeyVault[]
+  backupJobs            BackupJob[]
+  restoreRequests       RestoreRequest[]
+  complianceTasks       ComplianceTask[]
 
   @@map("tenants")
 }
@@ -59,10 +76,114 @@ model User {
   proctoringLogs        ProctoringLog[]
   auditLogs             AuditLog[]
   offlineSyncQueue      OfflineSyncQueue[]
+  studentProfile        Student?
+  staffProfile          Staff?
 
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
+}
+
+// ============================================================================
+// Student & Staff Profile Models
+// ============================================================================
+
+model Student {
+  id            String   @id @default(cuid())
+  tenantId      String
+  userId        String   @unique
+  admissionNo   String   @unique
+  class         String
+  arm           String
+  gender        String
+  status        String   @default("Active") // 'Active', 'Suspended', 'Graduated'
+  guardian      String
+  phone         String
+  guardianEmail String?
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([class])
+  @@index([admissionNo])
+  @@map("students")
+}
+
+model Staff {
+  id               String   @id @default(cuid())
+  tenantId         String
+  userId           String   @unique
+  staffId          String   @unique
+  role             String
+  department       String
+  status           String   @default("active") // 'active', 'inactive', 'on_leave'
+  email            String
+  phone            String
+  hireDate         DateTime
+  salary           Decimal? @db.Decimal(12, 2)
+  address          String?
+  qualification    String?
+  gender           String?
+  dateOfBirth      DateTime?
+  emergencyContact String?
+  emergencyPhone   String?
+  passwordHash     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([department])
+  @@index([status])
+  @@index([staffId])
+  @@map("staff")
+}
+
+// ============================================================================
+// Class & Subject Models
+// ============================================================================
+
+model Class {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  arm         String?
+  level       String? // 'JSS', 'SSS'
+  status      String   @default("active") // 'active', 'inactive'
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([level])
+  @@map("classes")
+}
+
+model Subject {
+  id          String   @id @default(cuid())
+  tenantId    String
+  code        String
+  name        String
+  description String?
+  status      String   @default("active") // 'active', 'inactive'
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("subjects")
 }
 
 // ============================================================================
@@ -462,8 +583,27 @@ model DeviceSyncLog {
 // Fee Management Models
 // ============================================================================
 
+model FeeStructure {
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String
+  category        String   // 'tuition', 'exam_fees', 'development_levy', 'other'
+  amount          Decimal  @db.Decimal(12, 2)
+  academicSession String
+  term            String
+  class           String?
+  status          String   @default("active") // 'active', 'inactive'
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([academicSession, term])
+  @@map("fee_structures")
+}
+
 model FeeAssignment {
   id              String   @id @default(cuid())
+  tenantId        String
   studentId       String
   feeStructureId  String
   academicSession String
@@ -476,6 +616,7 @@ model FeeAssignment {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  @@index([tenantId])
   @@index([studentId])
   @@index([feeStructureId])
   @@index([academicSession, term])
@@ -503,6 +644,7 @@ model Exemption {
 
 model StudentPayment {
   id              String   @id @default(cuid())
+  tenantId        String
   studentId       String
   feeStructureId  String
   amount          Decimal  @db.Decimal(12, 2)
@@ -513,6 +655,7 @@ model StudentPayment {
   recordedBy      String?
   notes           String?
 
+  @@index([tenantId])
   @@index([studentId])
   @@index([feeStructureId])
   @@index([paidAt])

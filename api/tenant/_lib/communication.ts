@@ -106,3 +106,102 @@ export async function createAnnouncement(payload: AnnouncementPayload): Promise<
   `
   return rowToAnnouncement(result.rows[0])
 }
+
+// ── Read Tracking ───────────────────────────────────────────────────────────
+
+export interface AnnouncementRead {
+  id: string
+  announcementId: string
+  readerId: string
+  readerType: 'student' | 'parent' | 'staff'
+  readerName: string
+  readAt: string
+  tenantId: string
+}
+
+export async function ensureAnnouncementReadsTable(): Promise<void> {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS announcement_reads (
+        id TEXT PRIMARY KEY,
+        announcement_id TEXT NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+        reader_id TEXT NOT NULL,
+        reader_type TEXT NOT NULL CHECK (reader_type IN ('student', 'parent', 'staff')),
+        reader_name TEXT,
+        read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        tenant_id TEXT NOT NULL
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcement_reads_announcement ON announcement_reads(announcement_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcement_reads_reader ON announcement_reads(reader_id, announcement_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcement_reads_tenant ON announcement_reads(tenant_id)`
+    // Prevent duplicate reads from the same reader
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_announcement_reads_unique ON announcement_reads(announcement_id, reader_id, reader_type)`
+  } catch (error) {
+    console.error('Error ensuring announcement_reads table:', error)
+  }
+}
+
+export async function recordAnnouncementRead(
+  announcementId: string,
+  readerId: string,
+  readerType: 'student' | 'parent' | 'staff',
+  readerName: string,
+  tenantId: string
+): Promise<void> {
+  await ensureAnnouncementReadsTable()
+  const id = `ar_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  try {
+    await sql`
+      INSERT INTO announcement_reads (id, announcement_id, reader_id, reader_type, reader_name, tenant_id)
+      VALUES (${id}, ${announcementId}, ${readerId}, ${readerType}, ${readerName}, ${tenantId})
+      ON CONFLICT (announcement_id, reader_id, reader_type) DO UPDATE SET read_at = NOW()
+    `
+  } catch (error) {
+    console.error('Error recording announcement read:', error)
+  }
+}
+
+export async function getAnnouncementReadCount(announcementId: string): Promise<number> {
+  await ensureAnnouncementReadsTable()
+  try {
+    const result = await sql<{ count: string }>`
+      SELECT COUNT(*) as count FROM announcement_reads WHERE announcement_id = ${announcementId}
+    `
+    return parseInt(result.rows[0]?.count || '0', 10)
+  } catch (error) {
+    console.error('Error fetching read count:', error)
+    return 0
+  }
+}
+
+export async function getAnnouncementReaders(announcementId: string): Promise<AnnouncementRead[]> {
+  await ensureAnnouncementReadsTable()
+  try {
+    const result = await sql<{
+      id: string
+      announcement_id: string
+      reader_id: string
+      reader_type: string
+      reader_name: string
+      read_at: Date
+      tenant_id: string
+    }>`
+      SELECT * FROM announcement_reads
+      WHERE announcement_id = ${announcementId}
+      ORDER BY read_at DESC
+    `
+    return result.rows.map(row => ({
+      id: row.id,
+      announcementId: row.announcement_id,
+      readerId: row.reader_id,
+      readerType: row.reader_type as AnnouncementRead['readerType'],
+      readerName: row.reader_name,
+      readAt: row.read_at.toISOString(),
+      tenantId: row.tenant_id,
+    }))
+  } catch (error) {
+    console.error('Error fetching announcement readers:', error)
+    return []
+  }
+}

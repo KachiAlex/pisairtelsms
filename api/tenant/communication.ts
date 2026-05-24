@@ -1,8 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchAnnouncements, createAnnouncement, type AnnouncementPayload } from './_lib/communication.js'
+import { initializeDatabase } from './cbt/_lib/db.js'
+import {
+  fetchAnnouncements,
+  createAnnouncement,
+  getAnnouncementReadCount,
+  getAnnouncementReaders,
+  recordAnnouncementRead,
+  type AnnouncementPayload,
+} from './_lib/communication.js'
 
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,POST')
+  res.setHeader('Allow', 'GET,POST,PUT')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -14,12 +22,40 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
+function getTenantId(req: VercelRequest): string {
+  return (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  initializeDatabase()
+
   if (req.method === 'GET') {
-    const { audience, status } = req.query
+    const { audience, status, id } = req.query
+
+    // Return readers for a specific announcement
+    if (id && typeof id === 'string') {
+      try {
+        const [readCount, readers] = await Promise.all([
+          getAnnouncementReadCount(id),
+          getAnnouncementReaders(id),
+        ])
+        return res.status(200).json({ data: { readCount, readers } })
+      } catch (error) {
+        console.error('Error fetching announcement readers:', error)
+        return res.status(500).json({ error: 'Failed to fetch readers' })
+      }
+    }
+
     try {
       const announcements = await fetchAnnouncements(audience as string | undefined, status as string | undefined)
-      return res.status(200).json({ data: announcements })
+      // Attach read counts to each announcement
+      const announcementsWithReads = await Promise.all(
+        announcements.map(async (ann) => {
+          const readCount = await getAnnouncementReadCount(ann.id)
+          return { ...ann, readCount }
+        })
+      )
+      return res.status(200).json({ data: announcementsWithReads })
     } catch (error) {
       console.error('Error fetching announcements:', error)
       return res.status(500).json({ error: 'Failed to fetch announcements' })
@@ -49,10 +85,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const payload: AnnouncementPayload = { title, body: announcementBody, audience, status, sentBy: body.sentBy }
       const announcement = await createAnnouncement(payload)
-      return res.status(201).json({ data: announcement })
+      return res.status(201).json({ data: { ...announcement, readCount: 0 } })
     } catch (error) {
       console.error('Error creating announcement:', error)
       return res.status(500).json({ error: 'Failed to create announcement' })
+    }
+  }
+
+  if (req.method === 'PUT') {
+    const body = parseBody(req)
+    if (!body) return res.status(400).json({ error: 'Request body is required' })
+
+    const { announcementId, readerId, readerType, readerName } = body
+    if (!announcementId || !readerId || !readerType) {
+      return res.status(400).json({ error: 'Missing required fields: announcementId, readerId, readerType' })
+    }
+    if (!['student', 'parent', 'staff'].includes(readerType)) {
+      return res.status(400).json({ error: 'readerType must be one of: student, parent, staff' })
+    }
+
+    const tenantId = getTenantId(req)
+    try {
+      await recordAnnouncementRead(announcementId, readerId, readerType, readerName || 'Unknown', tenantId)
+      const readCount = await getAnnouncementReadCount(announcementId)
+      return res.status(200).json({ success: true, readCount })
+    } catch (error) {
+      console.error('Error recording read:', error)
+      return res.status(500).json({ error: 'Failed to record read' })
     }
   }
 

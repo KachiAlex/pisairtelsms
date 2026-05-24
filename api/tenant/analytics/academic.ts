@@ -25,17 +25,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Get total students from users table
+    // Get total students from students table
     const studentsResult = await sql`
-      SELECT COUNT(*) as count FROM users 
-      WHERE tenant_id = ${tenantId} AND role = 'student'
+      SELECT COUNT(*) as count FROM students WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
     `
     const totalStudents = parseInt(studentsResult.rows[0]?.count || '0')
 
-    // Get total subjects from QuestionBank
+    // Get total subjects from subjects table
     const subjectsResult = await sql`
-      SELECT COUNT(DISTINCT subject) as count FROM question_bank 
-      WHERE tenant_id = ${tenantId}
+      SELECT COUNT(*) as count FROM subjects WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
     `
     const totalSubjects = parseInt(subjectsResult.rows[0]?.count || '0')
 
@@ -111,31 +109,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ success: true, data })
   } catch (error) {
     console.error('Error fetching academic analytics:', error)
-    // Return mock data as fallback
-    const data = {
-      totalStudents: 1250,
-      totalSubjects: 12,
-      averageScore: 68.5,
-      passRate: 78,
-      termComparison: {
-        currentTerm: 'Term 3',
-        previousTerm: 'Term 2',
-        currentAverage: 68.5,
-        previousAverage: 65.2,
-      },
-      subjectPerformance: [
-        { subject: 'Mathematics', averageScore: 72.3, passRate: 85 },
-        { subject: 'English', averageScore: 70.1, passRate: 82 },
-        { subject: 'Science', averageScore: 68.5, passRate: 78 },
-        { subject: 'History', averageScore: 65.8, passRate: 74 },
-      ],
-      classPerformance: [
-        { class: 'JSS 1', averageScore: 70.2, passRate: 80 },
-        { class: 'JSS 2', averageScore: 68.5, passRate: 77 },
-        { class: 'JSS 3', averageScore: 66.8, passRate: 75 },
-        { class: 'SSS 1', averageScore: 72.5, passRate: 83 },
-      ],
-    }
-    return res.status(200).json({ success: true, data })
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch academic analytics',
+      details: error instanceof Error ? error.message : undefined,
+    })
   }
 }

@@ -25,6 +25,10 @@ import {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
+const formatCurrency = (amount: number) => {
+  return `₦${(amount / 1000000).toFixed(1)}M`;
+};
+
 export function AnalyticsDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
@@ -73,10 +77,6 @@ export function AnalyticsDashboard() {
   useEffect(() => {
     loadAllData();
   }, []);
-
-  const formatCurrency = (amount: number) => {
-    return `₦${(amount / 1000000).toFixed(1)}M`;
-  };
 
   if (loading && !academicData) {
     return (

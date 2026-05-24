@@ -25,15 +25,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Get total revenue from fee_assignments (without tenant_id filter since column doesn't exist)
+    // Get total revenue from fee_assignments
     const revenueResult = await sql`
-      SELECT SUM(total_amount) as total FROM fee_assignments
+      SELECT SUM(total_amount) as total FROM fee_assignments WHERE tenant_id = ${tenantId}
     `
     const totalRevenue = parseFloat(revenueResult.rows[0]?.total || '0')
 
-    // Get total collected from student_payments (without tenant filter)
+    // Get total collected from student_payments
     const collectedResult = await sql`
-      SELECT SUM(amount) as total FROM student_payments
+      SELECT SUM(amount) as total FROM student_payments WHERE tenant_id = ${tenantId}
     `
     const totalCollected = parseFloat(collectedResult.rows[0]?.total || '0')
 
@@ -43,22 +43,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Calculate collection rate
     const collectionRate = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0
 
-    // Get monthly revenue (mock data for demo - in production, group by month)
-    const monthlyRevenue = [
-      { month: 'Jan', revenue: totalRevenue / 5, collected: (totalRevenue / 5) * 0.9 },
-      { month: 'Feb', revenue: totalRevenue / 5, collected: (totalRevenue / 5) * 0.92 },
-      { month: 'Mar', revenue: totalRevenue / 5, collected: (totalRevenue / 5) * 0.84 },
-      { month: 'Apr', revenue: totalRevenue / 5, collected: (totalRevenue / 5) * 0.82 },
-      { month: 'May', revenue: totalRevenue / 5, collected: (totalRevenue / 5) * 0.82 },
-    ]
+    // Get monthly revenue (group by month)
+    const monthlyRevenueResult = await sql`
+      SELECT 
+        TO_CHAR(paid_at, 'Mon') as month,
+        SUM(amount) as collected
+      FROM student_payments 
+      WHERE tenant_id = ${tenantId}
+      GROUP BY TO_CHAR(paid_at, 'Mon')
+      ORDER BY MIN(paid_at)
+      LIMIT 5
+    `
+    const monthlyRevenue = monthlyRevenueResult.rows.map(row => ({
+      month: row.month,
+      revenue: totalRevenue / 5, // Approximate monthly revenue
+      collected: parseFloat(row.collected || '0'),
+    }))
 
-    // Get fee structure breakdown (mock since fee_structures table doesn't exist)
-    const feeStructureBreakdown = [
-      { category: 'Tuition', amount: totalRevenue * 0.6, percentage: 60 },
-      { category: 'Exam Fees', amount: totalRevenue * 0.2, percentage: 20 },
-      { category: 'Development Levy', amount: totalRevenue * 0.1, percentage: 10 },
-      { category: 'Other Fees', amount: totalRevenue * 0.1, percentage: 10 },
-    ]
+    // Get fee structure breakdown
+    const feeBreakdownResult = await sql`
+      SELECT 
+        category,
+        SUM(amount) as total
+      FROM fee_structures 
+      WHERE tenant_id = ${tenantId}
+      GROUP BY category
+    `
+    const totalFees = feeBreakdownResult.rows.reduce((sum, row) => sum + parseFloat(row.total || '0'), 0)
+    const feeStructureBreakdown = feeBreakdownResult.rows.map(row => ({
+      category: row.category,
+      amount: parseFloat(row.total || '0'),
+      percentage: totalFees > 0 ? Math.round((parseFloat(row.total || '0') / totalFees) * 100) : 0,
+    }))
 
     // Get payment methods breakdown from student_payments
     const paymentMethodsResult = await sql`
@@ -67,6 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SUM(amount) as total,
         COUNT(*) as count
       FROM student_payments 
+      WHERE tenant_id = ${tenantId}
       GROUP BY payment_method
     `
     const paymentMethods = paymentMethodsResult.rows.map(row => ({
@@ -75,14 +92,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       count: parseInt(row.count || '0'),
     }))
 
-    // Get outstanding by class (mock since classes table doesn't exist)
-    const classOutstanding = [
-      { class: 'JSS 1', outstanding: totalRevenue * 0.15, collected: totalRevenue * 0.05 },
-      { class: 'JSS 2', outstanding: totalRevenue * 0.12, collected: totalRevenue * 0.08 },
-      { class: 'JSS 3', outstanding: totalRevenue * 0.10, collected: totalRevenue * 0.10 },
-      { class: 'SSS 1', outstanding: totalRevenue * 0.08, collected: totalRevenue * 0.12 },
-      { class: 'SSS 2', outstanding: totalRevenue * 0.05, collected: totalRevenue * 0.15 },
-    ]
+    // Get outstanding by class
+    const classOutstandingResult = await sql`
+      SELECT 
+        c.name as class,
+        COALESCE(SUM(sp.amount), 0) as collected,
+        COALESCE(SUM(fa.total_amount), 0) - COALESCE(SUM(sp.amount), 0) as outstanding
+      FROM classes c
+      LEFT JOIN students s ON c.name = s.class AND c.tenant_id = s.tenant_id
+      LEFT JOIN fee_assignments fa ON s.id = fa.student_id AND c.tenant_id = fa.tenant_id
+      LEFT JOIN student_payments sp ON fa.id = sp.fee_structure_id AND c.tenant_id = sp.tenant_id
+      WHERE c.tenant_id = ${tenantId}
+      GROUP BY c.name
+      ORDER BY outstanding DESC
+      LIMIT 5
+    `
+    const classOutstanding = classOutstandingResult.rows.map(row => ({
+      class: row.class,
+      outstanding: parseFloat(row.outstanding || '0'),
+      collected: parseFloat(row.collected || '0'),
+    }))
 
     const data = {
       totalRevenue,
@@ -98,40 +127,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ success: true, data })
   } catch (error) {
     console.error('Error fetching financial analytics:', error)
-    // Return mock data as fallback
-    const totalRevenue = 2500000
-    const totalCollected = 2100000
-    const data = {
-      totalRevenue,
-      totalCollected,
-      outstandingBalance: 400000,
-      collectionRate: 84,
-      monthlyRevenue: [
-        { month: 'Jan', revenue: 500000, collected: 450000 },
-        { month: 'Feb', revenue: 500000, collected: 460000 },
-        { month: 'Mar', revenue: 500000, collected: 420000 },
-        { month: 'Apr', revenue: 500000, collected: 410000 },
-        { month: 'May', revenue: 500000, collected: 360000 },
-      ],
-      feeStructureBreakdown: [
-        { category: 'Tuition', amount: 1500000, percentage: 60 },
-        { category: 'Exam Fees', amount: 500000, percentage: 20 },
-        { category: 'Development Levy', amount: 250000, percentage: 10 },
-        { category: 'Other Fees', amount: 250000, percentage: 10 },
-      ],
-      paymentMethods: [
-        { method: 'Bank Transfer', amount: 1200000, count: 600 },
-        { method: 'Cash', amount: 500000, count: 250 },
-        { method: 'Card', amount: 400000, count: 200 },
-      ],
-      classOutstanding: [
-        { class: 'JSS 1', outstanding: 60000, collected: 20000 },
-        { class: 'JSS 2', outstanding: 48000, collected: 32000 },
-        { class: 'JSS 3', outstanding: 40000, collected: 40000 },
-        { class: 'SSS 1', outstanding: 32000, collected: 48000 },
-        { class: 'SSS 2', outstanding: 20000, collected: 60000 },
-      ],
-    }
-    return res.status(200).json({ success: true, data })
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch financial analytics',
+      details: error instanceof Error ? error.message : undefined,
+    })
   }
 }

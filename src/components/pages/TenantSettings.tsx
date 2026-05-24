@@ -222,9 +222,10 @@ export function TenantSettings({ tenantId, tenantName }: TenantSettingsProps) {
             </div>
           </div>
 
-          {/* Branding Settings */}
+          {/* Identity Settings */}
           <div>
-            <h3 className="text-lg font-medium mb-3">Branding</h3>
+            <h3 className="text-lg font-medium mb-1">Identity</h3>
+            <p className="text-sm text-gray-500 mb-3">Core tenant identity fields. For full logo, colors, and portal theming go to <strong>Customization → School Branding</strong>.</p>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="school-name">School Name</Label>

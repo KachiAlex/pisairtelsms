@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Save, Upload, School, Shield, Bell, Plug } from 'lucide-react'
+import { Save, School, Shield, Bell, Plug } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -183,49 +183,9 @@ export function SystemSettings() {
 
               <Separator />
 
-              <div>
-                <Label>School Logo</Label>
-                <div className="mt-2 flex items-center gap-4">
-                  <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <School className="w-10 h-10 text-blue-600" />
-                  </div>
-                  <Button variant="outline">
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Logo
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">Recommended: 200x200px, PNG or JPG</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Branding Colors</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label>Primary Color</Label>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Input type="color" value="#3b82f6" className="w-20" />
-                    <Input value="#3b82f6" readOnly />
-                  </div>
-                </div>
-                <div>
-                  <Label>Secondary Color</Label>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Input type="color" value="#10b981" className="w-20" />
-                    <Input value="#10b981" readOnly />
-                  </div>
-                </div>
-                <div>
-                  <Label>Accent Color</Label>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Input type="color" value="#f59e0b" className="w-20" />
-                    <Input value="#f59e0b" readOnly />
-                  </div>
-                </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+                <p className="font-medium mb-1">Logo &amp; Branding</p>
+                <p className="text-blue-700">Manage your school logo, portal colors, and typography under <strong>Customization → School Branding</strong>.</p>
               </div>
             </CardContent>
           </Card>

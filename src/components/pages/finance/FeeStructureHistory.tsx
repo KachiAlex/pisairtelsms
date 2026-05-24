@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '../../ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../ui/dialog';
+import { financeApiGet, financeApiPost } from '../../../lib/financeApi';
 
 interface HistoryEntry {
   id: string;
@@ -44,7 +45,7 @@ export function FeeStructureHistory({ structureId }: FeeStructureHistoryProps) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/tenant/finance/fee-structures/${structureId}/history`);
+      const response = await financeApiGet(`/api/tenant/finance/fee-structures/${structureId}/history`);
       if (!response.ok) {
         throw new Error('Failed to fetch history');
       }
@@ -64,14 +65,8 @@ export function FeeStructureHistory({ structureId }: FeeStructureHistoryProps) {
     }
 
     try {
-      const response = await fetch(`/api/tenant/finance/fee-structures/${structureId}/rollback`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          targetVersion: version.version,
-        }),
+      const response = await financeApiPost(`/api/tenant/finance/fee-structures/${structureId}/rollback`, {
+        targetVersion: version.version,
       });
 
       if (!response.ok) {

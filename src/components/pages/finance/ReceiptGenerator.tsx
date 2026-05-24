@@ -5,7 +5,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
-import { financeApiGet } from '../../../lib/financeApi';
+import { financeApiGet, financeApiPost } from '../../../lib/financeApi';
 
 interface Receipt {
   id: string;
@@ -173,14 +173,8 @@ export function ReceiptGenerator({ onClose }: ReceiptGeneratorProps) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/tenant/finance/payments/${selectedReceipt.id}/receipt`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'email',
-        }),
+      const response = await financeApiPost(`/api/tenant/finance/payments/${selectedReceipt.id}/receipt`, {
+        action: 'email',
       });
 
       if (!response.ok) {

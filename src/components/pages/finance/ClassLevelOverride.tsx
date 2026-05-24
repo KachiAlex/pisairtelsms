@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '../../ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../ui/dialog';
+import { financeApiGet, financeApiFetch, financeApiPost } from '../../../lib/financeApi';
 
 interface ClassOverride {
   id?: string;
@@ -72,7 +73,7 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await financeApiGet(
         `/api/tenant/finance/fee-structures/${feeStructureId}/class-overrides`
       );
       if (!response.ok) {
@@ -144,7 +145,7 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
 
       const method = editingOverride?.id ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await financeApiFetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +172,7 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
     }
 
     try {
-      const response = await fetch(
+      const response = await financeApiFetch(
         `/api/tenant/finance/fee-structures/${feeStructureId}/class-overrides/${id}`,
         { method: 'DELETE' }
       );
@@ -188,15 +189,9 @@ export function ClassLevelOverride({ feeStructureId, onClose }: ClassLevelOverri
 
   const handlePreview = async () => {
     try {
-      const response = await fetch(
+      const response = await financeApiPost(
         `/api/tenant/finance/fee-structures/${feeStructureId}/class-overrides/preview`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ overrides }),
-        }
+        { overrides }
       );
 
       if (!response.ok) {

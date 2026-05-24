@@ -6,7 +6,7 @@ import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
-import { financeApiGet } from '../../../lib/financeApi';
+import { financeApiGet, financeApiPost } from '../../../lib/financeApi';
 
 interface Payment {
   id: string;
@@ -93,15 +93,9 @@ export function PaymentReversal({ onClose }: PaymentReversalProps) {
     setSuccess(null);
 
     try {
-      const response = await fetch(`/api/tenant/finance/payments/${selectedPayment.id}/reverse`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reason: reversalReason,
-          requiresApproval: selectedPayment.amount > REVERSAL_THRESHOLD,
-        }),
+      const response = await financeApiPost(`/api/tenant/finance/payments/${selectedPayment.id}/reverse`, {
+        reason: reversalReason,
+        requiresApproval: selectedPayment.amount > REVERSAL_THRESHOLD,
       });
 
       if (!response.ok) {

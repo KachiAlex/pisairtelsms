@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../ui/table';
+import { financeApiGet } from '../../../lib/financeApi';
 
 interface AuditEntry {
   id: string;
@@ -54,7 +55,7 @@ export function AuditLog() {
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
 
-      const response = await fetch(`/api/tenant/finance/audit-log?${params}`);
+      const response = await financeApiGet(`/api/tenant/finance/audit-log?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch audit log');
       }

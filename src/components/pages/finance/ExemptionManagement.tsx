@@ -4,6 +4,7 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import ExemptionForm from './ExemptionForm';
+import { financeApiGet, financeApiFetch } from '../../../lib/financeApi';
 
 interface Exemption {
   id: string;
@@ -49,7 +50,7 @@ export function ExemptionManagement({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await financeApiGet(
         `/api/tenant/finance/fee-assignments/${feeAssignmentId}/exemptions`
       );
       if (!response.ok) {
@@ -70,7 +71,7 @@ export function ExemptionManagement({
     }
 
     try {
-      const response = await fetch(
+      const response = await financeApiFetch(
         `/api/tenant/finance/fee-assignments/${feeAssignmentId}/exemptions/${exemptionId}`,
         { method: 'DELETE' }
       );
@@ -85,7 +86,7 @@ export function ExemptionManagement({
 
   const handleApproveExemption = async (exemptionId: string) => {
     try {
-      const response = await fetch(
+      const response = await financeApiFetch(
         `/api/tenant/finance/fee-assignments/${feeAssignmentId}/exemptions/${exemptionId}/approve`,
         { method: 'POST' }
       );
@@ -100,7 +101,7 @@ export function ExemptionManagement({
 
   const handleRejectExemption = async (exemptionId: string) => {
     try {
-      const response = await fetch(
+      const response = await financeApiFetch(
         `/api/tenant/finance/fee-assignments/${feeAssignmentId}/exemptions/${exemptionId}/reject`,
         { method: 'POST' }
       );

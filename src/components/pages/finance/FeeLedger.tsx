@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, RotateCcw, Calendar, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { financeApiGet } from '../../../lib/financeApi';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import {
@@ -78,7 +79,7 @@ export function FeeLedger({ studentId }: FeeLedgerProps) {
     setError(null);
     try {
       // Fetch fee assignments for this student
-      const assignmentsResponse = await fetch(
+      const assignmentsResponse = await financeApiGet(
         `/api/tenant/finance/fee-assignments?studentId=${studentId}`
       );
       if (!assignmentsResponse.ok) {
@@ -93,7 +94,7 @@ export function FeeLedger({ studentId }: FeeLedgerProps) {
 
       for (const assignment of assignments) {
         try {
-          const ledgerResponse = await fetch(
+          const ledgerResponse = await financeApiGet(
             `/api/tenant/finance/fee-assignments/${assignment.id}/ledger`
           );
           if (ledgerResponse.ok) {
@@ -102,7 +103,7 @@ export function FeeLedger({ studentId }: FeeLedgerProps) {
           }
 
           // Fetch payments for this assignment
-          const paymentsResponse = await fetch(
+          const paymentsResponse = await financeApiGet(
             `/api/tenant/finance/payments?feeAssignmentId=${assignment.id}`
           );
           if (paymentsResponse.ok) {

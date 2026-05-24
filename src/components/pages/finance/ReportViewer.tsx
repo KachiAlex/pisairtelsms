@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../ui/table';
+import { financeApiGet } from '../../../lib/financeApi';
 
 interface ReportData {
   title: string;
@@ -51,7 +52,7 @@ export function ReportViewer() {
   const fetchFilterOptions = async () => {
     try {
       // Fetch available classes and terms
-      const response = await fetch('/api/tenant/students');
+      const response = await financeApiGet('/api/tenant/students');
       if (response.ok) {
         const data = await response.json();
         const uniqueClasses = [...new Set((data.data || []).map((s: any) => s.class))];
@@ -76,7 +77,7 @@ export function ReportViewer() {
       if (dateTo) params.append('dateTo', dateTo);
       if (paymentMethodFilter) params.append('paymentMethod', paymentMethodFilter);
 
-      const response = await fetch(`/api/tenant/finance/reports/${reportType}?${params}`);
+      const response = await financeApiGet(`/api/tenant/finance/reports/${reportType}?${params}`);
       if (!response.ok) {
         throw new Error('Failed to generate report');
       }

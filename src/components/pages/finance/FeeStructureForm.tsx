@@ -75,13 +75,13 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
   const fetchAcademicData = async () => {
     try {
       // Fetch academic years
-      const yearsRes = await fetch('/api/tenant/timetable/calendar?resource=academic-years');
+      const yearsRes = await financeApiGet('/api/tenant/timetable/calendar?resource=academic-years');
       const yearsData = await yearsRes.json();
       const years = yearsData.data?.map((y: any) => y.name) || [];
       setAcademicYears(years);
 
       // Fetch terms
-      const termsRes = await fetch('/api/tenant/timetable/calendar?resource=terms');
+      const termsRes = await financeApiGet('/api/tenant/timetable/calendar?resource=terms');
       const termsData = await termsRes.json();
       const termNames = termsData.data?.map((t: any) => t.name) || [];
       setTerms(termNames);

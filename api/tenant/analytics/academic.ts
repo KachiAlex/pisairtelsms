@@ -25,39 +25,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Get total students
+    // Get total students from users table
     const studentsResult = await sql`
-      SELECT COUNT(*) as count FROM students WHERE tenant_id = ${tenantId}
+      SELECT COUNT(*) as count FROM users 
+      WHERE tenant_id = ${tenantId} AND role = 'student'
     `
     const totalStudents = parseInt(studentsResult.rows[0]?.count || '0')
 
-    // Get total subjects
+    // Get total subjects from QuestionBank
     const subjectsResult = await sql`
-      SELECT COUNT(*) as count FROM subjects WHERE tenant_id = ${tenantId}
+      SELECT COUNT(DISTINCT subject) as count FROM question_bank 
+      WHERE tenant_id = ${tenantId}
     `
     const totalSubjects = parseInt(subjectsResult.rows[0]?.count || '0')
 
-    // Get average score and pass rate from results
+    // Get average score and pass rate from exam_results (join through exam for tenant filter)
     const resultsResult = await sql`
       SELECT 
-        AVG(CAST(score AS NUMERIC)) as average_score,
-        COUNT(CASE WHEN score >= 50 THEN 1 END) * 100.0 / COUNT(*) as pass_rate
-      FROM results 
-      WHERE tenant_id = ${tenantId}
+        AVG(CAST(er.score AS NUMERIC)) as average_score,
+        COUNT(CASE WHEN er.score >= 50 THEN 1 END) * 100.0 / COUNT(*) as pass_rate
+      FROM exam_results er
+      JOIN exams e ON er.exam_id = e.id
+      WHERE e.tenant_id = ${tenantId}
     `
     const averageScore = parseFloat(resultsResult.rows[0]?.average_score || '0')
     const passRate = parseFloat(resultsResult.rows[0]?.pass_rate || '0')
 
-    // Get subject performance
+    // Get subject performance from exam results (group by exam subject)
     const subjectPerformanceResult = await sql`
       SELECT 
-        s.name as subject,
-        AVG(CAST(r.score AS NUMERIC)) as average_score,
-        COUNT(CASE WHEN r.score >= 50 THEN 1 END) * 100.0 / COUNT(*) as pass_rate
-      FROM results r
-      JOIN subjects s ON r.subject_id = s.id
-      WHERE r.tenant_id = ${tenantId} AND s.tenant_id = ${tenantId}
-      GROUP BY s.name
+        e.subject,
+        AVG(CAST(er.score AS NUMERIC)) as average_score,
+        COUNT(CASE WHEN er.score >= 50 THEN 1 END) * 100.0 / COUNT(*) as pass_rate
+      FROM exam_results er
+      JOIN exams e ON er.exam_id = e.id
+      WHERE e.tenant_id = ${tenantId}
+      GROUP BY e.subject
       ORDER BY average_score DESC
     `
     const subjectPerformance = subjectPerformanceResult.rows.map(row => ({
@@ -66,17 +69,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       passRate: parseFloat(row.pass_rate || '0'),
     }))
 
-    // Get class performance
+    // Get class performance (group by exam class)
     const classPerformanceResult = await sql`
       SELECT 
-        c.name as class,
-        AVG(CAST(r.score AS NUMERIC)) as average_score,
-        COUNT(CASE WHEN r.score >= 50 THEN 1 END) * 100.0 / COUNT(*) as pass_rate
-      FROM results r
-      JOIN students st ON r.student_id = st.id
-      JOIN classes c ON st.class_id = c.id
-      WHERE r.tenant_id = ${tenantId} AND c.tenant_id = ${tenantId}
-      GROUP BY c.name
+        e.class,
+        AVG(CAST(er.score AS NUMERIC)) as average_score,
+        COUNT(CASE WHEN er.score >= 50 THEN 1 END) * 100.0 / COUNT(*) as pass_rate
+      FROM exam_results er
+      JOIN exams e ON er.exam_id = e.id
+      WHERE e.tenant_id = ${tenantId}
+      GROUP BY e.class
       ORDER BY average_score DESC
     `
     const classPerformance = classPerformanceResult.rows.map(row => ({
@@ -85,24 +87,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       passRate: parseFloat(row.pass_rate || '0'),
     }))
 
-    // Get term comparison (current vs previous)
-    const currentTermResult = await sql`
-      SELECT name FROM academic_terms 
-      WHERE tenant_id = ${tenantId} AND is_current = true
-      LIMIT 1
-    `
-    const currentTerm = currentTermResult.rows[0]?.name || 'Current Term'
-
-    const previousTermResult = await sql`
-      SELECT name FROM academic_terms 
-      WHERE tenant_id = ${tenantId} AND is_current = false
-      ORDER BY created_at DESC
-      LIMIT 1
-    `
-    const previousTerm = previousTermResult.rows[0]?.name || 'Previous Term'
-
+    // Get term comparison (current vs previous) - mock for now
+    const currentTerm = 'Current Term'
+    const previousTerm = 'Previous Term'
     const currentAverage = averageScore
-    const previousAverage = averageScore * 0.95 // Mock calculation for demo
+    const previousAverage = averageScore * 0.95
 
     const data = {
       totalStudents,

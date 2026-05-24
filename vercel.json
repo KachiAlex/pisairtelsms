@@ -8,6 +8,7 @@
     { "src": "/api/tenant/finance", "dest": "/api/tenant/finance.ts" },
     { "src": "/api/tenant/staff", "dest": "/api/tenant/staff.ts" },
     { "src": "/api/tenant/attendance", "dest": "/api/tenant/attendance.ts" },
+    { "src": "/api/tenant/communication/audiences", "dest": "/api/tenant/communication/audiences.ts" },
     { "src": "/api/tenant/communication", "dest": "/api/tenant/communication.ts" },
     { "src": "/api/tenant/bulk-notifications", "dest": "/api/tenant/bulk-notifications.ts" },
     { "src": "/api/tenant/parent-messages", "dest": "/api/tenant/parent-messages.ts" },

@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react'
-import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Palette, Loader, AlertCircle, CheckCircle } from 'lucide-react'
+import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Palette, Loader, AlertCircle, CheckCircle, Plus, X } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from '../ui/dialog'
+import { useToast } from '../ui/use-toast'
 
 const statusVariant: Record<string, 'default' | 'secondary'> = {
   live: 'default',
@@ -14,15 +25,27 @@ const statusVariant: Record<string, 'default' | 'secondary'> = {
   Draft: 'secondary',
 }
 
-const TENANT_ID = localStorage.getItem('tenantId') || 'default-tenant'
-const HEADERS = { 'x-tenant-id': TENANT_ID, 'Content-Type': 'application/json' }
+function getHeaders() {
+  const tenantId = localStorage.getItem('tenantId') || 'default-tenant'
+  return { 'x-tenant-id': tenantId, 'Content-Type': 'application/json' }
+}
+
+const AUDIENCE_OPTIONS = ['parents', 'students', 'staff', 'management']
+const FORMAT_OPTIONS = ['PDF', 'Word', 'HTML', 'Excel']
 
 export function ReportTemplates() {
+  const { toast } = useToast()
   const [templates, setTemplates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [newTemplateName, setNewTemplateName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [form, setForm] = useState({
+    name: '',
+    audience: 'parents',
+    format: 'PDF',
+    description: '',
+  })
 
   useEffect(() => {
     loadTemplates()
@@ -32,7 +55,7 @@ export function ReportTemplates() {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch('/api/tenant/report-templates', { headers: HEADERS })
+      const res = await fetch('/api/tenant/report-templates', { headers: getHeaders() })
       if (!res.ok) throw new Error('Failed to load templates')
       const json = await res.json()
       setTemplates(json.data || [])
@@ -43,36 +66,40 @@ export function ReportTemplates() {
     }
   }
 
+  const resetForm = () => setForm({ name: '', audience: 'parents', format: 'PDF', description: '' })
+
   const handleCreateTemplate = async () => {
-    if (!newTemplateName.trim()) return
+    if (!form.name.trim()) return
     try {
       setCreating(true)
-      setError(null)
       const res = await fetch('/api/tenant/report-templates', {
         method: 'POST',
-        headers: HEADERS,
-        body: JSON.stringify({ name: newTemplateName, audience: 'parents', format: 'PDF' }),
+        headers: getHeaders(),
+        body: JSON.stringify(form),
       })
       if (!res.ok) throw new Error('Failed to create template')
       const json = await res.json()
-      setTemplates([json.data, ...templates])
-      setNewTemplateName('')
+      setTemplates(prev => [json.data, ...prev])
+      setModalOpen(false)
+      resetForm()
+      toast({ title: 'Template created', description: `"${json.data?.name || form.name}" was added as a draft.` })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create template')
+      toast({ title: 'Failed to create template', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     } finally {
       setCreating(false)
     }
   }
 
-  const handlePublish = async (templateId: string) => {
+  const handlePublish = async (templateId: string, templateName: string) => {
     try {
       const res = await fetch(`/api/tenant/report-templates?id=${templateId}&action=publish`, {
-        method: 'POST', headers: HEADERS,
+        method: 'POST', headers: getHeaders(),
       })
       if (!res.ok) throw new Error('Failed to publish template')
       await loadTemplates()
+      toast({ title: 'Template published', description: `"${templateName}" is now live.` })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to publish')
+      toast({ title: 'Publish failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -96,8 +123,8 @@ export function ReportTemplates() {
           <Button variant="outline">
             <Copy className="h-4 w-4 mr-2" /> Duplicate template
           </Button>
-          <Button>
-            <FileText className="h-4 w-4 mr-2" /> Create template
+          <Button onClick={() => setModalOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Create template
           </Button>
         </div>
       </div>
@@ -108,6 +135,78 @@ export function ReportTemplates() {
           {error}
         </div>
       )}
+
+      {/* Create Template Modal */}
+      <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) resetForm() }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create report template</DialogTitle>
+            <DialogDescription>Set up the basics — you can customise fields and layout after creation.</DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="tpl-name">Template name <span className="text-red-500">*</span></Label>
+              <Input
+                id="tpl-name"
+                placeholder="e.g. End of Term Report — JSS3"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && handleCreateTemplate()}
+                autoFocus
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="tpl-audience">Audience</Label>
+                <select
+                  id="tpl-audience"
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={form.audience}
+                  onChange={e => setForm(f => ({ ...f, audience: e.target.value }))}
+                >
+                  {AUDIENCE_OPTIONS.map(a => <option key={a} value={a}>{a.charAt(0).toUpperCase() + a.slice(1)}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="tpl-format">Output format</Label>
+                <select
+                  id="tpl-format"
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={form.format}
+                  onChange={e => setForm(f => ({ ...f, format: e.target.value }))}
+                >
+                  {FORMAT_OPTIONS.map(fmt => <option key={fmt} value={fmt}>{fmt}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="tpl-desc">Description <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <textarea
+                id="tpl-desc"
+                rows={3}
+                placeholder="Brief notes about this template's purpose..."
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <DialogClose asChild>
+              <Button variant="outline" disabled={creating}>Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleCreateTemplate} disabled={creating || !form.name.trim()}>
+              {creating ? <Loader className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              Create template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -163,17 +262,6 @@ export function ReportTemplates() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="New template name..."
-              value={newTemplateName}
-              onChange={(e) => setNewTemplateName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleCreateTemplate()}
-            />
-            <Button onClick={handleCreateTemplate} disabled={creating || !newTemplateName.trim()}>
-              {creating ? <Loader className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            </Button>
-          </div>
           {templates.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
@@ -199,7 +287,7 @@ export function ReportTemplates() {
                       </TableCell>
                       <TableCell>
                         {template.status === 'draft' && (
-                          <Button size="sm" variant="outline" onClick={() => handlePublish(template.id)}>
+                          <Button size="sm" variant="outline" onClick={() => handlePublish(template.id, template.name)}>
                             <CheckCircle className="h-3 w-3 mr-1" /> Publish
                           </Button>
                         )}
@@ -210,9 +298,10 @@ export function ReportTemplates() {
               </Table>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No templates yet. Create one to get started.</p>
+            <div className="text-center py-12 text-gray-500">
+              <FileText className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium text-gray-700">No templates yet</p>
+              <p className="text-sm mt-1">Click <strong>Create template</strong> to get started.</p>
             </div>
           )}
         </CardContent>

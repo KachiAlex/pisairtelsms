@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Building2,
   ShieldCheck,
@@ -23,68 +23,45 @@ interface SuperAdminPortalProps {
   onSignOut: () => void
 }
 
-const tenantStats = [
-  { label: 'Active Tenants', value: '38', delta: '+3 this week', color: 'text-blue-600', bg: 'bg-blue-50', icon: Building2 },
-  { label: 'Pending Provisioning', value: '6', delta: 'avg 42 mins', color: 'text-purple-600', bg: 'bg-purple-50', icon: RefreshCcw },
-  { label: 'Compliance Alerts', value: '4', delta: '2 critical', color: 'text-orange-600', bg: 'bg-orange-50', icon: AlertTriangle },
-  { label: 'Overall Health', value: '98%', delta: 'uptime last 30d', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: ShieldCheck },
-]
+interface Tenant {
+  id: string
+  name: string
+  subscription: string
+  region: string
+  usage: number
+  status: string
+  lastSync: string
+  alerts: number
+}
 
-const tenants = [
-  {
-    name: 'Cedar Heights College',
-    subscription: 'Enterprise',
-    region: 'Lagos, NG',
-    usage: 82,
-    status: 'Healthy',
-    lastSync: '3 mins ago',
-    alerts: 0,
-  },
-  {
-    name: 'Blue Ridge Academy',
-    subscription: 'Growth',
-    region: 'Abuja, NG',
-    usage: 54,
-    status: 'Degraded',
-    lastSync: '18 mins ago',
-    alerts: 2,
-  },
-  {
-    name: 'Springfield Group of Schools',
-    subscription: 'Enterprise',
-    region: 'Accra, GH',
-    usage: 91,
-    status: 'Healthy',
-    lastSync: 'Just now',
-    alerts: 0,
-  },
-  {
-    name: 'Aurora STEM College',
-    subscription: 'Pilot',
-    region: 'Nairobi, KE',
-    usage: 34,
-    status: 'Provisioning',
-    lastSync: '—',
-    alerts: 1,
-  },
-]
+interface ProvisioningItem {
+  id: string
+  name: string
+  type: string
+  eta: string
+  owner: string
+}
 
-const provisioningQueue = [
-  { name: 'Heritage Scholars', type: 'Data migration', eta: '24 mins', owner: 'Lola Adeniyi' },
-  { name: 'Kingsley Int’l', type: 'Branding rollout', eta: '48 mins', owner: 'Seyi Bello' },
-  { name: 'Unityville Schools', type: 'SLA upgrade', eta: 'In review', owner: 'Ops Team' },
-]
+interface ActivityItem {
+  id: string
+  title: string
+  meta: string
+}
 
-const activityFeed = [
-  { title: 'Tenant billing synced', meta: 'Blue Ridge Academy • 09:24', icon: CheckCircle2, color: 'text-emerald-600' },
-  { title: 'New provisioning request', meta: 'Heritage Scholars • 08:57', icon: RefreshCcw, color: 'text-blue-600' },
-  { title: 'Compliance alert resolved', meta: 'Aurora STEM College • 08:12', icon: ShieldCheck, color: 'text-amber-600' },
-]
+interface Incident {
+  id: string
+  title: string
+  impact: string
+  status: string
+  timestamp: string
+}
 
-const incidentLog = [
-  { title: 'Webhook latency spike', impact: '5 tenants', status: 'Mitigated', timestamp: '07:40' },
-  { title: 'SMS provider failover', impact: 'Global', status: 'Monitoring', timestamp: '06:15' },
-]
+interface AdminStats {
+  activeTenants: number
+  pendingProvisioning: number
+  complianceAlerts: number
+  overallHealth: string
+}
 
 const statusBadge = (status: string) => {
   switch (status) {
@@ -100,7 +77,46 @@ const statusBadge = (status: string) => {
 }
 
 export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<AdminStats | null>(null)
+  const [tenants, setTenants] = useState<Tenant[]>([])
+  const [provisioningQueue, setProvisioningQueue] = useState<ProvisioningItem[]>([])
+  const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([])
+  const [incidentLog, setIncidentLog] = useState<Incident[]>([])
+
+  useEffect(() => {
+    const headers = { 'Content-Type': 'application/json', 'x-tenant-id': 'super-admin' }
+    Promise.all([
+      fetch('/api/admin/tenants', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/admin/provisioning-queue', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/admin/activity-feed', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/admin/incidents', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/admin/stats', { headers }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes]) => {
+      if (tenantsRes.data) setTenants(tenantsRes.data)
+      if (queueRes.data) setProvisioningQueue(queueRes.data)
+      if (feedRes.data) setActivityFeed(feedRes.data)
+      if (incidentsRes.data) setIncidentLog(incidentsRes.data)
+      if (statsRes.data) setStats(statsRes.data)
+    }).finally(() => setLoading(false))
+  }, [])
+
   const tenantsNeedingAttention = tenants.filter((tenant) => tenant.alerts > 0)
+
+  const tenantStats = [
+    { label: 'Active Tenants', value: stats?.activeTenants?.toString() ?? '—', delta: 'live count', color: 'text-blue-600', bg: 'bg-blue-50', icon: Building2 },
+    { label: 'Pending Provisioning', value: stats?.pendingProvisioning?.toString() ?? '—', delta: 'in queue', color: 'text-purple-600', bg: 'bg-purple-50', icon: RefreshCcw },
+    { label: 'Compliance Alerts', value: stats?.complianceAlerts?.toString() ?? '—', delta: 'open', color: 'text-orange-600', bg: 'bg-orange-50', icon: AlertTriangle },
+    { label: 'Overall Health', value: stats?.overallHealth ?? '—', delta: 'uptime', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: ShieldCheck },
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-400 text-sm">Loading portal data...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -191,8 +207,10 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {tenants.map((tenant) => (
-                          <TableRow key={tenant.name}>
+                        {tenants.length === 0 ? (
+                          <TableRow><TableCell colSpan={6} className="text-center text-gray-500">No tenants found</TableCell></TableRow>
+                        ) : tenants.map((tenant) => (
+                          <TableRow key={tenant.id ?? tenant.name}>
                             <TableCell>
                               <div className="font-medium text-slate-900">{tenant.name}</div>
                               <p className="text-xs text-slate-500">{tenant.alerts > 0 ? `${tenant.alerts} open alerts` : 'Operational'}</p>
@@ -222,7 +240,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   ) : (
                     <div className="space-y-3">
                       {tenantsNeedingAttention.map((tenant) => (
-                        <div key={tenant.name} className="rounded-xl border border-amber-100 bg-amber-50/60 p-4">
+                        <div key={tenant.id ?? tenant.name} className="rounded-xl border border-amber-100 bg-amber-50/60 p-4">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-slate-900">{tenant.name}</p>
@@ -248,8 +266,10 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               <p className="text-sm text-slate-500">Fast-track rollouts and escalations.</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {provisioningQueue.map((item) => (
-                <div key={item.name} className="rounded-xl border border-slate-100 p-4">
+              {provisioningQueue.length === 0 ? (
+                <p className="text-sm text-slate-500">No items in queue</p>
+              ) : provisioningQueue.map((item) => (
+                <div key={item.id ?? item.name} className="rounded-xl border border-slate-100 p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-slate-900">{item.name}</p>
@@ -280,8 +300,10 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               <p className="text-sm text-slate-500">Live SRE timeline across connected services.</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {incidentLog.map((incident) => (
-                <div key={incident.title} className="rounded-xl border border-slate-100 p-4">
+              {incidentLog.length === 0 ? (
+                <p className="text-sm text-slate-500">No incidents</p>
+              ) : incidentLog.map((incident) => (
+                <div key={incident.id ?? incident.title} className="rounded-xl border border-slate-100 p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-slate-900">{incident.title}</p>
@@ -308,10 +330,12 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               <p className="text-sm text-slate-500">Latest orchestration and compliance events.</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {activityFeed.map((activity) => (
-                <div key={activity.title} className="flex items-start gap-3">
-                  <div className={`rounded-full bg-white p-2 shadow-sm ${activity.color.replace('text', 'bg')}/10`}>
-                    <activity.icon className={`h-4 w-4 ${activity.color}`} />
+              {activityFeed.length === 0 ? (
+                <p className="text-sm text-slate-500">No recent activity</p>
+              ) : activityFeed.map((activity) => (
+                <div key={activity.id ?? activity.title} className="flex items-start gap-3">
+                  <div className="rounded-full bg-white p-2 shadow-sm bg-slate-100">
+                    <Activity className="h-4 w-4 text-slate-600" />
                   </div>
                   <div>
                     <p className="font-medium text-slate-900">{activity.title}</p>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { UserCheck, AlertTriangle, Clock3, CalendarCheck, Search, Shuffle, Users, BarChart3, Activity } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select'
+import { useToast } from '../ui/use-toast'
 
 const DraggableTeacher = ({ teacher, onDragStart, onDragEnd }) => {
   const style = {
@@ -54,23 +55,53 @@ const DroppableSlot = ({ slot }) => {
   )
 }
 
-const coverageStats = []
+function tenantHeaders(): Record<string, string> {
+  const tenantId =
+    (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
+  return { 'Content-Type': 'application/json', 'x-tenant-id': tenantId }
+}
 
-const teacherCards = []
-
-const allocationMatrix = []
-
-const openPeriodTimeline = []
-
-const substitutionLog = []
-
-const subjects = []
+interface CoverageStat { label: string; value: string; detail: string; color: string }
+interface TeacherCard { name: string; level: string; risk: string; subjects: string[]; allocation: number; contractHours: number }
+interface AllocationRow { class: string; subject: string; teacher: string; coverage: string; warnings: number }
+interface PeriodBucket { day: string; periods: number }
+interface SubLog { slot: string; priority: string; action: string; relief: string; eta: string; impacted: string[] }
 
 export function TeacherAllocation() {
+  const { toast } = useToast()
   const [assignOpen, setAssignOpen] = useState(false)
-  const [editableSlots, setEditableSlots] = useState(
-    allocationMatrix.filter(row => row.coverage === 'Open').map((row, index) => ({ ...row, id: index, assignedTeacher: '' }))
-  )
+  const [loading, setLoading] = useState(true)
+  const [coverageStats, setCoverageStats] = useState<CoverageStat[]>([])
+  const [teacherCards, setTeacherCards] = useState<TeacherCard[]>([])
+  const [allocationMatrix, setAllocationMatrix] = useState<AllocationRow[]>([])
+  const [openPeriodTimeline, setOpenPeriodTimeline] = useState<PeriodBucket[]>([])
+  const [substitutionLog, setSubstitutionLog] = useState<SubLog[]>([])
+  const [editableSlots, setEditableSlots] = useState<(AllocationRow & { id: number; assignedTeacher: string })[]>([])
+
+  useEffect(() => {
+    const headers = tenantHeaders()
+    Promise.all([
+      fetch('/api/tenant/teacher-allocation/coverage-stats', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/tenant/teacher-allocation/teachers', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/tenant/teacher-allocation/matrix', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/tenant/teacher-allocation/open-periods', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/tenant/teacher-allocation/substitution-log', { headers }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([statsRes, teachersRes, matrixRes, periodsRes, subRes]) => {
+      if (statsRes.data) setCoverageStats(statsRes.data)
+      if (teachersRes.data) setTeacherCards(teachersRes.data)
+      if (matrixRes.data) {
+        setAllocationMatrix(matrixRes.data)
+        setEditableSlots(
+          matrixRes.data
+            .filter((row: AllocationRow) => row.coverage === 'Open')
+            .map((row: AllocationRow, index: number) => ({ ...row, id: index, assignedTeacher: '' }))
+        )
+      }
+      if (periodsRes.data) setOpenPeriodTimeline(periodsRes.data)
+      if (subRes.data) setSubstitutionLog(subRes.data)
+    }).finally(() => setLoading(false))
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -80,10 +111,21 @@ export function TeacherAllocation() {
           <p className="text-sm text-gray-600">Balance loads, fill gaps, and monitor risks across timetable slots.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={() => alert('Search teacher functionality - would open teacher search dialog')}>
+          <Button variant="outline" onClick={() => toast({ title: 'Search teacher', description: 'Use the search box in the Active allocations table below.' })}>
             <Search className="h-4 w-4 mr-2" /> Search teacher
           </Button>
-          <Button variant="outline" onClick={() => alert('Auto-balance load functionality - would automatically redistribute teacher assignments')}>
+          <Button variant="outline" onClick={async () => {
+            try {
+              const res = await fetch('/api/tenant/teacher-allocation/auto-balance', { method: 'POST', headers: tenantHeaders() })
+              const data = await res.json()
+              if (res.ok) {
+                if (data.data) setAllocationMatrix(data.data)
+                toast({ title: 'Load balanced', description: 'Teacher assignments have been redistributed.' })
+              } else {
+                toast({ title: 'Auto-balance failed', description: data.error, variant: 'destructive' })
+              }
+            } catch { toast({ title: 'Network error', variant: 'destructive' }) }
+          }}>
             <Shuffle className="h-4 w-4 mr-2" /> Auto-balance load
           </Button>
           <Button onClick={() => setAssignOpen(true)}>
@@ -137,28 +179,27 @@ export function TeacherAllocation() {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
-            <Button onClick={() => {
-              const assignedSlots = editableSlots.filter(slot => slot.assignedTeacher);
-              if (assignedSlots.length > 0) {
-                // Update the allocation matrix with new assignments
-                const updatedMatrix = allocationMatrix.map(row => {
-                  const assignedSlot = assignedSlots.find(slot => slot.class === row.class && slot.subject === row.subject);
-                  if (assignedSlot && assignedSlot.assignedTeacher) {
-                    return {
-                      ...row,
-                      teacher: assignedSlot.assignedTeacher,
-                      coverage: 'Assigned' as const,
-                      warnings: Math.max(0, row.warnings - 1) // Reduce warnings for assigned slots
-                    };
-                  }
-                  return row;
-                });
-                // In a real app, you'd save this to backend
-                alert(`Successfully assigned ${assignedSlots.length} teacher slot(s)!`);
-                setAssignOpen(false);
-              } else {
-                alert('No slots have been assigned yet.');
+            <Button onClick={async () => {
+              const assignedSlots = editableSlots.filter(slot => slot.assignedTeacher)
+              if (assignedSlots.length === 0) {
+                toast({ title: 'No slots assigned', description: 'Drag a teacher onto a slot first.', variant: 'destructive' })
+                return
               }
+              try {
+                const res = await fetch('/api/tenant/teacher-allocation/assign', {
+                  method: 'POST',
+                  headers: tenantHeaders(),
+                  body: JSON.stringify({ assignments: assignedSlots.map(s => ({ class: s.class, subject: s.subject, teacher: s.assignedTeacher })) }),
+                })
+                const data = await res.json()
+                if (res.ok) {
+                  if (data.data) setAllocationMatrix(data.data)
+                  toast({ title: `${assignedSlots.length} slot(s) assigned`, description: 'Allocation matrix updated.' })
+                  setAssignOpen(false)
+                } else {
+                  toast({ title: 'Assignment failed', description: data.error, variant: 'destructive' })
+                }
+              } catch { toast({ title: 'Network error', variant: 'destructive' }) }
             }}>
               Assign Slots ({editableSlots.filter(slot => slot.assignedTeacher).length})
             </Button>
@@ -281,7 +322,7 @@ export function TeacherAllocation() {
                 </div>
               </div>
             ))}
-            <Button variant="outline" className="w-full" onClick={() => alert('View allocation board functionality - would open detailed teacher allocation interface')}>
+            <Button variant="outline" className="w-full" onClick={() => toast({ title: 'Allocation board', description: 'Full board view is available in the Active allocations table.' })}>
               <Users className="h-4 w-4 mr-2" /> View allocation board
             </Button>
           </CardContent>
@@ -308,7 +349,7 @@ export function TeacherAllocation() {
               </div>
             </div>
           ))}
-          <Button variant="outline" className="w-full" size="sm" onClick={() => alert('Assign substitute functionality - would open substitute teacher assignment dialog')}>
+          <Button variant="outline" className="w-full" size="sm" onClick={() => setAssignOpen(true)}>
             <UserCheck className="h-4 w-4 mr-2" /> Assign substitute
           </Button>
         </CardContent>

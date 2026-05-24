@@ -7,6 +7,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiFetch } from '../../../lib/tenantApi';
+import { useToast } from '../../ui/use-toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,7 @@ function parseTagInput(value: string): string[] {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function QuestionBankTab() {
+  const { toast } = useToast();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [stats, setStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -296,7 +298,7 @@ export function QuestionBankTab() {
       fetchTagSummary();
       fetchStats();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Delete failed');
+      toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Delete failed', variant: 'destructive' });
     }
   };
 
@@ -369,7 +371,7 @@ export function QuestionBankTab() {
       fetchStats();
       setSelectedQuestions(new Set());
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Delete failed');
+      toast({ title: 'Delete failed', description: e instanceof Error ? e.message : 'Delete failed', variant: 'destructive' });
     }
   };
 
@@ -402,10 +404,12 @@ export function QuestionBankTab() {
       fetchStats();
       
       if (failCount > 0) {
-        alert(`Deleted ${successCount} question${successCount !== 1 ? 's' : ''}. ${failCount} failed.`);
+        toast({ title: `${successCount} deleted, ${failCount} failed`, variant: 'destructive' });
+      } else {
+        toast({ title: `${successCount} question${successCount !== 1 ? 's' : ''} deleted` });
       }
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Delete failed');
+      toast({ title: 'Delete failed', description: e instanceof Error ? e.message : 'Delete failed', variant: 'destructive' });
     }
   };
 
@@ -485,7 +489,7 @@ export function QuestionBankTab() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to download sample');
+      toast({ title: 'Download failed', description: e instanceof Error ? e.message : 'Failed to download sample', variant: 'destructive' });
     }
   };
 

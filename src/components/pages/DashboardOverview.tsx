@@ -1,17 +1,15 @@
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   UserCheck,
   DollarSign,
   TrendingUp,
-  AlertCircle,
-  Clock,
   FileText,
   BookOpen,
+  Loader2,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import {
   BarChart,
   Bar,
@@ -28,106 +26,120 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-const statsCards = [
-  {
-    title: 'Total Students',
-    value: '1,248',
-    change: '+12% from last term',
-    icon: Users,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
-  },
-  {
-    title: 'Staff Members',
-    value: '85',
-    change: '+3 new this month',
-    icon: UserCheck,
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-  },
-  {
-    title: 'Revenue This Term',
-    value: '₦12.5M',
-    change: '+18% increase',
-    icon: DollarSign,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-  },
-  {
-    title: 'Attendance Rate',
-    value: '94.2%',
-    change: '+2.1% this week',
-    icon: TrendingUp,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-50',
-  },
-];
-
-const attendanceData = [
-  { day: 'Mon', present: 1180, absent: 68 },
-  { day: 'Tue', present: 1195, absent: 53 },
-  { day: 'Wed', present: 1170, absent: 78 },
-  { day: 'Thu', present: 1205, absent: 43 },
-  { day: 'Fri', present: 1190, absent: 58 },
-];
-
-const classPerformanceData = [
-  { class: 'JSS 1', average: 72 },
-  { class: 'JSS 2', average: 68 },
-  { class: 'JSS 3', average: 75 },
-  { class: 'SS 1', average: 70 },
-  { class: 'SS 2', average: 66 },
-  { class: 'SS 3', average: 78 },
-];
-
-const feeCollectionData = [
-  { name: 'Collected', value: 78, amount: '₦9.7M' },
-  { name: 'Pending', value: 15, amount: '₦1.9M' },
-  { name: 'Overdue', value: 7, amount: '₦900K' },
-];
-
 const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
 
-const recentActivities = [
-  {
-    id: 1,
-    action: 'Result published',
-    description: 'SS3 Final Examination results published',
-    time: '10 minutes ago',
-    status: 'success',
-  },
-  {
-    id: 2,
-    action: 'CBT Exam scheduled',
-    description: 'Mathematics midterm exam scheduled for JSS 2',
-    time: '1 hour ago',
-    status: 'info',
-  },
-  {
-    id: 3,
-    action: 'Fee reminder sent',
-    description: '150 fee payment reminders sent to parents',
-    time: '2 hours ago',
-    status: 'info',
-  },
-  {
-    id: 4,
-    action: 'Low attendance alert',
-    description: 'JSS 1B attendance below 85% threshold',
-    time: '3 hours ago',
-    status: 'warning',
-  },
-];
+function tenantHeaders(): Record<string, string> {
+  const tenantId =
+    (typeof window !== 'undefined' && localStorage.getItem('tenantId')) ||
+    'default-tenant';
+  return { 'Content-Type': 'application/json', 'x-tenant-id': tenantId };
+}
 
-const pendingTasks = [
-  { id: 1, task: 'Approve JSS 3A results', priority: 'high', count: 3 },
-  { id: 2, task: 'Review exam incidents', priority: 'high', count: 2 },
-  { id: 3, task: 'Process fee waivers', priority: 'medium', count: 8 },
-  { id: 4, task: 'Update timetable', priority: 'medium', count: 5 },
-  { id: 5, task: 'Review staff leave requests', priority: 'low', count: 4 },
-];
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}K`;
+  return `₦${n}`;
+}
+
+interface DashboardData {
+  totalStudents: number;
+  totalTeachers: number;
+  classesCount: number;
+  recentActivity: { type: string; message: string; timestamp: string }[];
+  classSummaries: { className: string; studentCount: number; avgScore: number }[];
+  revenueByMonth: { month: string; amount: number }[];
+}
+
+interface FinancialData {
+  totalRevenue: number;
+  totalCollected: number;
+  outstandingBalance: number;
+  collectionRate: number;
+}
 
 export default function DashboardOverview() {
+  const [loading, setLoading] = useState(true);
+  const [dash, setDash] = useState<DashboardData | null>(null);
+  const [finance, setFinance] = useState<FinancialData | null>(null);
+
+  useEffect(() => {
+    const headers = tenantHeaders();
+    Promise.all([
+      fetch('/api/tenant/integrated-dashboard', { headers }).then((r) => r.json()),
+      fetch('/api/tenant/analytics/financial', { headers }).then((r) => r.json()),
+    ])
+      .then(([dashRes, finRes]) => {
+        if (dashRes.data) setDash(dashRes.data);
+        if (finRes.data) setFinance(finRes.data);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const feeCollectionData = finance
+    ? [
+        { name: 'Collected', value: finance.collectionRate, amount: fmt(finance.totalCollected) },
+        {
+          name: 'Outstanding',
+          value: 100 - finance.collectionRate,
+          amount: fmt(finance.outstandingBalance),
+        },
+      ]
+    : [];
+
+  const classPerformanceData = (dash?.classSummaries ?? []).map((s) => ({
+    class: s.className,
+    average: Math.round(s.avgScore),
+  }));
+
+  const revenueData = (dash?.revenueByMonth ?? []).map((m) => ({
+    month: m.month,
+    amount: m.amount,
+  }));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const statsCards = [
+    {
+      title: 'Total Students',
+      value: dash ? dash.totalStudents.toLocaleString() : '—',
+      change: `${dash?.classesCount ?? 0} classes`,
+      icon: Users,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50',
+    },
+    {
+      title: 'Staff Members',
+      value: dash ? dash.totalTeachers.toLocaleString() : '—',
+      change: 'Active teachers',
+      icon: UserCheck,
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+    },
+    {
+      title: 'Revenue Collected',
+      value: finance ? fmt(finance.totalCollected) : '—',
+      change: finance ? `${finance.collectionRate}% collection rate` : '',
+      icon: DollarSign,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-50',
+    },
+    {
+      title: 'Outstanding Balance',
+      value: finance ? fmt(finance.outstandingBalance) : '—',
+      change: finance ? `of ${fmt(finance.totalRevenue)} total` : '',
+      icon: TrendingUp,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50',
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -159,70 +171,60 @@ export default function DashboardOverview() {
         })}
       </div>
 
-      {/* Pending Tasks & Alerts */}
+      {/* Recent Activities & Quick Alerts */}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Pending Tasks & Approvals</CardTitle>
-            <CardDescription>Items requiring your attention</CardDescription>
+            <CardTitle>Recent Activities</CardTitle>
+            <CardDescription>Latest system events</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {pendingTasks.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`h-2 w-2 rounded-full ${
-                        item.priority === 'high'
-                          ? 'bg-red-500'
-                          : item.priority === 'medium'
-                          ? 'bg-orange-500'
-                          : 'bg-blue-500'
-                      }`}
-                    />
-                    <div>
-                      <p className="text-sm">{item.task}</p>
-                      <p className="text-xs text-gray-500">{item.count} items</p>
+            {(!dash?.recentActivity || dash.recentActivity.length === 0) ? (
+              <p className="text-sm text-gray-500">No recent activity</p>
+            ) : (
+              <div className="space-y-3">
+                {dash.recentActivity.slice(0, 6).map((item, i) => (
+                  <div key={i} className="flex gap-3 border-b pb-3 last:border-0">
+                    <div className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-blue-500" />
+                    <div className="flex-1">
+                      <p className="text-sm">{item.message}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {new Date(item.timestamp).toLocaleString()}
+                      </p>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline">
-                    Review
-                  </Button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>System Alerts</CardTitle>
-            <CardDescription>Important notifications</CardDescription>
+            <CardTitle>School Summary</CardTitle>
+            <CardDescription>Key counts at a glance</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3">
-                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-                <div>
-                  <p className="text-sm text-red-900">5 Students at Risk</p>
-                  <p className="text-xs text-red-700">Below 50% in 3+ subjects</p>
-                </div>
-              </div>
-              <div className="flex gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
-                <Clock className="h-5 w-5 text-orange-600 flex-shrink-0" />
-                <div>
-                  <p className="text-sm text-orange-900">Exam Conflicts</p>
-                  <p className="text-xs text-orange-700">2 timetable clashes detected</p>
-                </div>
-              </div>
               <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                <Users className="h-5 w-5 text-blue-600 flex-shrink-0" />
                 <div>
-                  <p className="text-sm text-blue-900">Reports Due</p>
-                  <p className="text-xs text-blue-700">Term reports deadline: 5 days</p>
+                  <p className="text-sm text-blue-900">{dash?.totalStudents ?? 0} Students</p>
+                  <p className="text-xs text-blue-700">Across {dash?.classesCount ?? 0} classes</p>
+                </div>
+              </div>
+              <div className="flex gap-3 rounded-lg border border-green-200 bg-green-50 p-3">
+                <UserCheck className="h-5 w-5 text-green-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-green-900">{dash?.totalTeachers ?? 0} Teachers</p>
+                  <p className="text-xs text-green-700">Active staff members</p>
+                </div>
+              </div>
+              <div className="flex gap-3 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                <DollarSign className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-purple-900">{finance?.collectionRate ?? 0}% Collected</p>
+                  <p className="text-xs text-purple-700">{fmt(finance?.totalCollected ?? 0)} of {fmt(finance?.totalRevenue ?? 0)}</p>
                 </div>
               </div>
             </div>
@@ -232,121 +234,97 @@ export default function DashboardOverview() {
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Weekly Attendance</CardTitle>
-            <CardDescription>Student attendance this week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={attendanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="present" fill="#10b981" name="Present" />
-                <Bar dataKey="absent" fill="#ef4444" name="Absent" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Class Performance</CardTitle>
-            <CardDescription>Average scores by class</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={classPerformanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="class" />
-                <YAxis domain={[0, 100]} />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="average"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  name="Average Score"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Fee Collection Status</CardTitle>
-            <CardDescription>Current term fee collection breakdown</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={feeCollectionData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {feeCollectionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+        {revenueData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue Trend</CardTitle>
+              <CardDescription>Monthly collections</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={revenueData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(v: number) => fmt(v)} />
+                  <Legend />
+                  <Bar dataKey="amount" fill="#8b5cf6" name="Collected (₦)" />
+                </BarChart>
               </ResponsiveContainer>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-              {feeCollectionData.map((item, index) => (
-                <div key={item.name}>
-                  <div
-                    className="mb-1 inline-block h-3 w-3 rounded-full"
-                    style={{ backgroundColor: COLORS[index] }}
-                  />
-                  <p className="text-xs text-gray-600">{item.name}</p>
-                  <p className="text-sm">{item.amount}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activities</CardTitle>
-            <CardDescription>Latest system activities</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivities.map((activity) => (
-                <div key={activity.id} className="flex gap-3 border-b pb-3 last:border-0">
-                  <div
-                    className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
-                      activity.status === 'success'
-                        ? 'bg-green-500'
-                        : activity.status === 'warning'
-                        ? 'bg-orange-500'
-                        : 'bg-blue-500'
-                    }`}
+        {classPerformanceData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Class Performance</CardTitle>
+              <CardDescription>Average scores by class</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={classPerformanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="class" />
+                  <YAxis domain={[0, 100]} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="average"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    name="Average Score"
                   />
-                  <div className="flex-1">
-                    <p className="text-sm">{activity.action}</p>
-                    <p className="text-xs text-gray-500">{activity.description}</p>
-                    <p className="text-xs text-gray-400 mt-1">{activity.time}</p>
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {feeCollectionData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Fee Collection Status</CardTitle>
+              <CardDescription>Current term fee collection breakdown</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-center">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={feeCollectionData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {feeCollectionData.map((_entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+                {feeCollectionData.map((item, index) => (
+                  <div key={item.name}>
+                    <div
+                      className="mb-1 inline-block h-3 w-3 rounded-full"
+                      style={{ backgroundColor: COLORS[index] }}
+                    />
+                    <p className="text-xs text-gray-600">{item.name}</p>
+                    <p className="text-sm font-medium">{item.amount}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Quick Actions */}

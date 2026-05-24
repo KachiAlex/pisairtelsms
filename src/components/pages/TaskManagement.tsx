@@ -66,13 +66,6 @@ interface TaskStats {
   atRiskSquads: number
 }
 
-const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
-  'In progress': 'default',
-  Queued: 'secondary',
-  Scheduled: 'secondary',
-  'Pending review': 'warning',
-}
-
 const priorityPill: Record<string, 'default' | 'warning' | 'destructive'> = {
   high: 'destructive',
   medium: 'warning',
@@ -121,43 +114,72 @@ export function TaskManagement() {
     label: '',
     nextMilestone: '',
   })
+  const [error, setError] = useState<string | null>(null)
 
-  const fetchTenantId = () => {
-    // In a real app, this would come from auth context or localStorage
-    return localStorage.getItem('tenantId') || 'default-tenant'
+  const getAuth = () => {
+    try {
+      const stored = localStorage.getItem('auth')
+      if (stored) {
+        const auth = JSON.parse(stored)
+        return {
+          tenantId: auth.tenantId || 'default-tenant',
+          userId: auth.userId || auth.email || 'system',
+          token: auth.token || null,
+        }
+      }
+    } catch { /* fall through */ }
+    return { tenantId: 'default-tenant', userId: 'system', token: null }
+  }
+
+  const getApiHeaders = (): Record<string, string> => {
+    const { tenantId, userId, token } = getAuth()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-tenant-id': tenantId,
+      'x-user-id': userId,
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return headers
   }
 
   const fetchData = async () => {
     setLoading(true)
-    const tenantId = fetchTenantId()
-    
+    setError(null)
+    const headers = getApiHeaders()
+
     try {
       // Fetch statistics
-      const statsRes = await fetch(`/api/tenant/tasks/statistics?tenantId=${tenantId}`)
+      const statsRes = await fetch('/api/tenant/tasks/statistics', { headers })
       const statsData = await statsRes.json()
       if (statsData.success) setStats(statsData.data)
+      else if (statsData.error) setError(statsData.error)
 
       // Fetch tasks
-      const tasksRes = await fetch(`/api/tenant/tasks?tenantId=${tenantId}&limit=10`)
+      const tasksRes = await fetch('/api/tenant/tasks?limit=10', { headers })
       const tasksData = await tasksRes.json()
       if (tasksData.success) setTasks(tasksData.data)
+      else if (tasksData.error) setError(tasksData.error)
 
       // Fetch squads
-      const squadsRes = await fetch(`/api/tenant/tasks/squads?tenantId=${tenantId}`)
+      const squadsRes = await fetch('/api/tenant/tasks/squads', { headers })
       const squadsData = await squadsRes.json()
       if (squadsData.success) setSquads(squadsData.data)
+      else if (squadsData.error) setError(squadsData.error)
 
       // Fetch workstreams
-      const workstreamsRes = await fetch(`/api/tenant/tasks/workstreams?tenantId=${tenantId}`)
+      const workstreamsRes = await fetch('/api/tenant/tasks/workstreams', { headers })
       const workstreamsData = await workstreamsRes.json()
       if (workstreamsData.success) setWorkstreams(workstreamsData.data)
+      else if (workstreamsData.error) setError(workstreamsData.error)
 
       // Fetch reminders
-      const remindersRes = await fetch(`/api/tenant/tasks/reminders?tenantId=${tenantId}`)
+      const remindersRes = await fetch('/api/tenant/tasks/reminders', { headers })
       const remindersData = await remindersRes.json()
       if (remindersData.success) setReminders(remindersData.data)
-    } catch (error) {
-      console.error('Error fetching data:', error)
+      else if (remindersData.error) setError(remindersData.error)
+    } catch (err) {
+      console.error('Error fetching data:', err)
+      setError('Failed to load task management data. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -174,14 +196,11 @@ export function TaskManagement() {
   const handleCreateTask = async () => {
     if (!taskForm.title.trim()) return
     setSubmitting(true)
-    const tenantId = fetchTenantId()
+    setError(null)
     try {
-      await fetch('/api/tenant/tasks', {
+      const res = await fetch('/api/tenant/tasks', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           title: taskForm.title,
           description: taskForm.description,
@@ -190,11 +209,17 @@ export function TaskManagement() {
           dueDate: taskForm.dueDate || undefined,
         })
       })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to create task')
+        return
+      }
       setCreateTaskOpen(false)
       resetTaskForm()
       fetchData()
-    } catch (error) {
-      console.error('Error creating task:', error)
+    } catch (err) {
+      console.error('Error creating task:', err)
+      setError('Failed to create task. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -203,14 +228,11 @@ export function TaskManagement() {
   const handleCreateSquad = async () => {
     if (!squadForm.squadName.trim() || !squadForm.owner.trim()) return
     setSubmitting(true)
-    const tenantId = fetchTenantId()
+    setError(null)
     try {
-      await fetch('/api/tenant/tasks/squads', {
+      const res = await fetch('/api/tenant/tasks/squads', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           squadName: squadForm.squadName,
           owner: squadForm.owner,
@@ -218,11 +240,17 @@ export function TaskManagement() {
           risk: squadForm.risk,
         })
       })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to create squad')
+        return
+      }
       setCreateSquadOpen(false)
       resetSquadForm()
       fetchData()
-    } catch (error) {
-      console.error('Error creating squad:', error)
+    } catch (err) {
+      console.error('Error creating squad:', err)
+      setError('Failed to create squad. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -231,14 +259,11 @@ export function TaskManagement() {
   const handleCreateWorkstream = async () => {
     if (!workstreamForm.label.trim()) return
     setSubmitting(true)
-    const tenantId = fetchTenantId()
+    setError(null)
     try {
-      await fetch('/api/tenant/tasks/workstreams', {
+      const res = await fetch('/api/tenant/tasks/workstreams', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           label: workstreamForm.label,
           nextMilestone: workstreamForm.nextMilestone || undefined,
@@ -246,11 +271,17 @@ export function TaskManagement() {
           blockers: 0,
         })
       })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to create workstream')
+        return
+      }
       setCreateWorkstreamOpen(false)
       resetWorkstreamForm()
       fetchData()
-    } catch (error) {
-      console.error('Error creating workstream:', error)
+    } catch (err) {
+      console.error('Error creating workstream:', err)
+      setError('Failed to create workstream. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -258,27 +289,29 @@ export function TaskManagement() {
 
   const handleSendDigest = async () => {
     setDigestSending(true)
-    const tenantId = fetchTenantId()
+    setError(null)
     try {
-      // Create a notification digest for each squad owner
       const squadMessages = squads.map(s =>
         `${s.squad_name}: ${s.task_count} tasks • Risk: ${s.risk} • Focus: ${s.focus || 'N/A'}`
       ).join('\n')
 
-      await fetch('/api/tenant/tasks/notifications', {
+      const res = await fetch('/api/tenant/tasks/notifications', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           title: 'Squad Digest',
           message: `Weekly squad digest:\n\n${squadMessages}`,
           type: 'info',
         })
       })
-    } catch (error) {
-      console.error('Error sending digest:', error)
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to send digest')
+        return
+      }
+    } catch (err) {
+      console.error('Error sending digest:', err)
+      setError('Failed to send digest. Please try again.')
     } finally {
       setDigestSending(false)
     }
@@ -290,10 +323,17 @@ export function TaskManagement() {
       alert('No upcoming deadlines to export')
       return
     }
+    const escapeCsv = (value: string) => {
+      const str = String(value ?? '')
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
     const csv = [
       'Title,Owner,Due Date,Priority,Status',
       ...upcoming.map(t =>
-        `"${t.title}","${t.assigned_to_name || t.assigned_to || 'Unassigned'}","${t.due_date ? new Date(t.due_date).toLocaleDateString() : ''}","${t.priority}","${t.status}"`
+        `${escapeCsv(t.title)},${escapeCsv(t.assigned_to_name || t.assigned_to || 'Unassigned')},${escapeCsv(t.due_date ? new Date(t.due_date).toLocaleDateString() : '')},${escapeCsv(t.priority)},${escapeCsv(t.status)}`
       ),
     ].join('\n')
 
@@ -322,6 +362,12 @@ export function TaskManagement() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p>{error}</p>
+          <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-red-700 hover:bg-red-100" onClick={() => setError(null)}>Dismiss</Button>
+        </div>
+      )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Notifications & tasks</p>

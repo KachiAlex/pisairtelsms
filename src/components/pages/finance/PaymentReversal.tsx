@@ -6,6 +6,7 @@ import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
+import { financeApiGet } from '../../../lib/financeApi';
 
 interface Payment {
   id: string;
@@ -50,7 +51,7 @@ export function PaymentReversal({ onClose }: PaymentReversalProps) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/tenant/finance/payments?status=verified,reconciled');
+        const response = await financeApiGet('/api/tenant/finance/payments?status=verified,reconciled');
         if (!response.ok) {
           throw new Error('Failed to fetch payments');
         }

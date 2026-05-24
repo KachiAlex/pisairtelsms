@@ -9,7 +9,17 @@ function methodNotAllowed(res: VercelResponse) {
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
+function getTenantId(req: VercelRequest): string | null {
+  const tenantId = req.headers['x-tenant-id'] as string | undefined
+  return tenantId || null
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const tenantId = getTenantId(req)
+  if (!tenantId) {
+    return res.status(400).json({ error: 'x-tenant-id header is required' })
+  }
+
   const { entityId } = req.query
 
   if (req.method !== 'GET') {

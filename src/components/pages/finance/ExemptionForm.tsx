@@ -4,6 +4,7 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
+import { financeApiPost } from '../../../lib/financeApi';
 
 interface ExemptionFormProps {
   studentId: string;
@@ -66,22 +67,15 @@ export function ExemptionForm({
 
     setLoading(true);
     try {
-      const response = await fetch('/api/tenant/finance/fee-assignments/exemptions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          studentId,
-          feeAssignmentId,
-          exemptionType,
-          amount: exemptionMethod === 'fixed' ? parseFloat(amount) : null,
-          percentage: exemptionMethod === 'percentage' ? parseFloat(percentage) : null,
-          reason,
-          approvedBy: 'current_user', // In real app, get from auth context
-          effectiveFrom,
-          effectiveTo: effectiveTo || null,
-        }),
+      const response = await financeApiPost(`/api/tenant/finance/fee-assignments/${feeAssignmentId}/exemptions`, {
+        studentId,
+        exemptionType,
+        amount: exemptionMethod === 'fixed' ? parseFloat(amount) : null,
+        percentage: exemptionMethod === 'percentage' ? parseFloat(percentage) : null,
+        reason,
+        approvedBy: 'current_user', // In real app, get from auth context
+        effectiveFrom,
+        effectiveTo: effectiveTo || null,
       });
 
       if (!response.ok) {

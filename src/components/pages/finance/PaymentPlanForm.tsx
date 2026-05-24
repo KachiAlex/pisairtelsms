@@ -4,6 +4,7 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Card, CardContent } from '../../ui/card';
+import { financeApiPost } from '../../../lib/financeApi';
 
 interface PaymentPlanFormProps {
   feeAssignmentId: string;
@@ -58,18 +59,12 @@ export function PaymentPlanForm({
 
     setLoading(true);
     try {
-      const response = await fetch('/api/tenant/finance/payment-plans', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          feeAssignmentId,
-          numberOfInstallments: parseInt(numberOfInstallments),
-          installmentAmount: parseFloat(installmentAmount),
-          startDate,
-          createdBy: 'current_user', // In real app, get from auth context
-        }),
+      const response = await financeApiPost('/api/tenant/finance/payment-plans', {
+        feeAssignmentId,
+        numberOfInstallments: parseInt(numberOfInstallments),
+        installmentAmount: parseFloat(installmentAmount),
+        startDate,
+        createdBy: 'current_user', // In real app, get from auth context
       });
 
       if (!response.ok) {

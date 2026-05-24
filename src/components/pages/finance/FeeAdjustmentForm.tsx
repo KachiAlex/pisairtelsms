@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../ui/table';
+import { financeApiPost } from '../../../lib/financeApi';
 
 interface FeeAssignment {
   id: string;
@@ -89,18 +90,12 @@ export function FeeAdjustmentForm({
 
     setLoading(true);
     try {
-      const response = await fetch('/api/tenant/finance/fee-adjustments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          feeAssignmentId: selectedFeeAssignment,
-          adjustmentType,
-          amount: parseFloat(amount),
-          reason,
-          requiresApproval,
-        }),
+      const response = await financeApiPost('/api/tenant/finance/fee-adjustments', {
+        feeAssignmentId: selectedFeeAssignment,
+        adjustmentType,
+        amount: parseFloat(amount),
+        reason,
+        requiresApproval,
       });
 
       if (!response.ok) {

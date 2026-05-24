@@ -5,6 +5,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { Card, CardContent } from '../../ui/card';
+import { financeApiGet, financeApiPost } from '../../../lib/financeApi';
 
 interface FeeItem {
   id: string;
@@ -42,7 +43,7 @@ export function PaymentForm({
       const fetchFeeItems = async () => {
         setLoadingFees(true);
         try {
-          const response = await fetch(`/api/tenant/finance/fee-assignments/${feeAssignmentId}/ledger`);
+          const response = await financeApiGet(`/api/tenant/finance/fee-assignments/${feeAssignmentId}/ledger`);
           if (response.ok) {
             const data = await response.json();
             setFeeItems(data.data?.feeItems || []);
@@ -77,19 +78,13 @@ export function PaymentForm({
 
     setLoading(true);
     try {
-      const response = await fetch('/api/tenant/finance/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          feeAssignmentId,
-          amount: parseFloat(amount),
-          paymentMethod,
-          referenceNumber,
-          notes: notes || null,
-          recordedBy: 'current_user', // In real app, get from auth context
-        }),
+      const response = await financeApiPost('/api/tenant/finance/payments', {
+        feeAssignmentId,
+        amount: parseFloat(amount),
+        paymentMethod,
+        referenceNumber,
+        notes: notes || null,
+        recordedBy: 'current_user', // In real app, get from auth context
       });
 
       if (!response.ok) {

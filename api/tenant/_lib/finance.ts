@@ -79,6 +79,7 @@ export async function ensureFinanceTable(): Promise<void> {
     await sql`
       CREATE TABLE IF NOT EXISTS fee_records (
         id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
         student_id TEXT NOT NULL,
         student_name TEXT NOT NULL,
         admission_no TEXT NOT NULL,
@@ -95,6 +96,7 @@ export async function ensureFinanceTable(): Promise<void> {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `
+    await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_tenant ON fee_records(tenant_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_student_id ON fee_records(student_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_session_term ON fee_records(academic_session, term)`
     await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_class ON fee_records(class)`
@@ -104,6 +106,7 @@ export async function ensureFinanceTable(): Promise<void> {
 }
 
 export async function fetchFeeRecords(
+  tenantId: string,
   academicSession?: string,
   term?: string,
   className?: string
@@ -113,19 +116,21 @@ export async function fetchFeeRecords(
     if (academicSession && term && className) {
       const result = await sql<FeeRow>`
         SELECT * FROM fee_records
-        WHERE academic_session = ${academicSession} AND term = ${term} AND class = ${className}
+        WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession} AND term = ${term} AND class = ${className}
         ORDER BY created_at DESC
       `
       return result.rows.map(rowToFeeRecord)
     } else if (academicSession && term) {
       const result = await sql<FeeRow>`
         SELECT * FROM fee_records
-        WHERE academic_session = ${academicSession} AND term = ${term}
+        WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession} AND term = ${term}
         ORDER BY created_at DESC
       `
       return result.rows.map(rowToFeeRecord)
     } else {
-      const result = await sql<FeeRow>`SELECT * FROM fee_records ORDER BY created_at DESC`
+      const result = await sql<FeeRow>`
+        SELECT * FROM fee_records WHERE tenant_id = ${tenantId} ORDER BY created_at DESC
+      `
       return result.rows.map(rowToFeeRecord)
     }
   } catch (error) {
@@ -134,14 +139,14 @@ export async function fetchFeeRecords(
   }
 }
 
-export async function createFeeRecord(payload: FeeRecordPayload): Promise<FeeRecord> {
+export async function createFeeRecord(tenantId: string, payload: FeeRecordPayload): Promise<FeeRecord> {
   await ensureFinanceTable()
   const id = `fee_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const result = await sql<FeeRow>`
     INSERT INTO fee_records
-      (id, student_id, student_name, admission_no, class, fee_type, amount, paid, balance, status, academic_session, term)
+      (id, tenant_id, student_id, student_name, admission_no, class, fee_type, amount, paid, balance, status, academic_session, term)
     VALUES
-      (${id}, ${payload.studentId}, ${payload.studentName}, ${payload.admissionNo},
+      (${id}, ${tenantId}, ${payload.studentId}, ${payload.studentName}, ${payload.admissionNo},
        ${payload.class}, ${payload.feeType}, ${payload.amount}, 0, ${payload.amount}, 'pending',
        ${payload.academicSession}, ${payload.term})
     RETURNING *
@@ -149,11 +154,13 @@ export async function createFeeRecord(payload: FeeRecordPayload): Promise<FeeRec
   return rowToFeeRecord(result.rows[0])
 }
 
-export async function recordPayment(payload: PaymentPayload): Promise<FeeRecord> {
+export async function recordPayment(tenantId: string, payload: PaymentPayload): Promise<FeeRecord> {
   await ensureFinanceTable()
 
-  // Fetch current record
-  const current = await sql<FeeRow>`SELECT * FROM fee_records WHERE id = ${payload.feeRecordId}`
+  // Fetch current record scoped to tenant
+  const current = await sql<FeeRow>`
+    SELECT * FROM fee_records WHERE id = ${payload.feeRecordId} AND tenant_id = ${tenantId}
+  `
   if (current.rows.length === 0) throw new Error('Fee record not found')
 
   const record = current.rows[0]
@@ -168,7 +175,7 @@ export async function recordPayment(payload: PaymentPayload): Promise<FeeRecord>
         status = ${newStatus},
         last_payment_date = NOW(),
         updated_at = NOW()
-    WHERE id = ${payload.feeRecordId}
+    WHERE id = ${payload.feeRecordId} AND tenant_id = ${tenantId}
     RETURNING *
   `
   return rowToFeeRecord(result.rows[0])

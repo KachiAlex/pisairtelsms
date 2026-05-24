@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '../../ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
+import { financeApiGet, financeApiFetch } from '../../../lib/financeApi';
 
 interface UnmatchedTransaction {
   id: string;
@@ -56,7 +57,7 @@ export function Reconciliation() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/tenant/finance/reconciliation/unmatched');
+      const response = await financeApiGet('/api/tenant/finance/reconciliation/unmatched');
       if (!response.ok) {
         throw new Error('Failed to fetch reconciliation data');
       }
@@ -84,7 +85,7 @@ export function Reconciliation() {
     setMatching(true);
     setError(null);
     try {
-      const response = await fetch('/api/tenant/finance/reconciliation/match', {
+      const response = await financeApiFetch('/api/tenant/finance/reconciliation/match', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -119,7 +120,7 @@ export function Reconciliation() {
     setMatching(true);
     setError(null);
     try {
-      const response = await fetch('/api/tenant/finance/reconciliation/bulk-match', {
+      const response = await financeApiFetch('/api/tenant/finance/reconciliation/bulk-match', {
         method: 'POST',
         body: formData,
       });

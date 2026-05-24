@@ -20,7 +20,17 @@ function parseBody(req: VercelRequest) {
 // Mock database for exemptions
 const exemptionsDb: Record<string, any[]> = {}
 
+function getTenantId(req: VercelRequest): string | null {
+  const tenantId = req.headers['x-tenant-id'] as string | undefined
+  return tenantId || null
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const tenantId = getTenantId(req)
+  if (!tenantId) {
+    return res.status(400).json({ error: 'x-tenant-id header is required' })
+  }
+
   const { feeAssignmentId, exemptionId, action } = req.query
 
   // GET /api/tenant/finance/fee-assignments/:feeAssignmentId/exemptions

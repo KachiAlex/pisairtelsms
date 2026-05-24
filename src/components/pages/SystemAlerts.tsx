@@ -1,5 +1,5 @@
-import React from 'react'
-import { AlertTriangle, BellRing, Shield, Radar, Database, RefreshCcw, Activity, Server, CalendarClock, PhoneCall } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { AlertTriangle, BellRing, Shield, Radar, Database, RefreshCcw, Activity, Server, CalendarClock, PhoneCall, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -7,29 +7,39 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
 
-const alertFeed = [
-  { id: 'ALT-411', title: 'Portal latency spike', impact: 'Parent portal > 2.6s', owner: 'Engineering', severity: 'high', eta: 'Mitigation 20 mins' },
-  { id: 'ALT-409', title: 'CBT lab battery low', impact: '18 terminals affected', owner: 'Facilities', severity: 'medium', eta: 'Replace 4 PM' },
-  { id: 'ALT-404', title: 'SMS vendor maintenance', impact: 'SMS queue delayed 15 mins', owner: 'Vendor Ops', severity: 'low', eta: 'Normal 6 PM' },
-]
+interface SystemAlert {
+  id: string
+  title: string
+  impact: string | null
+  owner: string | null
+  severity: string
+  eta: string | null
+  status: string
+}
 
-const channelHealth = [
-  { channel: 'Email', status: 'Operational', latency: 'Normal', uptime: 99.9 },
-  { channel: 'SMS', status: 'Degraded', latency: '+12 mins', uptime: 98.1 },
-  { channel: 'In-app', status: 'Operational', latency: 'Normal', uptime: 99.7 },
-]
+interface ChannelHealth {
+  id: string
+  channel: string
+  status: string
+  latency: string | null
+  uptime: number
+}
 
-const maintenanceTimeline = [
-  { id: 'MT-91', label: 'Database patch window', window: 'Tonight 11 PM', owner: 'Data Ops', status: 'Scheduled' },
-  { id: 'MT-88', label: 'Network switch upgrade', window: 'Fri 2 AM', owner: 'Infrastructure', status: 'Planned' },
-]
+interface MaintenanceWindow {
+  id: string
+  label: string
+  window_start: string
+  window_end: string
+  owner: string
+  status: string
+}
 
-const incidentMetrics = [
-  { label: 'Open incidents', value: 4, tone: 'text-rose-600' },
-  { label: 'Resolved today', value: 7, tone: 'text-emerald-600' },
-  { label: 'Avg. MTTR', value: '38 mins', tone: 'text-gray-900' },
-  { label: 'Pager duty coverage', value: '100%', tone: 'text-gray-900' },
-]
+interface IncidentMetrics {
+  openIncidents: number
+  resolvedToday: number
+  avgMttr: string
+  pagerDutyCoverage: string
+}
 
 const severityVariant: Record<string, 'default' | 'warning' | 'destructive'> = {
   low: 'default',
@@ -38,6 +48,83 @@ const severityVariant: Record<string, 'default' | 'warning' | 'destructive'> = {
 }
 
 export function SystemAlerts() {
+  const [loading, setLoading] = useState(true)
+  const [metrics, setMetrics] = useState<IncidentMetrics | null>(null)
+  const [alerts, setAlerts] = useState<SystemAlert[]>([])
+  const [channelHealth, setChannelHealth] = useState<ChannelHealth[]>([])
+  const [maintenanceWindows, setMaintenanceWindows] = useState<MaintenanceWindow[]>([])
+
+  const fetchTenantId = () => {
+    return localStorage.getItem('tenantId') || 'default-tenant'
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    const tenantId = fetchTenantId()
+    
+    try {
+      // Fetch metrics
+      const metricsRes = await fetch(`/api/tenant/alerts/statistics/summary?tenantId=${tenantId}`)
+      const metricsData = await metricsRes.json()
+      if (metricsData.success) setMetrics(metricsData.data)
+
+      // Fetch alerts
+      const alertsRes = await fetch(`/api/tenant/alerts?tenantId=${tenantId}&limit=10`)
+      const alertsData = await alertsRes.json()
+      if (alertsData.success) setAlerts(alertsData.data)
+
+      // Fetch channel health
+      const channelsRes = await fetch(`/api/tenant/alerts/channels?tenantId=${tenantId}`)
+      const channelsData = await channelsRes.json()
+      if (channelsData.success) setChannelHealth(channelsData.data)
+
+      // Fetch maintenance windows
+      const maintenanceRes = await fetch(`/api/tenant/alerts/maintenance?tenantId=${tenantId}`)
+      const maintenanceData = await maintenanceRes.json()
+      if (maintenanceData.success) setMaintenanceWindows(maintenanceData.data)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const handleRefreshTelemetry = () => {
+    fetchData()
+  }
+
+  const handleBroadcastAlert = () => {
+    alert('Broadcast alert functionality')
+  }
+
+  const handleRunDiagnostics = () => {
+    alert('Running diagnostics...')
+  }
+
+  const handlePublishMaintenance = () => {
+    alert('Publish maintenance notice')
+  }
+
+  const handleUpdateContacts = () => {
+    alert('Update escalation contacts')
+  }
+
+  const handleActivatePreemptive = () => {
+    alert('Pre-emptive mode activated')
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -47,25 +134,44 @@ export function SystemAlerts() {
           <p className="text-sm text-gray-600">Observe realtime platform health, escalation queues, and maintenance windows.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleRefreshTelemetry}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh telemetry
           </Button>
-          <Button>
+          <Button onClick={handleBroadcastAlert}>
             <BellRing className="h-4 w-4 mr-2" /> Broadcast alert
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        {incidentMetrics.map((metric) => (
-          <Card key={metric.label}>
-            <CardContent className="p-4">
-              <p className="text-xs uppercase tracking-wide text-gray-500">{metric.label}</p>
-              <p className={`text-3xl font-semibold ${metric.tone}`}>{metric.value}</p>
-              <p className="text-xs text-gray-500">Live snapshot</p>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Open incidents</p>
+            <p className="text-3xl font-semibold text-rose-600">{metrics?.openIncidents || 0}</p>
+            <p className="text-xs text-gray-500">Live snapshot</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Resolved today</p>
+            <p className="text-3xl font-semibold text-emerald-600">{metrics?.resolvedToday || 0}</p>
+            <p className="text-xs text-gray-500">Live snapshot</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Avg. MTTR</p>
+            <p className="text-3xl font-semibold text-gray-900">{metrics?.avgMttr || '0 mins'}</p>
+            <p className="text-xs text-gray-500">Live snapshot</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Pager duty coverage</p>
+            <p className="text-3xl font-semibold text-gray-900">{metrics?.pagerDutyCoverage || '0%'}</p>
+            <p className="text-xs text-gray-500">Live snapshot</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -74,21 +180,25 @@ export function SystemAlerts() {
             <CardTitle>Active alerts</CardTitle>
             <CardDescription>Prioritized incidents with owner accountability.</CardDescription>
           </div>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={handleRunDiagnostics}>
             <Shield className="h-4 w-4 mr-2" /> Run diagnostics
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
-          {alertFeed.map((alert) => (
-            <div key={alert.id} className="rounded-2xl border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-1">
-                <p className="font-medium text-gray-900">{alert.title}</p>
-                <Badge variant={severityVariant[alert.severity]}>Severity: {alert.severity}</Badge>
+          {alerts.length === 0 ? (
+            <p className="text-sm text-gray-500">No active alerts</p>
+          ) : (
+            alerts.map((alert) => (
+              <div key={alert.id} className="rounded-2xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium text-gray-900">{alert.title}</p>
+                  <Badge variant={alert.severity === 'high' ? 'destructive' : alert.severity === 'medium' ? 'warning' : 'default'}>Severity: {alert.severity}</Badge>
+                </div>
+                <p className="text-sm text-gray-500">Impact: {alert.impact || 'N/A'}</p>
+                <p className="text-xs text-gray-400">Owner: {alert.owner || 'Unassigned'} • ETA {alert.eta || 'TBD'}</p>
               </div>
-              <p className="text-sm text-gray-500">Impact: {alert.impact}</p>
-              <p className="text-xs text-gray-400">Owner: {alert.owner} • ETA {alert.eta}</p>
-            </div>
-          ))}
+            ))
+          )}
           <Button variant="outline" size="sm" className="w-full">
             <AlertTriangle className="h-4 w-4 mr-2" /> Open incident report
           </Button>
@@ -111,21 +221,27 @@ export function SystemAlerts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {channelHealth.map((channel) => (
-                <TableRow key={channel.channel}>
-                  <TableCell className="font-medium text-gray-900">{channel.channel}</TableCell>
-                  <TableCell>{channel.status}</TableCell>
-                  <TableCell>{channel.latency}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24">
-                        <Progress value={channel.uptime} />
-                      </div>
-                      <span className="text-sm text-gray-600">{channel.uptime}%</span>
-                    </div>
-                  </TableCell>
+              {channelHealth.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-gray-500">No channel data available</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                channelHealth.map((channel) => (
+                  <TableRow key={channel.id}>
+                    <TableCell className="font-medium text-gray-900">{channel.channel}</TableCell>
+                    <TableCell>{channel.status}</TableCell>
+                    <TableCell>{channel.latency || 'Normal'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24">
+                          <Progress value={channel.uptime} />
+                        </div>
+                        <span className="text-sm text-gray-600">{channel.uptime.toFixed(1)}%</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -138,16 +254,20 @@ export function SystemAlerts() {
             <CardDescription>Future windows automatically notify stakeholders.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {maintenanceTimeline.map((item) => (
-              <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
-                <div>
-                  <p className="font-medium text-gray-900">{item.label}</p>
-                  <p className="text-sm text-gray-500">Window: {item.window}</p>
+            {maintenanceWindows.length === 0 ? (
+              <p className="text-sm text-gray-500">No scheduled maintenance</p>
+            ) : (
+              maintenanceWindows.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
+                  <div>
+                    <p className="font-medium text-gray-900">{item.label}</p>
+                    <p className="text-sm text-gray-500">Window: {new Date(item.window_start).toLocaleString()} - {new Date(item.window_end).toLocaleString()}</p>
+                  </div>
+                  <Badge variant={item.status === 'completed' ? 'default' : 'secondary'}>{item.status}</Badge>
                 </div>
-                <Badge variant="secondary">{item.status}</Badge>
-              </div>
-            ))}
-            <Button variant="ghost" size="sm" className="w-full">
+              ))
+            )}
+            <Button variant="ghost" size="sm" className="w-full" onClick={handlePublishMaintenance}>
               <Server className="h-4 w-4 mr-2" /> Publish maintenance notice
             </Button>
           </CardContent>
@@ -180,7 +300,7 @@ export function SystemAlerts() {
               </div>
               <Badge variant="secondary">Queued</Badge>
             </div>
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={handleUpdateContacts}>
               <PhoneCall className="h-4 w-4 mr-2" /> Update contacts
             </Button>
           </CardContent>
@@ -192,7 +312,7 @@ export function SystemAlerts() {
           <Radar className="h-5 w-5" />
           <p>Enable proactive anomaly scanning to warn stakeholders before parents notice system slowdowns.</p>
         </div>
-        <Button size="sm">
+        <Button size="sm" onClick={handleActivatePreemptive}>
           <Activity className="h-4 w-4 mr-2" /> Activate pre-emptive mode
         </Button>
       </div>

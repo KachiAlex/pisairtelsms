@@ -5,6 +5,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
+import { financeApiPost } from '../../../lib/financeApi';
 
 interface PaymentRecord {
   studentId: string;
@@ -148,14 +149,8 @@ export function BulkPaymentUpload({ onSuccess }: BulkPaymentUploadProps) {
     setSuccess(null);
 
     try {
-      const response = await fetch('/api/tenant/finance/payments/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          payments: preview,
-        }),
+      const response = await financeApiPost('/api/tenant/finance/payments?action=bulk', {
+        payments: preview,
       });
 
       if (!response.ok) {

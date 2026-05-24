@@ -57,6 +57,14 @@ model Tenant {
   reminders             Reminder[]
   workstreams           Workstream[]
   squadAssignments      SquadAssignment[]
+  systemAlerts          SystemAlert[]
+  channelHealth         ChannelHealth[]
+  maintenanceWindows    MaintenanceWindow[]
+  escalationChannels    EscalationChannel[]
+  approvalRequests     ApprovalRequest[]
+  approvalStreams       ApprovalStream[]
+  slaBreaches           SlaBreach[]
+  reviewerWorkloads     ReviewerWorkload[]
 
   @@map("tenants")
 }
@@ -978,4 +986,158 @@ model SquadAssignment {
   @@index([tenantId])
   @@index([squadName])
   @@map("squad_assignments")
+}
+
+// ============================================================================
+// System Alerts & Approvals Models
+// ============================================================================
+
+model SystemAlert {
+  id          String   @id @default(cuid())
+  tenantId    String
+  title       String
+  impact      String?
+  owner       String?
+  severity    String   @default("medium") // 'low', 'medium', 'high'
+  eta         String?
+  status      String   @default("active") // 'active', 'resolved', 'acknowledged'
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([severity])
+  @@index([status])
+  @@map("system_alerts")
+}
+
+model ChannelHealth {
+  id           String   @id @default(cuid())
+  tenantId     String
+  channel      String
+  status       String   @default("operational") // 'operational', 'degraded', 'down'
+  latency      String?
+  uptime       Float    @default(99.9)
+  lastChecked  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([channel])
+  @@index([status])
+  @@map("channel_health")
+}
+
+model MaintenanceWindow {
+  id           String   @id @default(cuid())
+  tenantId     String
+  label        String
+  windowStart  DateTime
+  windowEnd    DateTime
+  owner        String
+  status       String   @default("scheduled") // 'scheduled', 'in_progress', 'completed', 'cancelled'
+  notified     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([windowStart])
+  @@map("maintenance_windows")
+}
+
+model EscalationChannel {
+  id               String   @id @default(cuid())
+  tenantId         String
+  channelName      String
+  description      String?
+  primaryOnCall    String?
+  triggerCondition String?
+  status           String   @default("active") // 'active', 'degraded', 'inactive'
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("escalation_channels")
+}
+
+model ApprovalRequest {
+  id              String   @id @default(cuid())
+  tenantId        String
+  type            String
+  requester       String
+  submittedAt     DateTime @default(now())
+  slaDeadline     DateTime?
+  status          String   @default("pending") // 'pending', 'in_review', 'approved', 'rejected', 'escalated', 'queued'
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([type])
+  @@index([slaDeadline])
+  @@map("approval_requests")
+}
+
+model ApprovalStream {
+  id        String   @id @default(cuid())
+  tenantId  String
+  surface   String
+  owner     String
+  slaHours  Int
+  risk      String   @default("low") // 'low', 'medium', 'high'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([surface])
+  @@map("approval_streams")
+}
+
+model SlaBreach {
+  id            String   @id @default(cuid())
+  tenantId      String
+  label         String
+  owner         String
+  severity      String   @default("warning") // 'warning', 'destructive'
+  breachMinutes Int?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([severity])
+  @@map("sla_breaches")
+}
+
+model ReviewerWorkload {
+  id          String   @id @default(cuid())
+  tenantId    String
+  reviewer    String
+  pendingCount Int      @default(0)
+  eta         String?
+  lastUpdated DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([reviewer])
+  @@map("reviewer_workloads")
 }

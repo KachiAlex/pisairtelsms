@@ -5,6 +5,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
+import { financeApiGet } from '../../../lib/financeApi';
 
 interface Receipt {
   id: string;
@@ -38,7 +39,7 @@ export function ReceiptGenerator({ onClose }: ReceiptGeneratorProps) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/tenant/finance/payments');
+        const response = await financeApiGet('/api/tenant/finance/payments');
         if (!response.ok) {
           throw new Error('Failed to fetch receipts');
         }

@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { financeApiGet } from '../../lib/financeApi';
 import {
   Table,
   TableBody,
@@ -72,7 +73,7 @@ export function FinanceManagement() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/tenant/finance');
+      const response = await financeApiGet('/api/tenant/finance');
       if (!response.ok) {
         throw new Error('Failed to fetch fee records');
       }

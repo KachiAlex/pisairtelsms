@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '../../ui/table';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { financeApiGet } from '../../../lib/financeApi';
 
 interface CollectionSummary {
   target: number;
@@ -60,7 +61,7 @@ export function Dashboard({ onRecordPayment, onSendReminder, onViewDefaulters }:
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/tenant/finance/reports?report=collection-summary');
+      const response = await financeApiGet('/api/tenant/finance/reports?report=collection-summary');
       if (!response.ok) {
         throw new Error('Failed to fetch collection summary');
       }

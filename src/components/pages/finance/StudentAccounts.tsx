@@ -69,7 +69,7 @@ export function StudentAccounts({
     setLoading(true);
     setError(null);
     try {
-      const studentsResponse = await fetch('/api/tenant/students');
+      const studentsResponse = await financeApiGet('/api/tenant/students');
       if (!studentsResponse.ok) {
         throw new Error('Failed to fetch students');
       }

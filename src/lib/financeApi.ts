@@ -2,7 +2,20 @@
  * Finance API utility functions with tenant header support
  */
 
-const TENANT_ID = 'default-tenant';
+function getTenantId(): string {
+  if (typeof window !== 'undefined') {
+    const auth = localStorage.getItem('auth')
+    if (auth) {
+      try {
+        const parsed = JSON.parse(auth)
+        if (parsed.tenantId) return parsed.tenantId
+      } catch { /* ignore */ }
+    }
+    const tenantId = localStorage.getItem('tenantId')
+    if (tenantId) return tenantId
+  }
+  return 'default-tenant'
+}
 
 interface FetchOptions extends RequestInit {
   headers?: Record<string, string>;
@@ -13,7 +26,7 @@ export async function financeApiFetch(
   options: FetchOptions = {}
 ): Promise<Response> {
   const headers = {
-    'x-tenant-id': TENANT_ID,
+    'x-tenant-id': getTenantId(),
     ...options.headers,
   };
 

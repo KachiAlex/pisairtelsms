@@ -14,11 +14,22 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
+function getTenantId(req: VercelRequest): string | null {
+  return (req.headers['x-tenant-id'] as string) || null
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const tenantId = getTenantId(req)
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'x-tenant-id header is required' })
+  }
+
   if (req.method === 'GET') {
     const { academicSession, term, class: className } = req.query
     try {
       const records = await fetchFeeRecords(
+        tenantId,
         academicSession as string | undefined,
         term as string | undefined,
         className as string | undefined
@@ -44,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'amountPaid must be greater than 0' })
       }
       try {
-        const updated = await recordPayment({ feeRecordId, amountPaid: Number(amountPaid), paymentMethod, transactionRef })
+        const updated = await recordPayment(tenantId, { feeRecordId, amountPaid: Number(amountPaid), paymentMethod, transactionRef })
         return res.status(200).json({ data: updated })
       } catch (error: any) {
         if (error.message === 'Fee record not found') return res.status(404).json({ error: 'Fee record not found' })
@@ -69,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const payload: FeeRecordPayload = { studentId, studentName, admissionNo, class: className, feeType, amount: Number(amount), academicSession, term }
-      const record = await createFeeRecord(payload)
+      const record = await createFeeRecord(tenantId, payload)
       return res.status(201).json({ data: record })
     } catch (error) {
       console.error('Error creating fee record:', error)

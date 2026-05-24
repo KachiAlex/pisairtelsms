@@ -123,12 +123,12 @@ export async function createOrLinkParent(payload: CreateOrLinkParentPayload): Pr
 }
 
 /**
- * Fetch parent count with phone for a tenant
+ * Fetch parent count for a tenant
  */
 export async function fetchParentCount(tenantId: string): Promise<number> {
   try {
     const row = await queryOne<{ count: string }>(
-      `SELECT COUNT(*) as count FROM parents WHERE tenant_id = $1 AND phone IS NOT NULL AND phone <> ''`,
+      `SELECT COUNT(*) as count FROM parents WHERE tenant_id = $1`,
       [tenantId]
     );
     return parseInt(row?.count || '0', 10);

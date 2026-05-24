@@ -340,7 +340,7 @@ export async function ensureStaffTables(): Promise<void> {
 export async function fetchStaffCount(): Promise<number> {
   await ensureStaffTables()
   try {
-    const result = await sql<{ count: string }>`SELECT COUNT(*) as count FROM staff WHERE phone IS NOT NULL AND phone <> ''`
+    const result = await sql<{ count: string }>`SELECT COUNT(*) as count FROM staff`
     return parseInt(result.rows[0]?.count || '0', 10)
   } catch (error) {
     console.error('Error fetching staff count:', error)

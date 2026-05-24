@@ -77,12 +77,11 @@ interface AudienceSegment {
   count: number
 }
 
-const TENANT_ID = (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
-
 function tenantHeaders(): Record<string, string> {
+  const tenantId = (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
   return {
     'Content-Type': 'application/json',
-    'x-tenant-id': TENANT_ID,
+    'x-tenant-id': tenantId,
   }
 }
 

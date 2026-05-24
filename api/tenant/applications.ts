@@ -41,21 +41,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Request body is required' })
     }
 
-    const required = ['studentName', 'parentName', 'contactPhone', 'contactEmail', 'classApplying']
-    const missing = required.filter(f => !body[f])
+    // Support both nested { application: {...} } (from frontend client) and flat payload
+    const data = body.application || body
+
+    // Map frontend field names to backend field names
+    const studentName = data.studentName || data.fullName || ''
+    const parentName = data.parentName || (Array.isArray(data.parentNames) ? data.parentNames[0] : data.parentNames) || ''
+    const contactPhone = data.contactPhone || (Array.isArray(data.phones) ? data.phones[0] : data.phones) || ''
+    const contactEmail = data.contactEmail || data.email || ''
+    const classApplying = data.classApplying || ''
+
+    // Only truly mandatory fields
+    const missing: string[] = []
+    if (!studentName.trim()) missing.push('studentName')
+    if (!classApplying.trim()) missing.push('classApplying')
+
     if (missing.length > 0) {
       return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` })
     }
 
     try {
       const payload: ApplicationPayload = {
-        studentName: body.studentName,
-        parentName: body.parentName,
-        contactPhone: body.contactPhone,
-        contactEmail: body.contactEmail,
-        classApplying: body.classApplying,
-        academicSession: body.academicSession,
-        source: body.source,
+        studentName,
+        parentName,
+        contactPhone,
+        contactEmail,
+        classApplying,
+        academicSession: data.academicSession,
+        source: data.source,
       }
       const created = await createApplication(payload)
       return res.status(201).json({ data: created })

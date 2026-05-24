@@ -37,16 +37,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { studentName, parentName, contactPhone, contactEmail, classInterested, source, status } = body
 
-    const missingFields: string[] = []
-    if (!studentName) missingFields.push('studentName')
-    if (!parentName) missingFields.push('parentName')
-    if (!contactPhone) missingFields.push('contactPhone')
-    if (!contactEmail) missingFields.push('contactEmail')
-
-    if (missingFields.length > 0) {
+    // Only studentName is truly mandatory
+    if (!studentName || !String(studentName).trim()) {
       return res.status(400).json({
-        error: 'Missing required fields',
-        details: Object.fromEntries(missingFields.map(f => [f, `${f} is required`])),
+        error: 'Missing required field',
+        details: { studentName: 'studentName is required' },
       })
     }
 
@@ -54,10 +49,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const id = `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       const result = await createLead({
         id,
-        studentName,
-        parentName,
-        contactPhone,
-        contactEmail,
+        studentName: String(studentName).trim(),
+        parentName: parentName ? String(parentName).trim() : '',
+        contactPhone: contactPhone ? String(contactPhone).trim() : '',
+        contactEmail: contactEmail ? String(contactEmail).trim() : '',
         classInterested: classInterested || '',
         source: source || 'website',
         status: status || 'new',

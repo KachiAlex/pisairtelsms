@@ -18,7 +18,7 @@ export async function ensureLeadTable() {
       CREATE TABLE IF NOT EXISTS leads (
         id VARCHAR(255) PRIMARY KEY,
         student_name VARCHAR(255) NOT NULL,
-        parent_name VARCHAR(255) NOT NULL,
+        parent_name VARCHAR(255),
         contact_phone VARCHAR(255),
         contact_email VARCHAR(255),
         class_interested VARCHAR(255),

@@ -8,7 +8,7 @@ function getTenantId(req: VercelRequest): string {
   return (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<VercelResponse> {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ error: 'Method not allowed' })
@@ -24,6 +24,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       fetchParentCount(tenantId),
       fetchStaffCount(),
     ])
+
+    console.log(`[audiences] tenant=${tenantId} students=${studentCount} parents=${parentCount} staff=${staffCount}`)
 
     const allCount = studentCount + parentCount + staffCount
 

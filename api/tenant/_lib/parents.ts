@@ -131,7 +131,6 @@ export async function fetchParentCount(tenantId: string): Promise<number> {
       `SELECT COUNT(*) as count FROM parents WHERE tenant_id = $1`,
       [tenantId]
     );
-    console.log(`[fetchParentCount] tenant=${tenantId} rawRow=`, row);
     return parseInt(row?.count || '0', 10);
   } catch (error) {
     console.error('Error fetching parent count:', error);

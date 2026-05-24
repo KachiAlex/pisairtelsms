@@ -114,7 +114,7 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
 
     // Use a default tenant ID for now - in production this should be looked up from the database
     // For MVP, we'll use a consistent default tenant ID
-    const defaultTenantId = 'default-tenant-uuid'
+    const defaultTenantId = 'default-tenant'
     
     // Save auth token for tenant admin
     setAuthInStorage({

@@ -99,7 +99,6 @@ export async function fetchStudentCount(tenantId: string): Promise<number> {
       `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND deleted_at IS NULL`,
       [tenantId]
     );
-    console.log(`[fetchStudentCount] tenant=${tenantId} rawRow=`, row);
     return parseInt(row?.count || '0', 10);
   } catch (error) {
     console.error('Error fetching student count:', error);

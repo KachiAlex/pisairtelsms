@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { initializeDatabase, queryOne } from '../cbt/_lib/db.js'
+import { initializeDatabase } from '../cbt/_lib/db.js'
 import { fetchStudentCount } from '../_lib/students.js'
 import { fetchParentCount } from '../_lib/parents.js'
 import { fetchStaffCount } from '../_lib/staff.js'
@@ -19,26 +19,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     initializeDatabase()
 
-    // Debug: verify table exists and has data
-    const tableCheck = await queryOne<{ exists: boolean }>(
-      `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'students') as exists`,
-      []
-    )
-    console.log('[audiences] students table exists:', tableCheck?.exists)
-
-    const sample = await queryOne<{ id: string; tenant_id: string; name: string }>(
-      `SELECT id, tenant_id, name FROM students LIMIT 1`,
-      []
-    )
-    console.log('[audiences] sample student:', sample)
-
     const [studentCount, parentCount, staffCount] = await Promise.all([
       fetchStudentCount(tenantId),
       fetchParentCount(tenantId),
       fetchStaffCount(),
     ])
-
-    console.log(`[audiences] tenant=${tenantId} students=${studentCount} parents=${parentCount} staff=${staffCount}`)
 
     const allCount = studentCount + parentCount + staffCount
 

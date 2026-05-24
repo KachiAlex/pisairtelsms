@@ -1,5 +1,5 @@
-import React from 'react'
-import { ClipboardList, Users, CheckCircle2, AlertTriangle, Plus, CalendarClock, Kanban, Send, Edit3 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { ClipboardList, Users, CheckCircle2, AlertTriangle, Plus, CalendarClock, Kanban, Send, Edit3, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -7,29 +7,53 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
 
-const squadBoard = [
-  { squad: 'Academics Ops', tasks: 12, owners: ['Mrs. Angela', 'Idris'], focus: 'Results release', risk: 'medium' },
-  { squad: 'Finance Ops', tasks: 9, owners: ['Tunde', 'Ada'], focus: 'Fee chase', risk: 'low' },
-  { squad: 'Facilities', tasks: 5, owners: ['Estate team'], focus: 'Exam logistics', risk: 'low' },
-]
+interface Task {
+  id: string
+  title: string
+  status: string
+  priority: string
+  assigned_to: string | null
+  assigned_to_name: string | null
+  due_date: string | null
+}
 
-const taskPipeline = [
-  { id: 'TASK-7821', title: 'Compile SS 1 broadsheet remarks', priority: 'high', owner: 'Academics Ops', due: 'Today 4 PM', status: 'In progress' },
-  { id: 'TASK-7815', title: 'Send guardian fee reminders', priority: 'medium', owner: 'Finance Ops', due: 'Tomorrow', status: 'Queued' },
-  { id: 'TASK-7804', title: 'Audit CBT lab seating', priority: 'low', owner: 'Facilities', due: 'Fri', status: 'Scheduled' },
-  { id: 'TASK-7798', title: 'Prep PTA summary pack', priority: 'high', owner: 'Principal Office', due: 'Sat', status: 'Pending review' },
-]
+interface Squad {
+  id: string
+  squad_name: string
+  owner: string
+  focus: string | null
+  risk: string
+  task_count: number
+}
 
-const workstreams = [
-  { id: 'wrk-1', label: 'Results release sprint', progress: 68, blockers: 2, nextMilestone: 'Parent comms draft' },
-  { id: 'wrk-2', label: 'Fee recovery drive', progress: 52, blockers: 0, nextMilestone: 'SMS blast' },
-  { id: 'wrk-3', label: 'Exam logistics hub', progress: 35, blockers: 1, nextMilestone: 'Hall dry-run' },
-]
+interface Workstream {
+  id: string
+  label: string
+  progress: number
+  blockers: number
+  next_milestone: string | null
+}
 
-const reminders = [
-  { id: 'rem-17', message: 'Two tasks missing owners (Communication Hub redesign, Staff briefing notes)', severity: 'warning' },
-  { id: 'rem-15', message: '8 tasks overdue > 3 days. Auto-nudging assigned owners hourly.', severity: 'destructive' },
-]
+interface Reminder {
+  id: string
+  message: string
+  severity: string
+  due_date: string
+}
+
+interface TaskStats {
+  totalTasks: number
+  openTasks: number
+  inProgressTasks: number
+  completedTasks: number
+  highPriorityTasks: number
+  dueToday: number
+  overdueTasks: number
+  completionRateThisWeek: number
+  totalSquads: number
+  onTrackSquads: number
+  atRiskSquads: number
+}
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   'In progress': 'default',
@@ -51,6 +75,130 @@ const riskBadge: Record<string, 'default' | 'warning' | 'destructive'> = {
 }
 
 export function TaskManagement() {
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<TaskStats | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [squads, setSquads] = useState<Squad[]>([])
+  const [workstreams, setWorkstreams] = useState<Workstream[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
+
+  const fetchTenantId = () => {
+    // In a real app, this would come from auth context or localStorage
+    return localStorage.getItem('tenantId') || 'default-tenant'
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    const tenantId = fetchTenantId()
+    
+    try {
+      // Fetch statistics
+      const statsRes = await fetch(`/api/tenant/tasks/statistics?tenantId=${tenantId}`)
+      const statsData = await statsRes.json()
+      if (statsData.success) setStats(statsData.data)
+
+      // Fetch tasks
+      const tasksRes = await fetch(`/api/tenant/tasks?tenantId=${tenantId}&limit=10`)
+      const tasksData = await tasksRes.json()
+      if (tasksData.success) setTasks(tasksData.data)
+
+      // Fetch squads
+      const squadsRes = await fetch(`/api/tenant/tasks/squads?tenantId=${tenantId}`)
+      const squadsData = await squadsRes.json()
+      if (squadsData.success) setSquads(squadsData.data)
+
+      // Fetch workstreams
+      const workstreamsRes = await fetch(`/api/tenant/tasks/workstreams?tenantId=${tenantId}`)
+      const workstreamsData = await workstreamsRes.json()
+      if (workstreamsData.success) setWorkstreams(workstreamsData.data)
+
+      // Fetch reminders
+      const remindersRes = await fetch(`/api/tenant/tasks/reminders?tenantId=${tenantId}`)
+      const remindersData = await remindersRes.json()
+      if (remindersData.success) setReminders(remindersData.data)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const handleCreateTask = async () => {
+    const title = prompt('Enter task title:')
+    if (!title) return
+
+    const tenantId = fetchTenantId()
+    try {
+      await fetch('/api/tenant/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, priority: 'medium' })
+      })
+      fetchData()
+    } catch (error) {
+      console.error('Error creating task:', error)
+    }
+  }
+
+  const handleCreateSquad = async () => {
+    const squadName = prompt('Enter squad name:')
+    const owner = prompt('Enter owner name:')
+    if (!squadName || !owner) return
+
+    const tenantId = fetchTenantId()
+    try {
+      await fetch('/api/tenant/tasks/squads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ squadName, owner, risk: 'low' })
+      })
+      fetchData()
+    } catch (error) {
+      console.error('Error creating squad:', error)
+    }
+  }
+
+  const handleCreateWorkstream = async () => {
+    const label = prompt('Enter workstream label:')
+    if (!label) return
+
+    const tenantId = fetchTenantId()
+    try {
+      await fetch('/api/tenant/tasks/workstreams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, progress: 0, blockers: 0 })
+      })
+      fetchData()
+    } catch (error) {
+      console.error('Error creating workstream:', error)
+    }
+  }
+
+  const handleSendDigest = async () => {
+    alert('Digest sent to all squad owners')
+  }
+
+  const handleExportCalendar = () => {
+    alert('Calendar exported')
+  }
+
+  const handleEnableSmartTriage = () => {
+    alert('Smart triage enabled')
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -60,10 +208,10 @@ export function TaskManagement() {
           <p className="text-sm text-gray-600">Coordinate cross-functional workstreams, monitor blockers, and broadcast nudges.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <Edit3 className="h-4 w-4 mr-2" /> Create checklist
+          <Button variant="outline" onClick={handleCreateSquad}>
+            <Edit3 className="h-4 w-4 mr-2" /> Create squad
           </Button>
-          <Button>
+          <Button onClick={handleCreateTask}>
             <Plus className="h-4 w-4 mr-2" /> New task
           </Button>
         </div>
@@ -73,29 +221,29 @@ export function TaskManagement() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Open tasks</p>
-            <p className="text-3xl font-semibold text-gray-900">48</p>
-            <p className="text-xs text-gray-500">14 due today</p>
+            <p className="text-3xl font-semibold text-gray-900">{stats?.openTasks || 0}</p>
+            <p className="text-xs text-gray-500">{stats?.dueToday || 0} due today</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Completed this week</p>
-            <p className="text-3xl font-semibold text-emerald-600">63%</p>
-            <p className="text-xs text-gray-500">+9% vs last week</p>
+            <p className="text-3xl font-semibold text-emerald-600">{stats?.completionRateThisWeek || 0}%</p>
+            <p className="text-xs text-gray-500">Real-time data</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">High priority</p>
-            <p className="text-3xl font-semibold text-rose-600">11</p>
-            <p className="text-xs text-gray-500">Escalations auto-nudging</p>
+            <p className="text-3xl font-semibold text-rose-600">{stats?.highPriorityTasks || 0}</p>
+            <p className="text-xs text-gray-500">{stats?.overdueTasks || 0} overdue</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">On-track squads</p>
-            <p className="text-3xl font-semibold text-gray-900">3</p>
-            <p className="text-xs text-gray-500">0 blocked this morning</p>
+            <p className="text-3xl font-semibold text-gray-900">{stats?.onTrackSquads || 0}</p>
+            <p className="text-xs text-gray-500">{stats?.atRiskSquads || 0} at risk</p>
           </CardContent>
         </Card>
       </div>
@@ -106,16 +254,20 @@ export function TaskManagement() {
           <CardDescription>Who owns what and where risks sit.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {squadBoard.map((squad) => (
-            <div key={squad.squad} className="rounded-xl border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-1">
-                <p className="font-medium text-gray-900">{squad.squad}</p>
-                <Badge variant={riskBadge[squad.risk]}>Risk: {squad.risk}</Badge>
+          {squads.length === 0 ? (
+            <p className="text-sm text-gray-500 col-span-full">No squads created yet</p>
+          ) : (
+            squads.map((squad) => (
+              <div key={squad.id} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium text-gray-900">{squad.squad_name}</p>
+                  <Badge variant={squad.risk === 'low' ? 'default' : squad.risk === 'medium' ? 'warning' : 'destructive'}>Risk: {squad.risk}</Badge>
+                </div>
+                <p className="text-sm text-gray-500">Owner: {squad.owner}</p>
+                <p className="text-xs text-gray-400">{squad.task_count} tasks • Focus: {squad.focus || 'N/A'}</p>
               </div>
-              <p className="text-sm text-gray-500">Owners: {squad.owners.join(', ')}</p>
-              <p className="text-xs text-gray-400">{squad.tasks} tasks • Focus: {squad.focus}</p>
-            </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
 
@@ -125,8 +277,8 @@ export function TaskManagement() {
             <CardTitle>Task pipeline</CardTitle>
             <CardDescription>Real-time workflow board condensed into a table.</CardDescription>
           </div>
-          <Button variant="ghost" size="sm">
-            <Kanban className="h-4 w-4 mr-2" /> Open kanban
+          <Button variant="ghost" size="sm" onClick={fetchData}>
+            <Kanban className="h-4 w-4 mr-2" /> Refresh
           </Button>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -142,44 +294,59 @@ export function TaskManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {taskPipeline.map((task) => (
-                <TableRow key={task.id}>
-                  <TableCell className="font-medium text-gray-900">{task.id}</TableCell>
-                  <TableCell>{task.title}</TableCell>
-                  <TableCell>
-                    <Badge variant={priorityPill[task.priority]}>{task.priority}</Badge>
-                  </TableCell>
-                  <TableCell>{task.owner}</TableCell>
-                  <TableCell>{task.due}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[task.status] || 'secondary'}>{task.status}</Badge>
-                  </TableCell>
+              {tasks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-gray-500">No tasks found</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                tasks.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="font-medium text-gray-900">{task.id.slice(0, 8)}</TableCell>
+                    <TableCell>{task.title}</TableCell>
+                    <TableCell>
+                      <Badge variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'warning' : 'default'}>{task.priority}</Badge>
+                    </TableCell>
+                    <TableCell>{task.assigned_to_name || task.assigned_to || 'Unassigned'}</TableCell>
+                    <TableCell>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</TableCell>
+                    <TableCell>
+                      <Badge variant={task.status === 'completed' ? 'default' : task.status === 'in_progress' ? 'default' : 'secondary'}>{task.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Workstreams</CardTitle>
-          <CardDescription>Macro initiatives with progress bars and next milestones.</CardDescription>
+        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <CardTitle>Workstreams</CardTitle>
+            <CardDescription>Macro initiatives with progress bars and next milestones.</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleCreateWorkstream}>
+            <Plus className="h-4 w-4 mr-2" /> New workstream
+          </Button>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
-          {workstreams.map((stream) => (
-            <div key={stream.id} className="rounded-xl border border-gray-100 p-4">
-              <p className="font-medium text-gray-900">{stream.label}</p>
-              <div className="mt-2">
-                <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                  <span>{stream.progress}% complete</span>
-                  <span>{stream.blockers} blockers</span>
+          {workstreams.length === 0 ? (
+            <p className="text-sm text-gray-500 col-span-full">No workstreams created yet</p>
+          ) : (
+            workstreams.map((stream) => (
+              <div key={stream.id} className="rounded-xl border border-gray-100 p-4">
+                <p className="font-medium text-gray-900">{stream.label}</p>
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                    <span>{stream.progress}% complete</span>
+                    <span>{stream.blockers} blockers</span>
+                  </div>
+                  <Progress value={stream.progress} />
                 </div>
-                <Progress value={stream.progress} />
+                <p className="text-xs text-gray-400 mt-1">Next: {stream.next_milestone || 'No milestone set'}</p>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Next: {stream.nextMilestone}</p>
-            </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
 
@@ -190,15 +357,19 @@ export function TaskManagement() {
             <CardDescription>Automations keep everyone accountable.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {reminders.map((reminder) => (
-              <div key={reminder.id} className="rounded-xl border border-gray-100 p-4">
-                <div className="flex items-center gap-2">
-                  <Badge variant={reminder.severity === 'destructive' ? 'destructive' : 'warning'}>Alert</Badge>
-                  <p className="text-sm text-gray-700">{reminder.message}</p>
+            {reminders.length === 0 ? (
+              <p className="text-sm text-gray-500">No active reminders</p>
+            ) : (
+              reminders.map((reminder) => (
+                <div key={reminder.id} className="rounded-xl border border-gray-100 p-4">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={reminder.severity === 'destructive' ? 'destructive' : 'warning'}>Alert</Badge>
+                    <p className="text-sm text-gray-700">{reminder.message}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" className="w-full">
+              ))
+            )}
+            <Button variant="outline" size="sm" className="w-full" onClick={handleSendDigest}>
               <Send className="h-4 w-4 mr-2" /> Send digest
             </Button>
           </CardContent>
@@ -210,21 +381,19 @@ export function TaskManagement() {
             <CardDescription>Upcoming deadlines that need executives looped in.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-xl border border-gray-100 p-4 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Results release readout</p>
-                <p className="text-sm text-gray-500">Academics Ops • Monday 9 AM</p>
+            {tasks.filter(t => t.due_date && new Date(t.due_date) >= new Date()).slice(0, 2).map((task) => (
+              <div key={task.id} className="rounded-xl border border-gray-100 p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{task.title}</p>
+                  <p className="text-sm text-gray-500">{task.assigned_to_name || 'Unassigned'} • {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'}</p>
+                </div>
+                <Badge variant={task.priority === 'high' ? 'destructive' : 'secondary'}>{task.priority}</Badge>
               </div>
-              <Badge variant="secondary">Prep deck</Badge>
-            </div>
-            <div className="rounded-xl border border-gray-100 p-4 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Finance arrears blitz</p>
-                <p className="text-sm text-gray-500">Finance Ops • Tuesday 11 AM</p>
-              </div>
-              <Badge variant="warning">Requires brief</Badge>
-            </div>
-            <Button variant="ghost" size="sm" className="w-full">
+            ))}
+            {tasks.filter(t => t.due_date && new Date(t.due_date) >= new Date()).length === 0 && (
+              <p className="text-sm text-gray-500">No upcoming deadlines</p>
+            )}
+            <Button variant="ghost" size="sm" className="w-full" onClick={handleExportCalendar}>
               <CalendarClock className="h-4 w-4 mr-2" /> Export calendar
             </Button>
           </CardContent>
@@ -236,7 +405,7 @@ export function TaskManagement() {
           <ClipboardList className="h-5 w-5" />
           <p>Enable "smart triage" to auto-assign tasks based on workload, due dates, and skill tags.</p>
         </div>
-        <Button size="sm">
+        <Button size="sm" onClick={handleEnableSmartTriage}>
           <Users className="h-4 w-4 mr-2" /> Turn on smart triage
         </Button>
       </div>

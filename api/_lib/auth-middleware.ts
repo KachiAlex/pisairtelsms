@@ -6,6 +6,7 @@ export type UserRole = 'super_admin' | 'tenant_admin' | 'student' | 'staff' | 'p
 export interface DecodedToken {
   userId?: string
   staffId?: string
+  studentId?: string
   parentId?: string
   role: UserRole
   tenantId?: string

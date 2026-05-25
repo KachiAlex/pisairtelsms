@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getStudentFeeSummary, getStudentPayments, getFeeAssignments } from '../../api/tenant/finance/_lib/fee-assignments.js';
 import { getFeeStructureWithItems } from '../../api/tenant/finance/_lib/fee-structures.js';
+import { requireRole } from '../_lib/auth-middleware';
 
 interface FeeSummary {
   totalFees: number;
@@ -31,35 +32,21 @@ interface StudentFeesResponse {
   paymentPlan: PaymentPlan | null;
 }
 
-function extractStudentIdFromToken(req: VercelRequest): string | null {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    return payload.userId || payload.sub || null;
-  } catch {
-    return null;
-  }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const decoded = requireRole(req, res, ['student']);
+  if (!decoded) return;
+
+  const studentId = decoded.studentId || decoded.userId;
+  if (!studentId) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
+  }
+
   try {
-    const studentId = extractStudentIdFromToken(req);
-    if (!studentId) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
-    }
 
     // Fetch fee summary from database
     const feeSummary = await getStudentFeeSummary(studentId);

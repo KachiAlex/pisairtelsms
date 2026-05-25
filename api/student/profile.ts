@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import crypto from 'crypto';
+import { requireRole } from '../_lib/auth-middleware';
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
@@ -40,24 +41,6 @@ interface StudentProfileResponse {
   loginHistory: LoginHistory[];
 }
 
-function extractStudentIdFromToken(req: VercelRequest): string | null {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    return payload.userId || payload.sub || null;
-  } catch {
-    return null;
-  }
-}
-
 function parseBody(req: VercelRequest) {
   if (!req.body) return null;
   if (typeof req.body === 'string') {
@@ -71,9 +54,12 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const studentId = extractStudentIdFromToken(req);
+  const decoded = requireRole(req, res, ['student']);
+  if (!decoded) return;
+
+  const studentId = decoded.studentId || decoded.userId;
   if (!studentId) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+    return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
   if (req.method === 'GET') {

@@ -27,6 +27,7 @@ import { LeaveManagement } from '../pages/staff/LeaveManagement'
 import { PayslipViewer } from '../pages/staff/PayslipViewer'
 import { ClassLists } from '../pages/staff/ClassLists'
 import { Profile } from '../pages/staff/Profile'
+import { Communications } from '../pages/staff/Communications'
 
 interface StaffLayoutProps {
   children?: React.ReactNode
@@ -77,14 +78,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
       case 'payslips':
         return <PayslipViewer />
       case 'communications':
-        return (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Communications</h2>
-              <p className="text-gray-600">Coming soon</p>
-            </div>
-          </div>
-        )
+        return <Communications />
       case 'class-lists':
         return <ClassLists />
       case 'profile':

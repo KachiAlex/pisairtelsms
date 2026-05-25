@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -27,95 +28,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    const response = {
-      medicalHistory: [
-        {
-          id: '1',
-          date: '2024-12-15',
-          type: 'Checkup',
-          description: 'Annual health checkup - All clear',
-          recordedBy: 'Dr. Okafor',
-        },
-        {
-          id: '2',
-          date: '2024-11-20',
-          type: 'Vaccination',
-          description: 'Flu shot administered',
-          recordedBy: 'Nurse Adekunle',
-        },
-      ],
-      vaccinations: [
-        {
-          id: '1',
-          name: 'Polio',
-          date: '2024-06-15',
-          nextDueDate: '2025-06-15',
-          status: 'completed' as const,
-        },
-        {
-          id: '2',
-          name: 'Measles',
-          date: '2024-07-20',
-          nextDueDate: '2025-07-20',
-          status: 'completed' as const,
-        },
-        {
-          id: '3',
-          name: 'Typhoid',
-          date: '2024-08-10',
-          nextDueDate: '2025-08-10',
-          status: 'completed' as const,
-        },
-      ],
-      allergies: [
-        {
-          id: '1',
-          allergen: 'Peanuts',
-          severity: 'moderate' as const,
-          reaction: 'Itching and swelling',
-        },
-        {
-          id: '2',
-          allergen: 'Penicillin',
-          severity: 'severe' as const,
-          reaction: 'Rash and difficulty breathing',
-        },
-      ],
-      emergencyContacts: [
-        {
-          id: '1',
-          name: 'Mother',
-          relationship: 'Mother',
-          phone: '+234-801-234-5678',
-          email: 'mother@example.com',
-        },
-        {
-          id: '2',
-          name: 'Father',
-          relationship: 'Father',
-          phone: '+234-802-234-5678',
-          email: 'father@example.com',
-        },
-      ],
-      healthInitiatives: [
-        {
-          id: '1',
-          name: 'Sports Day',
-          description: 'Annual inter-house sports competition',
-          date: '2025-02-10',
-          type: 'Sports',
-        },
-        {
-          id: '2',
-          name: 'Health Awareness',
-          description: 'Nutrition and wellness seminar',
-          date: '2025-02-20',
-          type: 'Wellness',
-        },
-      ],
-    }
+    const [medRows, vacRows, allergyRows, contactRows] = await Promise.all([
+      sql`
+        SELECT id, date::text, type, description, COALESCE(recorded_by, '') AS recorded_by
+        FROM student_health_records
+        WHERE student_id = ${childId}
+        ORDER BY date DESC
+      `,
+      sql`
+        SELECT id, name, date::text, next_due_date::text AS next_due_date, status
+        FROM student_vaccinations
+        WHERE student_id = ${childId}
+        ORDER BY date DESC
+      `,
+      sql`
+        SELECT id, allergen, severity, COALESCE(reaction, '') AS reaction
+        FROM student_allergies
+        WHERE student_id = ${childId}
+      `,
+      sql`
+        SELECT id, name, COALESCE(relationship, '') AS relationship,
+               COALESCE(phone, '') AS phone, COALESCE(email, '') AS email
+        FROM student_emergency_contacts
+        WHERE student_id = ${childId}
+        ORDER BY name
+      `,
+    ])
 
-    return res.status(200).json(response)
+    return res.status(200).json({
+      medicalHistory: medRows.rows.map(r => ({
+        id: r.id, date: r.date, type: r.type, description: r.description, recordedBy: r.recorded_by,
+      })),
+      vaccinations: vacRows.rows.map(r => ({
+        id: r.id, name: r.name, date: r.date, nextDueDate: r.next_due_date ?? '',
+        status: r.status as 'completed' | 'pending' | 'overdue',
+      })),
+      allergies: allergyRows.rows.map(r => ({
+        id: r.id, allergen: r.allergen,
+        severity: r.severity as 'mild' | 'moderate' | 'severe', reaction: r.reaction,
+      })),
+      emergencyContacts: contactRows.rows.map(r => ({
+        id: r.id, name: r.name, relationship: r.relationship, phone: r.phone, email: r.email,
+      })),
+      healthInitiatives: [],
+    })
   } catch (error) {
     console.error('Error fetching health data:', error)
     return res.status(500).json({ error: 'Failed to fetch health data' })

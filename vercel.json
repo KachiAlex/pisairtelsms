@@ -48,6 +48,7 @@
     { "source": "/api/student/fees", "destination": "/api/student/fees.ts" },
     { "source": "/api/student/announcements", "destination": "/api/student/announcements.ts" },
     { "source": "/api/student/messages", "destination": "/api/student/messages.ts" },
+    { "source": "/api/student/assignments", "destination": "/api/student/assignments.ts" },
     { "source": "/api/student/profile", "destination": "/api/student/profile.ts" },
     { "source": "/api/parent/auth/login", "destination": "/api/parent/auth/login.ts" },
     { "source": "/api/staff/dashboard", "destination": "/api/staff/dashboard.ts" },

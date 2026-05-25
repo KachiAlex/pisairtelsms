@@ -6,6 +6,7 @@ import { rateLimit } from '../_lib/rate-limit'
 import { requireCSRF } from '../_lib/csrf'
 import { logPasswordChange } from '../_lib/audit-logger'
 import { validatePassword } from '../_lib/password-validator'
+import { validate, Schemas } from '../_lib/validator'
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':')
@@ -40,8 +41,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { currentPassword, newPassword } = req.body
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Bad request: currentPassword and newPassword are required' })
+    // Validate input
+    const validation = validate({ currentPassword, newPassword }, Schemas.passwordChange)
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.errors
+      })
     }
 
     const passwordValidation = validatePassword(newPassword)

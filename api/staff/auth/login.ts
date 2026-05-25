@@ -4,6 +4,7 @@ import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../.
 import { rateLimit } from '../../_lib/rate-limit'
 import { setSecurityHeaders } from '../../_lib/security-headers'
 import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
+import { validate, Schemas } from '../../_lib/validator'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -18,8 +19,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { email, password } = req.body as { email: string; password: string }
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email and password are required' })
+    // Validate input
+    const validation = validate({ email, password }, Schemas.staffLogin)
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.errors
+      })
     }
 
     const staff = await fetchStaffByEmail(email)

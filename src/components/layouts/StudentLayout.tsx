@@ -12,6 +12,7 @@ import {
   X,
   LogOut,
   GraduationCap,
+  ClipboardList,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -26,6 +27,7 @@ const MyFees = lazy(() => import('../pages/student/MyFees').then(m => ({ default
 const Communications = lazy(() => import('../pages/student/Communications').then(m => ({ default: m.Communications })))
 const Messages = lazy(() => import('../pages/student/Messages').then(m => ({ default: m.Messages })))
 const Profile = lazy(() => import('../pages/student/Profile').then(m => ({ default: m.Profile })))
+const MyAssignments = lazy(() => import('../pages/student/MyAssignments').then(m => ({ default: m.MyAssignments })))
 
 interface StudentLayoutProps {
   children?: React.ReactNode
@@ -35,6 +37,7 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'results', label: 'My Results', icon: BookOpen },
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
+  { id: 'assignments', label: 'Assignments', icon: ClipboardList },
   { id: 'timetable', label: 'Timetable', icon: Clock },
   { id: 'fees', label: 'Fees & Payments', icon: CreditCard },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
@@ -74,6 +77,8 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         return <MyTimetable />
       case 'fees':
         return <MyFees />
+      case 'assignments':
+        return <MyAssignments />
       case 'communications':
         return <Communications />
       case 'messages':

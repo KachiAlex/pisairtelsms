@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { rateLimit } from '../../_lib/rate-limit'
 import { setSecurityHeaders } from '../../_lib/security-headers'
 import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
+import { validate, Schemas } from '../../_lib/validator'
 
 async function ensureStudentAuthColumn() {
   await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT`
@@ -38,8 +39,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { admissionNumber, password } = req.body as { admissionNumber: string; password: string }
 
-    if (!admissionNumber || !password) {
-      return res.status(400).json({ error: 'admissionNumber and password are required' })
+    // Validate input
+    const validation = validate({ admissionNumber, password }, Schemas.studentLogin)
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.errors
+      })
     }
 
     const tenantId = (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'

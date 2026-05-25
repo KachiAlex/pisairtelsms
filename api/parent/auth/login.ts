@@ -4,6 +4,7 @@ import { fetchParentByEmail, verifyPassword } from '../../tenant/_lib/parents.js
 import { rateLimit } from '../../_lib/rate-limit'
 import { setSecurityHeaders } from '../../_lib/security-headers'
 import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
+import { validate, Schemas } from '../../_lib/validator'
 
 interface LoginRequest {
   email: string
@@ -36,20 +37,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { email, password } = req.body as LoginRequest
 
-    // Validate required fields
-    if (!email || !password) {
+    // Validate input
+    const validation = validate({ email, password }, Schemas.login)
+    if (!validation.valid) {
       return res.status(400).json({
         error: 'Validation failed',
-        details: { field: 'email and password are required' }
-      })
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: { field: 'Invalid email format' }
+        details: validation.errors
       })
     }
 

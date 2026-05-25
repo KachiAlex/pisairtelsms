@@ -109,6 +109,7 @@ export function StudentLoginPage({ onLoginSuccess, onBackToPortalSelection }: St
 
         <p className="text-xs text-gray-500">
           Enter your admission number and password to access your student portal.
+          First time? Use your <strong>admission number</strong> as your temporary password.
         </p>
 
         {error && (

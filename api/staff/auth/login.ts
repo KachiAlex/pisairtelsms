@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
-import { fetchStaffByEmail, verifyStaffPassword } from '../../tenant/_lib/staff.js'
+import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -21,12 +21,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!staff.passwordHash) {
-      return res.status(401).json({ error: 'Account has no password set. Contact your administrator.' })
-    }
-
-    const valid = await verifyStaffPassword(password, staff.passwordHash)
-    if (!valid) {
-      return res.status(401).json({ error: 'Invalid email or password' })
+      // Existing staff with no password: use email as one-time default password.
+      // On success, auto-set it so future logins use the real hash.
+      if (password !== email.trim().toLowerCase()) {
+        return res.status(401).json({
+          error: 'No password has been set for this account. Use your email address as your temporary password to log in for the first time.',
+        })
+      }
+      await resetStaffPassword(staff.id, password)
+    } else {
+      const valid = await verifyStaffPassword(password, staff.passwordHash)
+      if (!valid) {
+        return res.status(401).json({ error: 'Invalid email or password' })
+      }
     }
 
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'

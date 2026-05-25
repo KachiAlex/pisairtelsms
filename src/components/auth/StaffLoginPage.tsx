@@ -109,6 +109,7 @@ export function StaffLoginPage({ onLoginSuccess, onBackToPortalSelection }: Staf
 
         <p className="text-xs text-gray-500">
           Enter your work email and password to access your staff portal.
+          First time? Use your <strong>email address</strong> as your temporary password.
         </p>
 
         {error && (

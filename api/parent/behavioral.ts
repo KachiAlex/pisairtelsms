@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -27,60 +28,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    const response = {
-      conductGrade: 'A',
-      conductTrend: [
-        { term: 'Term 1 2024', grade: 'B', date: '2024-04-15' },
-        { term: 'Term 2 2024', grade: 'A', date: '2024-08-20' },
-        { term: 'Term 3 2024', grade: 'A', date: '2024-12-10' },
-        { term: 'Term 1 2025', grade: 'A', date: '2025-01-20' },
-      ],
-      incidents: [
-        {
-          id: '1',
-          date: '2025-01-15',
-          type: 'Late to class',
-          description: 'Student arrived 10 minutes late',
-          severity: 'minor' as const,
-          action: 'Verbal warning',
-          reportedBy: 'Mr. Smith',
-        },
-      ],
-      positiveRecognition: [
-        {
-          id: '1',
-          date: '2025-01-18',
-          type: 'Academic Excellence',
-          description: 'Top performer in Mathematics',
-          awardedBy: 'Principal',
-        },
-        {
-          id: '2',
-          date: '2025-01-10',
-          type: 'Sports Achievement',
-          description: 'Won 100m sprint race',
-          awardedBy: 'Sports Director',
-        },
-      ],
-      teacherComments: [
-        {
-          id: '1',
-          teacher: 'Mr. Johnson',
-          subject: 'Mathematics',
-          comment: 'Excellent student, very attentive in class',
-          date: '2025-01-20',
-        },
-        {
-          id: '2',
-          teacher: 'Mrs. Williams',
-          subject: 'English',
-          comment: 'Good participation, needs to improve writing skills',
-          date: '2025-01-19',
-        },
-      ],
-    }
+    const [incidentRows, recognitionRows, commentRows] = await Promise.all([
+      sql`
+        SELECT bi.id, bi.date::text, bi.type, COALESCE(bi.description, '') AS description,
+               bi.severity, COALESCE(bi.action_taken, '') AS action_taken,
+               COALESCE(st.name, bi.reported_by, '') AS reported_by
+        FROM behavioral_incidents bi
+        LEFT JOIN staff st ON st.id = bi.reported_by
+        WHERE bi.student_id = ${childId}
+        ORDER BY bi.date DESC
+      `,
+      sql`
+        SELECT br.id, br.date::text, br.type, COALESCE(br.description, '') AS description,
+               COALESCE(st.name, br.awarded_by, '') AS awarded_by
+        FROM behavioral_recognition br
+        LEFT JOIN staff st ON st.id = br.awarded_by
+        WHERE br.student_id = ${childId}
+        ORDER BY br.date DESC
+      `,
+      sql`
+        SELECT tc.id, tc.date::text, tc.comment, COALESCE(tc.subject, '') AS subject,
+               COALESCE(st.name, '') AS teacher
+        FROM teacher_comments tc
+        LEFT JOIN staff st ON st.id = tc.staff_id
+        WHERE tc.student_id = ${childId}
+        ORDER BY tc.date DESC
+      `,
+    ])
 
-    return res.status(200).json(response)
+    // Derive conduct grade: A if 0 incidents, B if 1-2, C if 3+
+    const incidentCount = incidentRows.rows.length
+    const conductGrade = incidentCount === 0 ? 'A' : incidentCount <= 2 ? 'B' : 'C'
+
+    return res.status(200).json({
+      conductGrade,
+      conductTrend: [],
+      incidents: incidentRows.rows.map(r => ({
+        id: r.id, date: r.date, type: r.type, description: r.description,
+        severity: r.severity as 'minor' | 'moderate' | 'severe',
+        action: r.action_taken, reportedBy: r.reported_by,
+      })),
+      positiveRecognition: recognitionRows.rows.map(r => ({
+        id: r.id, date: r.date, type: r.type, description: r.description, awardedBy: r.awarded_by,
+      })),
+      teacherComments: commentRows.rows.map(r => ({
+        id: r.id, teacher: r.teacher, subject: r.subject, comment: r.comment, date: r.date,
+      })),
+    })
   } catch (error) {
     console.error('Error fetching behavioral reports:', error)
     return res.status(500).json({ error: 'Failed to fetch behavioral data' })

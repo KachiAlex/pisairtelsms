@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
 import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
+import { rateLimit } from '../../_lib/rate-limit'
 
 async function ensureStudentAuthColumn() {
   await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT`
@@ -23,6 +24,11 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Rate limit: 10 requests per minute per IP
+  if (rateLimit(req, res, 10, 60 * 1000)) {
+    return
   }
 
   try {

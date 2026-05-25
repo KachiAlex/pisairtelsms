@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
 import { fetchParentByEmail, verifyPassword } from '../../tenant/_lib/parents.js'
+import { rateLimit } from '../../_lib/rate-limit'
 
 interface LoginRequest {
   email: string
@@ -23,6 +24,11 @@ interface LoginResponse {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Rate limit: 10 requests per minute per IP
+  if (rateLimit(req, res, 10, 60 * 1000)) {
+    return
   }
 
   try {

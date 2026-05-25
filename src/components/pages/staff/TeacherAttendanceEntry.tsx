@@ -63,12 +63,14 @@ export function TeacherAttendanceEntry() {
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [confirmationData, setConfirmationData] = useState<ConfirmationData | null>(null)
   const [expandedReasonStudent, setExpandedReasonStudent] = useState<string | null>(null)
+  const [currentClassName, setCurrentClassName] = useState<string>('Homeroom')
 
   const { toast } = useToast()
 
   const auth = localStorage.getItem('auth')
   const token = auth ? JSON.parse(auth).token : null
   const tenantId = auth ? JSON.parse(auth).tenantId || 'default-tenant' : 'default-tenant'
+  const userId = auth ? JSON.parse(auth).userId || '' : ''
 
   // Get max date (today)
   const today = new Date().toISOString().split('T')[0]
@@ -106,6 +108,7 @@ export function TeacherAttendanceEntry() {
 
         // Fetch students from first class (homeroom)
         const firstClass = classes[0]
+        setCurrentClassName(firstClass.name)
         const studentsResponse = await fetch(
           `/api/staff/classes/${firstClass.id}/students`,
           {
@@ -299,16 +302,22 @@ export function TeacherAttendanceEntry() {
         return
       }
 
+      const month = new Date().getMonth() + 1
+      const term = month >= 9 || month <= 12 ? '1' : month <= 4 ? '2' : '3'
+      const academicYear = month >= 9
+        ? `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`
+        : `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`
+
       const records = confirmationData.records.map((record) => ({
         studentId: record.studentId,
-        class: 'Homeroom', // TODO: Get actual class name
+        class: currentClassName,
         date: selectedDate,
         status: record.status,
         absenceReasonId: record.absenceReason
           ? absenceReasonsList.find((r) => r.reasonName === record.absenceReason)?.id
           : undefined,
-        academicSession: new Date().getFullYear() + '/' + (new Date().getFullYear() + 1),
-        term: '1', // TODO: Get actual term
+        academicSession: academicYear,
+        term,
       }))
 
       const response = await fetch('/api/tenant/attendance', {
@@ -317,7 +326,7 @@ export function TeacherAttendanceEntry() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
           'x-tenant-id': tenantId,
-          'x-user-id': 'user-id', // TODO: Get from token
+          'x-user-id': userId,
         },
         body: JSON.stringify({ records }),
       })

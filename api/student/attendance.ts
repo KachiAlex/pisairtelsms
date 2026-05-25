@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface AttendanceRecord {
   date: string;
@@ -48,55 +49,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { startDate, endDate } = req.query;
 
-    // TODO: Fetch actual attendance records from database filtered by studentId and date range
-    // For now, return mock data
-    const records: AttendanceRecord[] = [
-      {
-        date: '2025-01-20',
-        subject: 'Mathematics',
-        status: 'present',
-      },
-      {
-        date: '2025-01-20',
-        subject: 'English Language',
-        status: 'present',
-      },
-      {
-        date: '2025-01-21',
-        subject: 'Physics',
-        status: 'late',
-        reason: 'Traffic',
-      },
-      {
-        date: '2025-01-21',
-        subject: 'Chemistry',
-        status: 'present',
-      },
-      {
-        date: '2025-01-22',
-        subject: 'Biology',
-        status: 'absent',
-        reason: 'Sick',
-      },
-    ];
+    let result;
+    if (startDate && endDate) {
+      result = await sql`
+        SELECT a.date::text, a.status, ar.reason_name AS reason,
+               COALESCE(tt.subject, 'General') AS subject
+        FROM attendance a
+        LEFT JOIN absence_reasons ar ON ar.id = a.absence_reason_id
+        LEFT JOIN timetable tt ON tt.class_name = a.class AND tt.day = TO_CHAR(a.date, 'Day')
+        WHERE a.student_id = ${studentId}
+          AND a.date BETWEEN ${startDate as string} AND ${endDate as string}
+        ORDER BY a.date DESC
+      `;
+    } else {
+      result = await sql`
+        SELECT a.date::text, a.status, ar.reason_name AS reason,
+               COALESCE(tt.subject, 'General') AS subject
+        FROM attendance a
+        LEFT JOIN absence_reasons ar ON ar.id = a.absence_reason_id
+        LEFT JOIN timetable tt ON tt.class_name = a.class AND tt.day = TO_CHAR(a.date, 'Day')
+        WHERE a.student_id = ${studentId}
+        ORDER BY a.date DESC
+        LIMIT 100
+      `;
+    }
+
+    const records: AttendanceRecord[] = result.rows.map(r => ({
+      date: r.date,
+      subject: r.subject,
+      status: r.status as AttendanceRecord['status'],
+      ...(r.reason ? { reason: r.reason } : {}),
+    }));
 
     const totalPresent = records.filter(r => r.status === 'present').length;
-    const totalAbsent = records.filter(r => r.status === 'absent').length;
-    const totalLate = records.filter(r => r.status === 'late').length;
+    const totalAbsent  = records.filter(r => r.status === 'absent').length;
+    const totalLate    = records.filter(r => r.status === 'late').length;
     const totalExcused = records.filter(r => r.status === 'excused').length;
     const total = records.length;
-    const attendancePercent = total > 0 ? Math.round(((totalPresent + totalExcused) / total) * 100) : 0;
+    const attendancePercent = total > 0 ? Math.round(((totalPresent + totalExcused) / total) * 100) : 100;
 
-    const response: StudentAttendanceResponse = {
-      records,
-      attendancePercent,
-      totalPresent,
-      totalAbsent,
-      totalLate,
-      totalExcused,
-    };
-
-    return res.status(200).json(response);
+    return res.status(200).json({ records, attendancePercent, totalPresent, totalAbsent, totalLate, totalExcused });
   } catch (error) {
     console.error('Error fetching student attendance:', error);
     return res.status(500).json({ error: 'Failed to fetch attendance records' });

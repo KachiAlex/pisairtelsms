@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Message {
   id: string;
@@ -54,48 +55,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const limitNum = Math.min(parseInt(limit as string) || 20, 100);
       const offsetNum = parseInt(offset as string) || 0;
 
-      // TODO: Fetch actual messages from database filtered by studentId
-      // For now, return mock data
-      const allMessages: Message[] = [
-        {
-          id: '1',
-          sender: 'Principal',
-          subject: 'Welcome to the Portal',
-          date: '2025-01-15',
-          body: 'Welcome to the student portal. You can now access your academic information anytime.',
-          isRead: true,
-          replies: [],
-        },
-        {
-          id: '2',
-          sender: 'Class Teacher',
-          subject: 'Class Assignment',
-          date: '2025-01-18',
-          body: 'Please submit your assignment on the portal by Friday.',
-          isRead: false,
-          replies: [],
-        },
-        {
-          id: '3',
-          sender: 'Academic Office',
-          subject: 'Exam Schedule',
-          date: '2025-01-20',
-          body: 'Your exam schedule has been posted. Check the timetable section.',
-          isRead: false,
-          replies: [],
-        },
-      ];
+      const countResult = await sql`SELECT COUNT(*) AS total FROM student_messages WHERE student_id = ${studentId}`;
+      const total = parseInt(countResult.rows[0]?.total ?? '0');
 
-      const messages = allMessages.slice(offsetNum, offsetNum + limitNum);
+      const dbResult = await sql`
+        SELECT id::text, sender_name AS sender, subject,
+               created_at::date::text AS date, body, is_read
+        FROM student_messages
+        WHERE student_id = ${studentId}
+        ORDER BY created_at DESC
+        LIMIT ${limitNum} OFFSET ${offsetNum}
+      `;
 
-      const response: StudentMessagesResponse = {
-        messages,
-        total: allMessages.length,
-        limit: limitNum,
-        offset: offsetNum,
-      };
+      const messages: Message[] = await Promise.all(dbResult.rows.map(async r => {
+        const repliesResult = await sql`
+          SELECT id::text, sender_name AS sender, created_at::date::text AS date, body
+          FROM student_message_replies WHERE message_id = ${r.id} ORDER BY created_at ASC
+        `;
+        return {
+          id: r.id, sender: r.sender, subject: r.subject,
+          date: r.date, body: r.body, isRead: r.is_read,
+          replies: repliesResult.rows.map(rr => ({ id: rr.id, sender: rr.sender, date: rr.date, body: rr.body })),
+        };
+      }));
 
-      return res.status(200).json(response);
+      return res.status(200).json({ messages, total, limit: limitNum, offset: offsetNum });
     } catch (error) {
       console.error('Error fetching messages:', error);
       return res.status(500).json({ error: 'Failed to fetch messages' });
@@ -109,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Message ID is required' });
       }
 
-      // TODO: Mark message as read in database
+      await sql`UPDATE student_messages SET is_read = true WHERE id = ${id} AND student_id = ${studentId}`;
       return res.status(200).json({ success: true, message: 'Message marked as read' });
     } catch (error) {
       console.error('Error marking message as read:', error);
@@ -129,14 +113,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Reply text is required' });
       }
 
-      // TODO: Save reply to database
+      const replyId = `reply_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      await sql`
+        INSERT INTO student_message_replies (id, message_id, sender_name, body, created_at)
+        VALUES (${replyId}, ${id}, 'Student', ${body.reply}, NOW())
+      `;
       const newReply: Reply = {
-        id: `reply-${Date.now()}`,
-        sender: 'Student',
-        date: new Date().toISOString().split('T')[0],
-        body: body.reply,
+        id: replyId, sender: 'Student',
+        date: new Date().toISOString().split('T')[0], body: body.reply,
       };
-
       return res.status(201).json({ success: true, reply: newReply });
     } catch (error) {
       console.error('Error adding reply:', error);

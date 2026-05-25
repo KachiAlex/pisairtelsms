@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface StudentResult {
   subject: string;
@@ -49,64 +50,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { academicSession = '2025/2026', term = 'First' } = req.query;
 
-    // TODO: Fetch actual results from database filtered by studentId
-    // For now, return mock data
-    const results: StudentResult[] = [
-      {
-        subject: 'Mathematics',
-        caScore: 18,
-        examScore: 72,
-        totalScore: 90,
-        attendancePercent: 95,
-        grade: 'A',
-      },
-      {
-        subject: 'English Language',
-        caScore: 16,
-        examScore: 68,
-        totalScore: 84,
-        attendancePercent: 92,
-        grade: 'B',
-      },
-      {
-        subject: 'Physics',
-        caScore: 17,
-        examScore: 70,
-        totalScore: 87,
-        attendancePercent: 90,
-        grade: 'A',
-      },
-      {
-        subject: 'Chemistry',
-        caScore: 15,
-        examScore: 65,
-        totalScore: 80,
-        attendancePercent: 88,
-        grade: 'B',
-      },
-      {
-        subject: 'Biology',
-        caScore: 16,
-        examScore: 69,
-        totalScore: 85,
-        attendancePercent: 93,
-        grade: 'B',
-      },
-    ];
+    const dbResult = await sql`
+      SELECT subject, ca_score, exam_score,
+             (ca_score + exam_score) AS total_score,
+             grade,
+             COALESCE(attendance_percent, 0) AS attendance_percent
+      FROM results
+      WHERE student_id = ${studentId}
+        AND academic_session = ${academicSession as string}
+        AND term = ${term as string}
+      ORDER BY subject ASC
+    `;
 
-    const averageScore = Math.round(
-      results.reduce((sum, r) => sum + r.totalScore, 0) / results.length
-    );
+    const results: StudentResult[] = dbResult.rows.map(r => ({
+      subject: r.subject,
+      caScore: Number(r.ca_score),
+      examScore: Number(r.exam_score),
+      totalScore: Number(r.total_score),
+      attendancePercent: Number(r.attendance_percent),
+      grade: r.grade,
+    }));
 
-    const response: StudentResultsResponse = {
-      results,
-      averageScore,
-      classAverage: 82,
-      academicSession: academicSession as string,
-      term: term as string,
-    };
+    const averageScore = results.length > 0
+      ? Math.round(results.reduce((sum, r) => sum + r.totalScore, 0) / results.length)
+      : 0;
 
-    return res.status(200).json(response);
+    // Class average for the same session/term
+    const classAvgResult = await sql`
+      SELECT ROUND(AVG(ca_score + exam_score)) AS avg
+      FROM results r
+      JOIN students s ON s.id = r.student_id
+      WHERE r.academic_session = ${academicSession as string}
+        AND r.term = ${term as string}
+        AND s.class = (SELECT class FROM students WHERE id = ${studentId} LIMIT 1)
+    `;
+    const classAverage = Number(classAvgResult.rows[0]?.avg ?? 0);
+
+    return res.status(200).json({ results, averageScore, classAverage, academicSession, term });
   } catch (error) {
     console.error('Error fetching student results:', error);
     return res.status(500).json({ error: 'Failed to fetch results' });

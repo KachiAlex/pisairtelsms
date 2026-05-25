@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface ScheduleEntry {
   id: string;
@@ -33,30 +34,16 @@ interface StaffTimetableResponse {
 }
 
 function extractStaffIdFromToken(req: VercelRequest): string | null {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
-    return xUserId.trim();
-  }
-
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  if (!token) return null;
-
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   try {
-    const parts = token.split('.');
+    const parts = authHeader.substring(7).split('.');
     if (parts.length === 3) {
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
       return payload.staffId || payload.userId || payload.sub || null;
     }
-  } catch {
-    // not a JWT
-  }
-
-  return token || null;
+  } catch { /* not a JWT */ }
+  return null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -71,62 +58,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
     }
 
-    const { termId } = req.query;
-
-    // TODO: Fetch actual timetable data from database filtered by staffId and termId
-    // For now, return mock data
-    const response: StaffTimetableResponse = {
-      schedule: [
-        {
-          id: '1',
-          dayOfWeek: 1,
-          timeSlot: '09:00 - 10:00',
-          subject: 'Mathematics',
-          className: 'SS 1A',
-          room: 'Room 101',
-          startTime: '09:00',
-          endTime: '10:00',
-        },
-        {
-          id: '2',
-          dayOfWeek: 1,
-          timeSlot: '10:30 - 11:30',
-          subject: 'Mathematics',
-          className: 'SS 2B',
-          room: 'Room 102',
-          startTime: '10:30',
-          endTime: '11:30',
-        },
-        {
-          id: '3',
-          dayOfWeek: 2,
-          timeSlot: '09:00 - 10:00',
-          subject: 'Mathematics',
-          className: 'JSS 3C',
-          room: 'Room 103',
-          startTime: '09:00',
-          endTime: '10:00',
-        },
-      ],
-      examSchedule: [
-        {
-          id: '1',
-          subject: 'Mathematics',
-          date: '2025-02-15',
-          time: '09:00',
-          room: 'Exam Hall A',
-          duration: 120,
-        },
-      ],
-      currentTerm: 'term-1',
-      availableTerms: [
-        { id: 'term-1', name: 'Term 1' },
-        { id: 'term-2', name: 'Term 2' },
-        { id: 'term-3', name: 'Term 3' },
-      ],
+    const dayOrder: Record<string, number> = {
+      monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7
     };
 
-    return res.status(200).json(response);
+    const ttResult = await sql`
+      SELECT id::text, day, start_time, end_time,
+             start_time || ' - ' || end_time AS time_slot,
+             subject, class_name, room
+      FROM timetable
+      WHERE staff_id = ${staffId}
+      ORDER BY day, start_time
+    `;
+
+    const schedule: ScheduleEntry[] = ttResult.rows.map(r => ({
+      id: r.id,
+      dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
+      timeSlot: r.time_slot,
+      subject: r.subject,
+      className: r.class_name,
+      room: r.room,
+      startTime: r.start_time,
+      endTime: r.end_time,
+    }));
+
+    const examResult = await sql`
+      SELECT e.id::text, e.title AS subject, e.exam_date::text AS date,
+             e.start_time AS time, e.room,
+             EXTRACT(EPOCH FROM (e.end_time::time - e.start_time::time))/60 AS duration
+      FROM exams e
+      WHERE e.exam_date >= CURRENT_DATE
+        AND EXISTS (
+          SELECT 1 FROM timetable tt
+          WHERE tt.staff_id = ${staffId} AND LOWER(tt.subject) = LOWER(e.title)
+        )
+      ORDER BY e.exam_date, e.start_time
+    `;
+
+    const examSchedule: ExamEntry[] = examResult.rows.map(r => ({
+      id: r.id, subject: r.subject, date: r.date,
+      time: r.time ?? '', room: r.room ?? '', duration: Number(r.duration ?? 0),
+    }));
+
+    let availableTerms: Term[] = [{ id: 'term-1', name: 'Term 1' }, { id: 'term-2', name: 'Term 2' }, { id: 'term-3', name: 'Term 3' }];
+    try {
+      const termResult = await sql`SELECT id::text, name FROM terms ORDER BY name`;
+      if (termResult.rows.length > 0) availableTerms = termResult.rows.map(r => ({ id: r.id, name: r.name }));
+    } catch { /* terms table may not exist */ }
+
+    return res.status(200).json({ schedule, examSchedule, currentTerm: 'term-1', availableTerms });
   } catch (error) {
     console.error('Error fetching staff timetable:', error);
     return res.status(500).json({ error: 'Failed to fetch timetable data' });

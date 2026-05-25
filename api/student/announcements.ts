@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Announcement {
   id: string;
@@ -28,66 +29,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const limitNum = Math.min(parseInt(limit as string) || 10, 100);
     const offsetNum = parseInt(offset as string) || 0;
 
-    // TODO: Fetch actual announcements from database with public audience
-    // For now, return mock data
-    const allAnnouncements: Announcement[] = [
-      {
-        id: '1',
-        title: 'School Resumption Date',
-        date: '2025-01-20',
-        sender: 'Principal',
-        preview: 'School resumes on Monday, January 27, 2025...',
-        body: 'School resumes on Monday, January 27, 2025. All students are expected to be present with their uniforms and school materials.',
-        audience: 'public',
-      },
-      {
-        id: '2',
-        title: 'Examination Timetable Released',
-        date: '2025-01-18',
-        sender: 'Academic Office',
-        preview: 'The examination timetable for the first term has been released...',
-        body: 'The examination timetable for the first term has been released. Students should check the portal for their individual schedules.',
-        audience: 'public',
-      },
-      {
-        id: '3',
-        title: 'Sports Day Announcement',
-        date: '2025-01-15',
-        sender: 'Sports Director',
-        preview: 'Annual sports day will be held on February 14, 2025...',
-        body: 'Annual sports day will be held on February 14, 2025. All students are encouraged to participate in various events.',
-        audience: 'public',
-      },
-      {
-        id: '4',
-        title: 'Library Extension Hours',
-        date: '2025-01-10',
-        sender: 'Librarian',
-        preview: 'The library will now be open until 6 PM on weekdays...',
-        body: 'The library will now be open until 6 PM on weekdays to support student studies.',
-        audience: 'public',
-      },
-      {
-        id: '5',
-        title: 'New Cafeteria Menu',
-        date: '2025-01-08',
-        sender: 'Cafeteria Manager',
-        preview: 'A new menu has been introduced in the school cafeteria...',
-        body: 'A new menu has been introduced in the school cafeteria with more nutritious options.',
-        audience: 'public',
-      },
-    ];
+    const countResult = await sql`SELECT COUNT(*) AS total FROM announcements`;
+    const total = parseInt(countResult.rows[0]?.total ?? '0');
 
-    const announcements = allAnnouncements.slice(offsetNum, offsetNum + limitNum);
+    const dbResult = await sql`
+      SELECT id::text, title, created_at::date::text AS date,
+             COALESCE(author, 'Admin') AS sender,
+             LEFT(body, 120) AS preview, body,
+             COALESCE(audience, 'public') AS audience
+      FROM announcements
+      ORDER BY created_at DESC
+      LIMIT ${limitNum} OFFSET ${offsetNum}
+    `;
 
-    const response: StudentAnnouncementsResponse = {
-      announcements,
-      total: allAnnouncements.length,
-      limit: limitNum,
-      offset: offsetNum,
-    };
+    const announcements: Announcement[] = dbResult.rows.map(r => ({
+      id: r.id, title: r.title, date: r.date,
+      sender: r.sender, preview: r.preview, body: r.body, audience: r.audience,
+    }));
 
-    return res.status(200).json(response);
+    return res.status(200).json({ announcements, total, limit: limitNum, offset: offsetNum });
   } catch (error) {
     console.error('Error fetching announcements:', error);
     return res.status(500).json({ error: 'Failed to fetch announcements' });

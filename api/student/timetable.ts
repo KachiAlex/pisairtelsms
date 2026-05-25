@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface TimeSlot {
   day: string;
@@ -54,87 +55,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
     }
 
-    const { termId = 'term-1' } = req.query;
+    const { termId } = req.query;
 
-    // TODO: Fetch actual timetable from database filtered by studentId and class
-    // For now, return mock data
-    const schedule: TimeSlot[] = [
-      {
-        day: 'Monday',
-        startTime: '08:00',
-        endTime: '09:00',
-        subject: 'Mathematics',
-        teacher: 'Mr. Okafor',
-        room: 'A1',
-      },
-      {
-        day: 'Monday',
-        startTime: '09:00',
-        endTime: '10:00',
-        subject: 'English Language',
-        teacher: 'Mrs. Adeyemi',
-        room: 'A1',
-      },
-      {
-        day: 'Monday',
-        startTime: '10:30',
-        endTime: '11:30',
-        subject: 'Physics',
-        teacher: 'Mr. Eze',
-        room: 'Lab 1',
-      },
-      {
-        day: 'Tuesday',
-        startTime: '08:00',
-        endTime: '09:00',
-        subject: 'Chemistry',
-        teacher: 'Dr. Nwosu',
-        room: 'Lab 2',
-      },
-      {
-        day: 'Tuesday',
-        startTime: '09:00',
-        endTime: '10:00',
-        subject: 'Biology',
-        teacher: 'Miss Obi',
-        room: 'Lab 3',
-      },
-    ];
+    // Get student's class
+    const studentResult = await sql`
+      SELECT class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1
+    `;
+    if (!studentResult.rows[0]) return res.status(404).json({ error: 'Student not found' });
+    const { class: studentClass, arm } = studentResult.rows[0];
+    const className = `${studentClass}${arm ? arm : ''}`;
 
-    const examSchedule: ExamSchedule[] = [
-      {
-        subject: 'Mathematics',
-        date: '2025-02-15',
-        startTime: '09:00',
-        endTime: '11:00',
-        duration: 120,
-        room: 'Exam Hall A',
-      },
-      {
-        subject: 'English Language',
-        date: '2025-02-17',
-        startTime: '09:00',
-        endTime: '11:00',
-        duration: 120,
-        room: 'Exam Hall B',
-      },
-      {
-        subject: 'Physics',
-        date: '2025-02-19',
-        startTime: '14:00',
-        endTime: '16:00',
-        duration: 120,
-        room: 'Exam Hall A',
-      },
-    ];
+    // Fetch timetable for this class
+    const ttResult = await sql`
+      SELECT tt.day, tt.start_time, tt.end_time, tt.subject, tt.room,
+             COALESCE(st.name, '') AS teacher
+      FROM timetable tt
+      LEFT JOIN staff st ON st.id = tt.staff_id
+      WHERE tt.class_name = ${className}
+      ORDER BY tt.day, tt.start_time
+    `;
 
-    const response: StudentTimetableResponse = {
-      schedule,
-      examSchedule,
-      termId: termId as string,
-    };
+    const schedule: TimeSlot[] = ttResult.rows.map(r => ({
+      day: r.day,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      subject: r.subject,
+      teacher: r.teacher,
+      room: r.room,
+    }));
 
-    return res.status(200).json(response);
+    // Fetch upcoming exams for this class
+    const examResult = await sql`
+      SELECT title AS subject, exam_date::text AS date,
+             start_time, end_time, room,
+             EXTRACT(EPOCH FROM (end_time::time - start_time::time))/60 AS duration
+      FROM exams
+      WHERE (student_class = ${studentClass} OR student_class IS NULL)
+        AND exam_date >= CURRENT_DATE
+      ORDER BY exam_date, start_time
+    `;
+
+    const examSchedule: ExamSchedule[] = examResult.rows.map(r => ({
+      subject: r.subject,
+      date: r.date,
+      startTime: r.start_time ?? '',
+      endTime: r.end_time ?? '',
+      duration: Number(r.duration ?? 0),
+      room: r.room ?? '',
+    }));
+
+    return res.status(200).json({ schedule, examSchedule, termId: termId ?? 'current' });
   } catch (error) {
     console.error('Error fetching student timetable:', error);
     return res.status(500).json({ error: 'Failed to fetch timetable' });

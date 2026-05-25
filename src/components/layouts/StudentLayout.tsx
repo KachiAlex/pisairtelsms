@@ -13,6 +13,7 @@ import {
   LogOut,
   GraduationCap,
   ClipboardList,
+  Library,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -28,6 +29,7 @@ const Communications = lazy(() => import('../pages/student/Communications').then
 const Messages = lazy(() => import('../pages/student/Messages').then(m => ({ default: m.Messages })))
 const Profile = lazy(() => import('../pages/student/Profile').then(m => ({ default: m.Profile })))
 const MyAssignments = lazy(() => import('../pages/student/MyAssignments').then(m => ({ default: m.MyAssignments })))
+const MyMaterials = lazy(() => import('../pages/student/MyMaterials').then(m => ({ default: m.MyMaterials })))
 
 interface StudentLayoutProps {
   children?: React.ReactNode
@@ -38,6 +40,7 @@ const navItems = [
   { id: 'results', label: 'My Results', icon: BookOpen },
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
   { id: 'assignments', label: 'Assignments', icon: ClipboardList },
+  { id: 'materials', label: 'Materials', icon: Library },
   { id: 'timetable', label: 'Timetable', icon: Clock },
   { id: 'fees', label: 'Fees & Payments', icon: CreditCard },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
@@ -79,6 +82,8 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         return <MyFees />
       case 'assignments':
         return <MyAssignments />
+      case 'materials':
+        return <MyMaterials />
       case 'communications':
         return <Communications />
       case 'messages':

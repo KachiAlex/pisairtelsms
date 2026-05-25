@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -212,8 +212,8 @@ export function StaffLayout({ children }: StaffLayoutProps) {
                 <User className="w-4 h-4 text-white" />
               </div>
               <div className="hidden sm:block">
-                <p className="text-xs font-medium text-gray-900">Staff</p>
-                <p className="text-xs text-gray-500">{auth?.userId ?? 'Portal'}</p>
+                <p className="text-xs font-medium text-gray-900">Staff Portal</p>
+                <p className="text-xs text-gray-500">{auth?.userId ?? ''}</p>
               </div>
             </div>
           </div>
@@ -221,7 +221,9 @@ export function StaffLayout({ children }: StaffLayoutProps) {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {renderPage()}
+          <React.Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-pulse text-gray-500">Loading...</div></div>}>
+            {renderPage()}
+          </React.Suspense>
         </main>
       </div>
     </div>

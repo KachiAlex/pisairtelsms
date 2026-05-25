@@ -1,4 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
+import crypto from 'crypto';
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(':');
+  if (!salt || !hash) return false;
+  return crypto.createHmac('sha256', salt).update(password).digest('hex') === hash;
+}
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return `${salt}:${crypto.createHmac('sha256', salt).update(password).digest('hex')}`;
+}
 
 interface StudentProfile {
   id: string;
@@ -65,50 +78,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      // TODO: Fetch actual profile from database filtered by studentId
-      // For now, return mock data
-      const profile: StudentProfile = {
-        id: studentId,
-        name: 'John Adewale',
-        admissionNumber: 'ADM-2024-001',
-        class: 'SS3',
-        arm: 'A',
-        gender: 'Male',
-        email: 'john.adewale@school.edu',
-        phone: '+234 801 234 5678',
-        guardian: {
-          name: 'Mr. Adewale Okafor',
-          phone: '+234 803 456 7890',
+      const result = await sql`
+        SELECT id, admission_no, name, class, arm, gender,
+               guardian_email AS email, phone, guardian, guardian_email
+        FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1
+      `;
+      if (!result.rows[0]) return res.status(404).json({ error: 'Student not found' });
+      const r = result.rows[0];
+      return res.status(200).json({
+        profile: {
+          id: r.id,
+          name: r.name,
+          admissionNumber: r.admission_no,
+          class: r.class,
+          arm: r.arm,
+          gender: r.gender || '',
+          email: r.email || '',
+          phone: r.phone || '',
+          guardian: { name: r.guardian || '', phone: r.phone || '' },
         },
-      };
-
-      const loginHistory: LoginHistory[] = [
-        {
-          date: '2025-01-20',
-          time: '08:30 AM',
-          device: 'Chrome on Windows',
-          ipAddress: '192.168.1.100',
-        },
-        {
-          date: '2025-01-19',
-          time: '04:15 PM',
-          device: 'Safari on iPhone',
-          ipAddress: '192.168.1.101',
-        },
-        {
-          date: '2025-01-18',
-          time: '09:45 AM',
-          device: 'Chrome on Windows',
-          ipAddress: '192.168.1.100',
-        },
-      ];
-
-      const response: StudentProfileResponse = {
-        profile,
-        loginHistory,
-      };
-
-      return res.status(200).json(response);
+        loginHistory: [],
+      });
     } catch (error) {
       console.error('Error fetching profile:', error);
       return res.status(500).json({ error: 'Failed to fetch profile' });
@@ -118,16 +108,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'PUT') {
     try {
       const body = parseBody(req);
-      if (!body) {
-        return res.status(400).json({ error: 'Request body is required' });
-      }
-
-      // Validate email and phone if provided
-      if (body.email && !body.email.includes('@')) {
-        return res.status(400).json({ error: 'Invalid email format' });
-      }
-
-      // TODO: Update profile in database
+      if (!body) return res.status(400).json({ error: 'Request body is required' });
+      if (body.email && !body.email.includes('@')) return res.status(400).json({ error: 'Invalid email format' });
+      await sql`
+        UPDATE students SET
+          guardian_email = COALESCE(${body.email ?? null}, guardian_email),
+          phone          = COALESCE(${body.phone  ?? null}, phone),
+          updated_at     = NOW()
+        WHERE id = ${studentId}
+      `;
       return res.status(200).json({ success: true, message: 'Profile updated successfully' });
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -141,11 +130,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (action === 'change-password') {
         const body = parseBody(req);
-        if (!body || !body.currentPassword || !body.newPassword) {
+        if (!body || !body.currentPassword || !body.newPassword)
           return res.status(400).json({ error: 'Current password and new password are required' });
-        }
-
-        // TODO: Verify current password and update to new password in database
+        if (body.newPassword.length < 8)
+          return res.status(400).json({ error: 'New password must be at least 8 characters' });
+        const row = await sql`SELECT password_hash FROM students WHERE id = ${studentId} LIMIT 1`;
+        const storedHash = row.rows[0]?.password_hash;
+        if (storedHash && !verifyPassword(body.currentPassword, storedHash))
+          return res.status(401).json({ error: 'Current password is incorrect' });
+        const newHash = hashPassword(body.newPassword);
+        await sql`UPDATE students SET password_hash = ${newHash} WHERE id = ${studentId}`;
         return res.status(200).json({ success: true, message: 'Password changed successfully' });
       }
 

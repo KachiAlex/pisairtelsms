@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertCircle, TrendingUp, Clock, DollarSign, Calendar } from 'lucide-react';
 import { MetricCard } from './MetricCard';
 import { AnnouncementsSection } from './AnnouncementsSection';
@@ -39,6 +40,7 @@ interface StudentData {
 }
 
 export function StudentDashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState<StudentData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,10 +199,7 @@ export function StudentDashboard() {
             <AnnouncementsSection
               announcements={data.recentAnnouncements}
               isLoading={false}
-              onViewAll={() => {
-                // Navigate to announcements page
-                console.log('View all announcements');
-              }}
+              onViewAll={() => navigate('/student/communications')}
             />
           </div>
         </div>
@@ -213,10 +212,7 @@ export function StudentDashboard() {
               messages={data.recentMessages}
               isLoading={false}
               unreadCount={unreadCount}
-              onViewAll={() => {
-                // Navigate to messages page
-                console.log('View all messages');
-              }}
+              onViewAll={() => navigate('/student/messages')}
             />
           </div>
         </div>

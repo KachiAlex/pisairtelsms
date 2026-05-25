@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchScores, createScore, type ScorePayload } from './_lib/results.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')
@@ -15,6 +16,10 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant results
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method === 'GET') {
     const { studentId, academicSession, term, class: className } = req.query
     try {

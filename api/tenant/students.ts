@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchStudents, createStudent, createStudents, updateStudent, deleteStudent, type StudentPayload } from './_lib/students.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 // Get tenant ID from request (from auth context or headers)
 function getTenantId(req: VercelRequest): string {
@@ -28,6 +29,10 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant student management
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   try {
     // Initialize database on first request
     initializeDatabase()

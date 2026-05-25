@@ -1,10 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
+import { requireRole } from '../_lib/auth-middleware'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
+
+  // Require authentication - only super_admin or tenant_admin can access admin endpoints
+  const decoded = requireRole(req, res, ['super_admin', 'tenant_admin'])
+  if (!decoded) return
 
   try {
     const r = await sql`

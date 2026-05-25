@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
+import { requireRole } from '../_lib/auth-middleware'
 
 async function ensureUsersTable() {
   await sql`
@@ -25,6 +26,10 @@ function getHeaders(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant management
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   try {
     await ensureUsersTable()
   } catch (e) {

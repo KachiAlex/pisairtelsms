@@ -41,6 +41,8 @@ interface DiscoveredDevice {
   reachable: boolean;
 }
 
+const BATCH_SIZE = 20;
+
 // Common biometric device TCP ports and their probable types
 const BIOMETRIC_PORTS: { port: number; deviceType: string; label: string }[] = [
   { port: 4370,  deviceType: 'fingerprint', label: 'ZKTeco / fingerprint terminal' },
@@ -174,32 +176,38 @@ export function BiometricDevices() {
     }
   };
 
-  // Scan the subnet .1–.254 on all known biometric ports
+  // Scan the subnet .1–.254 on all known biometric ports — concurrent batches of BATCH_SIZE IPs
+  const doneRef = useRef(0);
+
   const handleScan = useCallback(async () => {
     setScanning(true);
     setDiscovered([]);
     setScanProgress(0);
     scanAbortRef.current = false;
+    doneRef.current = 0;
 
     const subnet = scanSubnet.replace(/\.+$/, '');
     const ips: string[] = Array.from({ length: 254 }, (_, i) => `${subnet}.${i + 1}`);
     const total = ips.length * BIOMETRIC_PORTS.length;
-    let done = 0;
 
-    for (const ip of ips) {
+    // Chunk IPs into batches so we probe BATCH_SIZE addresses concurrently
+    for (let i = 0; i < ips.length; i += BATCH_SIZE) {
       if (scanAbortRef.current) break;
+      const batch = ips.slice(i, i + BATCH_SIZE);
       await Promise.all(
-        BIOMETRIC_PORTS.map(async ({ port, deviceType, label }) => {
-          const reachable = await probeHost(ip, port, 1200);
-          done++;
-          setScanProgress(Math.round((done / total) * 100));
-          if (reachable) {
-            setDiscovered(prev => {
-              if (prev.some(d => d.ip === ip && d.port === port)) return prev;
-              return [...prev, { ip, port, deviceType, label, reachable: true }];
-            });
-          }
-        })
+        batch.flatMap(ip =>
+          BIOMETRIC_PORTS.map(async ({ port, deviceType, label }) => {
+            const reachable = await probeHost(ip, port, 1200);
+            doneRef.current += 1;
+            setScanProgress(Math.round((doneRef.current / total) * 100));
+            if (reachable) {
+              setDiscovered(prev => {
+                if (prev.some(d => d.ip === ip && d.port === port)) return prev;
+                return [...prev, { ip, port, deviceType, label, reachable: true }];
+              });
+            }
+          })
+        )
       );
     }
     setScanning(false);

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Save, Shield, Bell } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -58,56 +58,33 @@ export function SystemSettings() {
   const [academicYears, setAcademicYears] = useState<{ id: string; name: string }[]>([])
   const [terms, setTerms] = useState<{ id: string; name: string }[]>([])
 
-  const loadCalendarData = useCallback(async () => {
-    try {
-      const headers = getCalendarHeaders()
-      const [yearsRes, termsRes] = await Promise.all([
-        fetch('/api/tenant/timetable/calendar?resource=academic-years', { headers }),
-        fetch('/api/tenant/timetable/calendar?resource=terms', { headers }),
-      ])
-      if (yearsRes.ok) {
-        const json = await yearsRes.json()
-        setAcademicYears((json.data || []).map((y: any) => ({ id: y.id, name: y.name })))
-      }
-      if (termsRes.ok) {
-        const json = await termsRes.json()
-        setTerms((json.data || []).map((t: any) => ({ id: t.id, name: t.name })))
-      }
-    } catch {
-      // silently ignore — dropdowns will show saved value as lone option
-    }
-  }, [])
-
-  useEffect(() => { loadCalendarData() }, [loadCalendarData])
-
   useEffect(() => {
     let cancelled = false
-    async function loadSettings() {
-      setIsLoading(true)
-      try {
-        const remote = await fetchTenantSettings()
+    setIsLoading(true)
+
+    const headers = getCalendarHeaders()
+    Promise.all([
+      fetchTenantSettings(),
+      fetch('/api/tenant/timetable/calendar?resource=academic-years', { headers }).then(r => r.ok ? r.json() : { data: [] }),
+      fetch('/api/tenant/timetable/calendar?resource=terms', { headers }).then(r => r.ok ? r.json() : { data: [] }),
+    ])
+      .then(([remote, yearsJson, termsJson]) => {
         if (cancelled) return
         setSettings(remote)
         setLastUpdated(remote.updatedAt)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unable to load tenant settings.'
+        setAcademicYears((yearsJson.data || []).map((y: any) => ({ id: y.id, name: y.name })))
+        setTerms((termsJson.data || []).map((t: any) => ({ id: t.id, name: t.name })))
+      })
+      .catch((error) => {
+        if (cancelled) return
+        const message = error instanceof Error ? error.message : 'Unable to load settings.'
         toast({ variant: 'destructive', title: 'Failed to load settings', description: message })
-        if (!cancelled) {
-          const fallback = cloneFallback()
-          setSettings(fallback)
-          setLastUpdated(new Date().toISOString())
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
-      }
-    }
+        setSettings(cloneFallback())
+        setLastUpdated(new Date().toISOString())
+      })
+      .finally(() => { if (!cancelled) setIsLoading(false) })
 
-    loadSettings()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [toast])
 
   const handleSave = async () => {

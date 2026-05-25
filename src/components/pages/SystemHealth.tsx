@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { Activity, HeartPulse, RefreshCcw, Server, ShieldCheck, HardDrive, Gauge, Wifi, Database, Cpu, AlertTriangle, CloudLightning } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Activity, HeartPulse, RefreshCcw, Server, ShieldCheck, HardDrive, Database, Cpu, AlertTriangle, CloudLightning, Wifi } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Progress } from '../ui/progress'
-
-// Import API functions
-const systemHealthApi = require('../../../api/tenant/system-health').default
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   Operational: 'default',
@@ -21,56 +18,86 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   degraded: 'warning',
 }
 
+function getAuthHeaders(): Record<string, string> {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      'x-user-id': auth.userId || auth.email || 'system',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant', 'x-user-id': 'system' }
+  }
+}
+
 export function SystemHealth() {
   const [stats, setStats] = useState({ overallStatus: 'Green', incidents24h: 0, slaConverage: '99.4%', upcomingMaintenance: 2 })
-  const [services, setServices] = useState([])
-  const [vitals, setVitals] = useState([])
-  const [incidents, setIncidents] = useState([])
-  const [dependencies, setDependencies] = useState([])
+  const [services, setServices] = useState<any[]>([])
+  const [vitals, setVitals] = useState<any[]>([])
+  const [incidents, setIncidents] = useState<any[]>([])
+  const [dependencies, setDependencies] = useState<any[]>([])
   const [resourceMetrics, setResourceMetrics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const tenantId = 'current-tenant' // In real app, get from context
-
-  useEffect(() => {
-    loadHealthData()
-  }, [])
-
-  const loadHealthData = async () => {
+  const loadHealthData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+      const headers = getAuthHeaders()
 
-      // Load statistics
-      const statsData = systemHealthApi.getStatistics(tenantId)
-      setStats(statsData)
+      // Load all data in parallel
+      const [statsRes, servicesRes, vitalsRes, incidentsRes, depsRes] = await Promise.all([
+        fetch('/api/tenant/system-health?type=statistics', { headers }),
+        fetch('/api/tenant/system-health?type=services', { headers }),
+        fetch('/api/tenant/system-health?type=vitals', { headers }),
+        fetch('/api/tenant/system-health?type=incidents', { headers }),
+        fetch('/api/tenant/system-health?type=dependencies', { headers }),
+      ])
 
-      // Load services
-      const servicesData = systemHealthApi.listServices(tenantId)
-      setServices(servicesData)
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        setStats(statsData)
+      }
+      if (servicesRes.ok) {
+        const servicesData = await servicesRes.json()
+        setServices(servicesData.data || [])
+      }
+      if (vitalsRes.ok) {
+        const vitalsData = await vitalsRes.json()
+        setVitals(vitalsData.data || [])
+      }
+      if (incidentsRes.ok) {
+        const incidentsData = await incidentsRes.json()
+        setIncidents(incidentsData.data || [])
+      }
+      if (depsRes.ok) {
+        const depsData = await depsRes.json()
+        setDependencies(depsData.data || [])
+      }
 
-      // Load vitals
-      const vitalsData = systemHealthApi.listVitals(tenantId)
-      setVitals(vitalsData)
+      // Calculate resource metrics from vitals
+      const cpuVital = vitals.find((v: any) => v.label?.toLowerCase().includes('cpu'))
+      const memoryVital = vitals.find((v: any) => v.label?.toLowerCase().includes('memory'))
+      const diskVital = vitals.find((v: any) => v.label?.toLowerCase().includes('disk'))
 
-      // Load incidents
-      const incidentsData = systemHealthApi.listIncidents(tenantId)
-      setIncidents(incidentsData.data)
-
-      // Load dependencies
-      const depsData = systemHealthApi.listDependencies(tenantId)
-      setDependencies(depsData)
-
-      // Load resource metrics
-      const metricsData = systemHealthApi.getResourceMetrics(tenantId)
-      setResourceMetrics(metricsData)
+      setResourceMetrics({
+        cpu: { current: cpuVital?.value || 0, average: cpuVital?.value || 0, peak: cpuVital?.value || 0 },
+        memory: { current: memoryVital?.value || 0, average: memoryVital?.value || 0, peak: memoryVital?.value || 0 },
+        disk: { current: diskVital?.value || 0, average: diskVital?.value || 0, peak: diskVital?.value || 0 },
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load health data')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadHealthData()
+  }, [loadHealthData])
 
   const handleRefresh = () => {
     loadHealthData()

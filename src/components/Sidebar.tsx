@@ -15,7 +15,6 @@ import {
   Bell,
   Palette,
   Plug,
-  Sparkles,
   HelpCircle,
   ChevronDown,
   GraduationCap,
@@ -215,17 +214,6 @@ const navItems: NavItem[] = [
       { id: 'user-accounts', label: 'User Accounts' },
       { id: 'audit-logs', label: 'Audit Logs' },
       { id: 'import-export', label: 'Import/Export' },
-    ]
-  },
-  {
-    id: 'advanced',
-    label: 'Advanced Features',
-    icon: <Sparkles className="w-5 h-5" />,
-    children: [
-      { id: 'offline-cbt', label: 'Offline CBT Sync' },
-      { id: 'item-analysis', label: 'Exam Item Analysis' },
-      { id: 'predictive-alerts', label: 'Predictive Risk Alerts' },
-      { id: 'certificate-verification', label: 'Certificate Verification' },
     ]
   },
   {

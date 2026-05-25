@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { MessageSquare, Plus, Search, Send, TrendingUp, Users } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { MessageSquare, Plus, Search, Send } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
-
-// Import API functions
-const supportTicketsApi = require('../../../api/tenant/support-tickets').default
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   open: 'warning',
@@ -21,6 +18,20 @@ const priorityVariant: Record<string, 'default' | 'secondary' | 'warning' | 'des
   high: 'destructive',
   medium: 'warning',
   low: 'secondary',
+}
+
+function getAuthHeaders(): Record<string, string> {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      'x-user-id': auth.userId || auth.email || 'system',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant', 'x-user-id': 'system' }
+  }
 }
 
 export function SupportTickets() {
@@ -43,42 +54,46 @@ export function SupportTickets() {
     channel: 'email',
   })
 
-  const tenantId = 'current-tenant' // In real app, get from context
-
-  useEffect(() => {
-    loadTicketData()
-  }, [])
-
-  const loadTicketData = async () => {
+  const loadTicketData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+      const headers = getAuthHeaders()
 
-      // Load statistics
-      const statsData = supportTicketsApi.getStatistics(tenantId)
-      setStats(statsData)
+      // Load all data in parallel
+      const [statsRes, ticketsRes, agentsRes, rulesRes] = await Promise.all([
+        fetch('/api/tenant/support-tickets?type=statistics', { headers }),
+        fetch('/api/tenant/support-tickets?type=tickets', { headers }),
+        fetch('/api/tenant/support-tickets?type=agents', { headers }),
+        fetch('/api/tenant/support-tickets?type=rules', { headers }),
+      ])
 
-      // Load tickets
-      const ticketsData = supportTicketsApi.listTickets(tenantId, {
-        status: statusFilter,
-        priority: priorityFilter,
-        limit: 100,
-      })
-      setTickets(ticketsData.data)
-
-      // Load agents
-      const agentsData = supportTicketsApi.listAgents(tenantId)
-      setAgents(agentsData)
-
-      // Load automation rules
-      const rulesData = supportTicketsApi.listRules(tenantId)
-      setRules(rulesData)
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        setStats(statsData)
+      }
+      if (ticketsRes.ok) {
+        const ticketsData = await ticketsRes.json()
+        setTickets(ticketsData.data || [])
+      }
+      if (agentsRes.ok) {
+        const agentsData = await agentsRes.json()
+        setAgents(agentsData.data || [])
+      }
+      if (rulesRes.ok) {
+        const rulesData = await rulesRes.json()
+        setRules(rulesData.data || [])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load support tickets')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadTicketData()
+  }, [loadTicketData])
 
   const handleCreateTicket = async () => {
     try {
@@ -87,7 +102,15 @@ export function SupportTickets() {
         return
       }
 
-      const ticket = supportTicketsApi.createTicket(tenantId, newTicketData)
+      const headers = getAuthHeaders()
+      const res = await fetch('/api/tenant/support-tickets', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'create-ticket', payload: newTicketData }),
+      })
+
+      if (!res.ok) throw new Error('Failed to create ticket')
+      const ticket = await res.json()
       setTickets([ticket, ...tickets])
       setNewTicketData({ requester: '', topic: '', priority: 'medium', channel: 'email' })
       setShowNewTicketForm(false)
@@ -101,7 +124,19 @@ export function SupportTickets() {
     try {
       if (!commentText.trim() || !selectedTicket) return
 
-      const comment = supportTicketsApi.addComment(tenantId, selectedTicket.id, 'current-user', commentText)
+      const headers = getAuthHeaders()
+      const res = await fetch('/api/tenant/support-tickets', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          action: 'add-comment',
+          ticketId: selectedTicket.id,
+          payload: { text: commentText, userId: 'current-user' },
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to add comment')
+      const comment = await res.json()
       setSelectedTicket({
         ...selectedTicket,
         comments: [comment, ...(selectedTicket.comments || [])],
@@ -114,13 +149,38 @@ export function SupportTickets() {
 
   const handleUpdateTicketStatus = async (ticketId: string, newStatus: string) => {
     try {
-      const updated = supportTicketsApi.updateTicket(tenantId, ticketId, { status: newStatus })
+      const headers = getAuthHeaders()
+      const res = await fetch('/api/tenant/support-tickets', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          action: 'update-ticket',
+          ticketId,
+          payload: { status: newStatus },
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to update ticket')
+      const updated = await res.json()
       setTickets(tickets.map(t => t.id === ticketId ? updated : t))
       if (selectedTicket?.id === ticketId) {
         setSelectedTicket(updated)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update ticket')
+    }
+  }
+
+  const handleSelectTicket = async (ticketId: string) => {
+    try {
+      const headers = getAuthHeaders()
+      const res = await fetch(`/api/tenant/support-tickets?type=ticket&id=${ticketId}`, { headers })
+      if (res.ok) {
+        const ticket = await res.json()
+        setSelectedTicket(ticket)
+      }
+    } catch (err) {
+      console.error('Failed to load ticket details:', err)
     }
   }
 
@@ -306,7 +366,7 @@ export function SupportTickets() {
                     <TableRow
                       key={ticket.id}
                       className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => setSelectedTicket(supportTicketsApi.getTicketById(tenantId, ticket.id))}
+                      onClick={() => handleSelectTicket(ticket.id)}
                     >
                       <TableCell className="font-medium text-blue-600">{ticket.ticketId}</TableCell>
                       <TableCell className="max-w-xs truncate">{ticket.topic}</TableCell>

@@ -10,7 +10,7 @@ interface StaffLoginPageProps {
 }
 
 export function StaffLoginPage({ onLoginSuccess, onBackToPortalSelection }: StaffLoginPageProps) {
-  const [staffId, setStaffId] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,30 +23,25 @@ export function StaffLoginPage({ onLoginSuccess, onBackToPortalSelection }: Staf
 
     try {
       // Call login endpoint with staff credentials
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/staff/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: staffId,
-          password,
-          userType: 'staff',
-        }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.message || 'Login failed. Please check your credentials.');
+        throw new Error(data.error || data.message || 'Login failed. Please check your credentials.');
       }
 
       const data = await response.json();
 
-      // Store auth token with staff role
       setAuthInStorage({
         token: data.token,
-        tenantId: data.tenantId,
+        tenantId: data.tenantId || 'default-tenant',
         role: 'staff',
-        userId: data.userId,
-        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        userId: data.userId || data.staffId,
+        expiresAt: data.expiresAt || Date.now() + 24 * 60 * 60 * 1000,
       });
 
       onLoginSuccess();
@@ -74,12 +69,12 @@ export function StaffLoginPage({ onLoginSuccess, onBackToPortalSelection }: Staf
 
       <form onSubmit={handleSubmit} className="space-y-5 px-6 py-6">
         <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">Staff ID</label>
+          <label className="text-sm font-medium text-gray-700">Email Address</label>
           <Input
-            type="text"
-            placeholder="e.g., STF-2024-001"
-            value={staffId}
-            onChange={(event) => setStaffId(event.target.value)}
+            type="email"
+            placeholder="staff@school.edu"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             required
             disabled={isLoading}
           />
@@ -113,7 +108,7 @@ export function StaffLoginPage({ onLoginSuccess, onBackToPortalSelection }: Staf
         </div>
 
         <p className="text-xs text-gray-500">
-          Enter your staff ID and password to access your staff portal.
+          Enter your work email and password to access your staff portal.
         </p>
 
         {error && (

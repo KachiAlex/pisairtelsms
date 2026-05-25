@@ -23,30 +23,25 @@ export function StudentLoginPage({ onLoginSuccess, onBackToPortalSelection }: St
 
     try {
       // Call login endpoint with student credentials
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/student/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: admissionNumber,
-          password,
-          userType: 'student',
-        }),
+        body: JSON.stringify({ admissionNumber, password }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.message || 'Login failed. Please check your credentials.');
+        throw new Error(data.error || data.message || 'Login failed. Please check your credentials.');
       }
 
       const data = await response.json();
 
-      // Store auth token with student role
       setAuthInStorage({
         token: data.token,
-        tenantId: data.tenantId,
+        tenantId: data.tenantId || 'default-tenant',
         role: 'student',
-        userId: data.userId,
-        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        userId: data.userId || data.studentId,
+        expiresAt: data.expiresAt || Date.now() + 24 * 60 * 60 * 1000,
       });
 
       onLoginSuccess();

@@ -51,13 +51,25 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
   const [showStudentLogin, setShowStudentLogin] = useState(false);
   const [showStaffLogin, setShowStaffLogin] = useState(false);
 
-  const handleStudentLoginSuccess = () => {
-    navigate('/student/dashboard');
+  const ROLE_ROUTES: Record<string, string> = {
+    super_admin:  '/super-admin',
+    tenant_admin: '/tenant',
+    staff:        '/staff/dashboard',
+    student:      '/student/dashboard',
+    parent:       '/parent/dashboard',
   };
 
-  const handleStaffLoginSuccess = () => {
-    navigate('/staff/dashboard');
+  const navigateByRole = () => {
+    try {
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+      navigate(ROLE_ROUTES[auth.role] ?? '/unauthorized');
+    } catch {
+      navigate('/login');
+    }
   };
+
+  const handleStudentLoginSuccess = navigateByRole;
+  const handleStaffLoginSuccess   = navigateByRole;
   return (
     <div className="relative min-h-screen bg-slate-950 text-white">
       <div className="absolute inset-0 overflow-hidden">

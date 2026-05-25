@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const expiresAt = Date.now() + expiresIn * 1000
 
     const token = jwt.sign(
-      { staffId: staff.id, userId: staff.id, role: staff.role, department: staff.department, email: staff.email },
+      { staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email },
       jwtSecret,
       { expiresIn: `${expiresIn}s` }
     )
@@ -50,7 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       token,
       staffId: staff.id,
       userId: staff.id,
-      role: staff.role,
+      role: 'staff',
+      staffRole: staff.role, // actual role from DB (teacher, principal, etc.)
       name: staff.name,
       department: staff.department,
       email: staff.email,

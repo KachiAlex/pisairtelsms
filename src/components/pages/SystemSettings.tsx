@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Save, Shield, Bell, Plug } from 'lucide-react'
+import { Save, Shield, Bell } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -170,7 +170,6 @@ export function SystemSettings() {
           <TabsTrigger value="academic">Academic</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="integrations">Integrations</TabsTrigger>
         </TabsList>
 
         {/* Academic Settings */}
@@ -444,101 +443,6 @@ export function SystemSettings() {
           </Card>
         </TabsContent>
 
-        {/* Integrations */}
-        <TabsContent value="integrations" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Plug className="w-5 h-5 text-blue-600" />
-                <CardTitle>Payment Gateway</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900">Online Payment</p>
-                  <p className="text-sm text-gray-600">Accept payments online</p>
-                </div>
-                <Switch
-                  checked={settings.enableOnlinePayment}
-                  onCheckedChange={(checked) => setSettings({ ...settings, enableOnlinePayment: checked })}
-                />
-              </div>
-
-              <div>
-                <Label>Payment Provider</Label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
-                  value={(settings as any).paymentProvider || 'Paystack'}
-                  onChange={(e) => updateSetting('paymentProvider' as any, e.target.value)}
-                >
-                  <option>Paystack</option>
-                  <option>Flutterwave</option>
-                  <option>Interswitch</option>
-                </select>
-              </div>
-
-              <div>
-                <Label>Public Key</Label>
-                <Input
-                  placeholder="pk_test_..."
-                  value={(settings as any).paymentPublicKey || ''}
-                  onChange={(e) => updateSetting('paymentPublicKey' as any, e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Secret Key</Label>
-                <Input
-                  type="password"
-                  placeholder="sk_test_..."
-                  value={(settings as any).paymentSecretKey || ''}
-                  onChange={(e) => updateSetting('paymentSecretKey' as any, e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Biometric Integration</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900">Biometric Attendance</p>
-                  <p className="text-sm text-gray-600">Use biometric devices for attendance</p>
-                </div>
-                <Switch
-                  checked={settings.enableBiometric}
-                  onCheckedChange={(checked) => setSettings({ ...settings, enableBiometric: checked })}
-                />
-              </div>
-
-              <div>
-                <Label>Device Type</Label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
-                  value={(settings as any).biometricDeviceType || 'Fingerprint Scanner'}
-                  onChange={(e) => updateSetting('biometricDeviceType' as any, e.target.value)}
-                >
-                  <option>Fingerprint Scanner</option>
-                  <option>Face Recognition</option>
-                  <option>Card Reader</option>
-                </select>
-              </div>
-
-              <div>
-                <Label>Device IP Address</Label>
-                <Input
-                  placeholder="192.168.1.100"
-                  value={(settings as any).biometricDeviceIp || ''}
-                  onChange={(e) => updateSetting('biometricDeviceIp' as any, e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

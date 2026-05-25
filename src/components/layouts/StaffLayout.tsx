@@ -15,6 +15,8 @@ import {
   Briefcase,
   GraduationCap,
   Fingerprint,
+  CheckSquare,
+  FolderOpen,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -29,6 +31,8 @@ import { ClassLists } from '../pages/staff/ClassLists'
 import { Profile } from '../pages/staff/Profile'
 import { Communications } from '../pages/staff/Communications'
 import { StaffSelfAttendance } from '../pages/staff/StaffSelfAttendance'
+import { StaffTasks } from '../pages/staff/StaffTasks'
+import { StaffDocuments } from '../pages/staff/StaffDocuments'
 import { NotificationsDropdown } from '../staff/NotificationsDropdown'
 
 interface StaffLayoutProps {
@@ -41,6 +45,8 @@ const navItems = [
   { id: 'my-attendance', label: 'My Attendance', icon: Fingerprint },
   { id: 'attendance', label: 'Mark Attendance', icon: CalendarCheck },
   { id: 'leave', label: 'Leave', icon: Calendar },
+  { id: 'tasks', label: 'My Tasks', icon: CheckSquare },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'payslips', label: 'Payslips', icon: CreditCard },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
   { id: 'class-lists', label: 'Class Lists', icon: Users },
@@ -82,6 +88,10 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         return <PayslipViewer />
       case 'my-attendance':
         return <StaffSelfAttendance />
+      case 'tasks':
+        return <StaffTasks />
+      case 'documents':
+        return <StaffDocuments />
       case 'communications':
         return <Communications />
       case 'class-lists':

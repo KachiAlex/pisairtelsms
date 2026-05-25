@@ -58,6 +58,8 @@
     { "source": "/api/staff/attendance", "destination": "/api/staff/attendance.ts" },
     { "source": "/api/staff/my-attendance", "destination": "/api/staff/my-attendance.ts" },
     { "source": "/api/staff/leave", "destination": "/api/staff/leave.ts" },
+    { "source": "/api/staff/tasks", "destination": "/api/staff/tasks.ts" },
+    { "source": "/api/staff/documents", "destination": "/api/staff/documents.ts" },
     { "source": "/api/staff/payslips", "destination": "/api/staff/payslips.ts" },
     { "source": "/api/staff/announcements", "destination": "/api/staff/announcements.ts" },
     { "source": "/api/staff/messages", "destination": "/api/staff/messages.ts" },

@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
-import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../src/lib/parentAuth'
+import { requireRole } from '../_lib/auth-middleware'
+import { rateLimit } from '../_lib/rate-limit'
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':')
@@ -20,11 +21,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const token = extractTokenFromHeader(req.headers.authorization)
-  if (!token) return res.status(401).json({ error: 'Unauthorized: Missing token' })
+  // Rate limit: 5 requests per minute per IP for password changes
+  if (rateLimit(req, res, 5, 60 * 1000)) {
+    return
+  }
 
-  const parentInfo = extractParentInfoFromJWT(token)
-  if (!parentInfo) return res.status(401).json({ error: 'Unauthorized: Invalid token' })
+  const decoded = requireRole(req, res, ['parent'])
+  if (!decoded) return
+
+  const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
 
   try {
     const { currentPassword, newPassword } = req.body

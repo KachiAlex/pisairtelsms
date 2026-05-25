@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
 import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
 import { rateLimit } from '../../_lib/rate-limit'
+import { setSecurityHeaders } from '../../_lib/security-headers'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -52,6 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       { expiresIn: `${expiresIn}s` }
     )
 
+    setSecurityHeaders(res)
     return res.status(200).json({
       token,
       staffId: staff.id,
@@ -65,6 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   } catch (error) {
     console.error('Staff login error:', error)
+    setSecurityHeaders(res)
     return res.status(500).json({ error: 'Failed to process login' })
   }
 }

@@ -10,13 +10,13 @@ import {
   User,
   Menu,
   X,
-  Bell,
   LogOut,
   GraduationCap,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
 import { useBranding } from '../../contexts/BrandingContext'
+import { StudentNotificationsDropdown } from '../student/StudentNotificationsDropdown'
 
 const StudentDashboard = lazy(() => import('../pages/student/StudentDashboard').then(m => ({ default: m.StudentDashboard })))
 const MyResults = lazy(() => import('../pages/student/MyResults').then(m => ({ default: m.MyResults })))
@@ -191,9 +191,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-            </Button>
+            <StudentNotificationsDropdown />
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4 text-white" />

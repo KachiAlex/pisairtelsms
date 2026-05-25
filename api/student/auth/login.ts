@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
 import { rateLimit } from '../../_lib/rate-limit'
+import { setSecurityHeaders } from '../../_lib/security-headers'
 
 async function ensureStudentAuthColumn() {
   await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT`
@@ -86,6 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       { expiresIn: `${expiresIn}s` }
     )
 
+    setSecurityHeaders(res)
     return res.status(200).json({
       token,
       userId: student.id,
@@ -100,6 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   } catch (error) {
     console.error('Student login error:', error)
+    setSecurityHeaders(res)
     return res.status(500).json({ error: 'Failed to process login' })
   }
 }

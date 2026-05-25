@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
 import { fetchParentByEmail, verifyPassword } from '../../tenant/_lib/parents.js'
 import { rateLimit } from '../../_lib/rate-limit'
+import { setSecurityHeaders } from '../../_lib/security-headers'
 
 interface LoginRequest {
   email: string
@@ -87,9 +88,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       expiresAt
     }
 
+    setSecurityHeaders(res)
     return res.status(200).json(response)
   } catch (error) {
     console.error('Login error:', error)
+    setSecurityHeaders(res)
     return res.status(500).json({ error: 'Failed to process login' })
   }
 }

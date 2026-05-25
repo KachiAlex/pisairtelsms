@@ -28,14 +28,33 @@ const fallbackSettings: TenantSettingsPayload = {
 
 export async function ensureTenantSettingsTable(): Promise<void> {
   try {
+    // Create table with fixed single-row id=1 if it doesn't exist yet
     await sql`
       CREATE TABLE IF NOT EXISTS tenant_settings (
-        id SERIAL PRIMARY KEY,
+        id INT PRIMARY KEY DEFAULT 1,
         settings JSONB NOT NULL,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `;
-    console.log('Tenant settings table ensured.');
+    // Migration: if existing table was SERIAL-based (multiple rows), consolidate into id=1
+    const check = await sql`
+      SELECT COUNT(*) as cnt FROM tenant_settings WHERE id != 1
+    `;
+    if (Number(check.rows[0]?.cnt) > 0) {
+      // Pick the latest non-1 row and upsert as id=1, then delete the rest
+      await sql`
+        INSERT INTO tenant_settings (id, settings, updated_at)
+        SELECT 1, settings, updated_at
+        FROM tenant_settings
+        WHERE id != 1
+        ORDER BY updated_at DESC
+        LIMIT 1
+        ON CONFLICT (id) DO UPDATE
+          SET settings = EXCLUDED.settings,
+              updated_at = EXCLUDED.updated_at
+      `;
+      await sql`DELETE FROM tenant_settings WHERE id != 1`;
+    }
   } catch (error) {
     console.error('Error ensuring tenant settings table:', error);
   }
@@ -46,7 +65,7 @@ export async function fetchTenantSettings(): Promise<TenantSettingsResponse> {
     await ensureTenantSettingsTable();
 
     const result = await sql<TenantSettingsRow>`
-      SELECT * FROM tenant_settings ORDER BY updated_at DESC LIMIT 1
+      SELECT * FROM tenant_settings WHERE id = 1 LIMIT 1
     `;
 
     if (result.rows.length > 0) {
@@ -56,9 +75,9 @@ export async function fetchTenantSettings(): Promise<TenantSettingsResponse> {
         updatedAt: row.updated_at.toISOString(),
       };
     } else {
-      // Insert fallback and return it
       await sql`
-        INSERT INTO tenant_settings (settings) VALUES (${JSON.stringify(fallbackSettings)})
+        INSERT INTO tenant_settings (id, settings) VALUES (1, ${JSON.stringify(fallbackSettings)})
+        ON CONFLICT (id) DO NOTHING
       `;
       return {
         ...fallbackSettings,
@@ -80,8 +99,11 @@ export async function updateTenantSettings(settings: TenantSettingsPayload): Pro
     await ensureTenantSettingsTable();
 
     const result = await sql<TenantSettingsRow>`
-      INSERT INTO tenant_settings (settings)
-      VALUES (${JSON.stringify(settings)})
+      INSERT INTO tenant_settings (id, settings, updated_at)
+      VALUES (1, ${JSON.stringify(settings)}, NOW())
+      ON CONFLICT (id) DO UPDATE
+        SET settings = EXCLUDED.settings,
+            updated_at = NOW()
       RETURNING *
     `;
 
@@ -92,7 +114,6 @@ export async function updateTenantSettings(settings: TenantSettingsPayload): Pro
     };
   } catch (error) {
     console.error('Error updating tenant settings:', error);
-    // Fallback to in-memory
     return {
       ...settings,
       updatedAt: new Date().toISOString(),

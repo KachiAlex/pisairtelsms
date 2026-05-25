@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Save, Shield, Bell, Plug } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -37,12 +37,48 @@ function cloneFallback(): TenantSettingsPayload {
   return structuredClone(fallbackSettings)
 }
 
+function getCalendarHeaders() {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+    }
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' }
+  }
+}
+
 export function SystemSettings() {
   const { toast } = useToast()
   const [settings, setSettings] = useState<TenantSettingsPayload | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [academicYears, setAcademicYears] = useState<{ id: string; name: string }[]>([])
+  const [terms, setTerms] = useState<{ id: string; name: string }[]>([])
+
+  const loadCalendarData = useCallback(async () => {
+    try {
+      const headers = getCalendarHeaders()
+      const [yearsRes, termsRes] = await Promise.all([
+        fetch('/api/tenant/timetable/calendar?resource=academic-years', { headers }),
+        fetch('/api/tenant/timetable/calendar?resource=terms', { headers }),
+      ])
+      if (yearsRes.ok) {
+        const json = await yearsRes.json()
+        setAcademicYears((json.data || []).map((y: any) => ({ id: y.id, name: y.name })))
+      }
+      if (termsRes.ok) {
+        const json = await termsRes.json()
+        setTerms((json.data || []).map((t: any) => ({ id: t.id, name: t.name })))
+      }
+    } catch {
+      // silently ignore — dropdowns will show saved value as lone option
+    }
+  }, [])
+
+  useEffect(() => { loadCalendarData() }, [loadCalendarData])
 
   useEffect(() => {
     let cancelled = false
@@ -152,10 +188,17 @@ export function SystemSettings() {
                     value={settings.currentSession}
                     onChange={(e) => setSettings({ ...settings, currentSession: e.target.value })}
                   >
-                    <option>2025/2026</option>
-                    <option>2024/2025</option>
-                    <option>2023/2024</option>
+                    {/* Always include the saved value so it stays selected even if calendar API is empty */}
+                    {[settings.currentSession, ...academicYears.map(y => y.name).filter(n => n !== settings.currentSession)]
+                      .filter(Boolean)
+                      .map(name => <option key={name} value={name}>{name}</option>)}
+                    {academicYears.length === 0 && !settings.currentSession && (
+                      <option value="">No academic years found — add one in Timetable</option>
+                    )}
                   </select>
+                  {academicYears.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">{academicYears.length} academic year{academicYears.length !== 1 ? 's' : ''} available</p>
+                  )}
                 </div>
                 <div>
                   <Label>Current Term</Label>
@@ -164,10 +207,17 @@ export function SystemSettings() {
                     value={settings.currentTerm}
                     onChange={(e) => setSettings({ ...settings, currentTerm: e.target.value })}
                   >
-                    <option>First Term</option>
-                    <option>Second Term</option>
-                    <option>Third Term</option>
+                    {/* Always include the saved value so it stays selected */}
+                    {[settings.currentTerm, ...terms.map(t => t.name).filter(n => n !== settings.currentTerm)]
+                      .filter(Boolean)
+                      .map(name => <option key={name} value={name}>{name}</option>)}
+                    {terms.length === 0 && !settings.currentTerm && (
+                      <option value="">No terms found — add one in Timetable</option>
+                    )}
                   </select>
+                  {terms.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">{terms.length} term{terms.length !== 1 ? 's' : ''} available</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -194,16 +244,18 @@ export function SystemSettings() {
                   <Label>Format Template</Label>
                   <Input
                     className="mt-1 font-mono"
-                    value={settings.admissionNoFormat ?? '{PREFIX}/{YEAR}/{SEQ}'}
+                    value={settings.admissionNoFormat || ''}
                     onChange={(e) => updateSetting('admissionNoFormat', e.target.value)}
                     placeholder="{PREFIX}/{YEAR}/{SEQ}"
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Preview: {(settings.admissionNoFormat ?? '{PREFIX}/{YEAR}/{SEQ}')
-                      .replace('{PREFIX}', settings.schoolName?.split(' ')[0]?.toUpperCase().slice(0, 3) || 'SCH')
-                      .replace('{YEAR}', String(new Date().getFullYear()))
-                      .replace('{SEQ}', '0001'.slice(-(settings.admissionNoDigits ?? 4)).padStart(settings.admissionNoDigits ?? 4, '0'))}
-                  </p>
+                  {settings.admissionNoFormat && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Preview: {settings.admissionNoFormat
+                        .replace('{PREFIX}', settings.schoolName?.split(' ')[0]?.toUpperCase().slice(0, 3) || 'SCH')
+                        .replace('{YEAR}', String(new Date().getFullYear()))
+                        .replace('{SEQ}', '1'.padStart(settings.admissionNoDigits ?? 4, '0'))}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label>Sequence Digits</Label>

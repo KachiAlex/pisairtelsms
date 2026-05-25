@@ -26,6 +26,20 @@ interface ApiResponse {
   error?: string
 }
 
+function getAuthHeaders(): Record<string, string> {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      'x-user-id': auth.userId || auth.email || 'system',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant', 'x-user-id': 'system' }
+  }
+}
+
 async function parseResponse(response: Response): Promise<ApiResponse> {
   const data = (await response.json().catch(() => ({}))) as ApiResponse
   if (!response.ok) {
@@ -36,7 +50,7 @@ async function parseResponse(response: Response): Promise<ApiResponse> {
 }
 
 export async function fetchTenantSettings(): Promise<TenantSettingsResponse> {
-  const res = await fetch('/api/tenant/settings')
+  const res = await fetch('/api/tenant/settings', { headers: getAuthHeaders() })
   const data = await parseResponse(res)
   if (!data.settings) {
     throw new Error('Tenant settings response is empty.')
@@ -47,7 +61,7 @@ export async function fetchTenantSettings(): Promise<TenantSettingsResponse> {
 export async function updateTenantSettings(payload: TenantSettingsPayload): Promise<TenantSettingsResponse> {
   const res = await fetch('/api/tenant/settings', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   })
   const data = await parseResponse(res)

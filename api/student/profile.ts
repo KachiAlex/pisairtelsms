@@ -7,6 +7,7 @@ import { requireCSRF } from '../_lib/csrf';
 import { logPasswordChange } from '../_lib/audit-logger';
 import { validatePassword } from '../_lib/password-validator';
 import { validate, Schemas } from '../_lib/validator';
+import { requireNotBlockedIP } from '../_lib/ip-restrictions';
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
@@ -120,6 +121,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (rateLimit(req, res, 5, 60 * 1000)) {
       return;
     }
+
+    // IP blocking (optional - configure BLOCKED_IPS env var)
+    const blockedIPs = (process.env.BLOCKED_IPS || '').split(',').filter(Boolean)
+    if (requireNotBlockedIP(req, res, blockedIPs)) return
 
     // CSRF protection for state-changing requests
     if (studentId && requireCSRF(req, res, studentId)) return

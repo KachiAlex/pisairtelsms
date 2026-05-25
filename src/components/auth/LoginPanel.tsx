@@ -97,6 +97,7 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
         setAuthInStorage({
           token: `super-admin-${Date.now()}`,
           tenantId: 'super-admin',
+          role: 'super_admin',
           expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
         })
         
@@ -120,6 +121,7 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
     setAuthInStorage({
       token: `tenant-admin-${Date.now()}`,
       tenantId: defaultTenantId,
+      role: 'tenant_admin',
       expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
       userId: email.trim().toLowerCase(),
     })

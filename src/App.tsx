@@ -89,8 +89,20 @@ export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const handleLoginSuccess = (role: LoginRole) => {
-    navigate(role === 'super-admin' ? '/super-admin' : '/tenant');
+  const handleLoginSuccess = (_role: LoginRole) => {
+    // Read the role that was just stamped into storage by the login flow
+    // so the redirect is always authoritative regardless of the LoginRole hint
+    const auth = (() => {
+      try { return JSON.parse(localStorage.getItem('auth') || '{}') } catch { return {} }
+    })()
+    const roleRoutes: Record<string, string> = {
+      super_admin:  '/super-admin',
+      tenant_admin: '/tenant',
+      staff:        '/staff/dashboard',
+      student:      '/student/dashboard',
+      parent:       '/parent/dashboard',
+    }
+    navigate(roleRoutes[auth.role] ?? '/unauthorized')
   };
 
   const renderPage = () => {

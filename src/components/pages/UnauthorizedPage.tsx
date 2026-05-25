@@ -1,10 +1,23 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShieldX, ArrowLeft } from 'lucide-react'
+import { ShieldX } from 'lucide-react'
 import { Button } from '../ui/button'
+
+const ROLE_PORTAL: Record<string, { label: string; path: string }> = {
+  super_admin:  { label: 'Super Admin Portal',  path: '/super-admin' },
+  tenant_admin: { label: 'School Dashboard',     path: '/tenant' },
+  staff:        { label: 'Staff Dashboard',      path: '/staff/dashboard' },
+  student:      { label: 'Student Portal',       path: '/student/dashboard' },
+  parent:       { label: 'Parent Portal',        path: '/parent/dashboard' },
+}
 
 export function UnauthorizedPage() {
   const navigate = useNavigate()
+
+  const auth = (() => {
+    try { return JSON.parse(localStorage.getItem('auth') || '{}') } catch { return {} }
+  })()
+  const portal = auth.role ? ROLE_PORTAL[auth.role] : null
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -13,25 +26,27 @@ export function UnauthorizedPage() {
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <ShieldX className="w-8 h-8 text-red-600" />
           </div>
-          
+
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600 mb-6">
-            You don't have permission to access this page. Please contact your administrator if you believe this is an error.
+          <p className="text-gray-600 mb-2">
+            You don't have permission to access this page.
           </p>
-          
+          {portal && (
+            <p className="text-sm text-gray-500 mb-6">
+              Your account has the <strong>{auth.role}</strong> role. You can access the <strong>{portal.label}</strong>.
+            </p>
+          )}
+
           <div className="space-y-3">
-            <Button 
-              onClick={() => navigate(-1)}
-              className="w-full"
+            {portal && (
+              <Button className="w-full" onClick={() => navigate(portal.path)}>
+                Go to {portal.label}
+              </Button>
+            )}
+            <Button
               variant="outline"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Go Back
-            </Button>
-            
-            <Button 
-              onClick={() => navigate('/login')}
               className="w-full"
+              onClick={() => navigate('/login')}
             >
               Return to Login
             </Button>

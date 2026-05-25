@@ -11,6 +11,12 @@ import { sql } from '@vercel/postgres';
  *   GET    /api/tenant/branding/history            - Get branding history
  *   GET    /api/tenant/branding/audit-logs         - Get audit logs
  */
+async function ensureColumns() {
+  await sql`ALTER TABLE branding_configs ADD COLUMN IF NOT EXISTS school_address TEXT`;
+  await sql`ALTER TABLE branding_configs ADD COLUMN IF NOT EXISTS school_email TEXT`;
+  await sql`ALTER TABLE branding_configs ADD COLUMN IF NOT EXISTS school_phone TEXT`;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId =
     (req.headers['x-tenant-id'] as string) ||
@@ -25,6 +31,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = Array.isArray(req.query.action) ? req.query.action[0] : req.query.action;
 
   try {
+    await ensureColumns();
+
     // POST /api/tenant/branding/logo
     if (req.method === 'POST' && action === 'logo') {
       const { logoUrl, fileName } = req.body || {};
@@ -87,6 +95,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tenant_id: tenantId,
         school_name: 'Your School',
         school_motto: '',
+        school_address: '',
+        school_email: '',
+        school_phone: '',
         primary_color: '#1E3A8A',
         secondary_color: '#10B981',
         accent_color: '#F59E0B',
@@ -99,14 +110,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // PUT /api/tenant/branding
     if (req.method === 'PUT') {
-      const { schoolName, schoolMotto, primaryColor, secondaryColor, accentColor, faviconUrl } = req.body || {};
+      const { schoolName, schoolMotto, schoolAddress, schoolEmail, schoolPhone, primaryColor, secondaryColor, accentColor, faviconUrl } = req.body || {};
       const result = await sql.query(
-        `INSERT INTO branding_configs (id, tenant_id, school_name, school_motto, primary_color, secondary_color, accent_color, favicon_url, updated_by, updated_at)
-         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        `INSERT INTO branding_configs (id, tenant_id, school_name, school_motto, school_address, school_email, school_phone, primary_color, secondary_color, accent_color, favicon_url, updated_by, updated_at)
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
          ON CONFLICT (tenant_id)
          DO UPDATE SET
            school_name     = COALESCE(EXCLUDED.school_name, branding_configs.school_name),
            school_motto    = COALESCE(EXCLUDED.school_motto, branding_configs.school_motto),
+           school_address  = COALESCE(EXCLUDED.school_address, branding_configs.school_address),
+           school_email    = COALESCE(EXCLUDED.school_email, branding_configs.school_email),
+           school_phone    = COALESCE(EXCLUDED.school_phone, branding_configs.school_phone),
            primary_color   = COALESCE(EXCLUDED.primary_color, branding_configs.primary_color),
            secondary_color = COALESCE(EXCLUDED.secondary_color, branding_configs.secondary_color),
            accent_color    = COALESCE(EXCLUDED.accent_color, branding_configs.accent_color),
@@ -114,7 +128,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            updated_by      = EXCLUDED.updated_by,
            updated_at      = NOW()
          RETURNING *`,
-        [tenantId, schoolName || null, schoolMotto || null, primaryColor || null,
+        [tenantId, schoolName || null, schoolMotto || null, schoolAddress || null,
+         schoolEmail || null, schoolPhone || null, primaryColor || null,
          secondaryColor || null, accentColor || null, faviconUrl || null, userId]
       );
       return res.status(200).json({ success: true, data: result.rows[0] });

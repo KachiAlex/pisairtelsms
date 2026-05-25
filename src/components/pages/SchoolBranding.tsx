@@ -36,6 +36,9 @@ export function SchoolBranding() {
   const [formData, setFormData] = useState({
     schoolName: '',
     schoolMotto: '',
+    schoolAddress: '',
+    schoolEmail: '',
+    schoolPhone: '',
     primaryColor: '#1E3A8A',
     secondaryColor: '#10B981',
     accentColor: '#F59E0B',
@@ -64,11 +67,14 @@ export function SchoolBranding() {
       const config = result.data
       setBranding(config)
       setFormData({
-        schoolName: config.school_name || config.schoolName || '',
-        schoolMotto: config.school_motto || config.schoolMotto || '',
-        primaryColor: config.primary_color || config.primaryColor || '#1E3A8A',
+        schoolName:    config.school_name    || config.schoolName    || '',
+        schoolMotto:   config.school_motto   || config.schoolMotto   || '',
+        schoolAddress: config.school_address || config.schoolAddress || '',
+        schoolEmail:   config.school_email   || config.schoolEmail   || '',
+        schoolPhone:   config.school_phone   || config.schoolPhone   || '',
+        primaryColor:   config.primary_color   || config.primaryColor   || '#1E3A8A',
         secondaryColor: config.secondary_color || config.secondaryColor || '#10B981',
-        accentColor: config.accent_color || config.accentColor || '#F59E0B',
+        accentColor:    config.accent_color    || config.accentColor    || '#F59E0B',
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load branding')
@@ -106,11 +112,14 @@ export function SchoolBranding() {
   const handleReset = () => {
     if (branding) {
       setFormData({
-        schoolName: branding.school_name || branding.schoolName || '',
-        schoolMotto: branding.school_motto || branding.schoolMotto || '',
-        primaryColor: branding.primary_color || branding.primaryColor || '#1E3A8A',
+        schoolName:    branding.school_name    || branding.schoolName    || '',
+        schoolMotto:   branding.school_motto   || branding.schoolMotto   || '',
+        schoolAddress: branding.school_address || branding.schoolAddress || '',
+        schoolEmail:   branding.school_email   || branding.schoolEmail   || '',
+        schoolPhone:   branding.school_phone   || branding.schoolPhone   || '',
+        primaryColor:   branding.primary_color   || branding.primaryColor   || '#1E3A8A',
         secondaryColor: branding.secondary_color || branding.secondaryColor || '#10B981',
-        accentColor: branding.accent_color || branding.accentColor || '#F59E0B',
+        accentColor:    branding.accent_color    || branding.accentColor    || '#F59E0B',
       })
     }
   }
@@ -298,24 +307,52 @@ export function SchoolBranding() {
       <Card>
         <CardHeader>
           <CardTitle>School Information</CardTitle>
-          <CardDescription>Update your school name and motto.</CardDescription>
+          <CardDescription>Update your school name, contact details and motto.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School Name</label>
-            <Input
-              value={formData.schoolName}
-              onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
-              placeholder="Enter school name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">School Motto</label>
-            <Input
-              value={formData.schoolMotto}
-              onChange={(e) => setFormData({ ...formData, schoolMotto: e.target.value })}
-              placeholder="Enter school motto"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">School Name</label>
+              <Input
+                value={formData.schoolName}
+                onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
+                placeholder="Enter school name"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <Input
+                value={formData.schoolAddress}
+                onChange={(e) => setFormData({ ...formData, schoolAddress: e.target.value })}
+                placeholder="e.g. 12 Education Road, Lagos, Nigeria"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <Input
+                type="email"
+                value={formData.schoolEmail}
+                onChange={(e) => setFormData({ ...formData, schoolEmail: e.target.value })}
+                placeholder="info@yourschool.edu.ng"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <Input
+                type="tel"
+                value={formData.schoolPhone}
+                onChange={(e) => setFormData({ ...formData, schoolPhone: e.target.value })}
+                placeholder="+234-801-234-5678"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">School Motto</label>
+              <Input
+                value={formData.schoolMotto}
+                onChange={(e) => setFormData({ ...formData, schoolMotto: e.target.value })}
+                placeholder="Enter school motto"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

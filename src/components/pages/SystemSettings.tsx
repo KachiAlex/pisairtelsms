@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Save, School, Shield, Bell, Plug } from 'lucide-react'
+import { Save, Shield, Bell, Plug } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Switch } from '../ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
-import { Separator } from '../ui/separator'
 import { useToast } from '../ui/use-toast'
 import {
   fetchTenantSettings,
@@ -130,66 +129,13 @@ export function SystemSettings() {
         </div>
       </div>
 
-      <Tabs defaultValue="school" className="space-y-4">
+      <Tabs defaultValue="academic" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="school">School Info</TabsTrigger>
           <TabsTrigger value="academic">Academic</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
         </TabsList>
-
-        {/* School Information */}
-        <TabsContent value="school" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <School className="w-5 h-5 text-blue-600" />
-                <CardTitle>School Profile</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <Label>School Name</Label>
-                  <Input
-                    value={settings.schoolName}
-                    onChange={(e) => setSettings({ ...settings, schoolName: e.target.value })}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Label>Address</Label>
-                  <Input
-                    value={settings.schoolAddress}
-                    onChange={(e) => setSettings({ ...settings, schoolAddress: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={settings.schoolEmail}
-                    onChange={(e) => setSettings({ ...settings, schoolEmail: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Phone</Label>
-                  <Input
-                    value={settings.schoolPhone}
-                    onChange={(e) => setSettings({ ...settings, schoolPhone: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
-                <p className="font-medium mb-1">Logo &amp; Branding</p>
-                <p className="text-blue-700">Manage your school logo, portal colors, and typography under <strong>Customization → School Branding</strong>.</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Academic Settings */}
         <TabsContent value="academic" className="space-y-4">

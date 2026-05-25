@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import crypto from 'crypto';
 import { requireRole } from '../_lib/auth-middleware';
+import { rateLimit } from '../_lib/rate-limit';
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
@@ -111,6 +112,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'POST') {
+    // Rate limit: 5 requests per minute per IP for password changes
+    if (rateLimit(req, res, 5, 60 * 1000)) {
+      return;
+    }
+
     try {
       const { action } = req.query;
 

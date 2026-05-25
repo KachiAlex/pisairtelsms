@@ -5,6 +5,7 @@ import { requireRole } from '../_lib/auth-middleware'
 import { rateLimit } from '../_lib/rate-limit'
 import { requireCSRF } from '../_lib/csrf'
 import { logPasswordChange } from '../_lib/audit-logger'
+import { validatePassword } from '../_lib/password-validator'
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':')
@@ -43,8 +44,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Bad request: currentPassword and newPassword are required' })
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Bad request: newPassword must be at least 8 characters' })
+    const passwordValidation = validatePassword(newPassword)
+    if (!passwordValidation.valid) {
+      return res.status(400).json({
+        error: 'Password does not meet requirements',
+        details: passwordValidation.errors
+      })
     }
 
     const row = await sql`SELECT password_hash FROM parents WHERE id = ${parentInfo.parentId} LIMIT 1`

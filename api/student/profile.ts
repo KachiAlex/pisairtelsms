@@ -5,6 +5,7 @@ import { requireRole } from '../_lib/auth-middleware';
 import { rateLimit } from '../_lib/rate-limit';
 import { requireCSRF } from '../_lib/csrf';
 import { logPasswordChange } from '../_lib/audit-logger';
+import { validatePassword } from '../_lib/password-validator';
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
@@ -129,8 +130,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const body = parseBody(req);
         if (!body || !body.currentPassword || !body.newPassword)
           return res.status(400).json({ error: 'Current password and new password are required' });
-        if (body.newPassword.length < 8)
-          return res.status(400).json({ error: 'New password must be at least 8 characters' });
+        
+        const passwordValidation = validatePassword(body.newPassword);
+        if (!passwordValidation.valid) {
+          return res.status(400).json({
+            error: 'Password does not meet requirements',
+            details: passwordValidation.errors
+          });
+        }
+        
         const row = await sql`SELECT password_hash FROM students WHERE id = ${studentId} LIMIT 1`;
         const storedHash = row.rows[0]?.password_hash;
         if (storedHash && !verifyPassword(body.currentPassword, storedHash))

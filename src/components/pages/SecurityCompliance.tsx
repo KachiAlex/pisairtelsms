@@ -19,6 +19,7 @@ interface SecurityOverview {
 export function SecurityCompliance() {
   const [overview, setOverview] = useState<SecurityOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchWithAuth = async (url: string) => {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}');
@@ -32,22 +33,12 @@ export function SecurityCompliance() {
 
   const loadOverview = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await fetchWithAuth('/api/tenant/security/overview');
       setOverview(data.data);
     } catch (error) {
-      console.error('Error loading security overview:', error);
-      // Set mock data for development
-      setOverview({
-        activeSessions: 142,
-        privilegedIdentities: 48,
-        mfaCoverage: 92,
-        encryptionCoverage: 98,
-        criticalAlerts: 2,
-        pendingReviews: 5,
-        backupSuccessRate: 100,
-        complianceTasks: 3,
-      });
+      setLoadError(error instanceof Error ? error.message : 'Failed to load security overview.');
     } finally {
       setLoading(false);
     }
@@ -57,10 +48,23 @@ export function SecurityCompliance() {
     loadOverview();
   }, []);
 
-  if (loading && !overview) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <AlertTriangle className="h-10 w-10 text-red-400" />
+        <p className="text-gray-700 font-medium">Failed to load security data</p>
+        <p className="text-sm text-gray-500">{loadError}</p>
+        <Button variant="outline" onClick={loadOverview}>
+          <RefreshCcw className="h-4 w-4 mr-2" /> Retry
+        </Button>
       </div>
     );
   }

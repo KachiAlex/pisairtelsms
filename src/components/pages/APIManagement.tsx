@@ -32,11 +32,17 @@ interface Stats {
 }
 
 function getHeaders() {
-  return {
-    'Content-Type': 'application/json',
-    'x-tenant-id': localStorage.getItem('tenantId') || '',
-    'x-user-id':   localStorage.getItem('userId')   || '',
-  };
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      'x-user-id':   auth.userId   || auth.email || 'system',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    };
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant', 'x-user-id': 'system' };
+  }
 }
 
 const STATUS_STYLE: Record<string, string> = {

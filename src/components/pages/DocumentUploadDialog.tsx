@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import {
   Upload,
   X,
@@ -72,13 +72,7 @@ const documentCategories = [
   'Other',
 ]
 
-const mockStudents = [
-  { id: '1', name: 'Chidera Igwe', class: 'Primary 5A' },
-  { id: '2', name: 'Yakubu Idris', class: 'Primary 5B' },
-  { id: '3', name: 'Grace Obi', class: 'Primary 5A' },
-  { id: '4', name: 'Emeka Nwosu', class: 'Primary 5C' },
-  { id: '5', name: 'Ada Eze', class: 'Primary 5B' },
-]
+interface StudentOption { id: string; name: string; class: string }
 
 export function DocumentUploadDialog({
   open,
@@ -96,7 +90,29 @@ export function DocumentUploadDialog({
   const [isUploading, setIsUploading] = useState(false)
   const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [students, setStudents] = useState<StudentOption[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    try {
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+      if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId
+      fetch('/api/tenant/students?limit=200', { headers })
+        .then(r => r.ok ? r.json() : { data: [] })
+        .then(json => {
+          const rows: StudentOption[] = (json.data || []).map((s: any) => ({
+            id: String(s.id),
+            name: s.name || s.full_name || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim(),
+            class: s.class_name || s.class || s.grade || '',
+          }))
+          setStudents(rows)
+        })
+        .catch(() => {})
+    } catch {}
+  }, [open])
 
   // Initialize approval workflow engine
   const workflowEngine = new ApprovalWorkflowEngine()

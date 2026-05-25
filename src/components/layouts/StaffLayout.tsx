@@ -11,7 +11,6 @@ import {
   User,
   Menu,
   X,
-  Bell,
   LogOut,
   Briefcase,
   GraduationCap,
@@ -28,6 +27,7 @@ import { PayslipViewer } from '../pages/staff/PayslipViewer'
 import { ClassLists } from '../pages/staff/ClassLists'
 import { Profile } from '../pages/staff/Profile'
 import { Communications } from '../pages/staff/Communications'
+import { NotificationsDropdown } from '../staff/NotificationsDropdown'
 
 interface StaffLayoutProps {
   children?: React.ReactNode
@@ -198,9 +198,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-            </Button>
+            <NotificationsDropdown />
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4 text-white" />

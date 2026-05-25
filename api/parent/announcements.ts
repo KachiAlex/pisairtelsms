@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -30,74 +31,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    const allAnnouncements = [
-      {
-        id: '1',
-        title: 'School Reopens',
-        body: 'School will reopen on January 27, 2025',
-        category: 'academic',
-        date: '2025-01-20',
-        author: 'Principal',
-        attachments: [],
-        isRead: true,
-      },
-      {
-        id: '2',
-        title: 'Sports Day',
-        body: 'Annual sports day scheduled for February 10th',
-        category: 'event',
-        date: '2025-01-18',
-        author: 'Sports Director',
-        attachments: [],
-        isRead: false,
-      },
-      {
-        id: '3',
-        title: 'Exam Schedule',
-        body: 'First term exams begin on February 1st',
-        category: 'academic',
-        date: '2025-01-15',
-        author: 'Academic Officer',
-        attachments: [],
-        isRead: true,
-      },
-      {
-        id: '4',
-        title: 'Holiday Notice',
-        body: 'School closed for public holiday',
-        category: 'notice',
-        date: '2025-01-10',
-        author: 'Principal',
-        attachments: [],
-        isRead: true,
-      },
-      {
-        id: '5',
-        title: 'Parent Meeting',
-        body: 'Parent-teacher meeting on February 5th',
-        category: 'event',
-        date: '2025-01-08',
-        author: 'Principal',
-        attachments: [],
-        isRead: false,
-      },
-    ]
+    const dbResult = category
+      ? await sql`
+          SELECT id::text, title, body, COALESCE(category, 'general') AS category,
+                 created_at::date::text AS date, COALESCE(author, 'Admin') AS author
+          FROM announcements WHERE LOWER(category) = LOWER(${category})
+          ORDER BY created_at DESC LIMIT ${limit}
+        `
+      : await sql`
+          SELECT id::text, title, body, COALESCE(category, 'general') AS category,
+                 created_at::date::text AS date, COALESCE(author, 'Admin') AS author
+          FROM announcements
+          ORDER BY created_at DESC LIMIT ${limit}
+        `
 
-    let filtered = allAnnouncements
-    if (category) {
-      filtered = filtered.filter((a) => a.category === category)
-    }
+    const announcements = dbResult.rows.map(r => ({
+      id: r.id, title: r.title, body: r.body, category: r.category,
+      date: r.date, author: r.author, attachments: [], isRead: false,
+    }))
 
-    const announcements = filtered.slice(0, limit)
-    const unreadCount = allAnnouncements.filter((a) => !a.isRead).length
+    const unreadCount = announcements.length
 
-    const response = {
-      announcements,
-      categories: ['academic', 'event', 'notice'],
-      unreadCount,
-    }
-
-    return res.status(200).json(response)
+    return res.status(200).json({ announcements, categories: ['academic', 'event', 'notice', 'general'], unreadCount })
   } catch (error) {
     console.error('Error fetching announcements:', error)
     return res.status(500).json({ error: 'Failed to fetch announcements' })

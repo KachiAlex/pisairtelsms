@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -29,82 +30,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    const response = {
-      schedule: [
-        {
-          id: '1',
-          dayOfWeek: 1,
-          timeSlot: '08:00-09:00',
-          subject: 'Mathematics',
-          teacher: 'Mr. Johnson',
-          room: 'A101',
-          startTime: '08:00',
-          endTime: '09:00',
-        },
-        {
-          id: '2',
-          dayOfWeek: 1,
-          timeSlot: '09:00-10:00',
-          subject: 'English',
-          teacher: 'Mrs. Williams',
-          room: 'A102',
-          startTime: '09:00',
-          endTime: '10:00',
-        },
-        {
-          id: '3',
-          dayOfWeek: 2,
-          timeSlot: '08:00-09:00',
-          subject: 'Science',
-          teacher: 'Mr. Smith',
-          room: 'A103',
-          startTime: '08:00',
-          endTime: '09:00',
-        },
-        {
-          id: '4',
-          dayOfWeek: 2,
-          timeSlot: '09:00-10:00',
-          subject: 'History',
-          teacher: 'Mr. Brown',
-          room: 'A104',
-          startTime: '09:00',
-          endTime: '10:00',
-        },
-      ],
-      examSchedule: [
-        {
-          id: '1',
-          subject: 'Mathematics',
-          date: '2025-02-01',
-          time: '09:00',
-          room: 'Exam Hall A',
-          duration: 120,
-          invigilator: 'Mr. Johnson',
-        },
-        {
-          id: '2',
-          subject: 'English',
-          date: '2025-02-03',
-          time: '09:00',
-          room: 'Exam Hall B',
-          duration: 120,
-          invigilator: 'Mrs. Williams',
-        },
-      ],
-      currentTerm: termId || 'First Term 2025',
-      availableTerms: [
-        { id: 'term1', name: 'First Term 2025' },
-        { id: 'term2', name: 'Second Term 2024' },
-        { id: 'term3', name: 'Third Term 2024' },
-      ],
-      holidays: [
-        { id: '1', name: 'New Year', startDate: '2025-01-01', endDate: '2025-01-01' },
-        { id: '2', name: 'Mid-term Break', startDate: '2025-02-15', endDate: '2025-02-22' },
-      ],
-    }
+    const dayOrder: Record<string, number> = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 }
 
-    return res.status(200).json(response)
+    const childRow = await sql`SELECT class, arm FROM students WHERE id = ${childId} AND deleted_at IS NULL LIMIT 1`
+    if (!childRow.rows[0]) return res.status(404).json({ error: 'Child not found' })
+    const { class: studentClass, arm } = childRow.rows[0]
+    const className = `${studentClass}${arm ?? ''}`
+
+    const ttResult = await sql`
+      SELECT tt.id::text, tt.day, tt.start_time, tt.end_time,
+             tt.start_time || '-' || tt.end_time AS time_slot,
+             tt.subject, tt.room,
+             COALESCE(st.name, '') AS teacher
+      FROM timetable tt
+      LEFT JOIN staff st ON st.id = tt.staff_id
+      WHERE tt.class_name = ${className}
+      ORDER BY tt.day, tt.start_time
+    `
+
+    const schedule = ttResult.rows.map(r => ({
+      id: r.id, dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
+      timeSlot: r.time_slot, subject: r.subject, teacher: r.teacher, room: r.room,
+      startTime: r.start_time, endTime: r.end_time,
+    }))
+
+    const examResult = await sql`
+      SELECT id::text, title AS subject, exam_date::text AS date, start_time AS time, room,
+             EXTRACT(EPOCH FROM (end_time::time - start_time::time))/60 AS duration
+      FROM exams
+      WHERE (student_class = ${studentClass} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
+      ORDER BY exam_date, start_time
+    `
+
+    const examSchedule = examResult.rows.map(r => ({
+      id: r.id, subject: r.subject, date: r.date, time: r.time ?? '',
+      room: r.room ?? '', duration: Number(r.duration ?? 0), invigilator: '',
+    }))
+
+    let availableTerms = [{ id: 'term1', name: 'First Term' }, { id: 'term2', name: 'Second Term' }, { id: 'term3', name: 'Third Term' }]
+    try {
+      const termRows = await sql`SELECT id::text, name FROM terms ORDER BY name`
+      if (termRows.rows.length > 0) availableTerms = termRows.rows.map(r => ({ id: r.id, name: r.name }))
+    } catch { /* terms table may not exist */ }
+
+    return res.status(200).json({
+      schedule, examSchedule,
+      currentTerm: termId || (availableTerms[0]?.name ?? 'Current'),
+      availableTerms, holidays: [],
+    })
   } catch (error) {
     console.error('Error fetching timetable:', error)
     return res.status(500).json({ error: 'Failed to fetch timetable data' })

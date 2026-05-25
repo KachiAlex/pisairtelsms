@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -29,64 +30,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    const response = {
-      currentTerm: termId || 'First Term 2025',
-      availableTerms: [
-        { id: 'term1', name: 'First Term 2025' },
-        { id: 'term2', name: 'Second Term 2024' },
-        { id: 'term3', name: 'Third Term 2024' },
-      ],
-      subjects: [
-        {
-          id: '1',
-          subject: 'Mathematics',
-          caScore: 18,
-          examScore: 67,
-          totalScore: 85,
-          grade: 'A',
-          classAverage: 72,
-          teacherFeedback: 'Excellent performance',
-          trend: 'up' as const,
-        },
-        {
-          id: '2',
-          subject: 'English',
-          caScore: 16,
-          examScore: 62,
-          totalScore: 78,
-          grade: 'B',
-          classAverage: 70,
-          teacherFeedback: 'Good improvement',
-          trend: 'up' as const,
-        },
-        {
-          id: '3',
-          subject: 'Science',
-          caScore: 17,
-          examScore: 65,
-          totalScore: 82,
-          grade: 'A',
-          classAverage: 71,
-          teacherFeedback: 'Very good',
-          trend: 'stable' as const,
-        },
-      ],
-      overallGPA: 3.8,
-      classAverage: 71,
-      performanceTrend: [
-        { term: 'Term 1 2024', gpa: 3.5, date: '2024-04-15' },
-        { term: 'Term 2 2024', gpa: 3.6, date: '2024-08-20' },
-        { term: 'Term 3 2024', gpa: 3.7, date: '2024-12-10' },
-        { term: 'Term 1 2025', gpa: 3.8, date: '2025-01-20' },
-      ],
-      upcomingAssessments: [
-        { id: '1', subject: 'Mathematics', type: 'Quiz', date: '2025-02-01', weightage: 10 },
-        { id: '2', subject: 'English', type: 'Assignment', date: '2025-02-03', weightage: 15 },
-        { id: '3', subject: 'Science', type: 'Practical', date: '2025-02-05', weightage: 20 },
-      ],
-    }
+    // Get student's class
+    const studentRow = await sql`SELECT class FROM students WHERE id = ${childId} AND deleted_at IS NULL LIMIT 1`
+    const studentClass = studentRow.rows[0]?.class ?? ''
 
-    return res.status(200).json(response)
+    // Available terms from DB (fallback to static)
+    let availableTerms = [{ id: 'term1', name: 'First Term' }, { id: 'term2', name: 'Second Term' }, { id: 'term3', name: 'Third Term' }]
+    try {
+      const termRows = await sql`SELECT id::text, name FROM terms ORDER BY name`
+      if (termRows.rows.length > 0) availableTerms = termRows.rows.map(r => ({ id: r.id, name: r.name }))
+    } catch { /* terms table may not exist */ }
+
+    // Results for this child filtered by termId if provided
+    const resultsQuery = termId
+      ? await sql`SELECT id::text, subject, ca_score, exam_score, (ca_score+exam_score) AS total_score, grade FROM results WHERE student_id = ${childId} AND term = ${termId} ORDER BY subject`
+      : await sql`SELECT id::text, subject, ca_score, exam_score, (ca_score+exam_score) AS total_score, grade FROM results WHERE student_id = ${childId} ORDER BY subject`
+
+    // Class average per subject
+    const classAvgRows = termId
+      ? await sql`
+          SELECT r.subject, ROUND(AVG(r.ca_score + r.exam_score)) AS avg
+          FROM results r JOIN students s ON s.id = r.student_id
+          WHERE s.class = ${studentClass} AND r.term = ${termId}
+          GROUP BY r.subject
+        `
+      : await sql`
+          SELECT r.subject, ROUND(AVG(r.ca_score + r.exam_score)) AS avg
+          FROM results r JOIN students s ON s.id = r.student_id
+          WHERE s.class = ${studentClass}
+          GROUP BY r.subject
+        `
+    const classAvgMap: Record<string, number> = {}
+    classAvgRows.rows.forEach(r => { classAvgMap[r.subject] = Number(r.avg) })
+
+    const subjects = resultsQuery.rows.map(r => ({
+      id: r.id, subject: r.subject,
+      caScore: Number(r.ca_score), examScore: Number(r.exam_score), totalScore: Number(r.total_score),
+      grade: r.grade, classAverage: classAvgMap[r.subject] ?? 0,
+      teacherFeedback: '', trend: 'stable' as const,
+    }))
+
+    const overallAvg = subjects.length > 0 ? Math.round(subjects.reduce((s, r) => s + r.totalScore, 0) / subjects.length) : 0
+
+    // Upcoming exams
+    const examRows = await sql`
+      SELECT id::text, title AS subject, exam_date::text AS date, 'Exam' AS type
+      FROM exams WHERE (student_class = ${studentClass} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
+      ORDER BY exam_date LIMIT 5
+    `
+
+    return res.status(200).json({
+      currentTerm: termId || (availableTerms[0]?.name ?? 'Current'),
+      availableTerms,
+      subjects,
+      overallGPA: 0,
+      classAverage: overallAvg,
+      performanceTrend: [],
+      upcomingAssessments: examRows.rows.map(r => ({ id: r.id, subject: r.subject, type: r.type, date: r.date, weightage: 0 })),
+    })
   } catch (error) {
     console.error('Error fetching academic progress:', error)
     return res.status(500).json({ error: 'Failed to fetch academic data' })

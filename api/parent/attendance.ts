@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -27,31 +28,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    const response = {
-      attendancePercent: 92,
-      totalPresent: 92,
-      totalAbsent: 5,
-      totalLate: 3,
-      records: [
-        { id: '1', date: '2025-01-20', status: 'present' as const, subject: 'Mathematics', reason: null },
-        { id: '2', date: '2025-01-20', status: 'present' as const, subject: 'English', reason: null },
-        { id: '3', date: '2025-01-19', status: 'late' as const, subject: 'Science', reason: 'Traffic' },
-        { id: '4', date: '2025-01-18', status: 'absent' as const, subject: 'History', reason: 'Sick' },
-        { id: '5', date: '2025-01-17', status: 'present' as const, subject: 'Geography', reason: null },
-      ],
-      trend: [
-        { week: 'Week 1', percent: 90 },
-        { week: 'Week 2', percent: 91 },
-        { week: 'Week 3', percent: 92 },
-        { week: 'Week 4', percent: 92 },
-      ],
-      absenceReasons: [
-        { date: '2025-01-18', reason: 'Sick', approvedBy: 'Principal' },
-        { date: '2025-01-15', reason: 'Family event', approvedBy: 'Vice Principal' },
-      ],
-    }
+    const summaryResult = await sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'present') AS present,
+        COUNT(*) FILTER (WHERE status = 'absent')  AS absent,
+        COUNT(*) FILTER (WHERE status = 'late')    AS late,
+        COUNT(*) AS total
+      FROM attendance WHERE student_id = ${childId}
+    `
+    const totalPresent = parseInt(summaryResult.rows[0]?.present ?? '0')
+    const totalAbsent  = parseInt(summaryResult.rows[0]?.absent  ?? '0')
+    const totalLate    = parseInt(summaryResult.rows[0]?.late    ?? '0')
+    const total        = parseInt(summaryResult.rows[0]?.total   ?? '0')
+    const attendancePercent = total > 0 ? Math.round(((totalPresent) / total) * 100) : 100
 
-    return res.status(200).json(response)
+    const recordsResult = await sql`
+      SELECT a.id::text, a.date::text, a.status,
+             COALESCE(ar.reason_name, '') AS reason
+      FROM attendance a
+      LEFT JOIN absence_reasons ar ON ar.id = a.absence_reason_id
+      WHERE a.student_id = ${childId}
+      ORDER BY a.date DESC LIMIT 60
+    `
+
+    const records = recordsResult.rows.map(r => ({
+      id: r.id, date: r.date, status: r.status as 'present' | 'absent' | 'late',
+      subject: 'General', reason: r.reason || null,
+    }))
+
+    const absenceReasons = recordsResult.rows
+      .filter(r => r.status === 'absent' && r.reason)
+      .map(r => ({ date: r.date, reason: r.reason, approvedBy: '' }))
+
+    return res.status(200).json({ attendancePercent, totalPresent, totalAbsent, totalLate, records, trend: [], absenceReasons })
   } catch (error) {
     console.error('Error fetching attendance:', error)
     return res.status(500).json({ error: 'Failed to fetch attendance data' })

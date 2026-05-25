@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
 interface ParentDashboardResponse {
@@ -76,69 +77,82 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    // TODO: Fetch actual data from database
-    // For now, return mock data
-    const response: ParentDashboardResponse = {
-      parent: {
-        id: parentInfo.parentId,
-        name: 'Parent Name',
-        email: parentInfo.email,
-      },
-      child: {
-        id: childId,
-        name: 'John Adewale',
-        admissionNumber: 'ADM-2024-001',
-        class: 'SS3',
-        arm: 'A',
-      },
-      metrics: {
-        attendancePercent: 92,
-        gpa: 3.8,
-        outstandingFees: 0,
-        nextExamDate: '2025-02-15',
-      },
-      recentGrades: [
-        {
-          id: '1',
-          subject: 'Mathematics',
-          score: 85,
-          date: '2025-01-20',
-        },
-        {
-          id: '2',
-          subject: 'English',
-          score: 78,
-          date: '2025-01-19',
-        },
-      ],
-      recentAnnouncements: [
-        {
-          id: '1',
-          title: 'School Resumption Date',
-          date: '2025-01-20',
-          preview: 'School resumes on Monday, January 27, 2025...',
-        },
-      ],
-      upcomingEvents: [
-        {
-          id: '1',
-          date: '2025-02-15',
-          title: 'Mathematics Exam',
-          description: 'First term examination',
-        },
-      ],
-      alerts: [
-        {
-          id: '1',
-          type: 'academic',
-          message: 'New grades posted for Mathematics',
-          severity: 'info',
-          date: '2025-01-20',
-        },
-      ],
-    }
+    // Fetch parent name
+    const parentResult = await sql`SELECT name FROM parents WHERE id = ${parentInfo.parentId} LIMIT 1`
+    const parentName = parentResult.rows[0]?.name ?? 'Parent'
 
-    return res.status(200).json(response)
+    // Fetch child info
+    const childResult = await sql`
+      SELECT id, name, admission_no, class, arm FROM students
+      WHERE id = ${childId} AND deleted_at IS NULL LIMIT 1
+    `
+    if (!childResult.rows[0]) return res.status(404).json({ error: 'Child not found' })
+    const ch = childResult.rows[0]
+
+    // Attendance %
+    const attResult = await sql`
+      SELECT COUNT(*) FILTER (WHERE status = 'present') AS present, COUNT(*) AS total
+      FROM attendance WHERE student_id = ${childId} AND date >= NOW() - INTERVAL '90 days'
+    `
+    const attPresent = parseInt(attResult.rows[0]?.present ?? '0')
+    const attTotal   = parseInt(attResult.rows[0]?.total   ?? '0')
+    const attendancePercent = attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : 100
+
+    // Outstanding fees
+    const feeResult = await sql`
+      SELECT COALESCE(SUM(fa.amount - COALESCE(paid.paid,0)), 0) AS balance
+      FROM fee_assignments fa
+      LEFT JOIN (
+        SELECT fee_assignment_id, SUM(amount) AS paid FROM payments
+        WHERE status = 'confirmed' GROUP BY fee_assignment_id
+      ) paid ON paid.fee_assignment_id = fa.id
+      WHERE fa.student_id = ${childId}
+    `
+    const outstandingFees = parseFloat(feeResult.rows[0]?.balance ?? '0')
+
+    // Next exam
+    const examResult = await sql`
+      SELECT exam_date::text AS date FROM exams
+      WHERE (student_class = ${ch.class} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
+      ORDER BY exam_date ASC LIMIT 1
+    `
+    const nextExamDate = examResult.rows[0]?.date ?? ''
+
+    // Recent grades
+    const gradesResult = await sql`
+      SELECT id::text, subject, (ca_score + exam_score) AS score, updated_at::date::text AS date
+      FROM results WHERE student_id = ${childId}
+      ORDER BY updated_at DESC LIMIT 5
+    `
+
+    // Announcements
+    const annResult = await sql`
+      SELECT id::text, title, created_at::date::text AS date, LEFT(body, 120) AS preview
+      FROM announcements ORDER BY created_at DESC LIMIT 5
+    `
+
+    // Upcoming events (from exams table)
+    const eventsResult = await sql`
+      SELECT id::text, exam_date::text AS date, title, COALESCE(description, 'Examination') AS description
+      FROM exams
+      WHERE (student_class = ${ch.class} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
+      ORDER BY exam_date ASC LIMIT 5
+    `
+
+    // Auto alerts
+    const alerts: ParentDashboardResponse['alerts'] = []
+    if (attendancePercent < 75) alerts.push({ id: 'att-1', type: 'attendance', message: `Attendance is ${attendancePercent}% — below the 75% minimum`, severity: 'warning', date: new Date().toISOString().split('T')[0] })
+    if (outstandingFees > 0) alerts.push({ id: 'fee-1', type: 'fees', message: `Outstanding fee balance: ₦${outstandingFees.toLocaleString()}`, severity: 'critical', date: new Date().toISOString().split('T')[0] })
+
+    return res.status(200).json({
+      parent: { id: parentInfo.parentId, name: parentName, email: parentInfo.email },
+      child: { id: ch.id, name: ch.name, admissionNumber: ch.admission_no, class: ch.class, arm: ch.arm },
+      metrics: { attendancePercent, gpa: 0, outstandingFees, nextExamDate },
+      recentGrades: gradesResult.rows.map(r => ({ id: r.id, subject: r.subject, score: Number(r.score), date: r.date })),
+      recentAnnouncements: annResult.rows.map(r => ({ id: r.id, title: r.title, date: r.date, preview: r.preview })),
+      upcomingEvents: eventsResult.rows.map(r => ({ id: r.id, date: r.date, title: r.title, description: r.description })),
+      alerts,
+    })
   } catch (error) {
     console.error('Error fetching parent dashboard:', error)
     return res.status(500).json({ error: 'Failed to fetch dashboard data' })

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,13 +25,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Bad request: announcementId is required' })
     }
 
-    // TODO: Update announcement read status in database
-    const response = {
-      id: announcementId,
-      isRead: true,
-    }
-
-    return res.status(200).json(response)
+    const id = Array.isArray(announcementId) ? announcementId[0] : announcementId
+    await sql`
+      INSERT INTO parent_announcement_reads (parent_id, announcement_id, read_at)
+      VALUES (${parentInfo.parentId}, ${id}, NOW())
+      ON CONFLICT (parent_id, announcement_id) DO UPDATE SET read_at = NOW()
+    `
+    return res.status(200).json({ id, isRead: true })
   } catch (error) {
     console.error('Error marking announcement as read:', error)
     return res.status(500).json({ error: 'Failed to update announcement' })

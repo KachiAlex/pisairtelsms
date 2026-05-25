@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -20,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // TODO: Remove child link from database
+    await sql`DELETE FROM parent_students WHERE parent_id = ${parentInfo.parentId} AND student_id = ${childId}`
     return res.status(200).json({ success: true })
   } catch (error) {
     console.error('Error removing child:', error)

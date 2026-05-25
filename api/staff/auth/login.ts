@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
 import { rateLimit } from '../../_lib/rate-limit'
 import { setSecurityHeaders } from '../../_lib/security-headers'
+import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -24,6 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const staff = await fetchStaffByEmail(email)
 
     if (!staff) {
+      await logLoginFailure(req, email, 'Staff not found')
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
@@ -31,6 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Existing staff with no password: use email as one-time default password.
       // On success, auto-set it so future logins use the real hash.
       if (password !== email.trim().toLowerCase()) {
+        await logLoginFailure(req, email, 'Default password incorrect')
         return res.status(401).json({
           error: 'No password has been set for this account. Use your email address as your temporary password to log in for the first time.',
         })
@@ -39,6 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       const valid = await verifyStaffPassword(password, staff.passwordHash)
       if (!valid) {
+        await logLoginFailure(req, email, 'Invalid password')
         return res.status(401).json({ error: 'Invalid email or password' })
       }
     }
@@ -53,6 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       { expiresIn: `${expiresIn}s` }
     )
 
+    await logLoginSuccess(req, staff.id, 'staff')
     setSecurityHeaders(res)
     return res.status(200).json({
       token,

@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { requireRole } from '../_lib/auth-middleware';
 import { rateLimit } from '../_lib/rate-limit';
 import { requireCSRF } from '../_lib/csrf';
+import { logPasswordChange } from '../_lib/audit-logger';
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
@@ -136,6 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(401).json({ error: 'Current password is incorrect' });
         const newHash = hashPassword(body.newPassword);
         await sql`UPDATE students SET password_hash = ${newHash} WHERE id = ${studentId}`;
+        await logPasswordChange(req, studentId, 'student');
         return res.status(200).json({ success: true, message: 'Password changed successfully' });
       }
 

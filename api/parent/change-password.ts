@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { requireRole } from '../_lib/auth-middleware'
 import { rateLimit } from '../_lib/rate-limit'
 import { requireCSRF } from '../_lib/csrf'
+import { logPasswordChange } from '../_lib/audit-logger'
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':')
@@ -52,6 +53,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Current password is incorrect' })
     const newHash = hashPassword(newPassword)
     await sql`UPDATE parents SET password_hash = ${newHash} WHERE id = ${parentInfo.parentId}`
+    if (parentInfo.parentId) {
+      await logPasswordChange(req, parentInfo.parentId, 'parent')
+    }
     return res.status(200).json({ success: true })
   } catch (error) {
     console.error('Error changing password:', error)

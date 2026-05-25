@@ -4,6 +4,7 @@ import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
 import { rateLimit } from '../../_lib/rate-limit'
 import { setSecurityHeaders } from '../../_lib/security-headers'
+import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
 
 async function ensureStudentAuthColumn() {
   await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT`
@@ -55,16 +56,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const student = result.rows[0]
 
     if (!student) {
+      await logLoginFailure(req, admissionNumber, 'Student not found')
       return res.status(401).json({ error: 'Invalid admission number or password' })
     }
 
     if (student.status === 'Suspended') {
+      await logLoginFailure(req, admissionNumber, 'Account suspended')
       return res.status(403).json({ error: 'Your account has been suspended. Contact your school administrator.' })
     }
 
     if (!student.password_hash) {
       // First-time login: admission number as default password
       if (password !== admissionNumber.trim()) {
+        await logLoginFailure(req, admissionNumber, 'Default password incorrect')
         return res.status(401).json({ error: 'Invalid admission number or password' })
       }
       // Auto-set the password on first use
@@ -73,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       const valid = await verifyPassword(password, student.password_hash)
       if (!valid) {
+        await logLoginFailure(req, admissionNumber, 'Invalid password')
         return res.status(401).json({ error: 'Invalid admission number or password' })
       }
     }
@@ -87,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       { expiresIn: `${expiresIn}s` }
     )
 
+    await logLoginSuccess(req, student.id, 'student')
     setSecurityHeaders(res)
     return res.status(200).json({
       token,

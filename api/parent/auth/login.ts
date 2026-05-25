@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { fetchParentByEmail, verifyPassword } from '../../tenant/_lib/parents.js'
 import { rateLimit } from '../../_lib/rate-limit'
 import { setSecurityHeaders } from '../../_lib/security-headers'
+import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
 
 interface LoginRequest {
   email: string
@@ -57,11 +58,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parent = await fetchParentByEmail(email, tenantId)
 
     if (!parent) {
+      await logLoginFailure(req, email, 'Parent not found')
       return res.status(401).json({ error: 'Unauthorized: Invalid email or password' })
     }
 
     const passwordValid = await verifyPassword(password, parent.passwordHash)
     if (!passwordValid) {
+      await logLoginFailure(req, email, 'Invalid password')
       return res.status(401).json({ error: 'Unauthorized: Invalid email or password' })
     }
 
@@ -88,6 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       expiresAt
     }
 
+    await logLoginSuccess(req, parent.id, 'parent')
     setSecurityHeaders(res)
     return res.status(200).json(response)
   } catch (error) {

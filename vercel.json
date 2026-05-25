@@ -186,6 +186,8 @@
     { "source": "/api/admin/activity-feed", "destination": "/api/admin/admin-handler.ts?action=activity-feed" },
     { "source": "/api/admin/incidents", "destination": "/api/admin/admin-handler.ts?action=incidents" },
     { "source": "/api/admin/stats", "destination": "/api/admin/admin-handler.ts?action=stats" },
+    { "source": "/api/tenant/users", "destination": "/api/tenant/users.ts" },
+    { "source": "/api/tenant/roles", "destination": "/api/tenant/roles.ts" },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]
 }

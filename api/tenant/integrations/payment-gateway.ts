@@ -104,8 +104,8 @@ export const paymentGatewayApi = {
 
     const newTransaction: Transaction = {
       id: uuidv4(),
-      tenantId,
       ...transaction,
+      tenantId,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

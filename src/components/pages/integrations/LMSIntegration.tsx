@@ -49,8 +49,6 @@ export function LMSIntegration() {
     apiKey: '',
   });
 
-  useEffect(() => { fetchConfig(); }, [fetchConfig]);
-
   const fetchSyncHistory = useCallback(async (configId: string) => {
     try {
       const response = await fetch(`/api/tenant/integrations/lms/${configId}/sync-history`, {
@@ -161,6 +159,8 @@ export function LMSIntegration() {
       setSyncing(false);
     }
   };
+
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
   const getSyncStatusColor = (status: string) => {
     switch (status) {

@@ -209,13 +209,10 @@ export default function App() {
       case 'task-management':
         return <TaskManagement />;
       case 'payment-gateway':
-        return <PaymentGateway />;
       case 'biometric-devices':
-        return <BiometricDevices />;
       case 'lms-integration':
-        return <LMSIntegration />;
       case 'api-management':
-        return <APIManagement />;
+        return <IntegrationsHub />;
       case 'advanced':
       case 'offline-cbt':
         return <OfflineCBTSync />;

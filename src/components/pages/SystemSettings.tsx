@@ -227,42 +227,10 @@ export function SystemSettings() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Grading System</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[
-                  { grade: 'A', min: 80, max: 100, remark: 'Excellent' },
-                  { grade: 'B', min: 70, max: 79, remark: 'Very Good' },
-                  { grade: 'C', min: 60, max: 69, remark: 'Good' },
-                  { grade: 'D', min: 50, max: 59, remark: 'Pass' },
-                  { grade: 'E', min: 40, max: 49, remark: 'Fair' },
-                  { grade: 'F', min: 0, max: 39, remark: 'Fail' },
-                ].map((item, index) => (
-                  <div key={index} className="grid grid-cols-4 gap-3 items-center p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <Label className="text-xs">Grade</Label>
-                      <Input value={item.grade} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Min Score</Label>
-                      <Input type="number" value={item.min} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Max Score</Label>
-                      <Input type="number" value={item.max} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Remark</Label>
-                      <Input value={item.remark} className="mt-1" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+            <p className="font-medium mb-1">Grading System</p>
+            <p className="text-blue-700">Create and manage grading scales, bands, and policy rules under <strong>Customization → Grading Scale</strong>.</p>
+          </div>
 
           <Card>
             <CardHeader>
@@ -316,25 +284,10 @@ export function SystemSettings() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Promotion Rules</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Minimum Pass Percentage</Label>
-                <Input type="number" defaultValue="40" className="mt-1" />
-              </div>
-              <div>
-                <Label>Minimum Subjects to Pass</Label>
-                <Input type="number" defaultValue="5" className="mt-1" />
-              </div>
-              <div>
-                <Label>Maximum Failed Subjects for Promotion</Label>
-                <Input type="number" defaultValue="2" className="mt-1" />
-              </div>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
+            <p className="font-medium mb-1">Promotion Rules</p>
+            <p className="text-amber-700">Configure pass percentages, subject thresholds, and promotion criteria under <strong>Academic Structure → Grading Policy</strong>.</p>
+          </div>
         </TabsContent>
 
         {/* Notifications */}
@@ -378,7 +331,11 @@ export function SystemSettings() {
             <CardContent className="space-y-4">
               <div>
                 <Label>SMS Provider</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1">
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
+                  value={(settings as any).smsProvider || 'Termii'}
+                  onChange={(e) => updateSetting('smsProvider' as any, e.target.value)}
+                >
                   <option>Termii</option>
                   <option>SMS Portal NG</option>
                   <option>BulkSMS Nigeria</option>
@@ -386,11 +343,20 @@ export function SystemSettings() {
               </div>
               <div>
                 <Label>Sender ID</Label>
-                <Input placeholder="SCHOLIX" />
+                <Input
+                  placeholder="SCHOLIX"
+                  value={(settings as any).smsSenderId || ''}
+                  onChange={(e) => updateSetting('smsSenderId' as any, e.target.value)}
+                />
               </div>
               <div>
                 <Label>API Key</Label>
-                <Input type="password" placeholder="Enter API key" />
+                <Input
+                  type="password"
+                  placeholder="Enter API key"
+                  value={(settings as any).smsApiKey || ''}
+                  onChange={(e) => updateSetting('smsApiKey' as any, e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -448,27 +414,32 @@ export function SystemSettings() {
             <CardContent className="space-y-4">
               <div>
                 <Label>Minimum Password Length</Label>
-                <Input type="number" defaultValue="8" />
+                <Input
+                  type="number"
+                  value={(settings as any).passwordMinLength ?? 8}
+                  onChange={(e) => updateSetting('passwordMinLength' as any, Number(e.target.value))}
+                  className="mt-1"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Password Requirements</Label>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
-                    <span className="text-sm text-gray-700">Require uppercase letters</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
-                    <span className="text-sm text-gray-700">Require lowercase letters</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
-                    <span className="text-sm text-gray-700">Require numbers</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" className="rounded" />
-                    <span className="text-sm text-gray-700">Require special characters</span>
-                  </div>
+                  {[
+                    { key: 'passwordRequireUppercase', label: 'Require uppercase letters', defaultVal: true },
+                    { key: 'passwordRequireLowercase', label: 'Require lowercase letters', defaultVal: true },
+                    { key: 'passwordRequireNumbers', label: 'Require numbers', defaultVal: true },
+                    { key: 'passwordRequireSpecial', label: 'Require special characters', defaultVal: false },
+                  ].map(({ key, label, defaultVal }) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="rounded"
+                        checked={(settings as any)[key] ?? defaultVal}
+                        onChange={(e) => updateSetting(key as any, e.target.checked)}
+                      />
+                      <span className="text-sm text-gray-700">{label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>
@@ -498,7 +469,11 @@ export function SystemSettings() {
 
               <div>
                 <Label>Payment Provider</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1">
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
+                  value={(settings as any).paymentProvider || 'Paystack'}
+                  onChange={(e) => updateSetting('paymentProvider' as any, e.target.value)}
+                >
                   <option>Paystack</option>
                   <option>Flutterwave</option>
                   <option>Interswitch</option>
@@ -507,12 +482,21 @@ export function SystemSettings() {
 
               <div>
                 <Label>Public Key</Label>
-                <Input placeholder="pk_test_..." />
+                <Input
+                  placeholder="pk_test_..."
+                  value={(settings as any).paymentPublicKey || ''}
+                  onChange={(e) => updateSetting('paymentPublicKey' as any, e.target.value)}
+                />
               </div>
 
               <div>
                 <Label>Secret Key</Label>
-                <Input type="password" placeholder="sk_test_..." />
+                <Input
+                  type="password"
+                  placeholder="sk_test_..."
+                  value={(settings as any).paymentSecretKey || ''}
+                  onChange={(e) => updateSetting('paymentSecretKey' as any, e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -535,7 +519,11 @@ export function SystemSettings() {
 
               <div>
                 <Label>Device Type</Label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1">
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
+                  value={(settings as any).biometricDeviceType || 'Fingerprint Scanner'}
+                  onChange={(e) => updateSetting('biometricDeviceType' as any, e.target.value)}
+                >
                   <option>Fingerprint Scanner</option>
                   <option>Face Recognition</option>
                   <option>Card Reader</option>
@@ -544,7 +532,11 @@ export function SystemSettings() {
 
               <div>
                 <Label>Device IP Address</Label>
-                <Input placeholder="192.168.1.100" />
+                <Input
+                  placeholder="192.168.1.100"
+                  value={(settings as any).biometricDeviceIp || ''}
+                  onChange={(e) => updateSetting('biometricDeviceIp' as any, e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>

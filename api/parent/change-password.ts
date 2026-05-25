@@ -3,6 +3,7 @@ import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
 import { requireRole } from '../_lib/auth-middleware'
 import { rateLimit } from '../_lib/rate-limit'
+import { requireCSRF } from '../_lib/csrf'
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':')
@@ -30,6 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!decoded) return
 
   const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
+
+  // CSRF protection for state-changing requests
+  if (decoded.parentId && requireCSRF(req, res, decoded.parentId)) return
 
   try {
     const { currentPassword, newPassword } = req.body

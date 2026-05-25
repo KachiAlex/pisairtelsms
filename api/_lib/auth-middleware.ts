@@ -8,6 +8,7 @@ export interface DecodedToken {
   staffId?: string
   studentId?: string
   parentId?: string
+  childrenIds?: string[]
   role: UserRole
   tenantId?: string
   email?: string

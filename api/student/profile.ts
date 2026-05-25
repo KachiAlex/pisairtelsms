@@ -3,6 +3,7 @@ import { sql } from '@vercel/postgres';
 import crypto from 'crypto';
 import { requireRole } from '../_lib/auth-middleware';
 import { rateLimit } from '../_lib/rate-limit';
+import { requireCSRF } from '../_lib/csrf';
 
 function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
@@ -116,6 +117,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (rateLimit(req, res, 5, 60 * 1000)) {
       return;
     }
+
+    // CSRF protection for state-changing requests
+    if (studentId && requireCSRF(req, res, studentId)) return
 
     try {
       const { action } = req.query;

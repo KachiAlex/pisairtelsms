@@ -31,12 +31,40 @@ export function verifyToken(token: string): DecodedToken | null {
 }
 
 /**
+ * Extracts JWT token from cookie.
+ */
+export function extractTokenFromCookie(req: VercelRequest): string | null {
+  const cookieHeader = req.headers.cookie
+  if (!cookieHeader) return null
+  
+  const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+    const [name, value] = cookie.trim().split('=')
+    acc[name] = value
+    return acc
+  }, {} as Record<string, string>)
+  
+  return cookies['auth_token'] || null
+}
+
+/**
  * Extracts Bearer token from Authorization header.
  */
-export function extractToken(req: VercelRequest): string | null {
-  const authHeader = req.headers.authorization
+export function extractTokenFromHeader(authHeader: string | undefined): string | null {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null
   return authHeader.substring(7)
+}
+
+/**
+ * Extracts token from either cookie or Authorization header.
+ * Cookie takes priority for httpOnly cookie auth.
+ */
+export function extractToken(req: VercelRequest): string | null {
+  // Try cookie first (httpOnly cookie auth)
+  const cookieToken = extractTokenFromCookie(req)
+  if (cookieToken) return cookieToken
+  
+  // Fallback to Authorization header (for backward compatibility)
+  return extractTokenFromHeader(req.headers.authorization)
 }
 
 /**

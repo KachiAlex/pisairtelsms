@@ -5,6 +5,7 @@ import { rateLimit } from '../../_lib/rate-limit'
 import { setSecurityHeaders } from '../../_lib/security-headers'
 import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
 import { validate, Schemas } from '../../_lib/validator'
+import { setCookie } from '../../_lib/cookie-helper'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -64,9 +65,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     )
 
     await logLoginSuccess(req, staff.id, 'staff')
+    
+    // Set httpOnly cookie with JWT token
+    setCookie(res, 'auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: expiresIn, // 24 hours in seconds
+      path: '/',
+    })
+    
     setSecurityHeaders(res)
     return res.status(200).json({
-      token,
+      token, // Still return token for backward compatibility
       staffId: staff.id,
       userId: staff.id,
       role: 'staff',

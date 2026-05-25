@@ -3,6 +3,7 @@ import { requireRole } from '../../_lib/auth-middleware'
 import { revokeToken } from '../../_lib/token-blacklist'
 import { setSecurityHeaders } from '../../_lib/security-headers'
 import { logAuditEvent, extractAuditContext } from '../../_lib/audit-logger'
+import { clearCookie } from '../../_lib/cookie-helper'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -33,6 +34,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       role: decoded.role,
       ...extractAuditContext(req, userId, decoded.role),
     })
+
+    // Clear httpOnly cookie
+    clearCookie(res, 'auth_token', { path: '/' })
 
     setSecurityHeaders(res)
     return res.status(200).json({ success: true, message: 'Logged out successfully' })

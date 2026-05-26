@@ -39,6 +39,8 @@
     { "source": "/api/tenant/finance/reports", "destination": "/api/tenant/finance/reports.ts" },
     { "source": "/api/tenant/finance/audit-log", "destination": "/api/tenant/finance/audit-log.ts" },
     { "source": "/api/tenant/staff/reset-password", "destination": "/api/tenant/staff/reset-password.ts" },
+    { "source": "/api/tenant/auth/login", "destination": "/api/tenant/auth/login.ts" },
+    { "source": "/api/super-admin/auth/login", "destination": "/api/super-admin/auth/login.ts" },
     { "source": "/api/staff/auth/login", "destination": "/api/staff/auth/login.ts" },
     { "source": "/api/student/auth/login", "destination": "/api/student/auth/login.ts" },
     { "source": "/api/student/dashboard", "destination": "/api/student/dashboard.ts" },

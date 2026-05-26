@@ -1,9 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import jwt from 'jsonwebtoken'
+import { createRequire } from 'module'
 import { verifySuperAdminCredentials } from '../../_lib/super-admin.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const jwt = createRequire(import.meta.url)('jsonwebtoken') as any
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setSecurityHeaders(res)

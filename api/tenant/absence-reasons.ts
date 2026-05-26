@@ -8,6 +8,7 @@ import {
   type CreateAbsenceReasonPayload,
   type UpdateAbsenceReasonPayload,
 } from './_lib/absence-reasons.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 function methodNotAllowed(res: VercelResponse, allowed: string[]) {
   res.setHeader('Allow', allowed.join(','))
@@ -37,6 +38,10 @@ function getTenantId(req: VercelRequest): string | null {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant absence reasons
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   // Require tenant context
   const tenantId = getTenantId(req)
   if (!tenantId) {

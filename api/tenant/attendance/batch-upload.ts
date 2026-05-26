@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { parseCsvContent, generateCsvTemplate } from '../_lib/csv-parser.js'
 import { upsertAttendanceBatch, type AttendancePayload } from '../_lib/attendance.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined
@@ -27,6 +28,9 @@ function getUserId(req: VercelRequest): string | null {
  * Validates: Requirements 6 (Manual Batch Upload)
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = getTenantId(req)
   if (!tenantId) {
     return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })

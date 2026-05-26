@@ -6,6 +6,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getReport, type ReportFilter } from '../_lib/report-generator.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined
@@ -28,6 +29,9 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   // Require tenant context
   const tenantId = getTenantId(req)
   if (!tenantId) {

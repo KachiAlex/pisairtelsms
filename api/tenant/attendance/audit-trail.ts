@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getGlobalAuditTrail } from '../_lib/attendance.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined
@@ -16,6 +17,9 @@ function getTenantId(req: VercelRequest): string | null {
  * Validates: Requirements 19
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ success: false, error: 'Method not allowed' })

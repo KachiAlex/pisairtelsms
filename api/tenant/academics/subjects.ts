@@ -8,6 +8,7 @@ import {
   deleteSubject,
 } from '../cbt/_lib/subjects.js'
 import { initializeDatabase } from '../cbt/_lib/db.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 /**
  * Academics Subjects API Endpoint
@@ -16,6 +17,10 @@ import { initializeDatabase } from '../cbt/_lib/db.js'
  */
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant academics
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   let tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
 

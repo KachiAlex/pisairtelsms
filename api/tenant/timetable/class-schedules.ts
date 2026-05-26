@@ -3,6 +3,7 @@ import {
   getClassSchedules, getClassScheduleById, createClassSchedule,
   addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, isTeacherAvailable,
 } from './_lib/class-schedules.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 const TENANT_ID = 'demo-tenant-001'
 
@@ -13,6 +14,10 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant timetable
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const { method, query } = req
   const scheduleId = query.scheduleId as string | undefined
   const entryId = query.entryId as string | undefined

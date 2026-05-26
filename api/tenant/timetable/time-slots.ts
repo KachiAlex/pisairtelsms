@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot, timeSlotsOverlap } from './_lib/time-slots.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 const TENANT_ID = 'demo-tenant-001'
 let migrationsInitialized = false
@@ -12,6 +13,10 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant timetable
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   // Ensure migrations are run on first request
   if (!migrationsInitialized) {
     migrationsInitialized = true

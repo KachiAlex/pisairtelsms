@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import { randomUUID } from 'crypto'
+import { requireRole } from '../../_lib/auth-middleware'
 
 const TENANT_ID = 'demo-tenant-001'
 
@@ -32,6 +33,10 @@ function rowToEntry(r: any) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant timetable
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'Method not allowed' })

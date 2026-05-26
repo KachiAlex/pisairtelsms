@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getPromotionRules, updatePromotionRule } from './_lib/promotion-rules.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,PUT')
@@ -19,6 +20,10 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant promotion rules
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const { tenantId, id } = req.query
 
   if (!tenantId || typeof tenantId !== 'string') {

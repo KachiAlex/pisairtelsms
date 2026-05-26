@@ -50,6 +50,8 @@
     { "source": "/api/student/messages", "destination": "/api/student/messages.ts" },
     { "source": "/api/student/assignments", "destination": "/api/student/assignments.ts" },
     { "source": "/api/student/materials", "destination": "/api/student/materials.ts" },
+    { "source": "/api/student/exams", "destination": "/api/student/exams.ts" },
+    { "source": "/api/student/transcript", "destination": "/api/student/transcript.ts" },
     { "source": "/api/student/profile", "destination": "/api/student/profile.ts" },
     { "source": "/api/parent/auth/login", "destination": "/api/parent/auth/login.ts" },
     { "source": "/api/staff/dashboard", "destination": "/api/staff/dashboard.ts" },

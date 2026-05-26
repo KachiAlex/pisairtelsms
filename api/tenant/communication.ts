@@ -8,6 +8,7 @@ import {
   recordAnnouncementRead,
   type AnnouncementPayload,
 } from './_lib/communication.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT')
@@ -27,6 +28,10 @@ function getTenantId(req: VercelRequest): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant communication
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   initializeDatabase()
 
   if (req.method === 'GET') {

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../_lib/auth-middleware'
 
 interface TenantDomainPayload {
   enableCustomDomain: boolean
@@ -51,6 +52,10 @@ function validateUrl(url: string): boolean {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant domain config
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method === 'GET') {
     try {
       return res.status(200).json({ domainConfig: tenantDomainConfig })

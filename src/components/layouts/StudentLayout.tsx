@@ -14,6 +14,8 @@ import {
   GraduationCap,
   ClipboardList,
   Library,
+  GraduationCap as ExamIcon,
+  FileText,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -30,6 +32,8 @@ const Messages = lazy(() => import('../pages/student/Messages').then(m => ({ def
 const Profile = lazy(() => import('../pages/student/Profile').then(m => ({ default: m.Profile })))
 const MyAssignments = lazy(() => import('../pages/student/MyAssignments').then(m => ({ default: m.MyAssignments })))
 const MyMaterials = lazy(() => import('../pages/student/MyMaterials').then(m => ({ default: m.MyMaterials })))
+const MyExams = lazy(() => import('../pages/student/MyExams').then(m => ({ default: m.MyExams })))
+const MyTranscript = lazy(() => import('../pages/student/MyTranscript').then(m => ({ default: m.MyTranscript })))
 
 interface StudentLayoutProps {
   children?: React.ReactNode
@@ -38,9 +42,11 @@ interface StudentLayoutProps {
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'results', label: 'My Results', icon: BookOpen },
+  { id: 'transcript', label: 'Report Card', icon: FileText },
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
   { id: 'assignments', label: 'Assignments', icon: ClipboardList },
   { id: 'materials', label: 'Materials', icon: Library },
+  { id: 'exams', label: 'Exams', icon: ExamIcon },
   { id: 'timetable', label: 'Timetable', icon: Clock },
   { id: 'fees', label: 'Fees & Payments', icon: CreditCard },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
@@ -74,10 +80,14 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         return <StudentDashboard />
       case 'results':
         return <MyResults />
+      case 'transcript':
+        return <MyTranscript />
       case 'attendance':
         return <MyAttendance />
       case 'timetable':
         return <MyTimetable />
+      case 'exams':
+        return <MyExams />
       case 'fees':
         return <MyFees />
       case 'assignments':

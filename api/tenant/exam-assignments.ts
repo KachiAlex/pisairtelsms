@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchStudents } from './_lib/students.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 // Mock exam data - in real app this would come from exam API
 interface Exam {
@@ -43,6 +44,10 @@ interface ExamAssignment {
 const mockExams: Exam[] = []
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant exam assignments
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const { method } = req
   const { examId } = req.query
 

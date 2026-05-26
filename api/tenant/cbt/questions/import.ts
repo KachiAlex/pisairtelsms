@@ -38,6 +38,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../../../_lib/auth-middleware'
 import * as XLSX from 'xlsx'
 import {
   createQuestion,
@@ -437,6 +438,9 @@ function validateRow(row: Record<string, string>, rowIndex: number): ValidationE
 // ─── Main Handler ───────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ success: false, error: 'Method not allowed' })

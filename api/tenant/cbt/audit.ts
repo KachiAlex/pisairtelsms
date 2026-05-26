@@ -4,6 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../../_lib/auth-middleware'
 import {
   getAuditLogs,
   getEntityAuditLogs,
@@ -34,6 +35,9 @@ function validateTenantId(tenantId: string | undefined, res: VercelResponse): bo
  * Main handler
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = req.headers['x-tenant-id'] as string
   const { id, action } = req.query
 

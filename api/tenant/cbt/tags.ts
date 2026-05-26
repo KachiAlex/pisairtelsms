@@ -4,6 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../../_lib/auth-middleware'
 import { initializeDatabase } from './_lib/db.js'
 import {
   getTags,
@@ -43,6 +44,9 @@ function parseBody(req: VercelRequest): any {
 // ============================================================================
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
 

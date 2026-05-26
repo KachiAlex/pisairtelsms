@@ -5,8 +5,12 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { initializeDatabase, runMigrations } from './_lib/db.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['tenant_admin'])
+  if (!decoded) return
+
   // Only allow POST requests
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')

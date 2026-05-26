@@ -4,6 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../../_lib/auth-middleware'
 import { WebSocketServer, WebSocket } from 'ws'
 import { queryOne } from './_lib/db.js'
 
@@ -210,6 +211,9 @@ export function closeExamConnections(examId: string) {
  * Main WebSocket handler
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   // Only handle WebSocket upgrade requests
   if (req.headers.upgrade !== 'websocket') {
     return res.status(400).json({ error: 'Expected WebSocket upgrade' })

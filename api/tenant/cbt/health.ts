@@ -5,11 +5,15 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { healthCheck, getDatabaseStats, runMigrations, initializeDatabase } from './_lib/db.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 /**
  * Main handler
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   // Only allow GET requests
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')

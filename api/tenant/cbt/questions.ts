@@ -4,6 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../../_lib/auth-middleware'
 import {
   createQuestion,
   getQuestion,
@@ -364,6 +365,9 @@ function extractQuestionPathParams(req: VercelRequest): { pathId?: string; pathA
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = req.headers['x-tenant-id'] as string
   const userId = req.headers['x-user-id'] as string
   const { id: queryId, action: queryAction } = req.query

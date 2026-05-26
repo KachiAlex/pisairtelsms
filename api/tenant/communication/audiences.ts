@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { initializeDatabase } from '../cbt/_lib/db.js'
+import { requireRole } from '../../_lib/auth-middleware'
 import { fetchStudentCount } from '../_lib/students.js'
 import { fetchParentCount } from '../_lib/parents.js'
 import { fetchStaffCount } from '../_lib/staff.js'
@@ -8,7 +9,10 @@ function getTenantId(req: VercelRequest): string {
   return (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<VercelResponse> {
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<VercelResponse | void> {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ error: 'Method not allowed' })

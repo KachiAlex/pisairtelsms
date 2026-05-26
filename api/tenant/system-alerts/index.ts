@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
+import { requireRole } from '../../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined
@@ -28,6 +29,9 @@ function getUserId(req: VercelRequest): string | null {
  * POST /api/tenant/system-alerts - Create system alert
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = getTenantId(req)
   if (!tenantId) {
     return res.status(401).json({ success: false, error: 'Tenant context required' })

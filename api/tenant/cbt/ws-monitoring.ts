@@ -4,7 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 import { WebSocketServer, WebSocket } from 'ws'
 import { queryOne } from './_lib/db.js'
 

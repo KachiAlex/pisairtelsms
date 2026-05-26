@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDevice } from '../../_lib/biometric-devices.js'
 import { syncDevice } from '../../_lib/device-sync.js'
-import { requireRole } from '../../../_lib/auth-middleware'
+import { requireRole } from '../../../_lib/auth-middleware.js'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined

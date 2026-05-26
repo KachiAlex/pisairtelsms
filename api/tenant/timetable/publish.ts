@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getOpenConflictCount } from './_lib/conflicts.js'
 import { getClassSchedules } from './_lib/class-schedules.js'
 import { getExamSchedules } from './_lib/exam-schedules.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

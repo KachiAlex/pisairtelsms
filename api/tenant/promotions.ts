@@ -10,7 +10,7 @@ import {
   type PromotionPayload,
   type PromotionRule
 } from './_lib/promotions.js'
-import { requireRole } from '../_lib/auth-middleware'
+import { requireRole } from '../_lib/auth-middleware.js'
 
 interface ApiResponse<T> {
   data?: T

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchStudents } from './_lib/students.js'
-import { requireRole } from '../_lib/auth-middleware'
+import { requireRole } from '../_lib/auth-middleware.js'
 
 // Mock exam data - in real app this would come from exam API
 interface Exam {

@@ -5,7 +5,7 @@ import {
   deleteAbsenceReason,
   type UpdateAbsenceReasonPayload,
 } from '../_lib/absence-reasons.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
 function methodNotAllowed(res: VercelResponse, allowed: string[]) {
   res.setHeader('Allow', allowed.join(','))

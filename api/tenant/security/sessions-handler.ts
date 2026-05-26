@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import sessionsLib from './sessions';
-import { requireRole } from '../../_lib/auth-middleware';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
 /**
  * Sessions API Handler

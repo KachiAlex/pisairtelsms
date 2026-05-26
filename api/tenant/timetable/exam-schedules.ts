@@ -3,7 +3,7 @@ import {
   getExamSchedules, getExamScheduleById, createExamSchedule,
   addHallAssignment, addInvigilator, removeInvigilator, getExamHalls,
 } from './_lib/exam-schedules.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

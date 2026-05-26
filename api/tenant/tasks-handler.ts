@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import tasksApi from './_lib/tasks';
-import { requireRole } from '../_lib/auth-middleware';
+import { requireRole } from '../_lib/auth-middleware.js';
 
 /**
  * Tasks API Handler

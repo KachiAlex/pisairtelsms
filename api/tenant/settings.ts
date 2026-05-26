@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchTenantSettings, updateTenantSettings } from '../_lib/tenant-settings'
-import { requireRole } from '../_lib/auth-middleware'
+import { requireRole } from '../_lib/auth-middleware.js'
 
 interface TenantSettingsPayload {
   schoolName: string

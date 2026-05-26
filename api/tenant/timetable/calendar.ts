@@ -6,7 +6,7 @@ import {
   getExamPeriods, createExamPeriod, updateExamPeriod, deleteExamPeriod,
 } from './_lib/calendar.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
 const TENANT_ID = 'demo-tenant-001'
 let migrationsInitialized = false

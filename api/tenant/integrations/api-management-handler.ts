@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { randomBytes } from 'crypto';
-import { requireRole } from '../../_lib/auth-middleware';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
 async function ensureTables() {
   await sql`

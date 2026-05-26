@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 import { revokeToken } from '../../_lib/token-blacklist'
 import { setSecurityHeaders } from '../../_lib/security-headers'
 import { logAuditEvent, extractAuditContext } from '../../_lib/audit-logger'

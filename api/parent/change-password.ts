@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
-import { requireRole } from '../_lib/auth-middleware'
+import { requireRole } from '../_lib/auth-middleware.js'
 import { rateLimit } from '../_lib/rate-limit'
 import { requireCSRF } from '../_lib/csrf'
 import { logPasswordChange } from '../_lib/audit-logger'

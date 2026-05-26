@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getChangeRequests, createChangeRequest, updateChangeRequest, type ChangeRequestStatus } from './_lib/change-requests.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
 const TENANT_ID = 'demo-tenant-001'
 

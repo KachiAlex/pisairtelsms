@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchStudents, createStudent, createStudents, updateStudent, deleteStudent, type StudentPayload } from './_lib/students.js'
-import { requireRole } from '../_lib/auth-middleware'
+import { requireRole } from '../_lib/auth-middleware.js'
 
 // Get tenant ID from request (from auth context or headers)
 function getTenantId(req: VercelRequest): string {

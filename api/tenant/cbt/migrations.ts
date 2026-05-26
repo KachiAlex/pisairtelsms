@@ -5,7 +5,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { initializeDatabase, runMigrations } from './_lib/db.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = requireRole(req, res, ['tenant_admin'])

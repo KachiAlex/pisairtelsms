@@ -5,7 +5,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { healthCheck, getDatabaseStats, runMigrations, initializeDatabase } from './_lib/db.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
 /**
  * Main handler

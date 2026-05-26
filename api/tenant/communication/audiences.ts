@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { initializeDatabase } from '../cbt/_lib/db.js'
-import { requireRole } from '../../_lib/auth-middleware'
+import { requireRole } from '../../_lib/auth-middleware.js'
 import { fetchStudentCount } from '../_lib/students.js'
 import { fetchParentCount } from '../_lib/parents.js'
 import { fetchStaffCount } from '../_lib/staff.js'

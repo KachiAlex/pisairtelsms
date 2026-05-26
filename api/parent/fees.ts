@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireRole } from '../_lib/auth-middleware'
+import { requireRole } from '../_lib/auth-middleware.js'
 import { verifyParentChildRelationship } from '../../src/lib/parentAuth'
 import { getStudentFeeSummary, getStudentPayments, getFeeAssignments } from '../../api/tenant/finance/_lib/fee-assignments.js'
 import { getFeeStructureWithItems } from '../../api/tenant/finance/_lib/fee-structures.js'

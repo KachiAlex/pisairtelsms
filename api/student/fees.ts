@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getStudentFeeSummary, getStudentPayments, getFeeAssignments } from '../../api/tenant/finance/_lib/fee-assignments.js';
 import { getFeeStructureWithItems } from '../../api/tenant/finance/_lib/fee-structures.js';
-import { requireRole } from '../_lib/auth-middleware';
+import { requireRole } from '../_lib/auth-middleware.js';
 
 interface FeeSummary {
   totalFees: number;

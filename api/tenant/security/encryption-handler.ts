@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import encryptionLib from './encryption';
-import { requireRole } from '../../_lib/auth-middleware';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
 /**
  * Encryption API Handler

@@ -9,7 +9,6 @@ import {
   fetchSuperAdminAccount,
   SuperAdminAccount,
   upsertSuperAdminAccount,
-  verifySuperAdminAccount,
 } from '../../lib/superAdminClient'
 import { setAuthInStorage } from '../../lib/auth'
 
@@ -90,17 +89,22 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
     if (isSuperAdminFlow) {
       try {
         setIsVerifying(true)
-        const verifiedAccount = await verifySuperAdminAccount(normalizedInputEmail, password)
-        setStoredAccount(verifiedAccount)
-        
-        // Save auth token for super admin
-        setAuthInStorage({
-          token: `super-admin-${Date.now()}`,
-          tenantId: 'super-admin',
-          role: 'super_admin',
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        const response = await fetch('/api/super-admin/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: normalizedInputEmail, password }),
         })
-        
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || 'Invalid credentials')
+        }
+        setAuthInStorage({
+          token: data.token,
+          tenantId: data.tenantId,
+          role: 'super_admin',
+          userId: data.userId,
+          expiresAt: data.expiresAt,
+        })
         onLogin('super-admin')
         return
       } catch (verifyError) {
@@ -113,20 +117,33 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
       }
     }
 
-    // Use a default tenant ID for now - in production this should be looked up from the database
-    // For MVP, we'll use a consistent default tenant ID
-    const defaultTenantId = 'default-tenant'
-    
-    // Save auth token for tenant admin
-    setAuthInStorage({
-      token: `tenant-admin-${Date.now()}`,
-      tenantId: defaultTenantId,
-      role: 'tenant_admin',
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-      userId: email.trim().toLowerCase(),
-    })
-
-    onLogin('tenant-admin')
+    // Tenant admin login — verify credentials against the database
+    try {
+      setIsVerifying(true)
+      const response = await fetch('/api/tenant/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedInputEmail, password }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid credentials')
+      }
+      setAuthInStorage({
+        token: data.token,
+        tenantId: data.tenantId,
+        role: 'tenant_admin',
+        userId: data.userId,
+        expiresAt: data.expiresAt,
+      })
+      onLogin('tenant-admin')
+    } catch (loginError) {
+      const message =
+        loginError instanceof Error ? loginError.message : 'Login failed. Please check your credentials.'
+      setError(message)
+    } finally {
+      setIsVerifying(false)
+    }
   }
 
   return (
@@ -207,9 +224,9 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
         <Button
           type="submit"
           className="w-full bg-blue-600 hover:bg-blue-700"
-          disabled={isSuperAdminFlow && isVerifying}
+          disabled={isVerifying}
         >
-          {isSuperAdminFlow ? (isVerifying ? 'Verifying super admin credentials...' : 'Enter Super Admin Portal') : 'Access School Dashboard'}
+          {isVerifying ? 'Signing in...' : isSuperAdminFlow ? 'Enter Super Admin Portal' : 'Access School Dashboard'}
         </Button>
 
         <div className="rounded-xl bg-blue-50 p-4 text-xs text-blue-800 space-y-3">

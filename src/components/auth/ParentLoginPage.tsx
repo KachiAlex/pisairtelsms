@@ -190,12 +190,6 @@ export function ParentLoginPage() {
             </Button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs font-medium text-blue-900 mb-2">Demo Credentials:</p>
-            <p className="text-xs text-blue-800">Email: parent@example.com</p>
-            <p className="text-xs text-blue-800">Password: password123</p>
-          </div>
         </div>
 
         {/* Footer */}

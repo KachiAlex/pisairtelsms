@@ -27,7 +27,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'email and password are required' })
     }
 
-    const account = await verifySuperAdminCredentials(email.trim().toLowerCase(), password)
+    const normalizedEmail = email.trim().toLowerCase()
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'invalid email format' })
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'password must be at least 6 characters' })
+    }
+
+    const account = await verifySuperAdminCredentials(normalizedEmail, password)
 
     if (!account) {
       return res.status(401).json({ error: 'Invalid email or password' })

@@ -189,19 +189,7 @@ describe('Auth Token Utilities', () => {
 
   describe('isTokenExpired', () => {
     it('should return true when no auth data exists', () => {
-      const result = isTokenExpired('any-token')
-      expect(result).toBe(true)
-    })
-
-    it('should return true when token does not match stored token', () => {
-      const auth: AuthStorage = {
-        token: 'stored-token',
-        tenantId: 'tenant-001',
-        expiresAt: Date.now() + 3600000,
-      }
-      setAuthInStorage(auth)
-
-      const result = isTokenExpired('different-token')
+      const result = isTokenExpired()
       expect(result).toBe(true)
     })
 
@@ -213,7 +201,7 @@ describe('Auth Token Utilities', () => {
       }
       setAuthInStorage(auth)
 
-      const result = isTokenExpired('test-token')
+      const result = isTokenExpired()
       expect(result).toBe(true)
     })
 
@@ -226,7 +214,7 @@ describe('Auth Token Utilities', () => {
       }
       setAuthInStorage(auth)
 
-      const result = isTokenExpired('test-token')
+      const result = isTokenExpired()
       expect(result).toBe(false)
     })
 
@@ -240,7 +228,7 @@ describe('Auth Token Utilities', () => {
       setAuthInStorage(auth)
 
       // Note: This is a boundary case. The implementation uses > so exact match is not expired
-      const result = isTokenExpired('test-token')
+      const result = isTokenExpired()
       expect(result).toBe(false)
     })
 
@@ -253,24 +241,8 @@ describe('Auth Token Utilities', () => {
       }
       setAuthInStorage(auth)
 
-      const result = isTokenExpired('test-token')
+      const result = isTokenExpired()
       expect(result).toBe(true)
-    })
-
-    it('should handle multiple tokens correctly', () => {
-      const futureTime = Date.now() + 3600000
-      const auth: AuthStorage = {
-        token: 'token-1',
-        tenantId: 'tenant-001',
-        expiresAt: futureTime,
-      }
-      setAuthInStorage(auth)
-
-      // Correct token should not be expired
-      expect(isTokenExpired('token-1')).toBe(false)
-
-      // Different token should be expired
-      expect(isTokenExpired('token-2')).toBe(true)
     })
   })
 })

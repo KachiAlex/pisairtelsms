@@ -65,20 +65,15 @@ export function clearAuthFromStorage(): void {
 
 /**
  * Checks if a token has expired based on the stored expiresAt timestamp.
- * Compares the expiresAt timestamp with the current time.
  *
- * @param token - The token string (used for context, actual expiration is checked via stored expiresAt)
- * @returns true if the token has expired, false otherwise
+ * @returns true if the token has expired or no auth data exists, false otherwise
  */
-export function isTokenExpired(token: string): boolean {
+export function isTokenExpired(): boolean {
   const auth = getAuthFromStorage()
 
-  // If no auth data exists or token doesn't match, consider it expired
-  if (!auth || auth.token !== token) {
+  if (!auth) {
     return true
   }
 
-  // Check if current time is past the expiration time
-  const now = Date.now()
-  return now > auth.expiresAt
+  return Date.now() > auth.expiresAt
 }

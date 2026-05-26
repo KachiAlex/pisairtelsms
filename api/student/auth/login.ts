@@ -2,11 +2,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
 import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
-import { rateLimit } from '../../_lib/rate-limit'
-import { setSecurityHeaders } from '../../_lib/security-headers'
-import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
-import { validate, Schemas } from '../../_lib/validator'
-import { setCookie } from '../../_lib/cookie-helper'
+import { rateLimit } from '../../_lib/rate-limit.js'
+import { setSecurityHeaders } from '../../_lib/security-headers.js'
+import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger.js'
+import { validate, Schemas } from '../../_lib/validator.js'
+import { setCookie } from '../../_lib/cookie-helper.js'
 
 async function ensureStudentAuthColumn() {
   await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT`

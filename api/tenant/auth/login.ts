@@ -1,13 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createRequire } from 'module'
-import { sql } from '@vercel/postgres'
-import { verify } from '@node-rs/argon2'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
+import { fetchStaffByEmail, verifyStaffPassword, hashPassword } from '../../tenant/_lib/staff.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const jwt = createRequire(import.meta.url)('jsonwebtoken') as any
+
+const ADMIN_ROLES = new Set(['tenant_admin', 'Admin', 'Principal', 'admin', 'principal'])
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setSecurityHeaders(res)
@@ -22,32 +23,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
-    const { email, password, tenantId } = body || {}
+    const { email, password } = body || {}
 
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' })
     }
 
     const normalizedEmail = email.trim().toLowerCase()
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'invalid email format' })
+    }
 
-    // Look up user in tenant_users with role tenant_admin
-    const result = await sql`
-      SELECT id, name, email, role, tenant_id, password_hash, status
-      FROM tenant_users
-      WHERE email = ${normalizedEmail}
-        AND role IN ('tenant_admin', 'Admin', 'Principal')
-        AND status != 'suspended'
-      LIMIT 1
-    `
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'password must be at least 6 characters' })
+    }
 
-    if (result.rows.length === 0) {
+    // Look up staff member with an admin role
+    const staff = await fetchStaffByEmail(normalizedEmail)
+
+    if (!staff) {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
-    const user = result.rows[0]
+    if (!ADMIN_ROLES.has(staff.role)) {
+      return res.status(403).json({ error: 'Account does not have admin privileges' })
+    }
+
+    if (staff.status !== 'active') {
+      return res.status(403).json({ error: 'Account is inactive or suspended' })
+    }
 
     // Verify password
-    if (!user.password_hash) {
+    if (!staff.passwordHash) {
       // No password set — allow email-as-password for first login
       if (password !== normalizedEmail) {
         return res.status(401).json({
@@ -55,29 +63,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
       }
       // Auto-set the password hash
-      const { hash } = await import('@node-rs/argon2')
-      const passwordHash = await hash(password)
-      await sql`
-        UPDATE tenant_users SET password_hash = ${passwordHash} WHERE id = ${user.id}
-      `
+      const newHash = await hashPassword(password)
+      const { sql } = await import('@vercel/postgres')
+      await sql`UPDATE staff SET password_hash = ${newHash} WHERE id = ${staff.id}`
     } else {
-      const valid = await verify(user.password_hash, password)
+      const valid = await verifyStaffPassword(password, staff.passwordHash)
       if (!valid) {
         return res.status(401).json({ error: 'Invalid email or password' })
       }
     }
 
-    const resolvedTenantId = tenantId || user.tenant_id || 'default-tenant'
+    const resolvedTenantId = staff.department || 'default-tenant'
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
 
     const token = jwt.sign(
       {
-        userId: user.id,
+        userId: staff.id,
         role: 'tenant_admin',
         tenantId: resolvedTenantId,
-        email: user.email,
+        email: staff.email,
       },
       jwtSecret,
       { expiresIn: `${expiresIn}s` }
@@ -93,11 +99,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       token,
-      userId: user.id,
+      userId: staff.id,
       role: 'tenant_admin',
       tenantId: resolvedTenantId,
-      name: user.name,
-      email: user.email,
+      name: staff.name,
+      email: staff.email,
       expiresAt,
     })
   } catch (error) {

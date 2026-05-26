@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { requireRole } from '../../_lib/auth-middleware.js'
-import { revokeToken } from '../../_lib/token-blacklist'
-import { setSecurityHeaders } from '../../_lib/security-headers'
-import { logAuditEvent, extractAuditContext } from '../../_lib/audit-logger'
-import { clearCookie } from '../../_lib/cookie-helper'
+import { revokeToken } from '../../_lib/token-blacklist.js'
+import { setSecurityHeaders } from '../../_lib/security-headers.js'
+import { logAuditEvent, extractAuditContext } from '../../_lib/audit-logger.js'
+import { clearCookie } from '../../_lib/cookie-helper.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

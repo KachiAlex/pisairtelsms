@@ -24,7 +24,7 @@ export function ProtectedRoute({
 }: ProtectedRouteProps): React.ReactNode {
   const auth = getAuthFromStorage()
 
-  if (!auth || isTokenExpired(auth.token)) {
+  if (!auth || isTokenExpired()) {
     return <Navigate to={redirectTo} replace />
   }
 

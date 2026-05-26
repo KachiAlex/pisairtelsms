@@ -21,7 +21,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     const auth = getAuthFromStorage()
 
     // If valid non-expired token exists, set tenantId from auth
-    if (auth && !isTokenExpired(auth.token)) {
+    if (auth && !isTokenExpired()) {
       setTenantId(auth.tenantId)
     }
 

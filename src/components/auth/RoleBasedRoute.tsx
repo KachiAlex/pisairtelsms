@@ -12,7 +12,7 @@ export function RoleBasedRoute({ children, allowedRoles, redirectTo = '/login' }
   const auth = getAuthFromStorage()
 
   // No auth or token expired
-  if (!auth || isTokenExpired(auth.token)) {
+  if (!auth || isTokenExpired()) {
     return <Navigate to={redirectTo} />
   }
 

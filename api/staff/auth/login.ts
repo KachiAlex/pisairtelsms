@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import jwt from 'jsonwebtoken'
 import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
-import { rateLimit } from '../../_lib/rate-limit'
-import { setSecurityHeaders } from '../../_lib/security-headers'
-import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger'
-import { validate, Schemas } from '../../_lib/validator'
-import { setCookie } from '../../_lib/cookie-helper'
+import { rateLimit } from '../../_lib/rate-limit.js'
+import { setSecurityHeaders } from '../../_lib/security-headers.js'
+import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger.js'
+import { validate, Schemas } from '../../_lib/validator.js'
+import { setCookie } from '../../_lib/cookie-helper.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

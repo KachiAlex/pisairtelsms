@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDevice, getSyncLogs } from '../../_lib/biometric-devices.js'
+import { requireRole } from '../../../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined
@@ -14,6 +15,9 @@ function getTenantId(req: VercelRequest): string | null {
  * Returns paginated sync history for a device.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ success: false, error: 'Method not allowed' })

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../../_lib/auth-middleware'
 import {
   createPaymentReconciliation,
   getPaymentReconciliations,
@@ -27,6 +28,9 @@ function getTenantId(req: VercelRequest): string | null {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = getTenantId(req)
   if (!tenantId) {
     return res.status(400).json({ error: 'x-tenant-id header is required' })

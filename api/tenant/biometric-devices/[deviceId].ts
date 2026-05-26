@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDevice, updateDeviceConfig, updateDeviceStatus, deleteDevice } from '../_lib/biometric-devices.js'
+import { requireRole } from '../../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined
@@ -29,6 +30,9 @@ function isValidIpAddress(ip: string): boolean {
  * DELETE /api/tenant/biometric-devices/[deviceId]  — delete device
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = getTenantId(req)
   if (!tenantId) {
     return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })

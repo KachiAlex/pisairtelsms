@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDevice } from '../../_lib/biometric-devices.js'
 import { syncDevice } from '../../_lib/device-sync.js'
+import { requireRole } from '../../../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   const tenantId = req.headers['x-tenant-id'] as string | undefined
@@ -16,6 +17,9 @@ function getTenantId(req: VercelRequest): string | null {
  * Can also be called by a scheduled cron job for automatic syncing.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ success: false, error: 'Method not allowed' })

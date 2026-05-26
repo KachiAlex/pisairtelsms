@@ -1,11 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
+import { requireRole } from '../_lib/auth-middleware'
 
 function getTenantId(req: VercelRequest): string | null {
   return (req.headers['x-tenant-id'] as string) || (req.query['tenantId'] as string) || null
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant teacher allocation
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId = getTenantId(req)
   if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context required' })
 

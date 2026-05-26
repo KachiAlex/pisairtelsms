@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../_lib/auth-middleware';
 
 /**
  * Approvals API Handler
@@ -21,6 +22,10 @@ import { sql } from '@vercel/postgres';
  *   GET    /api/tenant/approvals/:id                - Get approval by ID
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant approvals
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId =
     (req.headers['x-tenant-id'] as string) ||
     (req.query.tenantId as string) ||

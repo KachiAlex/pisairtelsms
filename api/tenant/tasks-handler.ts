@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import tasksApi from './_lib/tasks';
+import { requireRole } from '../_lib/auth-middleware';
 
 /**
  * Tasks API Handler
@@ -14,6 +15,10 @@ import tasksApi from './_lib/tasks';
  *   POST   /api/tenant/tasks/:id/comments           - Add comment
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Require authentication - only staff or tenant_admin can access tenant tasks
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const tenantId =
     (req.headers['x-tenant-id'] as string) ||
     (req.query.tenantId as string) ||

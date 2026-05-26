@@ -1,10 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../../_lib/auth-middleware'
 
 /**
  * MFA Settings Handler
  * Manages multi-factor authentication settings for tenant users
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const { tenantId } = req.query
 
   if (!tenantId || typeof tenantId !== 'string') {

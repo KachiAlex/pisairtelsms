@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import sessionsLib from './sessions';
+import { requireRole } from '../../_lib/auth-middleware';
 
 /**
  * Sessions API Handler
@@ -12,6 +13,9 @@ import sessionsLib from './sessions';
  *   POST   /api/tenant/security/sessions/:id/logout - Force logout session
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin']);
+  if (!decoded) return;
+
   const tenantId =
     (req.headers['x-tenant-id'] as string) ||
     (req.query.tenantId as string) ||

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import encryptionLib from './encryption';
+import { requireRole } from '../../_lib/auth-middleware';
 
 /**
  * Encryption API Handler
@@ -12,6 +13,9 @@ import encryptionLib from './encryption';
  *   PUT    /api/tenant/security/encryption/fields       - Update encrypted fields
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin']);
+  if (!decoded) return;
+
   const tenantId =
     (req.headers['x-tenant-id'] as string) ||
     (req.query.tenantId as string) ||

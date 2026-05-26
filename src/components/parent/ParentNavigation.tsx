@@ -11,6 +11,10 @@ import {
   Heart,
   Bell,
   User,
+  GraduationCap,
+  ClipboardList,
+  FileText,
+  CalendarDays,
 } from 'lucide-react'
 
 interface NavItem {
@@ -27,12 +31,16 @@ interface ParentNavigationProps {
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'academic', label: 'Academic Progress', icon: BookOpen },
+  { id: 'transcript', label: 'Report Card', icon: FileText },
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
   { id: 'behavioral', label: 'Behavioral Reports', icon: AlertCircle },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
   { id: 'messages', label: 'Teacher Messages', icon: Mail },
   { id: 'fees', label: 'Fee Management', icon: CreditCard },
+  { id: 'assignments', label: 'Assignments', icon: ClipboardList },
+  { id: 'exams', label: 'Exams', icon: GraduationCap },
   { id: 'timetable', label: 'Timetable', icon: Clock },
+  { id: 'events', label: 'School Events', icon: CalendarDays },
   { id: 'health', label: 'Health & Wellness', icon: Heart },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'profile', label: 'Profile', icon: User },

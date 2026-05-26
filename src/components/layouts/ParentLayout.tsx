@@ -27,6 +27,10 @@ const Timetable = React.lazy(() => import('../pages/parent/Timetable').then(m =>
 const HealthWellness = React.lazy(() => import('../pages/parent/HealthWellness').then(m => ({ default: m.HealthWellness })))
 const Notifications = React.lazy(() => import('../pages/parent/Notifications').then(m => ({ default: m.Notifications })))
 const ParentProfile = React.lazy(() => import('../pages/parent/ParentProfile').then(m => ({ default: m.ParentProfile })))
+const ChildExams = React.lazy(() => import('../pages/parent/ChildExams').then(m => ({ default: m.ChildExams })))
+const ChildAssignments = React.lazy(() => import('../pages/parent/ChildAssignments').then(m => ({ default: m.ChildAssignments })))
+const ChildTranscript = React.lazy(() => import('../pages/parent/ChildTranscript').then(m => ({ default: m.ChildTranscript })))
+const SchoolEvents = React.lazy(() => import('../pages/parent/SchoolEvents').then(m => ({ default: m.SchoolEvents })))
 
 interface ParentLayoutProps {
   children?: React.ReactNode
@@ -128,6 +132,14 @@ export function ParentLayout({ children }: ParentLayoutProps) {
         return <FeeManagement />
       case 'timetable':
         return <Timetable />
+      case 'exams':
+        return <ChildExams />
+      case 'assignments':
+        return <ChildAssignments />
+      case 'transcript':
+        return <ChildTranscript />
+      case 'events':
+        return <SchoolEvents />
       case 'health':
         return <HealthWellness />
       case 'notifications':

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../../_lib/auth-middleware';
 
 async function ensureTables() {
   await sql`
@@ -48,6 +49,9 @@ async function ensureTables() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin']);
+  if (!decoded) return;
+
   const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenantId as string) || 'default-tenant';
   const userId   = (req.headers['x-user-id']   as string) || (req.query.userId   as string) || 'system';
   const id       = Array.isArray(req.query.id)       ? req.query.id[0]       : req.query.id;

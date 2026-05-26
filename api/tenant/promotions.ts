@@ -10,6 +10,7 @@ import {
   type PromotionPayload,
   type PromotionRule
 } from './_lib/promotions.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 interface ApiResponse<T> {
   data?: T
@@ -35,6 +36,9 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const { method } = req
 
   if (method === 'GET') {

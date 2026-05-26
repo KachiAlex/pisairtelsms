@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node'
 import { initializeDatabase, query, queryOne } from './cbt/_lib/db.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 interface ParentMessage {
   id: string
@@ -47,6 +48,9 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   await initializeTable()
 
   if (req.method === 'GET') {

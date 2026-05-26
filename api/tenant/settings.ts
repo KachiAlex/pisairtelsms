@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchTenantSettings, updateTenantSettings } from '../_lib/tenant-settings'
+import { requireRole } from '../_lib/auth-middleware'
 
 interface TenantSettingsPayload {
   schoolName: string
@@ -43,6 +44,9 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   if (req.method === 'GET') {
     try {
       const settings = await fetchTenantSettings()

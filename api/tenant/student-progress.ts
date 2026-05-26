@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchStudents } from './_lib/students.js'
+import { requireRole } from '../_lib/auth-middleware'
 
 // Mock exam result data - in real app this would come from exam results API
 interface ExamResult {
@@ -37,6 +38,9 @@ interface SubjectPerformance {
 const mockExamResults: { [studentId: string]: ExamResult[] } = {}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
   const { method } = req
   const { studentId } = req.query
 

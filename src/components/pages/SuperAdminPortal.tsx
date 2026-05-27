@@ -115,6 +115,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [adminName, setAdminName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminRole, setAdminRole] = useState('tenant_admin')
+  const [adminPassword, setAdminPassword] = useState('')
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminError, setAdminError] = useState<string | null>(null)
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
@@ -230,6 +231,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
     setAdminName('')
     setAdminEmail('')
     setAdminRole('tenant_admin')
+    setAdminPassword('')
     loadAdminsForTenant(tenant.id)
   }
 
@@ -265,6 +267,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           email: adminEmail.trim(),
           role: adminRole,
           tenantId: selectedTenant.id,
+          password: adminPassword.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -276,6 +279,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       setAdminName('')
       setAdminEmail('')
       setAdminRole('tenant_admin')
+      setAdminPassword('')
     } catch (err: any) {
       setAdminError(err.message || 'Something went wrong')
     } finally {
@@ -782,6 +786,19 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                     <option value="Admin">Admin</option>
                     <option value="Principal">Principal</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Password <span className="text-slate-400 font-normal">(optional — auto-generated if left blank)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Leave blank to auto-generate"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    minLength={6}
+                  />
                 </div>
                 {generatedPassword && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between">

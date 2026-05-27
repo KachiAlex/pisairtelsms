@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── POST: create a tenant admin ───────────────────────────────────────────
   if (req.method === 'POST') {
     const body = req.body || {}
-    const { name, email, role, tenantId } =
+    const { name, email, role, tenantId, password } =
       typeof body === 'string' ? JSON.parse(body) : body
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -89,7 +89,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const id = `staff_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
       const staffId = `STF${Date.now().toString().slice(-6)}`
-      const rawPassword = `${name.split(' ')[0].toLowerCase()}@${Date.now().toString().slice(-4)}`
+      const rawPassword = password && typeof password === 'string' && password.trim().length >= 6
+        ? password.trim()
+        : `${name.split(' ')[0].toLowerCase()}@${Date.now().toString().slice(-4)}`
       const passwordHash = await hashPassword(rawPassword)
       const today = new Date().toISOString().split('T')[0]
 

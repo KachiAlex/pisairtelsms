@@ -58,6 +58,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // Ensure dependent tables exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS timetable (
+        id SERIAL PRIMARY KEY,
+        staff_id VARCHAR(255) NOT NULL,
+        day VARCHAR(20) NOT NULL,
+        subject VARCHAR(255),
+        class_name VARCHAR(255),
+        room VARCHAR(255),
+        start_time VARCHAR(10),
+        end_time VARCHAR(10),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `
+    await sql`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        body TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff_messages (
+        id SERIAL PRIMARY KEY,
+        staff_id VARCHAR(255) NOT NULL,
+        sender_name VARCHAR(255),
+        subject VARCHAR(255),
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `
+
     // Fetch staff record
     const staffResult = await sql`
       SELECT id, staff_id, name, department, role FROM staff

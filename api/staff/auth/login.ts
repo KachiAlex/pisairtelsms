@@ -57,14 +57,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
+    const tenantId = (req.headers['x-tenant-id'] as string) || 'default-tenant'
 
-    const token = await new SignJWT({ staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email })
+    const token = await new SignJWT({ staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email, tenantId })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime(`${expiresIn}s`)
       .sign(jwtSecret)
 
     await logLoginSuccess(req, staff.id, 'staff')
-    
+
     // Set httpOnly cookie with JWT token
     setCookie(res, 'auth_token', token, {
       httpOnly: true,
@@ -73,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       maxAge: expiresIn, // 24 hours in seconds
       path: '/',
     })
-    
+
     setSecurityHeaders(res)
     return res.status(200).json({
       token, // Still return token for backward compatibility
@@ -84,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       name: staff.name,
       department: staff.department,
       email: staff.email,
+      tenantId,
       expiresAt,
     })
   } catch (error) {

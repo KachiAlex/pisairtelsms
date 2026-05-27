@@ -125,18 +125,46 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: normalizedInputEmail, password }),
       })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Invalid credentials')
+
+      // If tenant admin login succeeds, proceed
+      if (response.ok) {
+        const data = await response.json()
+        setAuthInStorage({
+          token: data.token,
+          tenantId: data.tenantId,
+          role: 'tenant_admin',
+          userId: data.userId,
+          expiresAt: data.expiresAt,
+        })
+        onLogin('tenant-admin')
+        return
       }
-      setAuthInStorage({
-        token: data.token,
-        tenantId: data.tenantId,
-        role: 'tenant_admin',
-        userId: data.userId,
-        expiresAt: data.expiresAt,
-      })
-      onLogin('tenant-admin')
+
+      // If tenant admin returns 403 (not an admin role), try staff login
+      if (response.status === 403) {
+        const staffResponse = await fetch('/api/staff/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: normalizedInputEmail, password }),
+        })
+        const staffData = await staffResponse.json()
+        if (!staffResponse.ok) {
+          throw new Error(staffData.error || 'Invalid credentials')
+        }
+        setAuthInStorage({
+          token: staffData.token,
+          tenantId: staffData.tenantId || 'default-tenant',
+          role: staffData.role,
+          userId: staffData.userId,
+          expiresAt: staffData.expiresAt,
+        })
+        onLogin('tenant-admin')
+        return
+      }
+
+      // Otherwise propagate the tenant admin error
+      const data = await response.json()
+      throw new Error(data.error || 'Invalid credentials')
     } catch (loginError) {
       const message =
         loginError instanceof Error ? loginError.message : 'Login failed. Please check your credentials.'

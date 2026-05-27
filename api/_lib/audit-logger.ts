@@ -39,7 +39,6 @@ export async function logAuditEvent(
         id SERIAL PRIMARY KEY,
         action VARCHAR(50) NOT NULL,
         user_id VARCHAR(255),
-        role VARCHAR(50),
         ip_address VARCHAR(50),
         user_agent TEXT,
         resource VARCHAR(255),
@@ -47,6 +46,12 @@ export async function logAuditEvent(
         created_at TIMESTAMP DEFAULT NOW()
       )
     `
+    // Add role column if missing (migration for older tables)
+    try {
+      await sql`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS role VARCHAR(50)`
+    } catch {
+      // Ignore errors if column already exists or permission denied
+    }
 
     await sql`
       INSERT INTO audit_log (action, user_id, role, ip_address, user_agent, resource, details)

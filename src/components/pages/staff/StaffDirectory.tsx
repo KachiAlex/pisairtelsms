@@ -5,7 +5,7 @@ import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { Badge } from '../../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog'
 import { Label } from '../../ui/label'
 
 interface Staff {
@@ -234,6 +234,7 @@ export function StaffDirectory() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Set Password — {resetTarget?.name}</DialogTitle>
+            <DialogDescription>Set a new password for this staff member.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
@@ -280,6 +281,7 @@ export function StaffDirectory() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}</DialogTitle>
+            <DialogDescription>{editingStaff ? 'Update staff member details.' : 'Create a new staff member record.'}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div>

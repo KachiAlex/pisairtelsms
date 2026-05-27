@@ -12,6 +12,9 @@ import {
   Users,
   Plus,
   X,
+  Shield,
+  UserPlus,
+  Copy,
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -92,6 +95,26 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [provisionLoading, setProvisionLoading] = useState(false)
   const [provisionError, setProvisionError] = useState<string | null>(null)
 
+  // Tenant Admins
+  const [tenantAdmins, setTenantAdmins] = useState<Array<{
+    id: string
+    staffId: string
+    name: string
+    email: string
+    role: string
+    tenantId: string
+    status: string
+    createdAt: string
+  }>>([])
+  const [showAdminForm, setShowAdminForm] = useState(false)
+  const [adminName, setAdminName] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
+  const [adminRole, setAdminRole] = useState('tenant_admin')
+  const [adminTenantId, setAdminTenantId] = useState('')
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [adminError, setAdminError] = useState<string | null>(null)
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
+
   useEffect(() => {
     const authRaw = localStorage.getItem('auth')
     const token = authRaw ? JSON.parse(authRaw).token : null
@@ -122,12 +145,17 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         if (!r.ok) throw new Error(`Stats API ${r.status}`)
         return r.json()
       }).catch((e) => { console.error(e); return {} }),
-    ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes]) => {
+      fetch('/api/admin/tenant-admins', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`TenantAdmins API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
+    ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes, adminsRes]) => {
       if (tenantsRes.data) setTenants(tenantsRes.data)
       if (queueRes.data) setProvisioningQueue(queueRes.data)
       if (feedRes.data) setActivityFeed(feedRes.data)
       if (incidentsRes.data) setIncidentLog(incidentsRes.data)
       if (statsRes.data) setStats(statsRes.data)
+      if (adminsRes.data) setTenantAdmins(adminsRes.data)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -168,6 +196,80 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       setProvisionError(err.message || 'Something went wrong')
     } finally {
       setProvisionLoading(false)
+    }
+  }
+
+  async function handleCreateAdminSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setAdminError(null)
+    setGeneratedPassword(null)
+    if (!adminName.trim() || adminName.trim().length < 2) {
+      setAdminError('Name is required (min 2 chars)')
+      return
+    }
+    if (!adminEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+      setAdminError('Valid email is required')
+      return
+    }
+    if (!adminTenantId.trim()) {
+      setAdminError('Please select a tenant')
+      return
+    }
+    setAdminLoading(true)
+    try {
+      const authRaw = localStorage.getItem('auth')
+      const token = authRaw ? JSON.parse(authRaw).token : null
+      const res = await fetch('/api/admin/tenant-admins', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': 'super-admin',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: adminName.trim(),
+          email: adminEmail.trim(),
+          role: adminRole,
+          tenantId: adminTenantId,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create tenant admin')
+      }
+      setTenantAdmins((prev) => [...prev, data.data])
+      setGeneratedPassword(data.generatedPassword || null)
+      setAdminName('')
+      setAdminEmail('')
+      setAdminRole('tenant_admin')
+      setAdminTenantId('')
+    } catch (err: any) {
+      setAdminError(err.message || 'Something went wrong')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
+  async function toggleAdminStatus(id: string, status: string) {
+    try {
+      const authRaw = localStorage.getItem('auth')
+      const token = authRaw ? JSON.parse(authRaw).token : null
+      const res = await fetch('/api/admin/tenant-admins', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': 'super-admin',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id, status }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed')
+      setTenantAdmins((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: data.data.status } : a))
+      )
+    } catch (err: any) {
+      setAdminError(err.message || 'Failed to update status')
     }
   }
 
@@ -413,6 +515,165 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
             </CardContent>
           </Card>
         </div>
+
+        {/* Tenant Admins */}
+        <Card>
+          <CardHeader className="space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Tenant Admins</CardTitle>
+                <p className="text-sm text-slate-500">Manage administrators across all tenants.</p>
+              </div>
+              <Button
+                size="sm"
+                className="gap-2 bg-slate-900 hover:bg-slate-800"
+                onClick={() => {
+                  setShowAdminForm((s) => !s)
+                  setAdminError(null)
+                  setGeneratedPassword(null)
+                }}
+              >
+                {showAdminForm ? <X className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                {showAdminForm ? 'Cancel' : 'Create Tenant Admin'}
+              </Button>
+            </div>
+            {showAdminForm && (
+              <form onSubmit={handleCreateAdminSubmit} className="rounded-xl border border-slate-100 bg-slate-50/40 p-4 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={adminName}
+                      onChange={(e) => setAdminName(e.target.value)}
+                      placeholder="e.g. John Doe"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      required
+                      minLength={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      placeholder="john@school.edu"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tenant</label>
+                    <select
+                      value={adminTenantId}
+                      onChange={(e) => setAdminTenantId(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      required
+                    >
+                      <option value="">Select a tenant</option>
+                      {tenants.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                    <select
+                      value={adminRole}
+                      onChange={(e) => setAdminRole(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    >
+                      <option value="tenant_admin">Tenant Admin</option>
+                      <option value="Admin">Admin</option>
+                      <option value="Principal">Principal</option>
+                    </select>
+                  </div>
+                </div>
+                {adminError && <p className="text-sm text-red-600">{adminError}</p>}
+                {generatedPassword && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-emerald-800">Tenant admin created successfully</p>
+                      <p className="text-xs text-emerald-700">Temporary password: <span className="font-mono font-semibold">{generatedPassword}</span></p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                      onClick={() => navigator.clipboard.writeText(generatedPassword)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" className="bg-slate-900 hover:bg-slate-800" disabled={adminLoading}>
+                    {adminLoading ? 'Creating...' : 'Create admin'}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setShowAdminForm(false)} disabled={adminLoading}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-xl border border-slate-100">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Tenant</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tenantAdmins.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center text-gray-500">No tenant admins found</TableCell></TableRow>
+                  ) : tenantAdmins.map((admin) => (
+                    <TableRow key={admin.id}>
+                      <TableCell>
+                        <div className="font-medium text-slate-900">{admin.name}</div>
+                        <div className="text-xs text-slate-500">{admin.staffId}</div>
+                      </TableCell>
+                      <TableCell>{admin.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="gap-1">
+                          <Shield className="h-3 w-3" />
+                          {admin.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {tenants.find((t) => t.id === admin.tenantId)?.name || admin.tenantId}
+                      </TableCell>
+                      <TableCell>{statusBadge(admin.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {admin.status !== 'active' ? (
+                            <Button size="sm" variant="outline" onClick={() => toggleAdminStatus(admin.id, 'active')}>
+                              Activate
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => toggleAdminStatus(admin.id, 'suspended')}>
+                              Suspend
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Incidents + Activity */}
         <div className="grid gap-6 md:grid-cols-2">

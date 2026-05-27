@@ -18,24 +18,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('ensureStaffTables failed', e)
   }
 
-  // ── GET: list all tenant admins ───────────────────────────────────────────
+  // ── GET: list tenant admins (optionally filtered by tenantId) ──────────────
   if (req.method === 'GET') {
+    const { tenantId } = req.query
     try {
-      const r = await sql`
-        SELECT
-          id,
-          staff_id AS "staffId",
-          name,
-          email,
-          role,
-          department AS "tenantId",
-          status,
-          phone,
-          created_at AS "createdAt"
-        FROM staff
-        WHERE role = ANY(${ADMIN_ROLES})
-        ORDER BY department ASC, name ASC
-      `
+      const r = tenantId
+        ? await sql`
+            SELECT
+              id,
+              staff_id AS "staffId",
+              name,
+              email,
+              role,
+              department AS "tenantId",
+              status,
+              phone,
+              created_at AS "createdAt"
+            FROM staff
+            WHERE role = ANY(${ADMIN_ROLES})
+              AND department = ${tenantId as string}
+            ORDER BY name ASC
+          `
+        : await sql`
+            SELECT
+              id,
+              staff_id AS "staffId",
+              name,
+              email,
+              role,
+              department AS "tenantId",
+              status,
+              phone,
+              created_at AS "createdAt"
+            FROM staff
+            WHERE role = ANY(${ADMIN_ROLES})
+            ORDER BY department ASC, name ASC
+          `
       return res.json({ success: true, data: r.rows })
     } catch (error) {
       console.error('tenant-admins GET error:', error)

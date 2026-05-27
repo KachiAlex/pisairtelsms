@@ -10,6 +10,8 @@ import {
   RefreshCcw,
   ArrowUpRight,
   Users,
+  Plus,
+  X,
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -83,15 +85,43 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [provisioningQueue, setProvisioningQueue] = useState<ProvisioningItem[]>([])
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([])
   const [incidentLog, setIncidentLog] = useState<Incident[]>([])
+  const [showProvisionForm, setShowProvisionForm] = useState(false)
+  const [provisionName, setProvisionName] = useState('')
+  const [provisionRegion, setProvisionRegion] = useState('global')
+  const [provisionPlan, setProvisionPlan] = useState('basic')
+  const [provisionLoading, setProvisionLoading] = useState(false)
+  const [provisionError, setProvisionError] = useState<string | null>(null)
 
   useEffect(() => {
-    const headers = { 'Content-Type': 'application/json', 'x-tenant-id': 'super-admin' }
+    const authRaw = localStorage.getItem('auth')
+    const token = authRaw ? JSON.parse(authRaw).token : null
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-tenant-id': 'super-admin',
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
     Promise.all([
-      fetch('/api/admin/tenants', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/admin/provisioning-queue', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/admin/activity-feed', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/admin/incidents', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/admin/stats', { headers }).then((r) => r.json()).catch(() => ({})),
+      fetch('/api/admin/tenants', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`Tenants API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
+      fetch('/api/admin/provisioning-queue', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`Provisioning API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
+      fetch('/api/admin/activity-feed', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`Activity API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
+      fetch('/api/admin/incidents', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`Incidents API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
+      fetch('/api/admin/stats', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`Stats API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
     ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes]) => {
       if (tenantsRes.data) setTenants(tenantsRes.data)
       if (queueRes.data) setProvisioningQueue(queueRes.data)
@@ -100,6 +130,46 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       if (statsRes.data) setStats(statsRes.data)
     }).finally(() => setLoading(false))
   }, [])
+
+  async function handleProvisionSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setProvisionError(null)
+    if (!provisionName.trim() || provisionName.trim().length < 2) {
+      setProvisionError('Tenant name must be at least 2 characters')
+      return
+    }
+    setProvisionLoading(true)
+    try {
+      const authRaw = localStorage.getItem('auth')
+      const token = authRaw ? JSON.parse(authRaw).token : null
+      const res = await fetch('/api/admin/tenants', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': 'super-admin',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: provisionName.trim(),
+          subscription: provisionPlan,
+          region: provisionRegion,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to provision tenant')
+      }
+      setTenants((prev) => [...prev, data.data])
+      setShowProvisionForm(false)
+      setProvisionName('')
+      setProvisionPlan('basic')
+      setProvisionRegion('global')
+    } catch (err: any) {
+      setProvisionError(err.message || 'Something went wrong')
+    } finally {
+      setProvisionLoading(false)
+    }
+  }
 
   const tenantsNeedingAttention = tenants.filter((tenant) => tenant.alerts > 0)
 
@@ -178,12 +248,64 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                     <Globe className="h-4 w-4" />
                     Regions
                   </Button>
-                  <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
-                    <Users className="h-4 w-4" />
-                    Provision tenant
+                  <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={() => { setShowProvisionForm((s) => !s); setProvisionError(null) }}>
+                    {showProvisionForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {showProvisionForm ? 'Cancel' : 'Provision tenant'}
                   </Button>
                 </div>
               </div>
+              {showProvisionForm && (
+                <form onSubmit={handleProvisionSubmit} className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tenant name</label>
+                    <input
+                      type="text"
+                      value={provisionName}
+                      onChange={(e) => setProvisionName(e.target.value)}
+                      placeholder="e.g. Lincoln High School"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                      minLength={2}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Plan</label>
+                      <select
+                        value={provisionPlan}
+                        onChange={(e) => setProvisionPlan(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="basic">Basic</option>
+                        <option value="standard">Standard</option>
+                        <option value="premium">Premium</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Region</label>
+                      <select
+                        value={provisionRegion}
+                        onChange={(e) => setProvisionRegion(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="global">Global</option>
+                        <option value="us-east">US East</option>
+                        <option value="eu-west">EU West</option>
+                        <option value="asia-pacific">Asia Pacific</option>
+                      </select>
+                    </div>
+                  </div>
+                  {provisionError && <p className="text-sm text-red-600">{provisionError}</p>}
+                  <div className="flex gap-2">
+                    <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700" disabled={provisionLoading}>
+                      {provisionLoading ? 'Provisioning...' : 'Create tenant'}
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setShowProvisionForm(false)} disabled={provisionLoading}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              )}
               <Tabs defaultValue="all" className="w-full">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <TabsList>

@@ -6,7 +6,7 @@ import { requireRole } from '../../_lib/auth-middleware.js'
  * Manages multi-factor authentication settings for tenant users
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const { tenantId } = req.query

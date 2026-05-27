@@ -1,5 +1,3 @@
-import jwt from 'jsonwebtoken'
-
 /**
  * Parent authentication utilities for JWT extraction and validation
  * Validates: Requirements 1.4, 13.3, 13.5

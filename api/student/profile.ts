@@ -60,7 +60,7 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['student']);
+  const decoded = await requireRole(req, res, ['student']);
   if (!decoded) return;
 
   const studentId = decoded.studentId || decoded.userId;

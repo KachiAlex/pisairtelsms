@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const blockedIPs = (process.env.BLOCKED_IPS || '').split(',').filter(Boolean)
   if (requireNotBlockedIP(req, res, blockedIPs)) return
 
-  const decoded = requireRole(req, res, ['parent'])
+  const decoded = await requireRole(req, res, ['parent'])
   if (!decoded) return
 
   const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }

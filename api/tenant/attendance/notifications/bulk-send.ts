@@ -17,7 +17,7 @@ function getTenantId(req: VercelRequest): string | null {
  * Validates: Requirements 18
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   if (req.method !== 'POST') {

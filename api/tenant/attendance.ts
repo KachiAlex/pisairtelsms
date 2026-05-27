@@ -40,7 +40,7 @@ function getUserId(req: VercelRequest): string | null {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication - only staff or tenant_admin can access tenant attendance
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   // Require tenant context

@@ -3,7 +3,7 @@ import { resetStaffPassword } from '../_lib/staff.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['tenant_admin'])
+  const decoded = await requireRole(req, res, ['tenant_admin'])
   if (!decoded) return
 
   if (req.method !== 'POST') {

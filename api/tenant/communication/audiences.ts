@@ -10,7 +10,7 @@ function getTenantId(req: VercelRequest): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<VercelResponse | void> {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   if (req.method !== 'GET') {

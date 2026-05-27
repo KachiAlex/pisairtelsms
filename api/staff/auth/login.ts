@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import jwt from 'jsonwebtoken'
+import { SignJWT } from 'jose'
 import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
@@ -54,15 +54,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'
+    const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
 
-    const token = jwt.sign(
-      { staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email },
-      jwtSecret,
-      { expiresIn: `${expiresIn}s` }
-    )
+    const token = await new SignJWT({ staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime(`${expiresIn}s`)
+      .sign(jwtSecret)
 
     await logLoginSuccess(req, staff.id, 'staff')
     

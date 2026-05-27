@@ -13,7 +13,7 @@ import { requireRole } from '../../_lib/auth-middleware.js';
  *   PUT    /api/tenant/security/encryption/fields       - Update encrypted fields
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin']);
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
 
   const tenantId =

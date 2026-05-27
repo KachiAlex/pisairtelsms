@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const decoded = requireRole(req, res, ['parent'])
+    const decoded = await requireRole(req, res, ['parent'])
     if (!decoded) return
 
     const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }

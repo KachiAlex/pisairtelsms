@@ -49,7 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const decoded = requireRole(req, res, ['staff']);
+  const decoded = await requireRole(req, res, ['staff']);
   if (!decoded) return;
 
   const staffId = decoded.staffId || decoded.userId;

@@ -2,12 +2,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import handler from './login'
 
-// Mock jwt
-vi.mock('jsonwebtoken', () => ({
-  default: {
-    sign: vi.fn((payload, secret, options) => {
-      return `mock-token-${payload.parentId}`
-    })
+// Mock jose SignJWT
+vi.mock('jose', () => ({
+  SignJWT: class {
+    constructor(private payload: any) {}
+    setProtectedHeader() { return this }
+    setExpirationTime() { return this }
+    async sign() { return `mock-token-${this.payload.parentId}` }
   }
 }))
 

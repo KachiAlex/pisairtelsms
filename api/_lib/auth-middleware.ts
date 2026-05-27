@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import jwt from 'jsonwebtoken'
+import { jwtVerify } from 'jose'
 
 export type UserRole = 'super_admin' | 'tenant_admin' | 'student' | 'staff' | 'parent'
 
@@ -17,14 +17,14 @@ export interface DecodedToken {
 }
 
 /**
- * Extracts and verifies JWT token from Authorization header.
+ * Extracts and verifies JWT token from Authorization header or cookie.
  * Returns decoded payload if valid, null otherwise.
  */
-export function verifyToken(token: string): DecodedToken | null {
+export async function verifyToken(token: string): Promise<DecodedToken | null> {
   try {
-    const secret = process.env.JWT_SECRET || 'your-secret-key'
-    const decoded = jwt.verify(token, secret) as DecodedToken
-    return decoded
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
+    const { payload } = await jwtVerify(token, secret)
+    return payload as unknown as DecodedToken
   } catch {
     return null
   }
@@ -71,18 +71,18 @@ export function extractToken(req: VercelRequest): string | null {
  * Verifies token and checks if user has required role.
  * Returns decoded token if authorized, sends error response and returns null if not.
  */
-export function requireRole(
+export async function requireRole(
   req: VercelRequest,
   res: VercelResponse,
   allowedRoles: UserRole[]
-): DecodedToken | null {
+): Promise<DecodedToken | null> {
   const token = extractToken(req)
   if (!token) {
     res.status(401).json({ error: 'Unauthorized: Missing token' })
     return null
   }
 
-  const decoded = verifyToken(token)
+  const decoded = await verifyToken(token)
   if (!decoded) {
     res.status(401).json({ error: 'Unauthorized: Invalid or expired token' })
     return null
@@ -99,14 +99,14 @@ export function requireRole(
 /**
  * Verifies token without role check (for endpoints where any authenticated user can access).
  */
-export function requireAuth(req: VercelRequest, res: VercelResponse): DecodedToken | null {
+export async function requireAuth(req: VercelRequest, res: VercelResponse): Promise<DecodedToken | null> {
   const token = extractToken(req)
   if (!token) {
     res.status(401).json({ error: 'Unauthorized: Missing token' })
     return null
   }
 
-  const decoded = verifyToken(token)
+  const decoded = await verifyToken(token)
   if (!decoded) {
     res.status(401).json({ error: 'Unauthorized: Invalid or expired token' })
     return null

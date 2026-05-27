@@ -30,7 +30,7 @@ function getUserId(req: VercelRequest): string | null {
  * PATCH /api/tenant/tasks/notifications/:id - Mark as read
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const tenantId = getTenantId(req)

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import jwt from 'jsonwebtoken'
+import { SignJWT } from 'jose'
 import { fetchParentByEmail, verifyPassword } from '../../tenant/_lib/parents.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
@@ -63,20 +63,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'
+    const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
     const expiresIn = 24 * 60 * 60 // 24 hours
     const expiresAt = Date.now() + expiresIn * 1000
 
-    const token = jwt.sign(
-      {
-        parentId: parent.id,
-        childrenIds: parent.childrenIds,
-        role: 'parent',
-        email: parent.email
-      },
-      jwtSecret,
-      { expiresIn: `${expiresIn}s` }
-    )
+    const token = await new SignJWT({
+      parentId: parent.id,
+      childrenIds: parent.childrenIds,
+      role: 'parent',
+      email: parent.email
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime(`${expiresIn}s`)
+      .sign(jwtSecret)
 
     const response: LoginResponse = {
       token,

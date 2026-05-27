@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import jwt from 'jsonwebtoken'
+import { SignJWT } from 'jose'
 import { sql } from '@vercel/postgres'
 import crypto from 'crypto'
 import { rateLimit } from '../../_lib/rate-limit.js'
@@ -89,15 +89,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'
+    const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
 
-    const token = jwt.sign(
-      { studentId: student.id, userId: student.id, role: 'student', admissionNo: student.admission_no },
-      jwtSecret,
-      { expiresIn: `${expiresIn}s` }
-    )
+    const token = await new SignJWT({ studentId: student.id, userId: student.id, role: 'student', admissionNo: student.admission_no })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime(`${expiresIn}s`)
+      .sign(jwtSecret)
 
     await logLoginSuccess(req, student.id, 'student')
     

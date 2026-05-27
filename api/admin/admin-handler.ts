@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Require authentication - only super_admin or tenant_admin can access admin endpoints
-  const decoded = requireRole(req, res, ['super_admin', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['super_admin', 'tenant_admin'])
   if (!decoded) return
 
   const action = req.query['action'] as string

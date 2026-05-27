@@ -211,7 +211,7 @@ export function closeExamConnections(examId: string) {
  * Main WebSocket handler
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   // Only handle WebSocket upgrade requests

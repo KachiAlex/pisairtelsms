@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const decoded = requireRole(req, res, ['student']);
+  const decoded = await requireRole(req, res, ['student']);
   if (!decoded) return;
 
   const studentId = decoded.studentId || decoded.userId;

@@ -15,7 +15,7 @@ function getTenantId(req: VercelRequest): string | null {
  * Returns teacher performance analytics including ratings and subject comparisons
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   if (req.method !== 'GET') {

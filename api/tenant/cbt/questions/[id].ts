@@ -50,7 +50,7 @@ function validateUserId(userId: string | undefined, res: VercelResponse): boolea
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const tenantId = req.headers['x-tenant-id'] as string

@@ -15,7 +15,7 @@ function getTenantId(req: VercelRequest): string | null {
  * Returns session management data including active sessions, anomalies, and history
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const decoded = requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   if (req.method !== 'GET') {

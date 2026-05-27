@@ -1,12 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createRequire } from 'module'
+import { SignJWT } from 'jose'
 import { verifySuperAdminCredentials } from '../../_lib/super-admin.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const jwt = createRequire(import.meta.url)('jsonwebtoken') as any
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setSecurityHeaders(res)
@@ -43,20 +40,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key'
+    const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
 
-    const token = jwt.sign(
-      {
-        userId: String(account.id),
-        role: 'super_admin',
-        email: account.email,
-        organization: account.organization,
-      },
-      jwtSecret,
-      { expiresIn: `${expiresIn}s` }
-    )
+    const token = await new SignJWT({
+      userId: String(account.id),
+      role: 'super_admin',
+      email: account.email,
+      organization: account.organization,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime(`${expiresIn}s`)
+      .sign(jwtSecret)
 
     setCookie(res, 'auth_token', token, {
       httpOnly: true,

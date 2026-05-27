@@ -109,6 +109,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           department AS "tenantId", status, phone, created_at AS "createdAt"
       `
 
+      // Mirror into tenant_users so the admin appears in tenant user management
+      try {
+        await sql`
+          CREATE TABLE IF NOT EXISTS tenant_users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id VARCHAR(255) NOT NULL DEFAULT 'default-tenant',
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            role VARCHAR(255) NOT NULL DEFAULT 'Staff',
+            status VARCHAR(50) NOT NULL DEFAULT 'invited',
+            last_active TIMESTAMP WITH TIME ZONE,
+            invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          )
+        `
+        const existingUser = await sql`
+          SELECT id FROM tenant_users WHERE email = ${email.toLowerCase()} LIMIT 1
+        `
+        if (existingUser.rows.length > 0) {
+          await sql`
+            UPDATE tenant_users
+            SET tenant_id = ${tenantId}, name = ${name.trim()}, role = ${role}, status = 'active'
+            WHERE email = ${email.toLowerCase()}
+          `
+        } else {
+          await sql`
+            INSERT INTO tenant_users (tenant_id, name, email, role, status)
+            VALUES (${tenantId}, ${name.trim()}, ${email.toLowerCase()}, ${role}, 'active')
+          `
+        }
+      } catch (e) {
+        console.error('tenant_users mirror insert failed:', e)
+      }
+
       return res.status(201).json({
         success: true,
         data: r.rows[0],
@@ -174,6 +208,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (r.rows.length === 0) {
         return res.status(404).json({ success: false, error: 'Tenant admin not found' })
       }
+
+      // Sync tenant_users status
+      try {
+        const userStatus = status === 'active' ? 'active' : 'suspended'
+        await sql`
+          UPDATE tenant_users
+          SET status = ${userStatus}
+          WHERE email = ${r.rows[0].email.toLowerCase()}
+        `
+      } catch (e) {
+        console.error('tenant_users status sync failed:', e)
+      }
+
       return res.json({ success: true, data: r.rows[0] })
     } catch (error) {
       console.error('tenant-admins PATCH error:', error)

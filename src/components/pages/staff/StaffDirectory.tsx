@@ -26,6 +26,19 @@ interface Staff {
 const DEPARTMENTS = ['Teaching', 'Administration', 'Finance', 'Security', 'Maintenance', 'ICT', 'Library', 'Health']
 const ROLES = ['Teacher', 'Head Teacher', 'Principal', 'Vice Principal', 'Accountant', 'Secretary', 'Librarian', 'Nurse', 'Security Officer', 'IT Officer', 'Cleaner']
 
+function getAuthHeaders() {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' }
+  }
+}
+
 export function StaffDirectory() {
   const [staff, setStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,7 +63,7 @@ export function StaffDirectory() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/tenant/staff', { headers: { 'x-tenant-id': 'default-tenant' } })
+      const res = await fetch('/api/tenant/staff', { headers: getAuthHeaders() })
       if (!res.ok) throw new Error('Failed to fetch staff')
       const data = await res.json()
       setStaff(data.data || [])
@@ -88,7 +101,7 @@ export function StaffDirectory() {
       const method = editingStaff ? 'PUT' : 'POST'
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error('Failed to save staff member')
@@ -106,7 +119,7 @@ export function StaffDirectory() {
     try {
       await fetch(`/api/tenant/staff?id=${id}`, {
         method: 'DELETE',
-        headers: { 'x-tenant-id': 'default-tenant' }
+        headers: getAuthHeaders(),
       })
       fetchStaff()
     } catch (err) {
@@ -243,7 +256,7 @@ export function StaffDirectory() {
                   try {
                     const res = await fetch('/api/tenant/staff/reset-password', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+                      headers: getAuthHeaders(),
                       body: JSON.stringify({ id: resetTarget.id, newPassword: resetPassword }),
                     })
                     if (!res.ok) throw new Error('Failed')

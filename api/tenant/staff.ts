@@ -26,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const actualTenantId = decoded.tenantId || 'default-tenant'
   const { resource, id, department, status, date, staffId, month, year } = req.query
 
   // ── Staff Directory ──────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!hireDate) missing.push('hireDate')
       if (missing.length > 0) return res.status(400).json({ error: 'Missing required fields', details: missing })
       const payload: StaffPayload = { ...body }
-      const member = await createStaffMember(payload)
+      const member = await createStaffMember(payload, actualTenantId)
       return res.status(201).json({ data: member })
     }
 
@@ -59,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!id) return res.status(400).json({ error: 'Staff ID is required' })
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
-      const member = await updateStaffMember(id as string, body)
+      const member = await updateStaffMember(id as string, body, actualTenantId)
       if (!member) return res.status(404).json({ error: 'Staff member not found' })
       return res.status(200).json({ data: member })
     }

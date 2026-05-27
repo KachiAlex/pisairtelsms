@@ -393,7 +393,10 @@ export async function fetchStaffByEmail(email: string): Promise<(Staff & { passw
   }
 }
 
-export async function createStaffMember(payload: StaffPayload & { defaultPassword?: string }): Promise<Staff> {
+export async function createStaffMember(
+  payload: StaffPayload & { defaultPassword?: string },
+  tenantId?: string
+): Promise<Staff> {
   await ensureStaffTables()
   const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const staffId = payload.staffId || `STF${Date.now().toString().slice(-6)}`
@@ -410,7 +413,8 @@ export async function createStaffMember(payload: StaffPayload & { defaultPasswor
     RETURNING *
   `
 
-  // Mirror into tenant_users
+  // Mirror into tenant_users using actual tenantId (not functional department)
+  const resolvedTenantId = tenantId || payload.department || 'default-tenant'
   try {
     await sql`
       CREATE TABLE IF NOT EXISTS tenant_users (
@@ -429,13 +433,13 @@ export async function createStaffMember(payload: StaffPayload & { defaultPasswor
     if (existing.rows.length > 0) {
       await sql`
         UPDATE tenant_users
-        SET tenant_id = ${payload.department}, name = ${payload.name}, role = ${payload.role}, status = 'active'
+        SET tenant_id = ${resolvedTenantId}, name = ${payload.name}, role = ${payload.role}, status = 'active'
         WHERE email = ${payload.email.toLowerCase()}
       `
     } else {
       await sql`
         INSERT INTO tenant_users (tenant_id, name, email, role, status)
-        VALUES (${payload.department}, ${payload.name}, ${payload.email.toLowerCase()}, ${payload.role}, 'active')
+        VALUES (${resolvedTenantId}, ${payload.name}, ${payload.email.toLowerCase()}, ${payload.role}, 'active')
       `
     }
   } catch (e) {
@@ -445,7 +449,11 @@ export async function createStaffMember(payload: StaffPayload & { defaultPasswor
   return rowToStaff(result.rows[0])
 }
 
-export async function updateStaffMember(id: string, payload: Partial<StaffPayload>): Promise<Staff | null> {
+export async function updateStaffMember(
+  id: string,
+  payload: Partial<StaffPayload>,
+  tenantId?: string
+): Promise<Staff | null> {
   await ensureStaffTables()
   try {
     const result = await sql<StaffRow>`
@@ -469,10 +477,11 @@ export async function updateStaffMember(id: string, payload: Partial<StaffPayloa
     const staff = result.rows[0] ? rowToStaff(result.rows[0]) : null
     if (staff) {
       try {
+        const resolvedTenantId = tenantId || staff.department || 'default-tenant'
         const userStatus = staff.status === 'active' ? 'active' : 'suspended'
         await sql`
           UPDATE tenant_users
-          SET tenant_id = ${staff.department}, name = ${staff.name}, role = ${staff.role}, status = ${userStatus}
+          SET tenant_id = ${resolvedTenantId}, name = ${staff.name}, role = ${staff.role}, status = ${userStatus}
           WHERE email = ${staff.email.toLowerCase()}
         `
       } catch (e) {

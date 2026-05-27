@@ -22,7 +22,12 @@ export function StaffHR() {
   const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
-    fetch('/api/tenant/staff', { headers: { 'x-tenant-id': 'default-tenant' } })
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const headers: Record<string, string> = {
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+    fetch('/api/tenant/staff', { headers })
       .then(r => r.json())
       .then(d => setStaff(d.data || []))
       .catch(() => {})

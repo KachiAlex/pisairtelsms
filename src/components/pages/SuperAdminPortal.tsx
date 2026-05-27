@@ -15,6 +15,8 @@ import {
   Shield,
   UserPlus,
   Copy,
+  KeyRound,
+  Ban,
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -116,6 +118,8 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminError, setAdminError] = useState<string | null>(null)
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
+  const [resetPasswordResult, setResetPasswordResult] = useState<{ name: string; password: string } | null>(null)
+  const [tenantActionLoading, setTenantActionLoading] = useState(false)
 
   useEffect(() => {
     const authRaw = localStorage.getItem('auth')
@@ -222,6 +226,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
     setShowAdminForm(false)
     setAdminError(null)
     setGeneratedPassword(null)
+    setResetPasswordResult(null)
     setAdminName('')
     setAdminEmail('')
     setAdminRole('tenant_admin')
@@ -298,6 +303,55 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       )
     } catch (err: any) {
       setAdminError(err.message || 'Failed to update status')
+    }
+  }
+
+  async function resetAdminPassword(adminId: string, adminName: string) {
+    try {
+      const authRaw = localStorage.getItem('auth')
+      const token = authRaw ? JSON.parse(authRaw).token : null
+      const res = await fetch('/api/admin/tenant-admins', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': 'super-admin',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id: adminId }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to reset password')
+      setResetPasswordResult({ name: adminName, password: data.generatedPassword })
+      setAdminError(null)
+    } catch (err: any) {
+      setAdminError(err.message || 'Failed to reset password')
+    }
+  }
+
+  async function updateTenantStatus(tenantId: string, status: string) {
+    setTenantActionLoading(true)
+    try {
+      const authRaw = localStorage.getItem('auth')
+      const token = authRaw ? JSON.parse(authRaw).token : null
+      const res = await fetch('/api/admin/tenants', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': 'super-admin',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id: tenantId, status }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to update tenant')
+      setTenants((prev) => prev.map((t) => (t.id === tenantId ? { ...t, status: data.data.status } : t)))
+      if (selectedTenant && selectedTenant.id === tenantId) {
+        setSelectedTenant((prev) => (prev ? { ...prev, status: data.data.status } : prev))
+      }
+    } catch (err: any) {
+      setAdminError(err.message || 'Failed to update tenant')
+    } finally {
+      setTenantActionLoading(false)
     }
   }
 
@@ -609,16 +663,71 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       <Dialog open={adminModalOpen} onOpenChange={setAdminModalOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-slate-600" />
-              {selectedTenant ? `Manage Admins — ${selectedTenant.name}` : 'Manage Admins'}
-            </DialogTitle>
-            <DialogDescription>
-              Create and manage administrators for this tenant.
-            </DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-slate-600" />
+                  {selectedTenant ? `Manage Admins — ${selectedTenant.name}` : 'Manage Admins'}
+                </DialogTitle>
+                <DialogDescription>
+                  Create and manage administrators for this tenant.
+                </DialogDescription>
+              </div>
+              <div className="flex gap-2">
+                {selectedTenant && selectedTenant.status === 'active' ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
+                    disabled={tenantActionLoading}
+                    onClick={() => updateTenantStatus(selectedTenant.id, 'suspended')}
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    Suspend License
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                    disabled={tenantActionLoading}
+                    onClick={() => updateTenantStatus(selectedTenant!.id, 'active')}
+                  >
+                    <RefreshCcw className="h-3.5 w-3.5" />
+                    Renew
+                  </Button>
+                )}
+              </div>
+            </div>
           </DialogHeader>
 
           <div className="space-y-4">
+            {selectedTenant && (
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <span className="font-medium text-slate-700">Tenant status:</span>
+                {statusBadge(selectedTenant.status)}
+                <span className="ml-2">Plan: {selectedTenant.subscription}</span>
+              </div>
+            )}
+
+            {adminError && <p className="text-sm text-red-600">{adminError}</p>}
+            {resetPasswordResult && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Password reset for {resetPasswordResult.name}</p>
+                  <p className="text-xs text-blue-700">New temporary password: <span className="font-mono font-semibold">{resetPasswordResult.password}</span></p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-blue-200 text-blue-700 hover:bg-blue-100"
+                  onClick={() => navigator.clipboard.writeText(resetPasswordResult.password)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <Button
                 size="sm"
@@ -627,6 +736,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   setShowAdminForm((s) => !s)
                   setAdminError(null)
                   setGeneratedPassword(null)
+                  setResetPasswordResult(null)
                 }}
               >
                 {showAdminForm ? <X className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
@@ -673,7 +783,6 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                     <option value="Principal">Principal</option>
                   </select>
                 </div>
-                {adminError && <p className="text-sm text-red-600">{adminError}</p>}
                 {generatedPassword && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between">
                     <div>
@@ -732,6 +841,15 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                       <TableCell>{statusBadge(admin.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-slate-500 hover:text-blue-600"
+                            onClick={() => resetAdminPassword(admin.id, admin.name)}
+                            title="Reset password"
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </Button>
                           {admin.status !== 'active' ? (
                             <Button size="sm" variant="outline" onClick={() => toggleAdminStatus(admin.id, 'active')}>
                               Activate

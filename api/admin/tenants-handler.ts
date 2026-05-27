@@ -67,5 +67,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  if (req.method === 'PATCH') {
+    const decoded = await requireRole(req, res, ['super_admin'])
+    if (!decoded) return
+
+    const { id, status } = req.body || {}
+    if (!id || !status) {
+      return res.status(400).json({ success: false, error: 'id and status are required' })
+    }
+    const allowed = ['active', 'suspended', 'provisioning', 'degraded']
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ success: false, error: `status must be one of: ${allowed.join(', ')}` })
+    }
+
+    try {
+      await ensureTenantsTable()
+      const r = await sql`
+        UPDATE tenants SET status = ${status}
+        WHERE id = ${id}
+        RETURNING
+          id, name, subscription_plan AS subscription, region,
+          usage_percent AS usage, status, TO_CHAR(last_sync_at, 'HH24:MI') AS "lastSync",
+          open_alerts AS alerts
+      `
+      if (r.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Tenant not found' })
+      }
+      return res.json({ success: true, data: r.rows[0] })
+    } catch (error) {
+      console.error('tenants-handler PATCH error:', error)
+      return res.status(500).json({ success: false, error: 'Internal server error' })
+    }
+  }
+
   return res.status(405).json({ success: false, error: 'Method not allowed' })
 }

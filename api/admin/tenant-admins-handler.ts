@@ -118,6 +118,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // ── PUT: reset tenant admin password ──────────────────────────────────────
+  if (req.method === 'PUT') {
+    const body = req.body || {}
+    const { id } = typeof body === 'string' ? JSON.parse(body) : body
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'id is required' })
+    }
+
+    try {
+      const newPassword = `reset_${Math.random().toString(36).slice(2, 8)}`
+      const passwordHash = await hashPassword(newPassword)
+
+      const r = await sql`
+        UPDATE staff SET password_hash = ${passwordHash}
+        WHERE id = ${id} AND role = ANY(${ADMIN_ROLES})
+        RETURNING
+          id, staff_id AS "staffId", name, email, role,
+          department AS "tenantId", status, phone, created_at AS "createdAt"
+      `
+      if (r.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Tenant admin not found' })
+      }
+      return res.json({ success: true, data: r.rows[0], generatedPassword: newPassword })
+    } catch (error) {
+      console.error('tenant-admins PUT error:', error)
+      return res.status(500).json({ success: false, error: 'Internal server error' })
+    }
+  }
+
   // ── PATCH: update tenant admin status ─────────────────────────────────────
   if (req.method === 'PATCH') {
     const body = req.body || {}

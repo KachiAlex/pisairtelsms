@@ -409,6 +409,39 @@ export async function createStaffMember(payload: StaffPayload & { defaultPasswor
             ${payload.emergencyContact ?? null}, ${payload.emergencyPhone ?? null}, ${passwordHash})
     RETURNING *
   `
+
+  // Mirror into tenant_users
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS tenant_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR(255) NOT NULL DEFAULT 'default-tenant',
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        role VARCHAR(255) NOT NULL DEFAULT 'Staff',
+        status VARCHAR(50) NOT NULL DEFAULT 'invited',
+        last_active TIMESTAMP WITH TIME ZONE,
+        invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `
+    const existing = await sql`SELECT id FROM tenant_users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`
+    if (existing.rows.length > 0) {
+      await sql`
+        UPDATE tenant_users
+        SET tenant_id = ${payload.department}, name = ${payload.name}, role = ${payload.role}, status = 'active'
+        WHERE email = ${payload.email.toLowerCase()}
+      `
+    } else {
+      await sql`
+        INSERT INTO tenant_users (tenant_id, name, email, role, status)
+        VALUES (${payload.department}, ${payload.name}, ${payload.email.toLowerCase()}, ${payload.role}, 'active')
+      `
+    }
+  } catch (e) {
+    console.error('tenant_users mirror insert failed:', e)
+  }
+
   return rowToStaff(result.rows[0])
 }
 
@@ -433,7 +466,20 @@ export async function updateStaffMember(id: string, payload: Partial<StaffPayloa
       WHERE id = ${id}
       RETURNING *
     `
-    return result.rows[0] ? rowToStaff(result.rows[0]) : null
+    const staff = result.rows[0] ? rowToStaff(result.rows[0]) : null
+    if (staff) {
+      try {
+        const userStatus = staff.status === 'active' ? 'active' : 'suspended'
+        await sql`
+          UPDATE tenant_users
+          SET tenant_id = ${staff.department}, name = ${staff.name}, role = ${staff.role}, status = ${userStatus}
+          WHERE email = ${staff.email.toLowerCase()}
+        `
+      } catch (e) {
+        console.error('tenant_users sync on update failed:', e)
+      }
+    }
+    return staff
   } catch (error) {
     console.error('Error updating staff:', error)
     return null
@@ -442,7 +488,16 @@ export async function updateStaffMember(id: string, payload: Partial<StaffPayloa
 
 export async function deleteStaffMember(id: string): Promise<boolean> {
   try {
+    const staffRes = await sql`SELECT email FROM staff WHERE id = ${id} LIMIT 1`
+    const email = staffRes.rows[0]?.email
     await sql`DELETE FROM staff WHERE id = ${id}`
+    if (email) {
+      try {
+        await sql`UPDATE tenant_users SET status = 'suspended' WHERE email = ${email.toLowerCase()}`
+      } catch (e) {
+        console.error('tenant_users sync on delete failed:', e)
+      }
+    }
     return true
   } catch (error) {
     console.error('Error deleting staff:', error)

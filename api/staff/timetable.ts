@@ -88,43 +88,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7
     };
 
-    const ttResult = await sql`
-      SELECT id::text, day, start_time, end_time,
-             start_time || ' - ' || end_time AS time_slot,
-             subject, class_name, room
-      FROM timetable
-      WHERE staff_id = ${staffId}
-      ORDER BY day, start_time
-    `;
+    let schedule: ScheduleEntry[] = [];
+    try {
+      const ttResult = await sql`
+        SELECT id::text, day, start_time, end_time,
+               COALESCE(start_time, '') || ' - ' || COALESCE(end_time, '') AS time_slot,
+               subject, class_name, room
+        FROM timetable
+        WHERE staff_id = ${staffId}
+        ORDER BY day, start_time
+      `;
+      schedule = ttResult.rows.map(r => ({
+        id: r.id,
+        dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
+        timeSlot: r.time_slot,
+        subject: r.subject,
+        className: r.class_name,
+        room: r.room,
+        startTime: r.start_time,
+        endTime: r.end_time,
+      }));
+    } catch (ttErr) {
+      console.error('Timetable query error:', ttErr);
+    }
 
-    const schedule: ScheduleEntry[] = ttResult.rows.map(r => ({
-      id: r.id,
-      dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
-      timeSlot: r.time_slot,
-      subject: r.subject,
-      className: r.class_name,
-      room: r.room,
-      startTime: r.start_time,
-      endTime: r.end_time,
-    }));
-
-    const examResult = await sql`
-      SELECT e.id::text, e.title AS subject, e.exam_date::text AS date,
-             e.start_time AS time, e.room,
-             EXTRACT(EPOCH FROM (e.end_time::time - e.start_time::time))/60 AS duration
-      FROM exams e
-      WHERE e.exam_date >= CURRENT_DATE
-        AND EXISTS (
-          SELECT 1 FROM timetable tt
-          WHERE tt.staff_id = ${staffId} AND LOWER(tt.subject) = LOWER(e.title)
-        )
-      ORDER BY e.exam_date, e.start_time
-    `;
-
-    const examSchedule: ExamEntry[] = examResult.rows.map(r => ({
-      id: r.id, subject: r.subject, date: r.date,
-      time: r.time ?? '', room: r.room ?? '', duration: Number(r.duration ?? 0),
-    }));
+    let examSchedule: ExamEntry[] = [];
+    try {
+      const examResult = await sql`
+        SELECT e.id::text, e.title AS subject, e.exam_date::text AS date,
+               e.start_time::text AS time, e.room,
+               COALESCE(
+                 EXTRACT(EPOCH FROM (e.end_time::time - e.start_time::time)) / 60,
+                 0
+               ) AS duration
+        FROM exams e
+        WHERE e.exam_date >= CURRENT_DATE
+          AND EXISTS (
+            SELECT 1 FROM timetable tt
+            WHERE tt.staff_id = ${staffId}
+              AND tt.subject IS NOT NULL
+              AND e.title IS NOT NULL
+              AND LOWER(tt.subject) = LOWER(e.title)
+          )
+        ORDER BY e.exam_date, e.start_time
+      `;
+      examSchedule = examResult.rows.map(r => ({
+        id: r.id, subject: r.subject, date: r.date,
+        time: r.time ?? '', room: r.room ?? '', duration: Number(r.duration ?? 0),
+      }));
+    } catch (examErr) {
+      console.error('Exam query error:', examErr);
+    }
 
     let availableTerms: Term[] = [];
     let currentTerm = '';
@@ -134,7 +148,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         availableTerms = termResult.rows.map(r => ({ id: r.id, name: r.name }));
         currentTerm = availableTerms[0].id;
       }
-    } catch { /* terms table may not exist */ }
+    } catch (termErr) {
+      console.error('Terms query error:', termErr);
+    }
 
     return res.status(200).json({ schedule, examSchedule, currentTerm, availableTerms });
   } catch (error) {

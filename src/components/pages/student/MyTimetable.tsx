@@ -114,7 +114,7 @@ export function MyTimetable() {
           {[1,2,3,4,5].map(i => <div key={i} className="h-16 animate-pulse rounded-lg bg-gray-200" />)}
         </div>
       ) : data && activeTab === 'schedule' ? (
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {DAYS.map(day => {
             const slots = data.schedule.filter(s => s.day === day);
             const isToday = day === today;

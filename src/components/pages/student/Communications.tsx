@@ -62,7 +62,7 @@ export function Communications() {
             placeholder="Search announcements..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 text-sm w-64"
+            className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 text-sm w-full sm:w-64"
           />
         </div>
       </div>

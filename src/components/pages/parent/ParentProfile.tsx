@@ -91,19 +91,19 @@ export function ParentProfile() {
 
       {/* Profile Info */}
       <div className="bg-white rounded-xl p-6 border border-gray-100">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">{profile.name.charAt(0)}</span>
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-xl sm:text-2xl font-bold text-white">{profile.name.charAt(0)}</span>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">{profile.name}</h2>
+              <h2 className="text-base sm:text-lg font-bold text-gray-900">{profile.name}</h2>
               <p className="text-sm text-gray-500">Parent Account</p>
             </div>
           </div>
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 self-start sm:self-auto"
           >
             {isEditing ? 'Cancel' : 'Edit'}
           </button>

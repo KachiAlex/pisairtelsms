@@ -306,28 +306,28 @@ export function MyFees() {
       )}
 
       {/* Overall Summary */}
-      <div className={`rounded-lg border p-6 ${statusConfig[overallStatus]?.color || statusConfig.pending.color}`}>
-        <div className="flex items-start justify-between">
-          <div>
+      <div className={`rounded-lg border p-4 sm:p-6 ${statusConfig[overallStatus]?.color || statusConfig.pending.color}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <span className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${statusConfig[overallStatus]?.color || statusConfig.pending.color}`}>
               {statusConfig[overallStatus]?.label || 'Pending Payment'}
             </span>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <div>
                 <p className="text-sm opacity-70">Total Fees</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalExpected)}</p>
+                <p className="text-xl sm:text-2xl font-bold">{formatCurrency(totalExpected)}</p>
               </div>
               <div>
                 <p className="text-sm opacity-70">Amount Paid</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalPaid)}</p>
+                <p className="text-xl sm:text-2xl font-bold">{formatCurrency(totalPaid)}</p>
               </div>
               <div>
                 <p className="text-sm opacity-70">Balance</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalBalance)}</p>
+                <p className="text-xl sm:text-2xl font-bold">{formatCurrency(totalBalance)}</p>
               </div>
             </div>
           </div>
-          <CreditCard className="h-8 w-8 opacity-40" />
+          <CreditCard className="h-8 w-8 opacity-40 flex-shrink-0 hidden sm:block" />
         </div>
         {activeGateway && (
           <div className="mt-4 flex items-center gap-2">
@@ -416,7 +416,7 @@ export function MyFees() {
           ) : (
             <div className="space-y-3">
               {payments.map(payment => (
-                <div key={payment.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
+                <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50 gap-2">
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${payment.status === 'success' || payment.status === 'verified' ? 'bg-green-100' : payment.status === 'pending' ? 'bg-amber-100' : 'bg-red-100'}`}>
                       {payment.status === 'success' || payment.status === 'verified' ? (
@@ -428,7 +428,7 @@ export function MyFees() {
                       )}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm text-gray-900">{formatCurrency(payment.amount)}</p>
                         <Badge className={paymentStatusConfig[payment.status]?.color || 'bg-gray-100 text-gray-700'}>
                           {paymentStatusConfig[payment.status]?.label || payment.status}
@@ -442,7 +442,7 @@ export function MyFees() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs gap-1"
+                      className="text-xs gap-1 self-start sm:self-auto"
                       onClick={() => {
                         setSelectedPayment(payment);
                         setReceiptDialogOpen(true);

@@ -109,13 +109,13 @@ export function ParentDashboard() {
   return (
     <div className="space-y-6">
       {/* Child Info Card */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 sm:p-5 text-white">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-            <span className="text-2xl font-bold">{data.child.name.charAt(0)}</span>
+          <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-xl sm:text-2xl font-bold">{data.child.name.charAt(0)}</span>
           </div>
-          <div>
-            <h2 className="text-xl font-bold">{data.child.name}</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-bold truncate">{data.child.name}</h2>
             <p className="text-blue-100 text-sm">{data.child.admissionNumber} · {data.child.class} {data.child.arm}</p>
           </div>
         </div>

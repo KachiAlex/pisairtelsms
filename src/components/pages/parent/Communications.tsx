@@ -97,11 +97,11 @@ export function Communications() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <MessageSquare className="w-5 h-5 text-blue-600" />
         <h1 className="text-xl font-bold text-gray-900">Communications</h1>
         {unreadCount > 0 && (
-          <span className="ml-auto bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+          <span className="ml-0 sm:ml-auto bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-full">
             {unreadCount} unread
           </span>
         )}

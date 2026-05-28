@@ -71,21 +71,21 @@ export function AttendanceTracking() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-gray-100 col-span-2 lg:col-span-1">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-100 col-span-2 sm:col-span-1">
           <p className="text-xs text-gray-500 mb-1">Attendance Rate</p>
-          <p className={`text-3xl font-bold ${pctColor}`}>{pct}%</p>
+          <p className={`text-2xl sm:text-3xl font-bold ${pctColor}`}>{pct}%</p>
           {pct < 75 && <p className="text-xs text-red-500 mt-1">Below minimum threshold</p>}
         </div>
-        <div className="bg-white rounded-xl p-5 border border-gray-100">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-100">
           <p className="text-xs text-gray-500 mb-1">Present</p>
           <p className="text-2xl font-bold text-green-600">{data.totalPresent}</p>
         </div>
-        <div className="bg-white rounded-xl p-5 border border-gray-100">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-100">
           <p className="text-xs text-gray-500 mb-1">Absent</p>
           <p className="text-2xl font-bold text-red-600">{data.totalAbsent}</p>
         </div>
-        <div className="bg-white rounded-xl p-5 border border-gray-100">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-100">
           <p className="text-xs text-gray-500 mb-1">Late</p>
           <p className="text-2xl font-bold text-yellow-600">{data.totalLate}</p>
         </div>

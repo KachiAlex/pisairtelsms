@@ -284,7 +284,7 @@ export function FeeManagement() {
                       <p className="font-semibold text-gray-900">{assignment.academicSession} &mdash; {assignment.term}</p>
                       <Badge className={statusConfig[assignment.status]?.badge || statusConfig.pending.badge}>{statusConfig[assignment.status]?.label || 'Pending'}</Badge>
                     </div>
-                    <div className="flex gap-4 mt-2 text-sm">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm">
                       <span className="text-gray-500">Total: <span className="font-medium text-gray-900">{formatCurrency(assignment.totalAmount)}</span></span>
                       <span className="text-gray-500">Paid: <span className="font-medium text-green-600">{formatCurrency(assignment.totalPaid)}</span></span>
                       <span className="text-gray-500">Balance: <span className="font-medium text-red-600">{formatCurrency(assignment.totalBalance)}</span></span>
@@ -319,7 +319,7 @@ export function FeeManagement() {
           ) : (
             <div className="space-y-3">
               {payments.map(payment => (
-                <div key={payment.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
+                <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50 gap-2">
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${payment.status === 'success' || payment.status === 'verified' ? 'bg-green-100' : payment.status === 'pending' ? 'bg-amber-100' : 'bg-red-100'}`}>
                       {payment.status === 'success' || payment.status === 'verified' ? (
@@ -331,7 +331,7 @@ export function FeeManagement() {
                       )}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm text-gray-900">{formatCurrency(payment.amount)}</p>
                         <Badge className={paymentStatusConfig[payment.status]?.color || 'bg-gray-100 text-gray-700'}>{paymentStatusConfig[payment.status]?.label || payment.status}</Badge>
                       </div>
@@ -343,7 +343,7 @@ export function FeeManagement() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs gap-1"
+                      className="text-xs gap-1 self-start sm:self-auto"
                       onClick={() => {
                         setSelectedPayment(payment);
                         setReceiptDialogOpen(true);
@@ -420,7 +420,7 @@ export function FeeManagement() {
         <PaymentReceipt
           payment={{
             ...selectedPayment,
-            studentName: selectedChild?.fullName,
+            studentName: selectedChild?.name,
             feeDescription: 'Fee Payment',
           }}
           open={receiptDialogOpen}

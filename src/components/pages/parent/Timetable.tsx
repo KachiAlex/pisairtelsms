@@ -151,20 +151,22 @@ ${timetable?.holidays.map(h => `${h.date}: ${h.name}`).join('\n')}
         </div>
 
         {/* View Mode Tabs */}
-        <div className="flex gap-2 border-b border-gray-200">
-          {(['weekly', 'exam', 'holidays'] as const).map(mode => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                viewMode === mode
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {mode.charAt(0).toUpperCase() + mode.slice(1)}
-            </button>
-          ))}
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex gap-2 border-b border-gray-200 min-w-max">
+            {(['weekly', 'exam', 'holidays'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  viewMode === mode
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

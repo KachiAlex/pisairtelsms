@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Assignment {
   id: string; subject: string; title: string; description: string;
@@ -26,58 +27,65 @@ function extractParentId(req: VercelRequest): string | null {
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
       return payload.parentId || payload.userId || payload.sub || null;
     }
-  } catch { /* not JWT */ }
+  } catch {}
   return token || null;
 }
-
-const mockAssignments: Assignment[] = [
-  { id: 'a1', subject: 'Mathematics', title: 'Quadratic Equations Problem Set', description: 'Solve 20 quadratic equations using the formula method. Show all working steps.', dueDate: '2024-11-20', status: 'pending', type: 'homework', teacherName: 'Mr. Okafor', maxScore: 100 },
-  { id: 'a2', subject: 'English Language', title: 'Essay: The Role of Education', description: 'Write a 500-word essay on the importance of education in modern society.', dueDate: '2024-11-18', status: 'submitted', type: 'essay', teacherName: 'Mrs. Adeyemi', submittedAt: '2024-11-17', maxScore: 100 },
-  { id: 'a3', subject: 'Biology', title: 'Cell Structure Diagram Project', description: 'Draw and label a diagram of an animal cell. Include at least 10 organelles with their functions.', dueDate: '2024-11-10', status: 'graded', type: 'project', teacherName: 'Dr. Hassan', submittedAt: '2024-11-09', score: 85, maxScore: 100, feedback: 'Excellent diagram! Include more detail on mitochondria next time.' },
-  { id: 'a4', subject: 'Chemistry', title: 'Periodic Table Quiz', description: 'Online quiz covering elements 1-36. Focus on group properties and trends.', dueDate: '2024-11-05', status: 'graded', type: 'quiz', teacherName: 'Mrs. Obi', submittedAt: '2024-11-05', score: 72, maxScore: 100, feedback: 'Good understanding. Review halogen group properties.' },
-  { id: 'a5', subject: 'Physics', title: "Newton's Laws of Motion", description: 'Complete exercises 1-15 from Chapter 4. State and explain each law with real-life examples.', dueDate: '2024-11-15', status: 'overdue', type: 'homework', teacherName: 'Mr. Ibrahim', maxScore: 100 },
-  { id: 'a6', subject: 'Computer Science', title: 'Python Programming Assignment', description: 'Write a Python program that calculates compound interest. Include user input validation.', dueDate: '2024-11-22', status: 'pending', type: 'homework', teacherName: 'Ms. Nwosu', maxScore: 100 },
-  { id: 'a7', subject: 'History', title: 'Nigerian Civil War Research', description: 'Research the causes of the Nigerian Civil War (1967-1970). Submit a 3-page report.', dueDate: '2024-11-25', status: 'pending', type: 'project', teacherName: 'Mr. Chukwu', maxScore: 100 },
-  { id: 'a8', subject: 'Fine Arts', title: 'Landscape Watercolor Painting', description: 'Create a watercolor painting of a Nigerian landscape. Use at least 5 colors.', dueDate: '2024-11-12', status: 'submitted', type: 'project', teacherName: 'Ms. Nwosu', submittedAt: '2024-11-11', maxScore: 100 },
-];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const parentId = extractParentId(req);
   if (!parentId) return res.status(401).json({ error: 'Unauthorized' });
-
-  if (req.method === 'GET') {
-    try {
-      const { childId, status, type } = req.query;
-      if (!childId) return res.status(400).json({ error: 'childId is required' });
-
-      let assignments = [...mockAssignments];
-      const now = new Date();
-      assignments = assignments.map(a => {
-        if (a.status === 'pending' && new Date(a.dueDate) < now) {
-          return { ...a, status: 'overdue' as Assignment['status'] };
-        }
-        return a;
-      });
-
-      if (status) assignments = assignments.filter(a => a.status === status);
-      if (type) assignments = assignments.filter(a => a.type === type);
-      assignments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-
-      const summary = {
-        total: assignments.length,
-        pending: assignments.filter(a => a.status === 'pending').length,
-        submitted: assignments.filter(a => a.status === 'submitted').length,
-        graded: assignments.filter(a => a.status === 'graded').length,
-        overdue: assignments.filter(a => a.status === 'overdue').length,
-      };
-
-      return res.status(200).json({ assignments, summary, childName: 'Chidi Okonkwo' } as AssignmentsResponse);
-    } catch (error) {
-      console.error('Error fetching assignments:', error);
-      return res.status(500).json({ error: 'Failed to fetch assignments' });
-    }
-  } else {
+  if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+  try {
+    const { childId, status, type } = req.query;
+    if (!childId) return res.status(400).json({ error: 'childId is required' });
+    const childRes = await sql`SELECT name FROM students WHERE id = ${childId as string} AND deleted_at IS NULL LIMIT 1`;
+    const childName = childRes.rows[0]?.name || '';
+
+    await sql`CREATE TABLE IF NOT EXISTS student_assignments (
+      id TEXT PRIMARY KEY, student_id TEXT NOT NULL, subject TEXT, title TEXT NOT NULL,
+      description TEXT, due_date DATE, status TEXT DEFAULT 'pending', type TEXT DEFAULT 'homework',
+      teacher_name TEXT, submitted_at TIMESTAMP, score NUMERIC, max_score NUMERIC DEFAULT 100,
+      feedback TEXT, created_at TIMESTAMP DEFAULT NOW()
+    )`;
+
+    const result = await sql`SELECT id::text, subject, title, description, due_date::text AS due_date,
+      status, type, teacher_name, submitted_at::text AS submitted_at, score, max_score, feedback
+      FROM student_assignments WHERE student_id = ${childId as string} ORDER BY due_date DESC`;
+
+    const now = new Date();
+    let assignments: Assignment[] = result.rows.map(r => {
+      let st = r.status as Assignment['status'];
+      if (st === 'pending' && r.due_date && new Date(r.due_date) < now) st = 'overdue';
+      return {
+        id: r.id, subject: r.subject || '', title: r.title,
+        description: r.description || '', dueDate: r.due_date || '',
+        status: st, type: (r.type || 'homework') as Assignment['type'],
+        teacherName: r.teacher_name || '',
+        submittedAt: r.submitted_at || undefined,
+        score: r.score ? Number(r.score) : undefined,
+        maxScore: Number(r.max_score) || 100,
+        feedback: r.feedback || undefined,
+      };
+    });
+
+    if (status) assignments = assignments.filter(a => a.status === status);
+    if (type) assignments = assignments.filter(a => a.type === type);
+    assignments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+    const summary = {
+      total: assignments.length,
+      pending: assignments.filter(a => a.status === 'pending').length,
+      submitted: assignments.filter(a => a.status === 'submitted').length,
+      graded: assignments.filter(a => a.status === 'graded').length,
+      overdue: assignments.filter(a => a.status === 'overdue').length,
+    };
+
+    return res.status(200).json({ assignments, summary, childName } as AssignmentsResponse);
+  } catch (error) {
+    console.error('Error fetching assignments:', error);
+    return res.status(500).json({ error: 'Failed to fetch assignments' });
   }
 }

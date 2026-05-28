@@ -61,7 +61,18 @@ export function ChildTranscript() {
     } finally { setLoading(false) }
   }
 
-  const handleDownload = () => alert('Transcript PDF download would be generated in production.')
+  const handleDownload = () => {
+    if (!data) return
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${selectedChild?.name || 'transcript'}_report.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
   const handlePrint = () => window.print()
 
   if (!selectedChild) {

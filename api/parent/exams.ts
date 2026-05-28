@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Exam {
   id: string;
@@ -33,204 +34,111 @@ function extractParentIdFromToken(req: VercelRequest): string | null {
   if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
     return xUserId.trim();
   }
-
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.substring(7);
   if (!token) return null;
-
   try {
     const parts = token.split('.');
     if (parts.length === 3) {
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
       return payload.parentId || payload.userId || payload.sub || null;
     }
-  } catch {
-    // not a JWT
-  }
-
+  } catch {}
   return token || null;
 }
-
-const mockExams: Exam[] = [
-  {
-    id: 'exam-1',
-    subject: 'Mathematics',
-    paper: 'Paper 1 - Objective',
-    date: '2024-11-15',
-    startTime: '09:00',
-    endTime: '11:00',
-    duration: '2 hours',
-    venue: 'Main Hall A',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'No calculators allowed. All working must be shown.',
-    materialsAllowed: ['Pen', 'Pencil', 'Ruler', 'Eraser'],
-  },
-  {
-    id: 'exam-2',
-    subject: 'Mathematics',
-    paper: 'Paper 2 - Essay',
-    date: '2024-11-18',
-    startTime: '09:00',
-    endTime: '12:00',
-    duration: '3 hours',
-    venue: 'Main Hall A',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'Answer 5 questions. All questions carry equal marks.',
-    materialsAllowed: ['Pen', 'Pencil', 'Ruler', 'Eraser', 'Scientific Calculator'],
-  },
-  {
-    id: 'exam-3',
-    subject: 'English Language',
-    paper: 'Paper 1 - Comprehension & Summary',
-    date: '2024-11-20',
-    startTime: '08:30',
-    endTime: '10:30',
-    duration: '2 hours',
-    venue: 'Main Hall B',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'Read all instructions carefully before starting.',
-    materialsAllowed: ['Pen', 'Pencil'],
-  },
-  {
-    id: 'exam-4',
-    subject: 'English Language',
-    paper: 'Paper 2 - Essay & Grammar',
-    date: '2024-11-22',
-    startTime: '08:30',
-    endTime: '11:00',
-    duration: '2.5 hours',
-    venue: 'Main Hall B',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'Answer 3 questions. One from each section.',
-    materialsAllowed: ['Pen', 'Pencil'],
-  },
-  {
-    id: 'exam-5',
-    subject: 'Biology',
-    paper: 'Theory & Practical',
-    date: '2024-11-25',
-    startTime: '10:00',
-    endTime: '12:00',
-    duration: '2 hours',
-    venue: 'Science Lab 1',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'Answer Section A (compulsory) and any two from Section B.',
-    materialsAllowed: ['Pen', 'Pencil', 'Ruler', 'Eraser'],
-  },
-  {
-    id: 'exam-6',
-    subject: 'Chemistry',
-    paper: 'Paper 1 - Objective',
-    date: '2024-11-27',
-    startTime: '09:00',
-    endTime: '10:30',
-    duration: '1.5 hours',
-    venue: 'Main Hall A',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'Answer ALL questions.',
-    materialsAllowed: ['Pen', 'Pencil', 'Scientific Calculator'],
-  },
-  {
-    id: 'exam-7',
-    subject: 'Physics',
-    paper: 'Paper 2 - Theory',
-    date: '2024-11-29',
-    startTime: '09:00',
-    endTime: '11:00',
-    duration: '2 hours',
-    venue: 'Main Hall B',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'Answer 5 questions. Question 1 is compulsory.',
-    materialsAllowed: ['Pen', 'Pencil', 'Ruler', 'Protractor', 'Scientific Calculator'],
-  },
-  {
-    id: 'exam-8',
-    subject: 'History',
-    paper: 'Nigeria & World History',
-    date: '2024-12-02',
-    startTime: '10:00',
-    endTime: '12:00',
-    duration: '2 hours',
-    venue: 'Block C Room 12',
-    type: 'terminal',
-    status: 'upcoming',
-    instructions: 'Answer 4 questions. Section A is compulsory.',
-    materialsAllowed: ['Pen', 'Pencil'],
-  },
-];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const parentId = extractParentIdFromToken(req);
   if (!parentId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
-
-  if (req.method === 'GET') {
-    try {
-      const { childId, status } = req.query;
-      if (!childId) {
-        return res.status(400).json({ error: 'childId is required' });
-      }
-
-      let exams = [...mockExams];
-
-      // Update status based on current date
-      const now = new Date();
-      exams = exams.map(exam => {
-        const examDate = new Date(`${exam.date}T${exam.startTime}`);
-        const examEnd = new Date(`${exam.date}T${exam.endTime}`);
-
-        let examStatus: Exam['status'];
-        if (now < examDate) {
-          examStatus = 'upcoming';
-        } else if (now >= examDate && now <= examEnd) {
-          examStatus = 'ongoing';
-        } else {
-          examStatus = 'completed';
-        }
-
-        return { ...exam, status: examStatus };
-      });
-
-      if (status) {
-        exams = exams.filter(e => e.status === status);
-      }
-
-      exams.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      const summary = {
-        total: exams.length,
-        upcoming: exams.filter(e => e.status === 'upcoming').length,
-        completed: exams.filter(e => e.status === 'completed').length,
-        ongoing: exams.filter(e => e.status === 'ongoing').length,
-      };
-
-      const response: ExamsResponse = {
-        exams,
-        summary,
-        academicSession: '2024/2025',
-        term: 'First Term',
-        childName: 'Chidi Okonkwo',
-      };
-
-      return res.status(200).json(response);
-    } catch (error) {
-      console.error('Error fetching exams:', error);
-      return res.status(500).json({ error: 'Failed to fetch exam schedule' });
-    }
-  } else {
+  if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+  try {
+    const { childId, status } = req.query;
+    if (!childId) {
+      return res.status(400).json({ error: 'childId is required' });
+    }
+    const childRes = await sql`SELECT name, class FROM students WHERE id = ${childId as string} AND deleted_at IS NULL LIMIT 1`;
+    const childName = childRes.rows[0]?.name || '';
+    const studentClass = childRes.rows[0]?.class || '';
+
+    await sql`CREATE TABLE IF NOT EXISTS exams (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      exam_date DATE,
+      start_time TIME,
+      end_time TIME,
+      room VARCHAR(255),
+      student_class VARCHAR(255),
+      description TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`;
+
+    const examResult = await sql`SELECT id::text, title AS subject, COALESCE(description, '') AS paper,
+      exam_date::text AS date, start_time::text AS start_time, end_time::text AS end_time,
+      room AS venue, COALESCE(student_class, '') AS student_class
+      FROM exams
+      WHERE student_class = ${studentClass} OR student_class IS NULL
+      ORDER BY exam_date, start_time`;
+
+    const now = new Date();
+    let exams: Exam[] = examResult.rows.map(r => {
+      const examDate = new Date(`${r.date}T${r.start_time || '00:00'}`);
+      const examEnd = new Date(`${r.date}T${r.end_time || '23:59'}`);
+      let examStatus: Exam['status'];
+      if (now < examDate) examStatus = 'upcoming';
+      else if (now >= examDate && now <= examEnd) examStatus = 'ongoing';
+      else examStatus = 'completed';
+      const start = r.start_time ? r.start_time.slice(0,5) : '';
+      const end = r.end_time ? r.end_time.slice(0,5) : '';
+      let durationStr = '';
+      if (r.start_time && r.end_time) {
+        const diffMs = examEnd.getTime() - examDate.getTime();
+        const diffH = Math.floor(diffMs / (1000*60*60));
+        const diffM = Math.floor((diffMs % (1000*60*60)) / (1000*60));
+        durationStr = diffH > 0 ? `${diffH} hour${diffH>1?'s':''}` : `${diffM} mins`;
+      }
+      return {
+        id: r.id, subject: r.subject, paper: r.paper, date: r.date,
+        startTime: start, endTime: end, duration: durationStr,
+        venue: r.venue || '', type: 'terminal' as Exam['type'],
+        status: examStatus, instructions: '', materialsAllowed: [],
+      };
+    });
+
+    if (status) exams = exams.filter(e => e.status === status);
+    exams.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const summary = {
+      total: exams.length,
+      upcoming: exams.filter(e => e.status === 'upcoming').length,
+      completed: exams.filter(e => e.status === 'completed').length,
+      ongoing: exams.filter(e => e.status === 'ongoing').length,
+    };
+
+    let academicSession = '', term = '';
+    try {
+      const termRes = await sql`SELECT name FROM terms ORDER BY created_at DESC LIMIT 1`;
+      if (termRes.rows[0]) {
+        term = termRes.rows[0].name;
+        const year = new Date().getFullYear();
+        academicSession = `${year}/${year+1}`;
+      }
+    } catch {}
+
+    const response: ExamsResponse = {
+      exams, summary,
+      academicSession: academicSession || '2024/2025',
+      term: term || 'First Term',
+      childName,
+    };
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching exams:', error);
+    return res.status(500).json({ error: 'Failed to fetch exam schedule' });
   }
 }

@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { classId } = req.query;
 
-    await sql``
+    await sql`
       CREATE TABLE IF NOT EXISTS students (
         id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,
@@ -68,17 +68,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         guardian_email TEXT,
         deleted_at TIMESTAMP WITH TIME ZONE
       )
-    ``;
-    await sql``CREATE INDEX IF NOT EXISTS idx_students_class ON students(class) WHERE deleted_at IS NULL``;
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_students_class ON students(class) WHERE deleted_at IS NULL`;
 
-    const result = await sql``
+    const result = await sql`
       SELECT id, name, admission_no, gender
       FROM students
       WHERE tenant_id = ${tenantId}
         AND class = ${classId as string}
         AND deleted_at IS NULL
       ORDER BY name ASC
-    ``;
+    `;
 
     const students = result.rows.map(r => ({
       id: r.id,

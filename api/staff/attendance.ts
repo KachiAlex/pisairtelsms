@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const { classId, date } = req.query;
 
-      await sql``
+      await sql`
         CREATE TABLE IF NOT EXISTS students (
           id TEXT PRIMARY KEY,
           tenant_id TEXT NOT NULL,
@@ -104,8 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           guardian_email TEXT,
           deleted_at TIMESTAMP WITH TIME ZONE
         )
-      ``;
-      await sql``
+      `;
+      await sql`
         CREATE TABLE IF NOT EXISTS attendance_records (
           id TEXT PRIMARY KEY,
           tenant_id TEXT NOT NULL,
@@ -124,24 +124,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           created_by TEXT,
           updated_by TEXT
         )
-      ``;
+      `;
 
-      const studentsResult = await sql``
+      const studentsResult = await sql`
         SELECT id, name, admission_no
         FROM students
         WHERE tenant_id = ${tenantId}
           AND class = ${classId as string}
           AND deleted_at IS NULL
         ORDER BY name ASC
-      ``;
+      `;
 
-      const attendanceResult = await sql``
+      const attendanceResult = await sql`
         SELECT student_id, status
         FROM attendance_records
         WHERE tenant_id = ${tenantId}
           AND class = ${classId as string}
           AND date = ${date as string}
-      ``;
+      `;
 
       const attendanceMap = new Map<string, string>();
       for (const row of attendanceResult.rows) {
@@ -156,14 +156,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         currentStatus: (attendanceMap.get(r.id) as 'present' | 'absent' | 'late') || null,
       }));
 
-      const historyResult = await sql``
+      const historyResult = await sql`
         SELECT date::text, class, COUNT(*)::text as record_count
         FROM attendance_records
         WHERE tenant_id = ${tenantId} AND class = ${classId as string}
         GROUP BY date, class
         ORDER BY date DESC
         LIMIT 7
-      ``;
+      `;
 
       const history: AttendanceHistory[] = historyResult.rows.map(r => ({
         date: r.date,
@@ -194,11 +194,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       for (const record of records) {
         const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await sql``
+        await sql`
           INSERT INTO attendance_records (id, tenant_id, student_id, class, date, status, source, user_id, academic_session, term, created_at, updated_at)
           VALUES (${id}, ${tenantId}, ${record.studentId}, ${classId}, ${date}, ${record.status}, 'teacher_entry', ${staffId}, ${academicSession}, ${term}, NOW(), NOW())
           ON CONFLICT DO NOTHING
-        ``;
+        `;
       }
 
       const response: AttendanceSubmissionResponse = {

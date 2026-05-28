@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { studentId } = req.query;
 
-    await sql``
+    await sql`
       CREATE TABLE IF NOT EXISTS students (
         id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,
@@ -68,14 +68,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         guardian_email TEXT,
         deleted_at TIMESTAMP WITH TIME ZONE
       )
-    ``;
+    `;
 
-    const result = await sql``
+    const result = await sql`
       SELECT id, name, admission_no, gender, class, arm, guardian_email, phone
       FROM students
       WHERE id = ${studentId as string} AND tenant_id = ${tenantId} AND deleted_at IS NULL
       LIMIT 1
-    ``;
+    `;
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Student not found' });

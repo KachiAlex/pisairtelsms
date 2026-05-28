@@ -140,32 +140,34 @@ export function Communications() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            filter === 'all'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          All Messages
-        </button>
-        <button
-          onClick={() => setFilter('unread')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            filter === 'unread'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Unread
-          {unreadCount > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full">
-              {unreadCount}
-            </span>
-          )}
-        </button>
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-1 border-b border-gray-200 min-w-max">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              filter === 'all'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            All Messages
+          </button>
+          <button
+            onClick={() => setFilter('unread')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              filter === 'unread'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Unread
+            {unreadCount > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Messages List */}

@@ -127,7 +127,7 @@ export function MyTimetable() {
   return (
     <div className="space-y-6">
       {/* Term Selector */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
         <label className="text-sm font-medium text-gray-700">Select Term:</label>
         <div className="relative">
           <select

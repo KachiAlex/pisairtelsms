@@ -301,7 +301,7 @@ export function StaffSelfAttendance() {
           <h2 className="font-semibold text-gray-900 mb-4">
             {summary.month} {summary.year} Summary
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
             <div className="text-center p-3 bg-green-50 rounded-lg">
               <p className="text-2xl font-bold text-green-700">{summary.present}</p>
               <p className="text-sm text-green-600">Present</p>

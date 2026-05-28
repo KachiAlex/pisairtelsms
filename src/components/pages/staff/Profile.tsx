@@ -262,43 +262,45 @@ export function Profile() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('view')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'view'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          View Profile
-        </button>
-        <button
-          onClick={() => setActiveTab('edit')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'edit'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Edit Profile
-        </button>
-        <button
-          onClick={() => setActiveTab('password')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'password'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Change Password
-        </button>
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex gap-2 sm:gap-4 border-b border-gray-200 min-w-max">
+          <button
+            onClick={() => setActiveTab('view')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'view'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            View Profile
+          </button>
+          <button
+            onClick={() => setActiveTab('edit')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'edit'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Edit Profile
+          </button>
+          <button
+            onClick={() => setActiveTab('password')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'password'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Change Password
+          </button>
+        </div>
       </div>
 
       {/* View Profile Tab */}
       {activeTab === 'view' && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">{profile.name}</h2>
+        <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">{profile.name}</h2>
           <div className="grid gap-6 md:grid-cols-2">
             <div>
               <p className="text-sm font-medium text-gray-600">Staff ID</p>
@@ -367,7 +369,7 @@ export function Profile() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
               />
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 type="submit"
                 disabled={isSubmitting}
@@ -465,7 +467,7 @@ export function Profile() {
               <p className="text-sm text-red-600">{formErrors.passwordMatch}</p>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 type="submit"
                 disabled={isSubmitting}

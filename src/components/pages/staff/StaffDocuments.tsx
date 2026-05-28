@@ -263,8 +263,8 @@ export function StaffDocuments() {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
+                  <div className="flex items-start justify-between gap-2 flex-wrap sm:flex-nowrap">
+                    <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900">{doc.title}</h3>
                       <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
 
@@ -296,7 +296,7 @@ export function StaffDocuments() {
                       onClick={() => handleDownload(doc)}
                       variant="outline"
                       size="sm"
-                      className="flex-shrink-0"
+                      className="flex-shrink-0 mt-2 sm:mt-0"
                     >
                       <Download className="w-4 h-4 mr-1" />
                       Download

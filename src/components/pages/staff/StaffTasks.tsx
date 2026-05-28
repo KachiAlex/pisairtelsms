@@ -280,20 +280,22 @@ export function StaffTasks() {
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        {(['all', 'pending', 'in_progress', 'completed'] as const).map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilter(status)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              filter === status
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {status === 'all' ? 'All Tasks' : getStatusLabel(status)}
-          </button>
-        ))}
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-1 border-b border-gray-200 min-w-max">
+          {(['all', 'pending', 'in_progress', 'completed'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                filter === status
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {status === 'all' ? 'All Tasks' : getStatusLabel(status)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tasks List */}
@@ -330,8 +332,8 @@ export function StaffTasks() {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
+                  <div className="flex items-start justify-between gap-2 flex-wrap sm:flex-nowrap">
+                    <div className="flex-1 min-w-0">
                       <p className={`font-medium ${task.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
                         {task.title}
                       </p>
@@ -359,7 +361,7 @@ export function StaffTasks() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                       {task.status !== 'completed' && task.status !== 'cancelled' && (
                         <button
                           onClick={() => updateTaskStatus(task.id, 'in_progress')}

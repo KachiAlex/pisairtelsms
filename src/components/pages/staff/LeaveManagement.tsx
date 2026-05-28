@@ -338,7 +338,7 @@ export function LeaveManagement() {
               )}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 type="submit"
                 disabled={isSubmitting}
@@ -367,20 +367,22 @@ export function LeaveManagement() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Leave Requests</h2>
 
         {/* Status Filter */}
-        <div className="mb-4 flex gap-2">
-          {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                statusFilter === status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </button>
-          ))}
+        <div className="mb-4 overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+          <div className="flex gap-2 min-w-max">
+            {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                  statusFilter === status
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
 
         {filteredRequests.length === 0 ? (

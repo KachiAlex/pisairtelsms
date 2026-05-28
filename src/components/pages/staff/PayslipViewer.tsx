@@ -108,10 +108,10 @@ export function PayslipViewer() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Payslip List */}
-        <div className="lg:col-span-1 rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Payslips</h2>
+        <div className="lg:col-span-1 rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Payslips</h2>
           <div className="space-y-2">
             {payslips.map((payslip) => (
               <button
@@ -137,9 +137,9 @@ export function PayslipViewer() {
         {/* Payslip Detail */}
         <div className="lg:col-span-2">
           {selectedPayslip ? (
-            <div className="rounded-lg border border-gray-200 bg-white p-6">
-              <div className="mb-6 pb-6 border-b border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-900">
+            <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+              <div className="mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-gray-200">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                   Payslip - {getMonthName(selectedPayslip.month)} {selectedPayslip.year}
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
@@ -204,7 +204,7 @@ export function PayslipViewer() {
 
               {/* Download Button */}
               <div className="mt-6 pt-6 border-t border-gray-200">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
                   Download Payslip
                 </Button>
               </div>

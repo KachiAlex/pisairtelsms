@@ -114,10 +114,8 @@ export function MyMaterials() {
   }
 
   const handleOpen = (material: CourseMaterial) => {
-    if (material.type === 'link') {
+    if (material.url) {
       window.open(material.url, '_blank')
-    } else {
-      alert(`Opening: ${material.fileName}\n\nIn production, this would open/download the file.`)
     }
   }
 

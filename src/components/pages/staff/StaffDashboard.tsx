@@ -136,8 +136,8 @@ export function StaffDashboard() {
   return (
     <div className="space-y-6">
       {/* Staff Info Header */}
-      <div className="rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
-        <h1 className="text-3xl font-bold">{data.staff.name}</h1>
+      <div className="rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 p-4 sm:p-6 text-white">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">{data.staff.name}</h1>
         <div className="mt-2 grid gap-4 sm:grid-cols-3">
           <div>
             <p className="text-sm text-blue-100">Staff ID</p>

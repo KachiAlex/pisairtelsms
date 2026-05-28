@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { ensureStaffTables } from '../tenant/_lib/staff.js';
 
 interface Message {
   id: string;
@@ -74,38 +75,42 @@ function parseBody(req: VercelRequest): Promise<any> {
   });
 }
 
+async function getStaffName(staffId: string): Promise<string> {
+  try {
+    const res = await sql`SELECT name FROM staff WHERE id = ${staffId} OR staff_id = ${staffId} LIMIT 1`;
+    if (res.rows[0]?.name) return res.rows[0].name;
+  } catch {
+    // ignore
+  }
+  try {
+    const res = await sql`SELECT name FROM users WHERE id = ${staffId} LIMIT 1`;
+    if (res.rows[0]?.name) return res.rows[0].name;
+  } catch {
+    // ignore
+  }
+  return 'Unknown';
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const staffId = extractStaffIdFromToken(req);
   if (!staffId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
 
-  // Ensure staff_messages table exists with body column
-  await sql``
-    CREATE TABLE IF NOT EXISTS staff_messages (
-      id SERIAL PRIMARY KEY,
-      staff_id VARCHAR(255) NOT NULL,
-      sender_name VARCHAR(255),
-      subject VARCHAR(255),
-      is_read BOOLEAN DEFAULT false,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  ``;
-  await sql``ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS body TEXT``;
-  await sql``ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS sender_role VARCHAR(255)``;
+  await ensureStaffTables();
 
   if (req.method === 'GET') {
     try {
       const { limit = '20', offset = '0' } = req.query;
 
-      const result = await sql``
+      const result = await sql`
         SELECT id::text, staff_id, sender_name, subject, body, sender_role, is_read, created_at::date::text AS date
         FROM staff_messages
         WHERE staff_id = ${staffId}
         ORDER BY created_at DESC
         LIMIT ${Math.min(parseInt(limit as string), 100)}
         OFFSET ${parseInt(offset as string)}
-      ``;
+      `;
 
       const messages: Message[] = result.rows.map(r => ({
         id: r.id,
@@ -127,14 +132,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const body = await parseBody(req);
       const { recipientId, subject, body: messageBody } = body as NewMessageBody;
 
-      const senderRes = await sql``SELECT name FROM staff WHERE id = ${staffId} LIMIT 1``;
-      const senderName = senderRes.rows[0]?.name || 'Unknown';
+      const senderName = await getStaffName(staffId);
 
-      const result = await sql``
+      const result = await sql`
         INSERT INTO staff_messages (staff_id, sender_name, subject, body, sender_role, is_read, created_at)
         VALUES (${recipientId || staffId}, ${senderName}, ${subject}, ${messageBody || ''}, 'staff', false, NOW())
         RETURNING id::text, sender_name, subject, body, created_at::text AS date, is_read
-      ``;
+      `;
       const r = result.rows[0];
 
       const response: NewMessageResponse = {

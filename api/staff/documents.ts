@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { ensureStaffTables } from '../tenant/_lib/staff.js';
 
 interface Document {
   id: string;
@@ -56,35 +57,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
 
+  await ensureStaffTables();
+
   if (req.method === 'GET') {
     try {
       const { category, search } = req.query;
 
-      // Ensure staff_documents table exists
-      await sql``
-        CREATE TABLE IF NOT EXISTS staff_documents (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          description TEXT,
-          category TEXT,
-          file_name TEXT,
-          file_size TEXT,
-          file_type TEXT,
-          uploaded_by TEXT,
-          uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          download_url TEXT,
-          is_restricted BOOLEAN DEFAULT false,
-          department TEXT,
-          academic_year TEXT
-        )
-      ``;
-      await sql``CREATE INDEX IF NOT EXISTS idx_docs_category ON staff_documents(category)``;
-
-      let result = await sql``
+      const result = await sql`
         SELECT id::text, title, description, category, file_name, file_size, file_type, uploaded_by, uploaded_at::text, updated_at::text, download_url, is_restricted, department, academic_year
         FROM staff_documents
-      ``;
+      `;
 
       let documents = result.rows.map(r => ({
         id: r.id,

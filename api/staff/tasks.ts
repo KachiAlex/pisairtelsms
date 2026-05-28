@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { ensureStaffTables } from '../tenant/_lib/staff.js';
 
 interface Task {
   id: string;
@@ -91,35 +92,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
 
-  // Ensure staff_tasks table exists
-  await sql``
-    CREATE TABLE IF NOT EXISTS staff_tasks (
-      id TEXT PRIMARY KEY,
-      staff_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
-      priority TEXT NOT NULL DEFAULT 'medium',
-      due_date DATE,
-      assigned_by TEXT,
-      assigned_by_role TEXT DEFAULT 'self',
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      completed_at TIMESTAMP WITH TIME ZONE
-    )
-  ``;
-  await sql``CREATE INDEX IF NOT EXISTS idx_tasks_staff_id ON staff_tasks(staff_id)``;
-  await sql``CREATE INDEX IF NOT EXISTS idx_tasks_status ON staff_tasks(status)``;
+  await ensureStaffTables();
 
   if (req.method === 'GET') {
     try {
       const { status, priority } = req.query;
 
-      let query = sql``
+      const result = await sql`
         SELECT id::text, staff_id, title, description, status, priority, due_date::text, assigned_by, assigned_by_role, created_at::text, updated_at::text, completed_at::text
         FROM staff_tasks WHERE staff_id = ${staffId}
-      ``;
-      let result = await query;
+      `;
       let tasks: Task[] = result.rows.map(r => ({
         id: r.id,
         staffId: r.staff_id,
@@ -176,10 +158,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const id = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
-      await sql``
+      await sql`
         INSERT INTO staff_tasks (id, staff_id, title, description, status, priority, due_date, assigned_by_role, created_at, updated_at)
         VALUES (${id}, ${staffId}, ${title}, ${description || ''}, 'pending', ${priority}, ${dueDate || null}, 'self', ${now}, ${now})
-      ``;
+      `;
 
       const newTask: Task = {
         id,
@@ -212,7 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updates = body as UpdateTaskBody;
       const now = new Date().toISOString();
 
-      const existing = await sql``SELECT * FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}``;
+      const existing = await sql`SELECT * FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}`;
       if (existing.rows.length === 0) {
         return res.status(404).json({ error: 'Task not found' });
       }
@@ -220,7 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const task = existing.rows[0];
       const completedAt = updates.status === 'completed' ? now : updates.status ? null : task.completed_at;
 
-      await sql``
+      await sql`
         UPDATE staff_tasks SET
           title = COALESCE(${updates.title ?? null}, title),
           description = COALESCE(${updates.description ?? null}, description),
@@ -230,12 +212,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           completed_at = ${completedAt},
           updated_at = ${now}
         WHERE id = ${id as string} AND staff_id = ${staffId}
-      ``;
+      `;
 
-      const updated = await sql``
+      const updated = await sql`
         SELECT id::text, staff_id, title, description, status, priority, due_date::text, assigned_by, assigned_by_role, created_at::text, updated_at::text, completed_at::text
         FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}
-      ``;
+      `;
       const r = updated.rows[0];
 
       return res.status(200).json({
@@ -263,7 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Task ID is required' });
       }
 
-      await sql``DELETE FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}``;
+      await sql`DELETE FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}`;
       return res.status(200).json({ success: true, message: 'Task deleted' });
     } catch (error) {
       console.error('Error deleting task:', error);

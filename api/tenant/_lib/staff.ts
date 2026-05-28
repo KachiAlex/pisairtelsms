@@ -1,5 +1,5 @@
 import { sql } from '@vercel/postgres'
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 
 export async function hashPassword(password: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -330,6 +330,59 @@ export async function ensureStaffTables(): Promise<void> {
     `
     await sql`CREATE INDEX IF NOT EXISTS idx_payroll_staff_id ON staff_payroll(staff_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_payroll_month_year ON staff_payroll(month, year)`
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff_tasks (
+        id TEXT PRIMARY KEY,
+        staff_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority TEXT NOT NULL DEFAULT 'medium',
+        due_date DATE,
+        assigned_by TEXT,
+        assigned_by_role TEXT DEFAULT 'self',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        completed_at TIMESTAMP WITH TIME ZONE
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_tasks_staff_id ON staff_tasks(staff_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_tasks_status ON staff_tasks(status)`
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff_messages (
+        id SERIAL PRIMARY KEY,
+        staff_id VARCHAR(255) NOT NULL,
+        sender_name VARCHAR(255),
+        subject VARCHAR(255),
+        body TEXT,
+        sender_role VARCHAR(255),
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_messages_staff_id ON staff_messages(staff_id)`
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff_documents (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        category TEXT,
+        file_name TEXT,
+        file_size TEXT,
+        file_type TEXT,
+        uploaded_by TEXT,
+        uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        download_url TEXT,
+        is_restricted BOOLEAN DEFAULT false,
+        department TEXT,
+        academic_year TEXT
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_docs_category ON staff_documents(category)`
   } catch (error) {
     console.error('Error ensuring staff tables:', error)
   }

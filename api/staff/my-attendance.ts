@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { ensureStaffTables } from '../tenant/_lib/staff.js';
 
 interface StaffAttendanceRecord {
   id: string;
@@ -60,11 +61,29 @@ function extractStaffIdFromToken(req: VercelRequest): string | null {
   return token || null;
 }
 
+async function getStaffName(staffId: string): Promise<string> {
+  try {
+    const res = await sql`SELECT name FROM staff WHERE id = ${staffId} OR staff_id = ${staffId} LIMIT 1`;
+    if (res.rows[0]?.name) return res.rows[0].name;
+  } catch {
+    // ignore
+  }
+  try {
+    const res = await sql`SELECT name FROM users WHERE id = ${staffId} LIMIT 1`;
+    if (res.rows[0]?.name) return res.rows[0].name;
+  } catch {
+    // ignore
+  }
+  return 'Unknown';
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const staffId = extractStaffIdFromToken(req);
   if (!staffId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
+
+  await ensureStaffTables();
 
   if (req.method === 'GET') {
     try {
@@ -72,14 +91,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const targetMonth = month ? parseInt(month as string) : new Date().getMonth() + 1;
       const targetYear = year ? parseInt(year as string) : new Date().getFullYear();
 
-      const result = await sql``
+      const result = await sql`
         SELECT id::text, staff_id, date::text, check_in, check_out, status, notes
         FROM staff_attendance
         WHERE staff_id = ${staffId}
           AND EXTRACT(MONTH FROM date) = ${targetMonth}
           AND EXTRACT(YEAR FROM date) = ${targetYear}
         ORDER BY date DESC
-      ``;
+      `;
 
       const records: StaffAttendanceRecord[] = result.rows.map(r => ({
         id: r.id,
@@ -132,16 +151,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const today = now.toISOString().split('T')[0];
 
       if (action === 'check-in') {
-        const staffRes = await sql``SELECT name FROM staff WHERE id = ${staffId} LIMIT 1``;
-        const staffName = staffRes.rows[0]?.name || 'Unknown';
+        const staffName = await getStaffName(staffId);
         const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await sql``
+        await sql`
           INSERT INTO staff_attendance (id, staff_id, staff_name, date, check_in, status)
           VALUES (${id}, ${staffId}, ${staffName}, ${today}, ${time}, 'present')
           ON CONFLICT (staff_id, date) DO UPDATE SET
             check_in = EXCLUDED.check_in,
             status = COALESCE(staff_attendance.status, 'present')
-        ``;
+        `;
         return res.status(200).json({
           success: true,
           checkInTime: time,
@@ -150,11 +168,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (action === 'check-out') {
-        await sql``
+        await sql`
           UPDATE staff_attendance
           SET check_out = ${time}
           WHERE staff_id = ${staffId} AND date = ${today}
-        ``;
+        `;
         return res.status(200).json({
           success: true,
           checkOutTime: time,

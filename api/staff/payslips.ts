@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { ensureStaffTables } from '../tenant/_lib/staff.js';
 
 interface Payslip {
   id: string;
@@ -50,37 +51,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  try {
-    const staffId = extractStaffIdFromToken(req);
-    if (!staffId) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
-    }
+  const staffId = extractStaffIdFromToken(req);
+  if (!staffId) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+  }
 
+  await ensureStaffTables();
+
+  try {
     const { month, year } = req.query;
 
-    await sql``
-      CREATE TABLE IF NOT EXISTS staff_payroll (
-        id TEXT PRIMARY KEY,
-        staff_id TEXT NOT NULL,
-        staff_name TEXT NOT NULL,
-        month TEXT NOT NULL,
-        year INTEGER NOT NULL,
-        basic_salary NUMERIC NOT NULL DEFAULT 0,
-        allowances NUMERIC NOT NULL DEFAULT 0,
-        deductions NUMERIC NOT NULL DEFAULT 0,
-        net_salary NUMERIC NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'pending',
-        payment_date DATE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(staff_id, month, year)
-      )
-    ``;
-    await sql``CREATE INDEX IF NOT EXISTS idx_payroll_staff_id ON staff_payroll(staff_id)``;
-
-    const result = await sql``
+    const result = await sql`
       SELECT id::text, month, year, basic_salary, allowances, deductions, net_salary, status, payment_date::text
       FROM staff_payroll WHERE staff_id = ${staffId}
-    ``;
+    `;
     let payslips = result.rows.map((r) => ({
       id: r.id,
       month: r.month,

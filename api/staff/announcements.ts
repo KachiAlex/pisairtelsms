@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Announcement {
   id: string;
@@ -54,39 +55,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { limit = '10', offset = '0' } = req.query;
 
-    // TODO: Fetch announcements from database (no staffId filtering - all staff see same announcements)
-    // For now, return mock data
+    // Ensure announcements table exists with extra columns
+    await sql``
+      CREATE TABLE IF NOT EXISTS announcements (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        body TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    ``;
+    await sql``ALTER TABLE announcements ADD COLUMN IF NOT EXISTS audience VARCHAR(255)``;
+    await sql``ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sent_by VARCHAR(255)``;
 
-    const response: AnnouncementsResponse = {
-      announcements: [
-        {
-          id: '1',
-          title: 'Staff Meeting',
-          body: 'All staff members are required to attend the monthly staff meeting on Friday at 3 PM in the conference room.',
-          date: '2025-01-20',
-          audience: 'All Staff',
-          sentBy: 'Principal',
-        },
-        {
-          id: '2',
-          title: 'School Resumption',
-          body: 'School resumes on Monday, January 27, 2025. All staff should be present by 7:30 AM.',
-          date: '2025-01-15',
-          audience: 'All Staff',
-          sentBy: 'Principal',
-        },
-        {
-          id: '3',
-          title: 'Examination Schedule',
-          body: 'The examination schedule for Term 1 has been released. Please check the notice board for details.',
-          date: '2025-01-10',
-          audience: 'Teaching Staff',
-          sentBy: 'Academic Officer',
-        },
-      ],
-    };
+    const result = await sql``
+      SELECT id::text, title, body, created_at::date::text AS date, audience, sent_by
+      FROM announcements
+      ORDER BY created_at DESC
+      LIMIT ${Math.min(parseInt(limit as string), 100)}
+      OFFSET ${parseInt(offset as string)}
+    ``;
 
-    return res.status(200).json(response);
+    const announcements: Announcement[] = result.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      body: r.body || '',
+      date: r.date,
+      audience: r.audience || 'All Staff',
+      sentBy: r.sent_by || 'Admin',
+    }));
+
+    return res.status(200).json({ announcements });
   } catch (error) {
     console.error('Error fetching announcements:', error);
     return res.status(500).json({ error: 'Failed to fetch announcements' });

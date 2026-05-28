@@ -30,6 +30,19 @@ interface Staff {
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
+function getAuthHeaders() {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' }
+  }
+}
+
 export function PayrollManagement() {
   const [records, setRecords] = useState<PayrollRecord[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
@@ -46,7 +59,7 @@ export function PayrollManagement() {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch('/api/tenant/staff', { headers: { 'x-tenant-id': 'default-tenant' } })
+      const res = await fetch('/api/tenant/staff', { headers: getAuthHeaders() })
       const data = await res.json()
       const members: Staff[] = data.data || []
       setStaff(members)
@@ -63,7 +76,7 @@ export function PayrollManagement() {
     setError(null)
     try {
       const res = await fetch(`/api/tenant/staff?resource=payroll&month=${selectedMonth}&year=${selectedYear}`, {
-        headers: { 'x-tenant-id': 'default-tenant' }
+        headers: getAuthHeaders()
       })
       if (!res.ok) throw new Error('Failed to fetch payroll')
       const data = await res.json()
@@ -82,7 +95,7 @@ export function PayrollManagement() {
       const selectedStaff = staff.find(s => s.id === form.staffId)
       await fetch('/api/tenant/staff?resource=payroll', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           staffId: form.staffId,
           staffName: selectedStaff?.name || '',
@@ -108,7 +121,7 @@ export function PayrollManagement() {
       const paymentDate = status === 'paid' ? new Date().toISOString().split('T')[0] : undefined
       await fetch(`/api/tenant/staff?resource=payroll&id=${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status, paymentDate }),
       })
       fetchPayroll()
@@ -122,7 +135,7 @@ export function PayrollManagement() {
     for (const s of staffWithSalary) {
       await fetch('/api/tenant/staff?resource=payroll', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           staffId: s.id, staffName: s.name, month: selectedMonth, year: selectedYear,
           basicSalary: s.salary, allowances: 0, deductions: 0,

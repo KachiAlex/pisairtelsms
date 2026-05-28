@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Payslip {
   id: string;
@@ -57,46 +58,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { month, year } = req.query;
 
-    // TODO: Fetch payslips from database filtered by staffId and optional month/year
-    // For now, return mock data
+    await sql``
+      CREATE TABLE IF NOT EXISTS staff_payroll (
+        id TEXT PRIMARY KEY,
+        staff_id TEXT NOT NULL,
+        staff_name TEXT NOT NULL,
+        month TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        basic_salary NUMERIC NOT NULL DEFAULT 0,
+        allowances NUMERIC NOT NULL DEFAULT 0,
+        deductions NUMERIC NOT NULL DEFAULT 0,
+        net_salary NUMERIC NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        payment_date DATE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(staff_id, month, year)
+      )
+    ``;
+    await sql``CREATE INDEX IF NOT EXISTS idx_payroll_staff_id ON staff_payroll(staff_id)``;
 
-    const response: PayslipsResponse = {
-      payslips: [
-        {
-          id: 'payslip-1',
-          month: 'January',
-          year: 2025,
-          basicSalary: 150000,
-          allowances: 25000,
-          deductions: 15000,
-          netSalary: 160000,
-          paymentStatus: 'paid',
-          paymentDate: '2025-01-31',
-        },
-        {
-          id: 'payslip-2',
-          month: 'December',
-          year: 2024,
-          basicSalary: 150000,
-          allowances: 25000,
-          deductions: 15000,
-          netSalary: 160000,
-          paymentStatus: 'paid',
-          paymentDate: '2024-12-31',
-        },
-        {
-          id: 'payslip-3',
-          month: 'November',
-          year: 2024,
-          basicSalary: 150000,
-          allowances: 25000,
-          deductions: 15000,
-          netSalary: 160000,
-          paymentStatus: 'pending',
-        },
-      ],
-    };
+    const result = await sql``
+      SELECT id::text, month, year, basic_salary, allowances, deductions, net_salary, status, payment_date::text
+      FROM staff_payroll WHERE staff_id = ${staffId}
+    ``;
+    let payslips = result.rows.map((r) => ({
+      id: r.id,
+      month: r.month,
+      year: Number(r.year),
+      basicSalary: Number(r.basic_salary),
+      allowances: Number(r.allowances),
+      deductions: Number(r.deductions),
+      netSalary: Number(r.net_salary),
+      paymentStatus: r.status === 'paid' ? 'paid' as const : 'pending' as const,
+      paymentDate: r.payment_date ?? undefined,
+    }));
 
+    if (month) {
+      payslips = payslips.filter(p => p.month.toLowerCase() === (month as string).toLowerCase());
+    }
+    if (year) {
+      payslips = payslips.filter(p => p.year === Number(year));
+    }
+
+    payslips.sort((a, b) => {
+      const monthOrder = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const monthDiff = monthOrder.indexOf(b.month) - monthOrder.indexOf(a.month);
+      if (monthDiff !== 0 || b.year !== a.year) return b.year - a.year;
+      return monthDiff;
+    });
+
+    const response: PayslipsResponse = { payslips };
     return res.status(200).json(response);
   } catch (error) {
     console.error('Error fetching payslips:', error);

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface StudentProfile {
   id: string;
@@ -11,31 +12,31 @@ interface StudentProfile {
   phone?: string;
 }
 
-function extractStaffIdFromToken(req: VercelRequest): string | null {
+function extractPayload(req: VercelRequest): { staffId: string | null; tenantId: string } {
   const xUserId = req.headers['x-user-id'];
   if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
-    return xUserId.trim();
+    return { staffId: xUserId.trim(), tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
   }
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
+    return { staffId: null, tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
   }
 
   const token = authHeader.substring(7);
-  if (!token) return null;
+  if (!token) return { staffId: null, tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
 
   try {
     const parts = token.split('.');
     if (parts.length === 3) {
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.staffId || payload.userId || payload.sub || null;
+      return { staffId: payload.staffId || payload.userId || payload.sub || null, tenantId: payload.tenantId || (req.headers['x-tenant-id'] as string) || 'default-tenant' };
     }
   } catch {
     // not a JWT
   }
 
-  return token || null;
+  return { staffId: token || null, tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -45,26 +46,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const staffId = extractStaffIdFromToken(req);
+    const { staffId, tenantId } = extractPayload(req);
     if (!staffId) {
       return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
     }
 
     const { studentId } = req.query;
 
-    // TODO: Verify student is in a class taught by staff member
-    // If not, return 403
-    // For now, return mock data
+    await sql``
+      CREATE TABLE IF NOT EXISTS students (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        admission_no TEXT,
+        name TEXT NOT NULL,
+        class TEXT,
+        arm TEXT,
+        gender TEXT,
+        status TEXT,
+        guardian TEXT,
+        phone TEXT,
+        guardian_email TEXT,
+        deleted_at TIMESTAMP WITH TIME ZONE
+      )
+    ``;
 
+    const result = await sql``
+      SELECT id, name, admission_no, gender, class, arm, guardian_email, phone
+      FROM students
+      WHERE id = ${studentId as string} AND tenant_id = ${tenantId} AND deleted_at IS NULL
+      LIMIT 1
+    ``;
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const r = result.rows[0];
     const profile: StudentProfile = {
-      id: studentId as string,
-      name: 'Chioma Adeyemi',
-      admissionNumber: 'ADM-2024-001',
-      gender: 'Female',
-      class: 'SS 1',
-      arm: 'A',
-      email: 'chioma@school.edu',
-      phone: '+234-801-234-5678',
+      id: r.id,
+      name: r.name,
+      admissionNumber: r.admission_no || '',
+      gender: r.gender || '',
+      class: r.class || '',
+      arm: r.arm || '',
+      email: r.guardian_email || undefined,
+      phone: r.phone || undefined,
     };
 
     return res.status(200).json(profile);

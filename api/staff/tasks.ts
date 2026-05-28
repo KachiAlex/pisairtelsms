@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Task {
   id: string;
@@ -84,100 +85,56 @@ function parseBody(req: VercelRequest): Promise<any> {
   });
 }
 
-// Mock tasks storage (replace with database)
-const mockTasks: Record<string, Task[]> = {};
-
-function getMockTasks(staffId: string): Task[] {
-  if (!mockTasks[staffId]) {
-    const now = new Date();
-    mockTasks[staffId] = [
-      {
-        id: `task-${staffId}-1`,
-        staffId,
-        title: 'Complete mid-term exam grading',
-        description: 'Grade all JSS3 Mathematics papers before Friday',
-        status: 'in_progress',
-        priority: 'high',
-        dueDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        assignedBy: 'Academic Officer',
-        assignedByRole: 'admin',
-        createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date().toISOString(),
-        completedAt: null,
-      },
-      {
-        id: `task-${staffId}-2`,
-        staffId,
-        title: 'Submit lesson plan for next week',
-        description: 'Upload lesson plans for SS1 and SS2 classes',
-        status: 'pending',
-        priority: 'medium',
-        dueDate: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        assignedBy: 'Principal',
-        assignedByRole: 'admin',
-        createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date().toISOString(),
-        completedAt: null,
-      },
-      {
-        id: `task-${staffId}-3`,
-        staffId,
-        title: 'Parent-Teacher meeting preparation',
-        description: 'Prepare progress reports for upcoming PTA meeting',
-        status: 'pending',
-        priority: 'urgent',
-        dueDate: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        assignedBy: 'Admin Office',
-        assignedByRole: 'admin',
-        createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date().toISOString(),
-        completedAt: null,
-      },
-      {
-        id: `task-${staffId}-4`,
-        staffId,
-        title: 'Prepare laboratory equipment',
-        description: 'Set up chemistry lab for practical exam',
-        status: 'completed',
-        priority: 'medium',
-        dueDate: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        assignedBy: 'Science Coordinator',
-        assignedByRole: 'admin',
-        createdAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date().toISOString(),
-        completedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: `task-${staffId}-5`,
-        staffId,
-        title: 'Update student attendance records',
-        description: 'Verify and update attendance for last week',
-        status: 'pending',
-        priority: 'low',
-        dueDate: null,
-        assignedBy: null,
-        assignedByRole: 'self',
-        createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date().toISOString(),
-        completedAt: null,
-      },
-    ];
-  }
-  return mockTasks[staffId];
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const staffId = extractStaffIdFromToken(req);
   if (!staffId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
 
+  // Ensure staff_tasks table exists
+  await sql``
+    CREATE TABLE IF NOT EXISTS staff_tasks (
+      id TEXT PRIMARY KEY,
+      staff_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      due_date DATE,
+      assigned_by TEXT,
+      assigned_by_role TEXT DEFAULT 'self',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      completed_at TIMESTAMP WITH TIME ZONE
+    )
+  ``;
+  await sql``CREATE INDEX IF NOT EXISTS idx_tasks_staff_id ON staff_tasks(staff_id)``;
+  await sql``CREATE INDEX IF NOT EXISTS idx_tasks_status ON staff_tasks(status)``;
+
   if (req.method === 'GET') {
     try {
       const { status, priority } = req.query;
-      let tasks = getMockTasks(staffId);
 
-      // Apply filters
+      let query = sql``
+        SELECT id::text, staff_id, title, description, status, priority, due_date::text, assigned_by, assigned_by_role, created_at::text, updated_at::text, completed_at::text
+        FROM staff_tasks WHERE staff_id = ${staffId}
+      ``;
+      let result = await query;
+      let tasks: Task[] = result.rows.map(r => ({
+        id: r.id,
+        staffId: r.staff_id,
+        title: r.title,
+        description: r.description || '',
+        status: r.status as Task['status'],
+        priority: r.priority as Task['priority'],
+        dueDate: r.due_date || null,
+        assignedBy: r.assigned_by || null,
+        assignedByRole: r.assigned_by_role as Task['assignedByRole'],
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        completedAt: r.completed_at || null,
+      }));
+
       if (status) {
         tasks = tasks.filter(t => t.status === status);
       }
@@ -185,7 +142,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tasks = tasks.filter(t => t.priority === priority);
       }
 
-      // Sort by priority and due date
       const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
       tasks.sort((a, b) => {
         const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -204,12 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         overdue: tasks.filter(t => t.dueDate && t.dueDate < now && t.status !== 'completed').length,
       };
 
-      const response: TasksListResponse = {
-        tasks,
-        summary,
-      };
-
-      return res.status(200).json(response);
+      return res.status(200).json({ tasks, summary });
     } catch (error) {
       console.error('Error fetching tasks:', error);
       return res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -223,9 +174,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Title is required' });
       }
 
+      const id = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
+      await sql``
+        INSERT INTO staff_tasks (id, staff_id, title, description, status, priority, due_date, assigned_by_role, created_at, updated_at)
+        VALUES (${id}, ${staffId}, ${title}, ${description || ''}, 'pending', ${priority}, ${dueDate || null}, 'self', ${now}, ${now})
+      ``;
+
       const newTask: Task = {
-        id: `task-${staffId}-${Date.now()}`,
+        id,
         staffId,
         title,
         description: description || '',
@@ -238,8 +195,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         updatedAt: now,
         completedAt: null,
       };
-
-      mockTasks[staffId] = [newTask, ...getMockTasks(staffId)];
 
       return res.status(201).json(newTask);
     } catch (error) {
@@ -255,33 +210,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const body = await parseBody(req);
       const updates = body as UpdateTaskBody;
+      const now = new Date().toISOString();
 
-      const tasks = getMockTasks(staffId);
-      const taskIndex = tasks.findIndex(t => t.id === id);
-
-      if (taskIndex === -1) {
+      const existing = await sql``SELECT * FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}``;
+      if (existing.rows.length === 0) {
         return res.status(404).json({ error: 'Task not found' });
       }
 
-      const task = tasks[taskIndex];
-      const now = new Date().toISOString();
+      const task = existing.rows[0];
+      const completedAt = updates.status === 'completed' ? now : updates.status ? null : task.completed_at;
 
-      // Update fields
-      if (updates.title !== undefined) task.title = updates.title;
-      if (updates.description !== undefined) task.description = updates.description;
-      if (updates.priority !== undefined) task.priority = updates.priority;
-      if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
-      if (updates.status !== undefined) {
-        task.status = updates.status;
-        if (updates.status === 'completed') {
-          task.completedAt = now;
-        } else {
-          task.completedAt = null;
-        }
-      }
-      task.updatedAt = now;
+      await sql``
+        UPDATE staff_tasks SET
+          title = COALESCE(${updates.title ?? null}, title),
+          description = COALESCE(${updates.description ?? null}, description),
+          priority = COALESCE(${updates.priority ?? null}, priority),
+          due_date = COALESCE(${updates.dueDate ?? null}, due_date),
+          status = COALESCE(${updates.status ?? null}, status),
+          completed_at = ${completedAt},
+          updated_at = ${now}
+        WHERE id = ${id as string} AND staff_id = ${staffId}
+      ``;
 
-      return res.status(200).json(task);
+      const updated = await sql``
+        SELECT id::text, staff_id, title, description, status, priority, due_date::text, assigned_by, assigned_by_role, created_at::text, updated_at::text, completed_at::text
+        FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}
+      ``;
+      const r = updated.rows[0];
+
+      return res.status(200).json({
+        id: r.id,
+        staffId: r.staff_id,
+        title: r.title,
+        description: r.description || '',
+        status: r.status as Task['status'],
+        priority: r.priority as Task['priority'],
+        dueDate: r.due_date || null,
+        assignedBy: r.assigned_by || null,
+        assignedByRole: r.assigned_by_role as Task['assignedByRole'],
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        completedAt: r.completed_at || null,
+      });
     } catch (error) {
       console.error('Error updating task:', error);
       return res.status(500).json({ error: 'Failed to update task' });
@@ -293,15 +263,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Task ID is required' });
       }
 
-      const tasks = getMockTasks(staffId);
-      const taskIndex = tasks.findIndex(t => t.id === id);
-
-      if (taskIndex === -1) {
-        return res.status(404).json({ error: 'Task not found' });
-      }
-
-      mockTasks[staffId] = tasks.filter(t => t.id !== id);
-
+      await sql``DELETE FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}``;
       return res.status(200).json({ success: true, message: 'Task deleted' });
     } catch (error) {
       console.error('Error deleting task:', error);

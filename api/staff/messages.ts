@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface Message {
   id: string;
@@ -79,46 +80,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
 
+  // Ensure staff_messages table exists with body column
+  await sql``
+    CREATE TABLE IF NOT EXISTS staff_messages (
+      id SERIAL PRIMARY KEY,
+      staff_id VARCHAR(255) NOT NULL,
+      sender_name VARCHAR(255),
+      subject VARCHAR(255),
+      is_read BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  ``;
+  await sql``ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS body TEXT``;
+  await sql``ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS sender_role VARCHAR(255)``;
+
   if (req.method === 'GET') {
     try {
       const { limit = '20', offset = '0' } = req.query;
 
-      // TODO: Fetch messages from database filtered by sender or recipient matching staffId
-      // For now, return mock data
+      const result = await sql``
+        SELECT id::text, staff_id, sender_name, subject, body, sender_role, is_read, created_at::date::text AS date
+        FROM staff_messages
+        WHERE staff_id = ${staffId}
+        ORDER BY created_at DESC
+        LIMIT ${Math.min(parseInt(limit as string), 100)}
+        OFFSET ${parseInt(offset as string)}
+      ``;
 
-      const response: MessagesListResponse = {
-        messages: [
-          {
-            id: '1',
-            sender: 'Principal',
-            senderRole: 'Admin',
-            subject: 'Welcome to Staff Portal',
-            body: 'Welcome to the new Staff Portal. This portal will help you manage your schedule, attendance, and communications.',
-            date: '2025-01-15',
-            isRead: true,
-          },
-          {
-            id: '2',
-            sender: 'Parent - Mrs. Adeyemi',
-            senderRole: 'Parent',
-            subject: 'Chioma\'s Performance',
-            body: 'Good morning, I wanted to inquire about my daughter\'s performance in Mathematics.',
-            date: '2025-01-18',
-            isRead: false,
-          },
-          {
-            id: '3',
-            sender: 'Academic Officer',
-            senderRole: 'Admin',
-            subject: 'Exam Invigilation Schedule',
-            body: 'Please find attached the exam invigilation schedule for Term 1.',
-            date: '2025-01-20',
-            isRead: false,
-          },
-        ],
-      };
+      const messages: Message[] = result.rows.map(r => ({
+        id: r.id,
+        sender: r.sender_name || 'Admin',
+        senderRole: r.sender_role || 'Admin',
+        subject: r.subject || '',
+        body: r.body || '',
+        date: r.date,
+        isRead: !!r.is_read,
+      }));
 
-      return res.status(200).json(response);
+      return res.status(200).json({ messages });
     } catch (error) {
       console.error('Error fetching messages:', error);
       return res.status(500).json({ error: 'Failed to fetch messages' });
@@ -128,16 +127,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const body = await parseBody(req);
       const { recipientId, subject, body: messageBody } = body as NewMessageBody;
 
-      // TODO: Validate required fields
-      // TODO: Create message in database with authenticated staff member as sender
+      const senderRes = await sql``SELECT name FROM staff WHERE id = ${staffId} LIMIT 1``;
+      const senderName = senderRes.rows[0]?.name || 'Unknown';
+
+      const result = await sql``
+        INSERT INTO staff_messages (staff_id, sender_name, subject, body, sender_role, is_read, created_at)
+        VALUES (${recipientId || staffId}, ${senderName}, ${subject}, ${messageBody || ''}, 'staff', false, NOW())
+        RETURNING id::text, sender_name, subject, body, created_at::text AS date, is_read
+      ``;
+      const r = result.rows[0];
 
       const response: NewMessageResponse = {
-        id: `msg-${Date.now()}`,
-        sender: 'Mr. Femi Okafor',
-        subject,
-        body: messageBody,
-        date: new Date().toISOString(),
-        isRead: false,
+        id: r.id,
+        sender: r.sender_name,
+        subject: r.subject,
+        body: r.body || '',
+        date: r.date,
+        isRead: !!r.is_read,
       };
 
       return res.status(201).json(response);

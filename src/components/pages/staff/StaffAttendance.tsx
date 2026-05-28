@@ -22,6 +22,19 @@ interface Staff {
   department: string
 }
 
+function getAuthHeaders() {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      'x-tenant-id': auth.tenantId || 'default-tenant',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+  } catch {
+    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' }
+  }
+}
+
 export function StaffAttendance() {
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
@@ -40,7 +53,7 @@ export function StaffAttendance() {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch('/api/tenant/staff', { headers: { 'x-tenant-id': 'default-tenant' } })
+      const res = await fetch('/api/tenant/staff', { headers: getAuthHeaders() })
       const data = await res.json()
       setStaff(data.data || [])
     } catch (err) {
@@ -53,7 +66,7 @@ export function StaffAttendance() {
     setError(null)
     try {
       const res = await fetch(`/api/tenant/staff?resource=attendance&date=${selectedDate}`, {
-        headers: { 'x-tenant-id': 'default-tenant' }
+        headers: getAuthHeaders()
       })
       if (!res.ok) throw new Error('Failed to fetch attendance')
       const data = await res.json()
@@ -71,7 +84,7 @@ export function StaffAttendance() {
       const now = new Date().toTimeString().slice(0, 5)
       await fetch('/api/tenant/staff?resource=attendance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           staffId: staffMember.id,
           staffName: staffMember.name,

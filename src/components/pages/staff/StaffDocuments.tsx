@@ -121,9 +121,11 @@ export function StaffDocuments() {
   }
 
   const handleDownload = (doc: Document) => {
-    // In a real implementation, this would trigger a file download
-    // For now, show an alert
-    alert(`Downloading: ${doc.fileName}\n\nIn production, this would download the actual file.`)
+    if (doc.downloadUrl) {
+      window.open(doc.downloadUrl, '_blank')
+    } else {
+      console.warn('No download URL available for document:', doc.id)
+    }
   }
 
   const clearSearch = () => {

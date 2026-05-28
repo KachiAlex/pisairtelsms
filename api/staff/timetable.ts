@@ -58,6 +58,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
     }
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS timetable (
+        id SERIAL PRIMARY KEY,
+        staff_id VARCHAR(255) NOT NULL,
+        day VARCHAR(20) NOT NULL,
+        subject VARCHAR(255),
+        class_name VARCHAR(255),
+        room VARCHAR(255),
+        start_time VARCHAR(10),
+        end_time VARCHAR(10),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS exams (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        exam_date DATE,
+        start_time TIME,
+        end_time TIME,
+        room VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
     const dayOrder: Record<string, number> = {
       monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7
     };
@@ -100,13 +126,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       time: r.time ?? '', room: r.room ?? '', duration: Number(r.duration ?? 0),
     }));
 
-    let availableTerms: Term[] = [{ id: 'term-1', name: 'Term 1' }, { id: 'term-2', name: 'Term 2' }, { id: 'term-3', name: 'Term 3' }];
+    let availableTerms: Term[] = [];
+    let currentTerm = '';
     try {
       const termResult = await sql`SELECT id::text, name FROM terms ORDER BY name`;
-      if (termResult.rows.length > 0) availableTerms = termResult.rows.map(r => ({ id: r.id, name: r.name }));
+      if (termResult.rows.length > 0) {
+        availableTerms = termResult.rows.map(r => ({ id: r.id, name: r.name }));
+        currentTerm = availableTerms[0].id;
+      }
     } catch { /* terms table may not exist */ }
 
-    return res.status(200).json({ schedule, examSchedule, currentTerm: 'term-1', availableTerms });
+    return res.status(200).json({ schedule, examSchedule, currentTerm, availableTerms });
   } catch (error) {
     console.error('Error fetching staff timetable:', error);
     return res.status(500).json({ error: 'Failed to fetch timetable data' });

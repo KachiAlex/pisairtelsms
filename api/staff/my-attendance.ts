@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
 interface StaffAttendanceRecord {
   id: string;
@@ -59,70 +60,6 @@ function extractStaffIdFromToken(req: VercelRequest): string | null {
   return token || null;
 }
 
-function getCurrentMonthDates(): Date[] {
-  const dates: Date[] = [];
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    dates.push(new Date(year, month, day));
-  }
-  return dates;
-}
-
-function generateMockAttendance(staffId: string): StaffAttendanceRecord[] {
-  const dates = getCurrentMonthDates();
-  const records: StaffAttendanceRecord[] = [];
-  const now = new Date();
-
-  dates.forEach((date, index) => {
-    // Skip future dates
-    if (date > now) return;
-    // Skip Sundays
-    if (date.getDay() === 0) return;
-
-    const isWeekend = date.getDay() === 6;
-    const dayOfMonth = date.getDate();
-
-    // Simulate some variation in attendance
-    let status: 'present' | 'absent' | 'late' | 'half_day' = 'present';
-    let checkIn: string | null = '08:00:00';
-    let checkOut: string | null = '16:00:00';
-
-    if (dayOfMonth === 5 || dayOfMonth === 12) {
-      status = 'late';
-      checkIn = '09:15:00';
-    } else if (dayOfMonth === 8) {
-      status = 'absent';
-      checkIn = null;
-      checkOut = null;
-    } else if (dayOfMonth === 20) {
-      status = 'half_day';
-      checkOut = '12:00:00';
-    }
-
-    // Weekend - no attendance expected
-    if (isWeekend) {
-      return;
-    }
-
-    records.push({
-      id: `att-${staffId}-${date.toISOString().split('T')[0]}`,
-      staffId,
-      date: date.toISOString().split('T')[0],
-      checkIn,
-      checkOut,
-      status,
-      source: Math.random() > 0.3 ? 'biometric' : 'web',
-      notes: status === 'absent' ? 'Sick leave' : status === 'late' ? 'Traffic delay' : null,
-    });
-  });
-
-  return records.reverse();
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const staffId = extractStaffIdFromToken(req);
   if (!staffId) {
@@ -135,16 +72,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const targetMonth = month ? parseInt(month as string) : new Date().getMonth() + 1;
       const targetYear = year ? parseInt(year as string) : new Date().getFullYear();
 
-      // TODO: Fetch actual attendance records from database
-      const records = generateMockAttendance(staffId);
+      const result = await sql``
+        SELECT id::text, staff_id, date::text, check_in, check_out, status, notes
+        FROM staff_attendance
+        WHERE staff_id = ${staffId}
+          AND EXTRACT(MONTH FROM date) = ${targetMonth}
+          AND EXTRACT(YEAR FROM date) = ${targetYear}
+        ORDER BY date DESC
+      ``;
 
-      // Calculate summary
+      const records: StaffAttendanceRecord[] = result.rows.map(r => ({
+        id: r.id,
+        staffId: r.staff_id,
+        date: r.date,
+        checkIn: r.check_in ?? null,
+        checkOut: r.check_out ?? null,
+        status: r.status as StaffAttendanceRecord['status'],
+        source: 'web' as const,
+        notes: r.notes ?? null,
+      }));
+
       const present = records.filter(r => r.status === 'present').length;
       const absent = records.filter(r => r.status === 'absent').length;
       const late = records.filter(r => r.status === 'late').length;
       const halfDay = records.filter(r => r.status === 'half_day').length;
 
-      // Check today's status
       const today = new Date().toISOString().split('T')[0];
       const todayRecord = records.find(r => r.date === today);
 
@@ -177,9 +129,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { action } = req.body || {};
       const now = new Date();
       const time = now.toTimeString().split(' ')[0];
+      const today = now.toISOString().split('T')[0];
 
       if (action === 'check-in') {
-        // TODO: Save check-in to database
+        const staffRes = await sql``SELECT name FROM staff WHERE id = ${staffId} LIMIT 1``;
+        const staffName = staffRes.rows[0]?.name || 'Unknown';
+        const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await sql``
+          INSERT INTO staff_attendance (id, staff_id, staff_name, date, check_in, status)
+          VALUES (${id}, ${staffId}, ${staffName}, ${today}, ${time}, 'present')
+          ON CONFLICT (staff_id, date) DO UPDATE SET
+            check_in = EXCLUDED.check_in,
+            status = COALESCE(staff_attendance.status, 'present')
+        ``;
         return res.status(200).json({
           success: true,
           checkInTime: time,
@@ -188,7 +150,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (action === 'check-out') {
-        // TODO: Save check-out to database
+        await sql``
+          UPDATE staff_attendance
+          SET check_out = ${time}
+          WHERE staff_id = ${staffId} AND date = ${today}
+        ``;
         return res.status(200).json({
           success: true,
           checkOutTime: time,

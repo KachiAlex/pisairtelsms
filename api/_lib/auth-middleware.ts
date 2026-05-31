@@ -12,6 +12,7 @@ export interface DecodedToken {
   role: UserRole
   tenantId?: string
   email?: string
+  sub?: string
   iat?: number
   exp?: number
 }

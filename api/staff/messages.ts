@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { ensureStaffTables } from '../tenant/_lib/staff.js';
+import { requireRole } from '../_lib/auth-middleware.js';
 
 interface Message {
   id: string;
@@ -30,33 +31,6 @@ interface NewMessageResponse {
   body: string;
   date: string;
   isRead: boolean;
-}
-
-function extractStaffIdFromToken(req: VercelRequest): string | null {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
-    return xUserId.trim();
-  }
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  if (!token) return null;
-
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.staffId || payload.userId || payload.sub || null;
-    }
-  } catch {
-    // not a JWT
-  }
-
-  return token || null;
 }
 
 function parseBody(req: VercelRequest): Promise<any> {
@@ -92,9 +66,11 @@ async function getStaffName(staffId: string): Promise<string> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const staffId = extractStaffIdFromToken(req);
+  const decoded = await requireRole(req, res, ['staff']);
+  if (!decoded) return;
+  const staffId = decoded.staffId || decoded.userId || decoded.sub;
   if (!staffId) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+    return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
   await ensureStaffTables();

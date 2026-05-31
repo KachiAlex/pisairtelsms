@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -21,68 +22,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const limit = parseInt(req.query.limit as string) || 20
     const type = req.query.type as string
 
-    const allNotifications = [
-      {
-        id: '1',
-        type: 'academic' as const,
-        title: 'New Grades Posted',
-        message: 'Mathematics grades have been posted',
-        date: '2025-01-20',
-        isRead: false,
-        actionUrl: '/parent/academic',
-      },
-      {
-        id: '2',
-        type: 'attendance' as const,
-        title: 'Attendance Alert',
-        message: 'Attendance is below 75%',
-        date: '2025-01-18',
-        isRead: true,
-        actionUrl: '/parent/attendance',
-      },
-      {
-        id: '3',
-        type: 'fees' as const,
-        title: 'Fee Payment Due',
-        message: 'Outstanding fees of 50,000 due by February 28',
-        date: '2025-01-15',
-        isRead: false,
-        actionUrl: '/parent/fees',
-      },
-      {
-        id: '4',
-        type: 'communication' as const,
-        title: 'New Announcement',
-        message: 'School reopens on January 27',
-        date: '2025-01-10',
-        isRead: true,
-        actionUrl: '/parent/communications',
-      },
-      {
-        id: '5',
-        type: 'behavioral' as const,
-        title: 'Positive Recognition',
-        message: 'Your child won the 100m sprint race',
-        date: '2025-01-08',
-        isRead: true,
-        actionUrl: '/parent/behavioral',
-      },
-    ]
+    await sql`CREATE TABLE IF NOT EXISTS parent_notifications (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      student_id TEXT,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read BOOLEAN DEFAULT FALSE,
+      action_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`
 
-    let filtered = allNotifications
+    let query = sql`
+      SELECT id, type, title, message, is_read, action_url, created_at::text AS date
+      FROM parent_notifications
+      WHERE parent_id = ${parentInfo.parentId}
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `
+
     if (type) {
-      filtered = filtered.filter((n) => n.type === type)
+      query = sql`
+        SELECT id, type, title, message, is_read, action_url, created_at::text AS date
+        FROM parent_notifications
+        WHERE parent_id = ${parentInfo.parentId} AND type = ${type}
+        ORDER BY created_at DESC
+        LIMIT ${limit}
+      `
     }
 
-    const notifications = filtered.slice(0, limit)
-    const unreadCount = allNotifications.filter((n) => !n.isRead).length
+    const result = await query
+    const notifications = result.rows.map(r => ({
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      message: r.message,
+      date: r.date,
+      isRead: r.is_read,
+      actionUrl: r.action_url,
+    }))
 
-    const response = {
-      notifications,
-      unreadCount,
-    }
+    const unreadRes = await sql`
+      SELECT COUNT(*) AS count FROM parent_notifications
+      WHERE parent_id = ${parentInfo.parentId} AND is_read = FALSE
+    `
+    const unreadCount = parseInt(unreadRes.rows[0]?.count ?? '0')
 
-    return res.status(200).json(response)
+    return res.status(200).json({ notifications, unreadCount })
   } catch (error) {
     console.error('Error fetching notifications:', error)
     return res.status(500).json({ error: 'Failed to fetch notifications' })

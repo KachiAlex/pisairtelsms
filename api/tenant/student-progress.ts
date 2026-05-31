@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchStudents } from './_lib/students.js'
+import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
 
-// Mock exam result data - in real app this would come from exam results API
 interface ExamResult {
   examId: string
   examTitle: string
@@ -34,9 +33,6 @@ interface SubjectPerformance {
   trend: 'improving' | 'declining' | 'stable'
 }
 
-// Mock exam results - replace with real exam results API
-const mockExamResults: { [studentId: string]: ExamResult[] } = {}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
@@ -49,58 +45,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Call students API to get student data
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
-    const studentsRes = await fetch(`${baseUrl}/api/tenant/students`)
-
-    let allStudents: any[] = []
-    if (studentsRes.ok) {
-      const studentsData = await studentsRes.json()
-      allStudents = studentsData.data || []
-    } else {
-      return res.status(503).json({
-        error: 'Students API unavailable',
-        message: 'Cannot retrieve student data for progress calculations'
-      })
-    }
+    await sql`CREATE TABLE IF NOT EXISTS results (
+      id SERIAL PRIMARY KEY, student_id TEXT, subject TEXT, ca_score NUMERIC, exam_score NUMERIC, updated_at TIMESTAMP DEFAULT NOW()
+    )`
 
     if (studentId && typeof studentId === 'string') {
-      // Get specific student progress
-      const student = allStudents.find((s: any) => s.id === studentId)
-
-      if (!student) {
+      const studentRes = await sql`
+        SELECT id, name, class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1
+      `
+      if (!studentRes.rows[0]) {
         return res.status(404).json({ error: 'Student not found' })
       }
+      const student = studentRes.rows[0]
 
-      const studentResults = mockExamResults[studentId] || []
+      const resultsRes = await sql`
+        SELECT id::text AS exam_id, subject,
+               (COALESCE(ca_score,0) + COALESCE(exam_score,0)) AS score,
+               updated_at::text AS date
+        FROM results WHERE student_id = ${studentId} ORDER BY updated_at DESC
+      `
+      const studentResults: ExamResult[] = resultsRes.rows.map(r => ({
+        examId: r.exam_id,
+        examTitle: r.subject,
+        subject: r.subject,
+        score: Number(r.score),
+        grade: Number(r.score) >= 50 ? 'C' : 'F',
+        status: Number(r.score) >= 40 ? 'Passed' : 'Failed',
+        date: r.date
+      }))
 
-      if (studentResults.length === 0) {
-        return res.status(200).json({
-          data: {
-            studentId: student.id,
-            studentName: student.name,
-            class: `${student.class} ${student.arm}`,
-            overallGPA: 0,
-            totalExams: 0,
-            passedExams: 0,
-            failedExams: 0,
-            pendingExams: 0,
-            recentResults: [],
-            subjectPerformance: []
-          },
-          message: `No exam results found for ${student.name}. Please implement exam results API endpoint.`,
-          integrations: {
-            studentsApi: '/api/tenant/students'
-          }
-        })
-      }
-
-      // Calculate subject performance
       const subjectMap = new Map<string, ExamResult[]>()
       studentResults.forEach(result => {
-        if (!subjectMap.has(result.subject)) {
-          subjectMap.set(result.subject, [])
-        }
+        if (!subjectMap.has(result.subject)) subjectMap.set(result.subject, [])
         subjectMap.get(result.subject)!.push(result)
       })
 
@@ -108,8 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const scores = results.map(r => r.score)
         const averageScore = scores.reduce((a, b) => a + b, 0) / scores.length
         const bestScore = Math.max(...scores)
-
-        // Simple trend calculation (would be more sophisticated in real app)
         const recentResults = results.slice(-3)
         const trend = recentResults.length >= 2 ?
           (recentResults[recentResults.length - 1].score > recentResults[0].score ? 'improving' :
@@ -126,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const passedExams = studentResults.filter(r => r.status === 'Passed').length
       const failedExams = studentResults.filter(r => r.status === 'Failed').length
-      const pendingExams = studentResults.filter(r => r.status === 'Pending').length
+      const pendingExams = 0
       const overallGPA = studentResults.length > 0 ?
         studentResults.reduce((sum, r) => sum + r.score, 0) / studentResults.length : 0
 
@@ -139,27 +113,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         passedExams,
         failedExams,
         pendingExams,
-        recentResults: studentResults.slice(-5), // Last 5 results
+        recentResults: studentResults.slice(0, 5),
         subjectPerformance
       }
 
-      return res.status(200).json({
-        data: progress,
-        message: `Progress data for ${student.name} retrieved successfully`,
-        integrations: {
-          studentsApi: '/api/tenant/students'
-        }
-      })
+      return res.status(200).json({ data: progress })
     } else {
-      // Get all students progress summary
-      const progressSummaries = allStudents.slice(0, 10).map((student: any) => { // Limit for performance
-        const studentResults = mockExamResults[student.id] || []
-        const passedExams = studentResults.filter((r: any) => r.status === 'Passed').length
-        const failedExams = studentResults.filter((r: any) => r.status === 'Failed').length
+      const studentsRes = await sql`
+        SELECT id, name, class, arm, status FROM students WHERE deleted_at IS NULL
+      `
+      const progressSummaries = []
+      for (const student of studentsRes.rows) {
+        const resultsRes = await sql`
+          SELECT (COALESCE(ca_score,0) + COALESCE(exam_score,0)) AS score
+          FROM results WHERE student_id = ${student.id}
+        `
+        const studentResults = resultsRes.rows
+        const passedExams = studentResults.filter((r: any) => Number(r.score) >= 40).length
+        const failedExams = studentResults.filter((r: any) => Number(r.score) < 40).length
         const overallGPA = studentResults.length > 0 ?
-          studentResults.reduce((sum: number, r: any) => sum + r.score, 0) / studentResults.length : 0
+          studentResults.reduce((sum: number, r: any) => sum + Number(r.score), 0) / studentResults.length : 0
 
-        return {
+        progressSummaries.push({
           studentId: student.id,
           studentName: student.name,
           class: `${student.class} ${student.arm}`,
@@ -168,26 +143,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           passedExams,
           failedExams,
           status: student.status
-        }
-      })
-
-      if (progressSummaries.length === 0 || progressSummaries.every(p => p.totalExams === 0)) {
-        return res.status(200).json({
-          data: progressSummaries,
-          message: 'No exam results data available. Please implement exam results API endpoint.',
-          integrations: {
-            studentsApi: '/api/tenant/students'
-          }
         })
       }
 
-      return res.status(200).json({
-        data: progressSummaries,
-        message: 'Student progress summaries retrieved successfully',
-        integrations: {
-          studentsApi: '/api/tenant/students'
-        }
-      })
+      return res.status(200).json({ data: progressSummaries })
     }
   } catch (error) {
     console.error('Error fetching student progress:', error)

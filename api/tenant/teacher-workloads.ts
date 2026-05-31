@@ -1,40 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchStudents } from './_lib/students.js'
+import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
-
-// Mock teacher data - in real app this would come from teacher API
-interface Teacher {
-  id: string
-  name: string
-  subjects: string[]
-  classes: string[]
-  contractHours: number
-  allocation: number
-  status: 'Active' | 'Inactive'
-}
 
 interface TeacherWorkload {
   teacherId: string
   teacherName: string
   subjects: string[]
-  classes: TeacherClass[]
+  classes: { className: string; subject: string; studentCount: number; periodCount: number }[]
   totalStudents: number
   workloadPercentage: number
   status: string
 }
 
-interface TeacherClass {
-  className: string
-  subject: string
-  studentCount: number
-  periodCount: number
-}
-
-// Mock teacher data - replace with real teacher API
-const mockTeachers: Teacher[] = []
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant teacher workloads
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
@@ -46,113 +24,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Call students API to get student data
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
-    const studentsRes = await fetch(`${baseUrl}/api/tenant/students`)
+    await sql`CREATE TABLE IF NOT EXISTS timetable (
+      id SERIAL PRIMARY KEY, staff_id TEXT, day TEXT, subject TEXT,
+      class_name TEXT, room TEXT, start_time TEXT, end_time TEXT, created_at TIMESTAMP DEFAULT NOW()
+    )`
+    await sql`CREATE TABLE IF NOT EXISTS staff (
+      id TEXT PRIMARY KEY, staff_id TEXT, name TEXT, department TEXT, role TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS subjects TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS contract_hours NUMERIC`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS allocation_periods TEXT`
+    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Active'`
 
-    let allStudents: any[] = []
-    if (studentsRes.ok) {
-      const studentsData = await studentsRes.json()
-      allStudents = studentsData.data || []
-    } else {
-      return res.status(503).json({
-        error: 'Students API unavailable',
-        message: 'Cannot retrieve student data for workload calculations'
-      })
-    }
+    const teachersRes = await sql`
+      SELECT id, name, COALESCE(subjects, '') AS subjects, status FROM staff
+      WHERE role ILIKE '%teacher%' OR role ILIKE '%staff%' ORDER BY name
+    `
+
+    const studentCountsRes = await sql`
+      SELECT class, COUNT(*) AS cnt FROM students WHERE deleted_at IS NULL GROUP BY class
+    `
+    const studentCounts = new Map(studentCountsRes.rows.map(r => [r.class, parseInt(r.cnt)]))
 
     if (teacherId && typeof teacherId === 'string') {
-      // Get specific teacher workload
-      const teacher = mockTeachers.find(t => t.id === teacherId)
+      const teacher = teachersRes.rows.find(t => t.id === teacherId)
       if (!teacher) {
-        return res.status(404).json({
-          error: 'Teacher not found',
-          message: 'No teacher data available. Please implement teacher API endpoint.'
-        })
+        return res.status(404).json({ error: 'Teacher not found' })
       }
 
-      const teacherClasses: TeacherClass[] = teacher.classes.map(className => {
-        const subject = teacher.subjects[0] // Simplified - in real app, map class to subject
-        const classStudents = allStudents.filter(student =>
-          student.class === className.split(' ')[0] && student.arm === className.split(' ')[1]
-        )
+      const ttRes = await sql`
+        SELECT subject, class_name, COUNT(*) AS period_count
+        FROM timetable WHERE staff_id = ${teacherId}
+        GROUP BY subject, class_name
+      `
 
-        return {
-          className,
-          subject,
-          studentCount: classStudents.length,
-          periodCount: 5 // Mock periods per week
-        }
-      })
+      const classes = ttRes.rows.map(r => ({
+        className: r.class_name,
+        subject: r.subject,
+        studentCount: studentCounts.get(r.class_name) || 0,
+        periodCount: parseInt(r.period_count)
+      }))
 
-      const totalStudents = teacherClasses.reduce((sum, cls) => sum + cls.studentCount, 0)
-      const workloadPercentage = (teacher.allocation / teacher.contractHours) * 100
+      const totalStudents = classes.reduce((sum, c) => sum + c.studentCount, 0)
+      const workloadPercentage = Math.min(100, Math.round((classes.length / 30) * 100))
 
       const workload: TeacherWorkload = {
         teacherId: teacher.id,
         teacherName: teacher.name,
-        subjects: teacher.subjects,
-        classes: teacherClasses,
+        subjects: teacher.subjects ? teacher.subjects.split(',') : [],
+        classes,
         totalStudents,
-        workloadPercentage: Math.round(workloadPercentage),
-        status: teacher.status
+        workloadPercentage,
+        status: teacher.status || 'Active'
       }
 
-      return res.status(200).json({
-        data: workload,
-        message: `Workload data for ${teacher.name} retrieved successfully`,
-        integrations: {
-          studentsApi: '/api/tenant/students'
-        }
-      })
+      return res.status(200).json({ data: workload })
     } else {
-      // Get all teacher workloads
-      if (mockTeachers.length === 0) {
-        return res.status(200).json({
-          data: [],
-          message: 'No teacher data available. Please implement teacher API endpoint.',
-          integrations: {
-            studentsApi: '/api/tenant/students'
-          }
-        })
-      }
+      const workloads: TeacherWorkload[] = []
+      for (const teacher of teachersRes.rows) {
+        const ttRes = await sql`
+          SELECT subject, class_name, COUNT(*) AS period_count
+          FROM timetable WHERE staff_id = ${teacher.id}
+          GROUP BY subject, class_name
+        `
+        const classes = ttRes.rows.map(r => ({
+          className: r.class_name,
+          subject: r.subject,
+          studentCount: studentCounts.get(r.class_name) || 0,
+          periodCount: parseInt(r.period_count)
+        }))
 
-      const workloads: TeacherWorkload[] = mockTeachers.map(teacher => {
-        const teacherClasses: TeacherClass[] = teacher.classes.map(className => {
-          const subject = teacher.subjects[0]
-          const classStudents = allStudents.filter((student: any) =>
-            student.class === className.split(' ')[0] && student.arm === className.split(' ')[1]
-          )
+        const totalStudents = classes.reduce((sum, c) => sum + c.studentCount, 0)
+        const workloadPercentage = Math.min(100, Math.round((classes.length / 30) * 100))
 
-          return {
-            className,
-            subject,
-            studentCount: classStudents.length,
-            periodCount: 5
-          }
-        })
-
-        const totalStudents = teacherClasses.reduce((sum, cls) => sum + cls.studentCount, 0)
-        const workloadPercentage = (teacher.allocation / teacher.contractHours) * 100
-
-        return {
+        workloads.push({
           teacherId: teacher.id,
           teacherName: teacher.name,
-          subjects: teacher.subjects,
-          classes: teacherClasses,
+          subjects: teacher.subjects ? teacher.subjects.split(',') : [],
+          classes,
           totalStudents,
-          workloadPercentage: Math.round(workloadPercentage),
-          status: teacher.status
-        }
-      })
+          workloadPercentage,
+          status: teacher.status || 'Active'
+        })
+      }
 
-      return res.status(200).json({
-        data: workloads,
-        message: 'All teacher workloads retrieved successfully',
-        integrations: {
-          studentsApi: '/api/tenant/students'
-        }
-      })
+      return res.status(200).json({ data: workloads })
     }
   } catch (error) {
     console.error('Error fetching teacher workloads:', error)

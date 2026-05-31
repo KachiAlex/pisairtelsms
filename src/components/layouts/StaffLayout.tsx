@@ -17,6 +17,7 @@ import {
   Fingerprint,
   CheckSquare,
   FolderOpen,
+  ClipboardList,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -33,6 +34,7 @@ import { Communications } from '../pages/staff/Communications'
 import { StaffSelfAttendance } from '../pages/staff/StaffSelfAttendance'
 import { StaffTasks } from '../pages/staff/StaffTasks'
 import { StaffDocuments } from '../pages/staff/StaffDocuments'
+import { TeacherAssignments } from '../pages/staff/TeacherAssignments'
 import { NotificationsDropdown } from '../staff/NotificationsDropdown'
 
 interface StaffLayoutProps {
@@ -46,6 +48,7 @@ const navItems = [
   { id: 'attendance', label: 'Mark Attendance', icon: CalendarCheck },
   { id: 'leave', label: 'Leave', icon: Calendar },
   { id: 'tasks', label: 'My Tasks', icon: CheckSquare },
+  { id: 'assignments', label: 'Assignments', icon: ClipboardList },
   { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'payslips', label: 'Payslips', icon: CreditCard },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
@@ -90,6 +93,8 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         return <StaffSelfAttendance />
       case 'tasks':
         return <StaffTasks />
+      case 'assignments':
+        return <TeacherAssignments />
       case 'documents':
         return <StaffDocuments />
       case 'communications':

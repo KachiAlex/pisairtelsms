@@ -90,6 +90,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff_leave (
+        id SERIAL PRIMARY KEY,
+        staff_id VARCHAR(255) NOT NULL,
+        start_date DATE,
+        end_date DATE,
+        reason TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `
 
     // Fetch staff record
     const staffResult = await sql`

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, Suspense } from 'react'
 import {
   Search,
   Filter,
@@ -644,12 +644,16 @@ export default function StudentsList() {
         </DialogContent>
       </Dialog>
 
-      <BulkImportStudents
-        open={isBulkImportOpen}
-        onClose={() => setIsBulkImportOpen(false)}
-        onImport={handleBulkImport}
-        currentStudentCount={students.length}
-      />
+      {isBulkImportOpen && (
+        <Suspense fallback={null}>
+          <BulkImportStudents
+            open={isBulkImportOpen}
+            onClose={() => setIsBulkImportOpen(false)}
+            onImport={handleBulkImport}
+            currentStudentCount={students.length}
+          />
+        </Suspense>
+      )}
 
       {/* Edit Student Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

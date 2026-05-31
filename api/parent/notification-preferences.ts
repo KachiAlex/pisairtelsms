@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../src/lib/parentAuth'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,7 +25,43 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' })
     }
 
-    const response = {
+    await sql`CREATE TABLE IF NOT EXISTS parent_notification_preferences (
+      parent_id TEXT PRIMARY KEY,
+      email_notifications BOOLEAN DEFAULT TRUE,
+      in_app_notifications BOOLEAN DEFAULT TRUE,
+      sms_notifications BOOLEAN DEFAULT FALSE,
+      academic BOOLEAN DEFAULT TRUE,
+      attendance BOOLEAN DEFAULT TRUE,
+      behavioral BOOLEAN DEFAULT TRUE,
+      fees BOOLEAN DEFAULT TRUE,
+      communication BOOLEAN DEFAULT TRUE,
+      health BOOLEAN DEFAULT TRUE,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`
+
+    const result = await sql`
+      SELECT * FROM parent_notification_preferences WHERE parent_id = ${parentInfo.parentId} LIMIT 1
+    `
+
+    if (result.rows[0]) {
+      const r = result.rows[0]
+      return res.status(200).json({
+        emailNotifications: r.email_notifications,
+        inAppNotifications: r.in_app_notifications,
+        smsNotifications: r.sms_notifications,
+        notificationTypes: {
+          academic: r.academic,
+          attendance: r.attendance,
+          behavioral: r.behavioral,
+          fees: r.fees,
+          communication: r.communication,
+          health: r.health,
+        },
+      })
+    }
+
+    // Default response if no record exists
+    return res.status(200).json({
       emailNotifications: true,
       inAppNotifications: true,
       smsNotifications: false,
@@ -36,9 +73,7 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
         communication: true,
         health: true,
       },
-    }
-
-    return res.status(200).json(response)
+    })
   } catch (error) {
     console.error('Error fetching notification preferences:', error)
     return res.status(500).json({ error: 'Failed to fetch preferences' })
@@ -59,7 +94,49 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
 
     const { emailNotifications, inAppNotifications, smsNotifications, notificationTypes } = req.body
 
-    // TODO: Update preferences in database
+    await sql`CREATE TABLE IF NOT EXISTS parent_notification_preferences (
+      parent_id TEXT PRIMARY KEY,
+      email_notifications BOOLEAN DEFAULT TRUE,
+      in_app_notifications BOOLEAN DEFAULT TRUE,
+      sms_notifications BOOLEAN DEFAULT FALSE,
+      academic BOOLEAN DEFAULT TRUE,
+      attendance BOOLEAN DEFAULT TRUE,
+      behavioral BOOLEAN DEFAULT TRUE,
+      fees BOOLEAN DEFAULT TRUE,
+      communication BOOLEAN DEFAULT TRUE,
+      health BOOLEAN DEFAULT TRUE,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`
+
+    await sql`
+      INSERT INTO parent_notification_preferences (
+        parent_id, email_notifications, in_app_notifications, sms_notifications,
+        academic, attendance, behavioral, fees, communication, health
+      ) VALUES (
+        ${parentInfo.parentId},
+        ${emailNotifications ?? true},
+        ${inAppNotifications ?? true},
+        ${smsNotifications ?? false},
+        ${notificationTypes?.academic ?? true},
+        ${notificationTypes?.attendance ?? true},
+        ${notificationTypes?.behavioral ?? true},
+        ${notificationTypes?.fees ?? true},
+        ${notificationTypes?.communication ?? true},
+        ${notificationTypes?.health ?? true}
+      )
+      ON CONFLICT (parent_id) DO UPDATE SET
+        email_notifications = EXCLUDED.email_notifications,
+        in_app_notifications = EXCLUDED.in_app_notifications,
+        sms_notifications = EXCLUDED.sms_notifications,
+        academic = EXCLUDED.academic,
+        attendance = EXCLUDED.attendance,
+        behavioral = EXCLUDED.behavioral,
+        fees = EXCLUDED.fees,
+        communication = EXCLUDED.communication,
+        health = EXCLUDED.health,
+        updated_at = NOW()
+    `
+
     const response = {
       emailNotifications: emailNotifications ?? true,
       inAppNotifications: inAppNotifications ?? true,

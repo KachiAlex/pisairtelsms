@@ -1,47 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
 import { fetchStudents } from './_lib/students.js'
 import { fetchApplications } from './_lib/applications.js'
 import { requireRole } from '../_lib/auth-middleware.js'
-
-// Mock exam data - in real app this would come from exam API
-interface Exam {
-  id: string
-  title: string
-  subject: string
-  class: string
-  status: 'Draft' | 'Scheduled' | 'Ongoing' | 'Completed'
-  date: string
-  participants: number
-}
-
-interface StudentDTO {
-  id: string
-  admissionNo: string
-  name: string
-  class: string
-  arm: string
-  gender: string
-  status: 'Active' | 'Suspended' | 'Graduated'
-  guardian: string
-  phone: string
-  created_at?: string
-  updated_at?: string
-}
 
 interface ClassDashboard {
   className: string
   studentCount: number
   teacherCount: number
   examCount: number
-  students: StudentDTO[]
-  upcomingExams: Exam[]
+  students: any[]
+  upcomingExams: any[]
   recentApplications: any[]
 }
-
-// Mock data for demonstration - replace with real API calls
-const mockTeachers = []
-
-const mockExams: Exam[] = []
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
@@ -59,34 +30,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    await sql`CREATE TABLE IF NOT EXISTS exams (
+      id SERIAL PRIMARY KEY, title TEXT, exam_date DATE, start_time TIME, end_time TIME,
+      room TEXT, student_class TEXT, description TEXT, status TEXT DEFAULT 'Draft', created_at TIMESTAMP DEFAULT NOW()
+    )`
+
     // Fetch students for this class
     const allStudents = await fetchStudents()
-    const classStudents = allStudents.filter(student =>
+    const classStudents = allStudents.filter((student: any) =>
       student.class === className || student.class.startsWith(className.split(' ')[0])
     )
 
     // Fetch recent applications for this class
     const allApplications = await fetchApplications()
     const classApplications = allApplications
-      .filter(app => app.class === className)
-      .slice(0, 5) // Get recent 5
+      .filter((app: any) => app.class === className)
+      .slice(0, 5)
 
-    // Filter teachers and exams for this class
-    const classTeachers = mockTeachers.filter(teacher =>
-      teacher.class === className || teacher.class.startsWith(className.split(' ')[0])
-    )
+    // Count teachers assigned to this class from timetable
+    const teachersRes = await sql`
+      SELECT DISTINCT staff_id FROM timetable
+      WHERE class_name = ${className} OR class_name LIKE ${className + '%'}
+    `
 
-    const classExams = mockExams.filter(exam =>
-      exam.class === className || exam.class.startsWith(className.split(' ')[0])
-    )
+    // Count exams for this class
+    const examsRes = await sql`
+      SELECT id::text, title, exam_date::text AS date, status FROM exams
+      WHERE student_class = ${className} OR student_class LIKE ${className + '%'}
+      ORDER BY exam_date ASC
+    `
 
     const dashboardData: ClassDashboard = {
       className,
       studentCount: classStudents.length,
-      teacherCount: classTeachers.length,
-      examCount: classExams.length,
+      teacherCount: teachersRes.rows.length,
+      examCount: examsRes.rows.length,
       students: classStudents,
-      upcomingExams: classExams.filter(exam => exam.status === 'Scheduled'),
+      upcomingExams: examsRes.rows.filter((exam: any) => exam.status === 'Scheduled'),
       recentApplications: classApplications
     }
 

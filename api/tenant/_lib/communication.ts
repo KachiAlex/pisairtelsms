@@ -48,6 +48,7 @@ export async function ensureCommunicationTable(): Promise<void> {
     await sql`
       CREATE TABLE IF NOT EXISTS announcements (
         id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
         title TEXT NOT NULL,
         body TEXT NOT NULL,
         audience TEXT NOT NULL CHECK (audience IN ('all', 'students', 'staff', 'parents')),
@@ -57,34 +58,36 @@ export async function ensureCommunicationTable(): Promise<void> {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `
+    await sql`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`
     await sql`CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status)`
     await sql`CREATE INDEX IF NOT EXISTS idx_announcements_sent_at ON announcements(sent_at)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcements_tenant ON announcements(tenant_id)`
   } catch (error) {
     console.error('Error ensuring announcements table:', error)
   }
 }
 
-export async function fetchAnnouncements(audience?: string, status?: string): Promise<Announcement[]> {
+export async function fetchAnnouncements(tenantId: string, audience?: string, status?: string): Promise<Announcement[]> {
   await ensureCommunicationTable()
   try {
     if (audience && status) {
       const result = await sql<AnnouncementRow>`
-        SELECT * FROM announcements WHERE audience = ${audience} AND status = ${status} ORDER BY sent_at DESC NULLS LAST, created_at DESC
+        SELECT * FROM announcements WHERE tenant_id = ${tenantId} AND audience = ${audience} AND status = ${status} ORDER BY sent_at DESC NULLS LAST, created_at DESC
       `
       return result.rows.map(rowToAnnouncement)
     } else if (audience) {
       const result = await sql<AnnouncementRow>`
-        SELECT * FROM announcements WHERE audience = ${audience} ORDER BY sent_at DESC NULLS LAST, created_at DESC
+        SELECT * FROM announcements WHERE tenant_id = ${tenantId} AND audience = ${audience} ORDER BY sent_at DESC NULLS LAST, created_at DESC
       `
       return result.rows.map(rowToAnnouncement)
     } else if (status) {
       const result = await sql<AnnouncementRow>`
-        SELECT * FROM announcements WHERE status = ${status} ORDER BY sent_at DESC NULLS LAST, created_at DESC
+        SELECT * FROM announcements WHERE tenant_id = ${tenantId} AND status = ${status} ORDER BY sent_at DESC NULLS LAST, created_at DESC
       `
       return result.rows.map(rowToAnnouncement)
     } else {
       const result = await sql<AnnouncementRow>`
-        SELECT * FROM announcements ORDER BY sent_at DESC NULLS LAST, created_at DESC
+        SELECT * FROM announcements WHERE tenant_id = ${tenantId} ORDER BY sent_at DESC NULLS LAST, created_at DESC
       `
       return result.rows.map(rowToAnnouncement)
     }
@@ -94,13 +97,13 @@ export async function fetchAnnouncements(audience?: string, status?: string): Pr
   }
 }
 
-export async function createAnnouncement(payload: AnnouncementPayload): Promise<Announcement> {
+export async function createAnnouncement(tenantId: string, payload: AnnouncementPayload): Promise<Announcement> {
   await ensureCommunicationTable()
   const id = `ann_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const sentAt = payload.status === 'sent' ? new Date().toISOString() : null
   const result = await sql<AnnouncementRow>`
-    INSERT INTO announcements (id, title, body, audience, sent_by, sent_at, status)
-    VALUES (${id}, ${payload.title}, ${payload.body}, ${payload.audience},
+    INSERT INTO announcements (id, tenant_id, title, body, audience, sent_by, sent_at, status)
+    VALUES (${id}, ${tenantId}, ${payload.title}, ${payload.body}, ${payload.audience},
             ${payload.sentBy || 'Admin'}, ${sentAt}, ${payload.status})
     RETURNING *
   `
@@ -162,11 +165,11 @@ export async function recordAnnouncementRead(
   }
 }
 
-export async function getAnnouncementReadCount(announcementId: string): Promise<number> {
+export async function getAnnouncementReadCount(tenantId: string, announcementId: string): Promise<number> {
   await ensureAnnouncementReadsTable()
   try {
     const result = await sql<{ count: string }>`
-      SELECT COUNT(*) as count FROM announcement_reads WHERE announcement_id = ${announcementId}
+      SELECT COUNT(*) as count FROM announcement_reads WHERE announcement_id = ${announcementId} AND tenant_id = ${tenantId}
     `
     return parseInt(result.rows[0]?.count || '0', 10)
   } catch (error) {
@@ -175,7 +178,7 @@ export async function getAnnouncementReadCount(announcementId: string): Promise<
   }
 }
 
-export async function getAnnouncementReaders(announcementId: string): Promise<AnnouncementRead[]> {
+export async function getAnnouncementReaders(tenantId: string, announcementId: string): Promise<AnnouncementRead[]> {
   await ensureAnnouncementReadsTable()
   try {
     const result = await sql<{
@@ -188,7 +191,7 @@ export async function getAnnouncementReaders(announcementId: string): Promise<An
       tenant_id: string
     }>`
       SELECT * FROM announcement_reads
-      WHERE announcement_id = ${announcementId}
+      WHERE announcement_id = ${announcementId} AND tenant_id = ${tenantId}
       ORDER BY read_at DESC
     `
     return result.rows.map(row => ({

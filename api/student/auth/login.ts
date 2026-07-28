@@ -118,6 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tenantId,
       role: 'student',
       name: student.name,
+      email: student.guardian_email || undefined,
       admissionNo: student.admission_no,
       class: student.class,
       arm: student.arm,

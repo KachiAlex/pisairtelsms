@@ -2,8 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getTeacherSchedules, getTeacherScheduleById, updateTeacherSchedule } from './_lib/teacher-schedules.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
-
 function parseBody(req: VercelRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
@@ -15,6 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
   const { method, query } = req
   const id = query.id as string | undefined
 
@@ -26,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const teacherId = query.teacherId as string | undefined
     const termId = query.termId as string | undefined
-    const schedules = await getTeacherSchedules(TENANT_ID, teacherId, termId)
+    const schedules = await getTeacherSchedules(tenantId, teacherId, termId)
     return res.status(200).json({ data: schedules })
   }
 

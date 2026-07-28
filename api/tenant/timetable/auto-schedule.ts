@@ -3,8 +3,6 @@ import { sql } from '@vercel/postgres'
 import { randomUUID } from 'crypto'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
-
 interface SubjectConfig {
   subjectName: string
   teacherId: string
@@ -42,6 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant'
+
   const body = parseBody(req)
   if (!body) return res.status(400).json({ error: 'Request body is required' })
 
@@ -58,13 +58,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // 1. Get or create the schedule
-    let scheduleResult = await sql`SELECT * FROM timetable_class_schedules WHERE tenant_id = ${TENANT_ID} AND class_id = ${classId} AND term_id = ${termId}`
+    let scheduleResult = await sql`SELECT * FROM timetable_class_schedules WHERE tenant_id = ${tenantId} AND class_id = ${classId} AND term_id = ${termId}`
     let scheduleId: string
     if (scheduleResult.rows[0]) {
       scheduleId = scheduleResult.rows[0].id
     } else {
       scheduleId = randomUUID()
-      await sql`INSERT INTO timetable_class_schedules (id, tenant_id, class_id, term_id) VALUES (${scheduleId}, ${TENANT_ID}, ${classId}, ${termId})`
+      await sql`INSERT INTO timetable_class_schedules (id, tenant_id, class_id, term_id) VALUES (${scheduleId}, ${tenantId}, ${classId}, ${termId})`
     }
 
     // 2. Optionally clear existing entries

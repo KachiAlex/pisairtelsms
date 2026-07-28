@@ -2,8 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getConflicts, resolveConflict } from './_lib/conflicts.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
-
 function parseBody(req: VercelRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
@@ -16,6 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!decoded) return
 
   try {
+    const tenantId = decoded.tenantId || 'default-tenant'
     const { method, query } = req
     const id = query.id as string | undefined
     const action = query.action as string | undefined
@@ -24,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const status = query.status as string | undefined
       const severity = query.severity as string | undefined
       const entityType = query.entityType as string | undefined
-      return res.status(200).json({ data: getConflicts(TENANT_ID, status, severity, entityType) })
+      return res.status(200).json({ data: getConflicts(tenantId, status, severity, entityType) })
     }
 
     // POST /conflicts?id=xxx&action=resolve

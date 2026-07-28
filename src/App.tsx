@@ -64,6 +64,7 @@ const TenantSettings = lazy(() => import('./components/pages/TenantSettings').th
 import { LoginRole } from './components/auth/LoginPanel';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { StudentLayout } from './components/layouts/StudentLayout';
 import { StaffLayout } from './components/layouts/StaffLayout';
 import { ParentLayout } from './components/layouts/ParentLayout';
@@ -429,7 +430,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6"><Suspense fallback={<div className="flex items-center justify-center h-full"><div>Loading...</div></div>}>{renderPage()}</Suspense></main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6"><ErrorBoundary><Suspense fallback={<div className="flex items-center justify-center h-full"><div>Loading...</div></div>}>{renderPage()}</Suspense></ErrorBoundary></main>
       </div>
     </div>
   );
@@ -443,15 +444,15 @@ export default function App() {
           path="/login"
           element={<AccessPortalPage onLoginSuccess={handleLoginSuccess} onBackToMarketing={() => navigate('/')} />}
         />
-        <Route path="/apply" element={<Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense>} />
-        <Route path="/inquiry" element={<Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense>} />
+        <Route path="/apply" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense></ErrorBoundary>} />
+        <Route path="/inquiry" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense></ErrorBoundary>} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
-        <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant_admin">{tenantShell}</ProtectedRoute>} />
-        <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense></ProtectedRoute>} />
+        <Route path="/tenant/*" element={<ProtectedRoute requiredRole="tenant_admin">{tenantShell}</ProtectedRoute>} />
+        <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><ErrorBoundary><Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense></ErrorBoundary></ProtectedRoute>} />
         <Route path="/student/*" element={<RoleBasedRoute allowedRoles={['student']}><StudentLayout /></RoleBasedRoute>} />
         <Route path="/staff/*" element={<RoleBasedRoute allowedRoles={['staff']}><StaffLayout /></RoleBasedRoute>} />
         <Route path="/parent/login" element={<ParentLoginPage />} />
-        <Route path="/parent/*" element={<RoleBasedRoute allowedRoles={['parent']} redirectTo="/parent/login"><ParentContextProvider><Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}><ParentLayout /></Suspense></ParentContextProvider></RoleBasedRoute>} />
+        <Route path="/parent/*" element={<RoleBasedRoute allowedRoles={['parent']} redirectTo="/parent/login"><ParentContextProvider><ErrorBoundary><Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}><ParentLayout /></Suspense></ErrorBoundary></ParentContextProvider></RoleBasedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </BrandingProvider>

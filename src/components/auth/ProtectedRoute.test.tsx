@@ -26,8 +26,8 @@ describe('ProtectedRoute', () => {
       </BrowserRouter>
     )
 
-    // Check that Navigate component redirects (location should change)
-    expect(window.location.pathname).toBe('/')
+    // Check that Navigate component redirects to /login
+    expect(window.location.pathname).toBe('/login')
   })
 
   it('should redirect to /login when token is expired', () => {
@@ -93,6 +93,7 @@ describe('ProtectedRoute', () => {
     mockGetAuthFromStorage.mockReturnValue({
       token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwicm9sZSI6InRlbmFudF9hZG1pbiIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
       tenantId: 'tenant-123',
+      role: 'tenant_admin',
       expiresAt: Date.now() + 3600000,
     })
     mockIsTokenExpired.mockReturnValue(false)

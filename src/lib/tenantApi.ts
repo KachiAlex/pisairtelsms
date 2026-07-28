@@ -1,30 +1,22 @@
 /**
- * Tenant API utility functions with tenant header support
+ * Tenant API utility functions with JWT auth support
  * Used for all tenant-scoped API calls
+ * Tenant ID is sourced from the JWT token on the server side.
  */
-
-const TENANT_ID = 'default-tenant';
 
 function getAuthHeaders(): Record<string, string> {
   try {
     const stored = localStorage.getItem('auth');
     if (stored) {
       const auth = JSON.parse(stored);
-      const headers: Record<string, string> = {
-        'x-tenant-id': auth.tenantId || TENANT_ID,
-      };
-      // Use userId if available, otherwise use email as fallback
-      if (auth.userId) {
-        headers['x-user-id'] = auth.userId;
-      } else if (auth.email) {
-        headers['x-user-id'] = auth.email;
+      if (auth.token) {
+        return { Authorization: `Bearer ${auth.token}` };
       }
-      return headers;
     }
   } catch {
     // fall through
   }
-  return { 'x-tenant-id': TENANT_ID };
+  return {};
 }
 
 interface FetchOptions extends RequestInit {

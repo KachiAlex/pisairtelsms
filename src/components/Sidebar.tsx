@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBranding } from '../contexts/BrandingContext';
+import { getAuthFromStorage } from '../lib/auth';
 import {
   LayoutDashboard,
   Users,
@@ -283,11 +284,7 @@ export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProp
 
         {/* Session Selector */}
         <div className="p-4 border-b border-gray-200">
-          <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option>2025/2026 - First Term</option>
-            <option>2025/2026 - Second Term</option>
-            <option>2024/2025 - Third Term</option>
-          </select>
+          <SessionSelector />
         </div>
 
         {/* Navigation */}
@@ -372,5 +369,70 @@ export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProp
         </ScrollArea>
       </aside>
     </>
+  );
+}
+
+function SessionSelector() {
+  const [sessions, setSessions] = useState<string[]>([]);
+  const [selected, setSelected] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const auth = getAuthFromStorage();
+    if (!auth?.token) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchSessions = async () => {
+      try {
+        const res = await fetch('/api/tenant/timetable/calendar?resource=academic-years', {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled && Array.isArray(data.data)) {
+            const labels = data.data.map((y: any) => y.name || y.label || `${y.startDate?.slice(0, 4)}/${y.endDate?.slice(0, 4)}`);
+            setSessions(labels);
+            if (labels.length > 0) setSelected(labels[0]);
+          }
+        }
+      } catch {
+        // silently ignore — session selector is non-critical
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchSessions();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <select disabled className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-400">
+        <option>Loading sessions...</option>
+      </select>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <select disabled className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-400">
+        <option>No sessions available</option>
+      </select>
+    );
+  }
+
+  return (
+    <select
+      value={selected}
+      onChange={(e) => setSelected(e.target.value)}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
+      {sessions.map((s) => (
+        <option key={s} value={s}>{s}</option>
+      ))}
+    </select>
   );
 }

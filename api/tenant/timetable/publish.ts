@@ -4,8 +4,6 @@ import { getClassSchedules } from './_lib/class-schedules.js'
 import { getExamSchedules } from './_lib/exam-schedules.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
-
 interface PublishedRecord {
   id: string
   scheduleType: 'class' | 'teacher' | 'exam' | 'all'
@@ -28,13 +26,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!decoded) return
 
   try {
+    const tenantId = decoded.tenantId || 'default-tenant'
     const { method, query } = req
 
     // GET /publish/status
     if (method === 'GET') {
-      const openConflicts = getOpenConflictCount(TENANT_ID)
-      const classSchedules = getClassSchedules(TENANT_ID)
-      const examSchedules = getExamSchedules(TENANT_ID)
+      const openConflicts = getOpenConflictCount(tenantId)
+      const classSchedules = getClassSchedules(tenantId)
+      const examSchedules = getExamSchedules(tenantId)
       const readinessPct = openConflicts === 0 ? 95 : Math.max(10, 80 - openConflicts * 10)
       return res.status(200).json({
         data: {
@@ -54,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
 
-      const openConflicts = getOpenConflictCount(TENANT_ID)
+      const openConflicts = getOpenConflictCount(tenantId)
       if (openConflicts > 0) {
         return res.status(400).json({
           error: `Cannot publish: ${openConflicts} unresolved conflict(s) must be resolved first`,

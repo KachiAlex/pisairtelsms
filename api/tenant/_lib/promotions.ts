@@ -84,6 +84,7 @@ export async function ensurePromotionTables(): Promise<void> {
     await sql`
       CREATE TABLE IF NOT EXISTS promotion_records (
         id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
         student_id TEXT NOT NULL,
         student_name TEXT NOT NULL,
         from_class TEXT NOT NULL,
@@ -102,11 +103,13 @@ export async function ensurePromotionTables(): Promise<void> {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `;
+    await sql`ALTER TABLE promotion_records ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`;
 
     // Create promotion_rules table
     await sql`
       CREATE TABLE IF NOT EXISTS promotion_rules (
         id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
         name TEXT NOT NULL,
         conditions JSONB NOT NULL,
         action TEXT NOT NULL CHECK (action IN ('promote', 'review', 'repeat')),
@@ -115,12 +118,16 @@ export async function ensurePromotionTables(): Promise<void> {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `;
+    await sql`ALTER TABLE promotion_rules ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`;
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_promotion_records_tenant ON promotion_records(tenant_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_promotion_rules_tenant ON promotion_rules(tenant_id)`;
 
     // Insert default rules if they don't exist
     for (const rule of defaultPromotionRules) {
       await sql`
-        INSERT INTO promotion_rules (id, name, conditions, action, is_active, created_at, updated_at)
-        VALUES (${rule.id}, ${rule.name}, ${JSON.stringify(rule.conditions)}, ${rule.action}, ${rule.isActive}, ${rule.createdAt}, ${rule.updatedAt})
+        INSERT INTO promotion_rules (id, tenant_id, name, conditions, action, is_active, created_at, updated_at)
+        VALUES (${rule.id}, 'default-tenant', ${rule.name}, ${JSON.stringify(rule.conditions)}, ${rule.action}, ${rule.isActive}, ${rule.createdAt}, ${rule.updatedAt})
         ON CONFLICT (id) DO NOTHING
       `;
     }
@@ -131,21 +138,21 @@ export async function ensurePromotionTables(): Promise<void> {
   }
 }
 
-export async function fetchPromotionRecords(academicSession?: string, term?: string, fromClass?: string): Promise<PromotionRecord[]> {
+export async function fetchPromotionRecords(tenantId: string, academicSession?: string, term?: string, fromClass?: string): Promise<PromotionRecord[]> {
   try {
     await ensurePromotionTables();
 
     if (academicSession && term && fromClass) {
-      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE academic_session = ${academicSession} AND term = ${term} AND from_class = ${fromClass} ORDER BY created_at DESC`;
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession} AND term = ${term} AND from_class = ${fromClass} ORDER BY created_at DESC`;
       return r.rows as unknown as PromotionRecord[];
     } else if (academicSession && term) {
-      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE academic_session = ${academicSession} AND term = ${term} ORDER BY created_at DESC`;
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession} AND term = ${term} ORDER BY created_at DESC`;
       return r.rows as unknown as PromotionRecord[];
     } else if (academicSession) {
-      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE academic_session = ${academicSession} ORDER BY created_at DESC`;
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession} ORDER BY created_at DESC`;
       return r.rows as unknown as PromotionRecord[];
     } else {
-      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records ORDER BY created_at DESC`;
+      const r = await sql`SELECT id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt" FROM promotion_records WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`;
       return r.rows as unknown as PromotionRecord[];
     }
   } catch (error) {
@@ -154,7 +161,7 @@ export async function fetchPromotionRecords(academicSession?: string, term?: str
   }
 }
 
-export async function createPromotionRecord(record: PromotionPayload): Promise<PromotionRecord> {
+export async function createPromotionRecord(tenantId: string, record: PromotionPayload): Promise<PromotionRecord> {
   try {
     await ensurePromotionTables();
 
@@ -162,12 +169,12 @@ export async function createPromotionRecord(record: PromotionPayload): Promise<P
 
     const result = await sql<PromotionRecord>`
       INSERT INTO promotion_records (
-        id, student_id, student_name, from_class, to_class, action,
+        id, tenant_id, student_id, student_name, from_class, to_class, action,
         academic_session, term, average_score, attendance,
         teacher_recommendation, reason
       )
       VALUES (
-        ${id}, ${record.studentId}, ${record.studentName}, ${record.fromClass},
+        ${id}, ${tenantId}, ${record.studentId}, ${record.studentName}, ${record.fromClass},
         ${record.toClass}, ${record.action}, ${record.academicSession}, ${record.term},
         ${record.averageScore}, ${record.attendance}, ${record.teacherRecommendation}, ${record.reason}
       )
@@ -198,12 +205,12 @@ export async function createPromotionRecord(record: PromotionPayload): Promise<P
   }
 }
 
-export async function createBulkPromotionRecords(records: PromotionPayload[]): Promise<PromotionRecord[]> {
+export async function createBulkPromotionRecords(tenantId: string, records: PromotionPayload[]): Promise<PromotionRecord[]> {
   try {
     const createdRecords: PromotionRecord[] = [];
 
     for (const record of records) {
-      const createdRecord = await createPromotionRecord(record);
+      const createdRecord = await createPromotionRecord(tenantId, record);
       createdRecords.push(createdRecord);
     }
 
@@ -214,7 +221,7 @@ export async function createBulkPromotionRecords(records: PromotionPayload[]): P
   }
 }
 
-export async function updatePromotionRecord(id: string, updates: Partial<PromotionPayload & { status: string; approvedBy?: string }>): Promise<PromotionRecord | null> {
+export async function updatePromotionRecord(tenantId: string, id: string, updates: Partial<PromotionPayload & { status: string; approvedBy?: string }>): Promise<PromotionRecord | null> {
   try {
     await ensurePromotionTables();
     const client = await db.connect();
@@ -235,8 +242,9 @@ export async function updatePromotionRecord(id: string, updates: Partial<Promoti
       }
       if (setClauses.length === 0) throw new Error('No fields to update');
       values.push(id);
+      values.push(tenantId);
       const result = await client.query(
-        `UPDATE promotion_records SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt"`,
+        `UPDATE promotion_records SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt"`,
         values
       );
       return result.rows.length > 0 ? result.rows[0] : null;
@@ -249,7 +257,7 @@ export async function updatePromotionRecord(id: string, updates: Partial<Promoti
   }
 }
 
-export async function fetchPromotionRules(): Promise<PromotionRule[]> {
+export async function fetchPromotionRules(tenantId: string): Promise<PromotionRule[]> {
   try {
     await ensurePromotionTables();
 
@@ -263,6 +271,7 @@ export async function fetchPromotionRules(): Promise<PromotionRule[]> {
         created_at as "createdAt",
         updated_at as "updatedAt"
       FROM promotion_rules
+      WHERE tenant_id = ${tenantId}
       ORDER BY created_at ASC
     `;
 
@@ -273,7 +282,7 @@ export async function fetchPromotionRules(): Promise<PromotionRule[]> {
   }
 }
 
-export async function updatePromotionRule(id: string, updates: Partial<PromotionRule>): Promise<PromotionRule | null> {
+export async function updatePromotionRule(tenantId: string, id: string, updates: Partial<PromotionRule>): Promise<PromotionRule | null> {
   try {
     await ensurePromotionTables();
     const client = await db.connect();
@@ -287,8 +296,9 @@ export async function updatePromotionRule(id: string, updates: Partial<Promotion
       if (updates.isActive !== undefined) { setClauses.push(`is_active = $${i++}`); values.push(updates.isActive); }
       if (setClauses.length === 0) throw new Error('No fields to update');
       values.push(id);
+      values.push(tenantId);
       const result = await client.query(
-        `UPDATE promotion_rules SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING id, name, conditions, action, is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"`,
+        `UPDATE promotion_rules SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING id, name, conditions, action, is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"`,
         values
       );
       return result.rows.length > 0 ? result.rows[0] : null;

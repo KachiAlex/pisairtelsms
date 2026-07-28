@@ -24,6 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { studentId, academicSession, term, class: className } = req.query
     try {
       const scores = await fetchScores(
+        decoded.tenantId || 'default-tenant',
         studentId as string | undefined,
         academicSession as string | undefined,
         term as string | undefined,
@@ -79,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         attendancePercentage: Number(attendancePercentage),
         class: className,
       }
-      const score = await createScore(payload)
+      const score = await createScore(decoded.tenantId || 'default-tenant', payload)
       return res.status(201).json({ data: score })
     } catch (error) {
       console.error('Error creating score:', error)

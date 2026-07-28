@@ -5,8 +5,6 @@ import {
 } from './_lib/class-schedules.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
-
 function parseBody(req: VercelRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
@@ -18,6 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
   const { method, query } = req
   const scheduleId = query.scheduleId as string | undefined
   const entryId = query.entryId as string | undefined
@@ -31,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const classId = query.classId as string | undefined
     const termId = query.termId as string | undefined
-    return res.status(200).json({ data: getClassSchedules(TENANT_ID, classId, termId) })
+    return res.status(200).json({ data: getClassSchedules(tenantId, classId, termId) })
   }
 
   // POST /class-schedules — create schedule
@@ -40,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!body) return res.status(400).json({ error: 'Request body is required' })
     const { classId, termId } = body
     if (!classId || !termId) return res.status(400).json({ error: 'classId and termId are required' })
-    return res.status(201).json({ data: createClassSchedule(TENANT_ID, classId, termId) })
+    return res.status(201).json({ data: createClassSchedule(tenantId, classId, termId) })
   }
 
   // POST /class-schedules?scheduleId=xxx — add entry

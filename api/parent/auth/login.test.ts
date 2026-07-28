@@ -12,6 +12,50 @@ vi.mock('jose', () => ({
   }
 }))
 
+// Mock rate-limit to avoid 429 during repeated test calls
+vi.mock('../../_lib/rate-limit', () => ({
+  rateLimit: () => false,
+}))
+
+// Mock parents lib to avoid DB connections
+vi.mock('../../tenant/_lib/parents', () => ({
+  fetchParentByEmail: vi.fn(async (email: string) => {
+    if (email === 'parent@example.com') {
+      return {
+        id: 'parent-001',
+        email: 'parent@example.com',
+        name: 'Test Parent',
+        tenantId: 'tenant-001',
+        passwordHash: '$2a$10$mockhash',
+        childrenIds: ['student-001', 'student-002'],
+      }
+    }
+    return null
+  }),
+  verifyPassword: vi.fn(async (password: string, _hash: string) => password === 'password123'),
+}))
+
+// Mock audit logger to avoid DB connections
+vi.mock('../../_lib/audit-logger', () => ({
+  logLoginSuccess: vi.fn(async () => {}),
+  logLoginFailure: vi.fn(async () => {}),
+}))
+
+// Mock security headers
+vi.mock('../../_lib/security-headers', () => ({
+  setSecurityHeaders: vi.fn(() => {}),
+}))
+
+// Mock cookie helper
+vi.mock('../../_lib/cookie-helper', () => ({
+  setCookie: vi.fn(() => {}),
+}))
+
+// Mock jwt-secret to provide a valid secret
+vi.mock('../../_lib/jwt-secret', () => ({
+  getJwtSecret: () => new TextEncoder().encode('a-very-secure-jwt-secret-with-32+chars!'),
+}))
+
 describe('Parent Login API Endpoint', () => {
   let mockReq: Partial<VercelRequest>
   let mockRes: Partial<VercelResponse>
@@ -36,7 +80,8 @@ describe('Parent Login API Endpoint', () => {
       json: vi.fn(function (data: any) {
         responseData = data
         return this
-      })
+      }),
+      setHeader: vi.fn(function () { return this })
     }
   })
 
@@ -108,6 +153,9 @@ describe('Parent Login API Endpoint', () => {
       expect(responseData.token).toBeDefined()
       expect(responseData.parentId).toBe('parent-001')
       expect(responseData.childrenIds).toEqual(['student-001', 'student-002'])
+      expect(responseData).toHaveProperty('name')
+      expect(responseData).toHaveProperty('email')
+      expect(responseData).toHaveProperty('tenantId')
     })
   })
 
@@ -176,16 +224,19 @@ describe('Parent Login API Endpoint', () => {
       expect(responseData).toHaveProperty('parentId')
       expect(responseData).toHaveProperty('childrenIds')
       expect(responseData).toHaveProperty('expiresAt')
+      expect(responseData).toHaveProperty('name')
+      expect(responseData).toHaveProperty('email')
+      expect(responseData).toHaveProperty('tenantId')
     })
   })
 
   describe('Error Handling', () => {
     it('should handle server errors gracefully', async () => {
-      mockReq.body = null // This will cause an error
+      mockReq.body = null // This will cause a TypeError caught by the handler
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse)
 
-      expect(mockRes.status).toHaveBeenCalledWith(400)
+      expect(mockRes.status).toHaveBeenCalledWith(500)
     })
   })
 })

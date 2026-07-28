@@ -45,7 +45,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const { academicSession, term, fromClass } = req.query
 
+      const tenantId = decoded.tenantId || 'default-tenant'
       const records = await fetchPromotionRecords(
+        tenantId,
         academicSession as string,
         term as string,
         fromClass as string
@@ -69,12 +71,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (Array.isArray(body.records)) {
         // Bulk create
         const records: PromotionPayload[] = body.records
-        const createdRecords = await createBulkPromotionRecords(records)
+        const createdRecords = await createBulkPromotionRecords(decoded.tenantId || 'default-tenant', records)
         return res.status(201).json({ data: createdRecords })
       } else {
         // Single create
         const record: PromotionPayload = body.record || body
-        const createdRecord = await createPromotionRecord(record)
+        const createdRecord = await createPromotionRecord(decoded.tenantId || 'default-tenant', record)
         return res.status(201).json({ data: createdRecord })
       }
     } catch (error) {
@@ -91,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const { id, ...updateData } = body
-      const updatedRecord = await updatePromotionRecord(id, updateData)
+      const updatedRecord = await updatePromotionRecord(decoded.tenantId || 'default-tenant', id, updateData)
 
       if (!updatedRecord) {
         return res.status(404).json({ error: 'Promotion record not found' })

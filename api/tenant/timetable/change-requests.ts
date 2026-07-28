@@ -2,8 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getChangeRequests, createChangeRequest, updateChangeRequest, type ChangeRequestStatus } from './_lib/change-requests.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
-
 function parseBody(req: VercelRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
@@ -16,12 +14,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!decoded) return
 
   try {
+    const tenantId = decoded.tenantId || 'default-tenant'
     const { method, query } = req
     const id = query.id as string | undefined
 
     if (method === 'GET') {
       const status = query.status as string | undefined
-      return res.status(200).json({ data: getChangeRequests(TENANT_ID, status) })
+      return res.status(200).json({ data: getChangeRequests(tenantId, status) })
     }
 
     if (method === 'POST') {
@@ -32,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'requesterId, entityType, entityId, changeDescription are required' })
       }
       return res.status(201).json({
-        data: createChangeRequest(TENANT_ID, {
+        data: createChangeRequest(tenantId, {
           requesterId,
           requesterName: requesterName || requesterId,
           entityType,

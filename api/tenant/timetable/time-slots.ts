@@ -3,7 +3,6 @@ import { getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot, timeSlots
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
 let migrationsInitialized = false
 
 function parseBody(req: VercelRequest) {
@@ -32,9 +31,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { method, query } = req
     const id = query.id as string | undefined
 
+    const tenantId = decoded.tenantId || 'default-tenant'
     if (method === 'GET') {
       const dayOfWeek = query.dayOfWeek !== undefined ? Number(query.dayOfWeek) : undefined
-      const slots = await getTimeSlots(TENANT_ID, dayOfWeek)
+      const slots = await getTimeSlots(tenantId, dayOfWeek)
       return res.status(200).json({ data: slots })
     }
 
@@ -49,13 +49,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const { name, startTime, endTime, dayOfWeek, isBreak, sequence } = slot
           if (!name || !startTime || !endTime || dayOfWeek === undefined) continue
           if (startTime >= endTime) continue
-          if (await timeSlotsOverlap(TENANT_ID, dayOfWeek, startTime, endTime)) continue
+          if (await timeSlotsOverlap(tenantId, dayOfWeek, startTime, endTime)) continue
           const start = new Date(`1970-01-01T${startTime}:00`)
           const end = new Date(`1970-01-01T${endTime}:00`)
           const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
-          const existing = await getTimeSlots(TENANT_ID, dayOfWeek)
+          const existing = await getTimeSlots(tenantId, dayOfWeek)
           const seq = sequence ?? (existing.length + 1)
-          const newSlot = await createTimeSlot(TENANT_ID, { name, startTime, endTime, durationMinutes, dayOfWeek, isBreak: !!isBreak, sequence: seq })
+          const newSlot = await createTimeSlot(tenantId, { name, startTime, endTime, durationMinutes, dayOfWeek, isBreak: !!isBreak, sequence: seq })
           created.push(newSlot)
         }
         return res.status(201).json({ data: created })
@@ -69,15 +69,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (startTime >= endTime) {
         return res.status(400).json({ error: 'startTime must be before endTime' })
       }
-      if (await timeSlotsOverlap(TENANT_ID, dayOfWeek, startTime, endTime)) {
+      if (await timeSlotsOverlap(tenantId, dayOfWeek, startTime, endTime)) {
         return res.status(400).json({ error: 'Time slot overlaps with an existing slot on this day' })
       }
       const start = new Date(`1970-01-01T${startTime}:00`)
       const end = new Date(`1970-01-01T${endTime}:00`)
       const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
-      const existing = await getTimeSlots(TENANT_ID, dayOfWeek)
+      const existing = await getTimeSlots(tenantId, dayOfWeek)
       const seq = sequence ?? (existing.length + 1)
-      const newSlot = await createTimeSlot(TENANT_ID, { name, startTime, endTime, durationMinutes, dayOfWeek, isBreak: !!isBreak, sequence: seq })
+      const newSlot = await createTimeSlot(tenantId, { name, startTime, endTime, durationMinutes, dayOfWeek, isBreak: !!isBreak, sequence: seq })
       return res.status(201).json({
         data: newSlot,
       })

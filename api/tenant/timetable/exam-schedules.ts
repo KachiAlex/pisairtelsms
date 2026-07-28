@@ -5,8 +5,6 @@ import {
 } from './_lib/exam-schedules.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
-
 function parseBody(req: VercelRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
@@ -18,6 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
   const { method, query } = req
   const examId = query.examId as string | undefined
   const action = query.action as string | undefined  // 'hall-assignments' | 'invigilators'
@@ -25,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // GET /exam-schedules?halls=true — list halls
   if (method === 'GET' && query.halls === 'true') {
-    return res.status(200).json({ data: getExamHalls(TENANT_ID) })
+    return res.status(200).json({ data: getExamHalls(tenantId) })
   }
 
   // GET /exam-schedules or GET /exam-schedules?examId=xxx
@@ -37,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const examPeriodId = query.examPeriodId as string | undefined
     const subjectId = query.subjectId as string | undefined
-    return res.status(200).json({ data: getExamSchedules(TENANT_ID, examPeriodId, subjectId) })
+    return res.status(200).json({ data: getExamSchedules(tenantId, examPeriodId, subjectId) })
   }
 
   // POST /exam-schedules — create exam
@@ -53,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const end = new Date(`1970-01-01T${endTime}:00`)
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
     return res.status(201).json({
-      data: createExamSchedule(TENANT_ID, { examPeriodId, subjectId, subjectName: subjectName || subjectId, examDate, startTime, endTime, durationMinutes, examType }),
+      data: createExamSchedule(tenantId, { examPeriodId, subjectId, subjectName: subjectName || subjectId, examDate, startTime, endTime, durationMinutes, examType }),
     })
   }
 

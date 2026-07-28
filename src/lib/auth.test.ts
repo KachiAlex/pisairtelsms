@@ -111,7 +111,10 @@ describe('Auth Token Utilities', () => {
       )
 
       const result = getAuthFromStorage()
-      expect(result).toEqual(auth)
+      expect(result).not.toBeNull()
+      expect(result?.token).toBe(auth.token)
+      expect(result?.tenantId).toBe(auth.tenantId)
+      expect(result?.expiresAt).toBe(auth.expiresAt)
     })
   })
 

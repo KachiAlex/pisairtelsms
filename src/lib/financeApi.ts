@@ -1,20 +1,18 @@
 /**
- * Finance API utility functions with tenant header support
+ * Finance API utility functions with JWT auth support
  */
 
-function getTenantId(): string {
+function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
-    const auth = localStorage.getItem('auth')
-    if (auth) {
-      try {
+    try {
+      const auth = localStorage.getItem('auth')
+      if (auth) {
         const parsed = JSON.parse(auth)
-        if (parsed.tenantId) return parsed.tenantId
-      } catch { /* ignore */ }
-    }
-    const tenantId = localStorage.getItem('tenantId')
-    if (tenantId) return tenantId
+        if (parsed.token) return parsed.token
+      }
+    } catch { /* ignore */ }
   }
-  return 'default-tenant'
+  return null
 }
 
 interface FetchOptions extends RequestInit {
@@ -25,8 +23,9 @@ export async function financeApiFetch(
   url: string,
   options: FetchOptions = {}
 ): Promise<Response> {
+  const token = getAuthToken()
   const headers = {
-    'x-tenant-id': getTenantId(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 

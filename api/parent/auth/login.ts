@@ -17,6 +17,9 @@ interface LoginResponse {
   token: string
   parentId: string
   childrenIds: string[]
+  name?: string
+  email?: string
+  tenantId?: string
   expiresAt: number
 }
 
@@ -83,6 +86,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       token,
       parentId: parent.id,
       childrenIds: parent.childrenIds,
+      name: parent.name,
+      email: parent.email,
+      tenantId,
       expiresAt
     }
 

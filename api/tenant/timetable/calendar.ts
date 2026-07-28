@@ -8,7 +8,6 @@ import {
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-const TENANT_ID = 'demo-tenant-001'
 let migrationsInitialized = false
 
 function parseBody(req: VercelRequest) {
@@ -34,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { method, query } = req
-  const tenantId = (req.headers['x-tenant-id'] as string) || TENANT_ID
+  const tenantId = decoded.tenantId || 'default-tenant'
   
   // Route: /api/tenant/timetable/calendar?resource=terms|holidays|exam-periods
   const resource = (query.resource as string) || 'all'

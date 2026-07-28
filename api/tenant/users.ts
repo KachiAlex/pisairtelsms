@@ -2,27 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
 
-async function ensureUsersTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS tenant_users (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      tenant_id VARCHAR(255) NOT NULL DEFAULT 'default-tenant',
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255) NOT NULL,
-      role VARCHAR(255) NOT NULL DEFAULT 'Staff',
-      status VARCHAR(50) NOT NULL DEFAULT 'invited',
-      last_active TIMESTAMP WITH TIME ZONE,
-      invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `
-}
-
-function getHeaders(req: VercelRequest, decodedTenantId?: string) {
-  return {
-    tenantId: decodedTenantId || 'default-tenant',
-    userId: (req.headers['x-user-id'] as string) || 'system',
-  }
+function getTenantId(decodedTenantId?: string) {
+  return decodedTenantId || 'default-tenant'
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -30,13 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  try {
-    await ensureUsersTable()
-  } catch (e) {
-    console.error('ensureUsersTable failed', e)
-  }
-
-  const { tenantId } = getHeaders(req, decoded.tenantId)
+  const tenantId = getTenantId(decoded.tenantId)
 
   if (req.method === 'GET') {
     try {

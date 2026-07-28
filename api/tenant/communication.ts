@@ -23,8 +23,8 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-function getTenantId(req: VercelRequest): string {
-  return (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
+function getTenantId(decodedTenantId?: string): string {
+  return decodedTenantId || 'default-tenant'
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -40,9 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Return readers for a specific announcement
     if (id && typeof id === 'string') {
       try {
+        const tenantId = getTenantId(decoded.tenantId)
         const [readCount, readers] = await Promise.all([
-          getAnnouncementReadCount(id),
-          getAnnouncementReaders(id),
+          getAnnouncementReadCount(tenantId, id),
+          getAnnouncementReaders(tenantId, id),
         ])
         return res.status(200).json({ data: { readCount, readers } })
       } catch (error) {
@@ -52,11 +53,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const announcements = await fetchAnnouncements(audience as string | undefined, status as string | undefined)
+      const tenantId = getTenantId(decoded.tenantId)
+      const announcements = await fetchAnnouncements(tenantId, audience as string | undefined, status as string | undefined)
       // Attach read counts to each announcement
       const announcementsWithReads = await Promise.all(
         announcements.map(async (ann) => {
-          const readCount = await getAnnouncementReadCount(ann.id)
+          const readCount = await getAnnouncementReadCount(tenantId, ann.id)
           return { ...ann, readCount }
         })
       )
@@ -88,8 +90,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      const tenantId = getTenantId(decoded.tenantId)
       const payload: AnnouncementPayload = { title, body: announcementBody, audience, status, sentBy: body.sentBy }
-      const announcement = await createAnnouncement(payload)
+      const announcement = await createAnnouncement(tenantId, payload)
       return res.status(201).json({ data: { ...announcement, readCount: 0 } })
     } catch (error) {
       console.error('Error creating announcement:', error)
@@ -109,10 +112,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'readerType must be one of: student, parent, staff' })
     }
 
-    const tenantId = getTenantId(req)
+    const tenantId = getTenantId(decoded.tenantId)
     try {
       await recordAnnouncementRead(announcementId, readerId, readerType, readerName || 'Unknown', tenantId)
-      const readCount = await getAnnouncementReadCount(announcementId)
+      const readCount = await getAnnouncementReadCount(tenantId, announcementId)
       return res.status(200).json({ success: true, readCount })
     } catch (error) {
       console.error('Error recording read:', error)

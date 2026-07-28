@@ -357,6 +357,7 @@ model StudentAnswer {
   id            String   @id @default(cuid())
   resultId      String
   questionId    String
+  studentId     String
   studentAnswer String?  @db.Text
   correctAnswer String?
   isCorrect     Boolean
@@ -364,11 +365,13 @@ model StudentAnswer {
   totalMarks    Decimal  @db.Decimal(5, 2)
   createdAt     DateTime @default(now())
 
-  result ExamResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
-  question QuestionBank @relation(fields: [questionId], references: [id])
+  result   ExamResult    @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  question QuestionBank  @relation(fields: [questionId], references: [id])
+  student  User          @relation(fields: [studentId], references: [id])
 
   @@index([resultId])
   @@index([questionId])
+  @@index([studentId])
   @@map("student_answers")
 }
 
@@ -378,6 +381,7 @@ model StudentAnswer {
 
 model SecuritySettings {
   id                    String   @id @default(cuid())
+  tenantId              String
   examId                String   @unique
   enableProctoring      Boolean  @default(false)
   disableCopyPaste      Boolean  @default(false)
@@ -390,8 +394,10 @@ model SecuritySettings {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([examId])
   @@map("security_settings")
 }
@@ -959,15 +965,18 @@ model Task {
 
 model TaskComment {
   id        String   @id @default(cuid())
+  tenantId  String
   taskId    String
   userId    String
   text      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id])
 
+  @@index([tenantId])
   @@index([taskId])
   @@index([userId])
   @@map("task_comments")

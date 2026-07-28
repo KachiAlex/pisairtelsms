@@ -1,0 +1,688 @@
+import React, { useState, useEffect } from 'react'
+import { ClipboardList, Users, CheckCircle2, AlertTriangle, Plus, CalendarClock, Kanban, Send, Edit3, Loader2 } from 'lucide-react'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
+import { Progress } from '../ui/progress'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog'
+import { Label } from '../ui/label'
+import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select'
+
+interface Task {
+  id: string
+  title: string
+  status: string
+  priority: string
+  assigned_to: string | null
+  assigned_to_name: string | null
+  due_date: string | null
+}
+
+interface Squad {
+  id: string
+  squad_name: string
+  owner: string
+  focus: string | null
+  risk: string
+  task_count: number
+}
+
+interface Workstream {
+  id: string
+  label: string
+  progress: number
+  blockers: number
+  next_milestone: string | null
+}
+
+interface Reminder {
+  id: string
+  message: string
+  severity: string
+  due_date: string
+}
+
+interface TaskStats {
+  totalTasks: number
+  openTasks: number
+  inProgressTasks: number
+  completedTasks: number
+  highPriorityTasks: number
+  dueToday: number
+  overdueTasks: number
+  completionRateThisWeek: number
+  totalSquads: number
+  onTrackSquads: number
+  atRiskSquads: number
+}
+
+const priorityPill: Record<string, 'default' | 'warning' | 'destructive'> = {
+  high: 'destructive',
+  medium: 'warning',
+  low: 'default',
+}
+
+const riskBadge: Record<string, 'default' | 'warning' | 'destructive'> = {
+  low: 'default',
+  medium: 'warning',
+  high: 'destructive',
+}
+
+export function TaskManagement() {
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<TaskStats | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [squads, setSquads] = useState<Squad[]>([])
+  const [workstreams, setWorkstreams] = useState<Workstream[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
+
+  // Modal states
+  const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [createSquadOpen, setCreateSquadOpen] = useState(false)
+  const [createWorkstreamOpen, setCreateWorkstreamOpen] = useState(false)
+  const [digestSending, setDigestSending] = useState(false)
+  const [smartTriageEnabled, setSmartTriageEnabled] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Form states
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    assignedTo: '',
+    dueDate: '',
+  })
+
+  const [squadForm, setSquadForm] = useState({
+    squadName: '',
+    owner: '',
+    focus: '',
+    risk: 'low',
+  })
+
+  const [workstreamForm, setWorkstreamForm] = useState({
+    label: '',
+    nextMilestone: '',
+  })
+  const [error, setError] = useState<string | null>(null)
+
+  const getAuth = () => {
+    try {
+      const stored = localStorage.getItem('auth')
+      if (stored) {
+        const auth = JSON.parse(stored)
+        return {
+          tenantId: auth.tenantId || 'default-tenant',
+          userId: auth.userId || auth.email || 'system',
+          token: auth.token || null,
+        }
+      }
+    } catch { /* fall through */ }
+    return { tenantId: 'default-tenant', userId: 'system', token: null }
+  }
+
+  const getApiHeaders = (): Record<string, string> => {
+    const { tenantId, userId, token } = getAuth()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-tenant-id': tenantId,
+      'x-user-id': userId,
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return headers
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    setError(null)
+    const headers = getApiHeaders()
+
+    try {
+      // Fetch statistics
+      const statsRes = await fetch('/api/tenant/tasks/statistics', { headers })
+      const statsData = await statsRes.json()
+      if (statsData.success) setStats(statsData.data)
+      else if (statsData.error) setError(statsData.error)
+
+      // Fetch tasks
+      const tasksRes = await fetch('/api/tenant/tasks?limit=10', { headers })
+      const tasksData = await tasksRes.json()
+      if (tasksData.success) setTasks(tasksData.data)
+      else if (tasksData.error) setError(tasksData.error)
+
+      // Fetch squads
+      const squadsRes = await fetch('/api/tenant/tasks/squads', { headers })
+      const squadsData = await squadsRes.json()
+      if (squadsData.success) setSquads(squadsData.data)
+      else if (squadsData.error) setError(squadsData.error)
+
+      // Fetch workstreams
+      const workstreamsRes = await fetch('/api/tenant/tasks/workstreams', { headers })
+      const workstreamsData = await workstreamsRes.json()
+      if (workstreamsData.success) setWorkstreams(workstreamsData.data)
+      else if (workstreamsData.error) setError(workstreamsData.error)
+
+      // Fetch reminders
+      const remindersRes = await fetch('/api/tenant/tasks/reminders', { headers })
+      const remindersData = await remindersRes.json()
+      if (remindersData.success) setReminders(remindersData.data)
+      else if (remindersData.error) setError(remindersData.error)
+    } catch (err) {
+      console.error('Error fetching data:', err)
+      setError('Failed to load task management data. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const resetTaskForm = () => setTaskForm({ title: '', description: '', priority: 'medium', assignedTo: '', dueDate: '' })
+  const resetSquadForm = () => setSquadForm({ squadName: '', owner: '', focus: '', risk: 'low' })
+  const resetWorkstreamForm = () => setWorkstreamForm({ label: '', nextMilestone: '' })
+
+  const handleCreateTask = async () => {
+    if (!taskForm.title.trim()) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/tenant/tasks', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          assignedTo: taskForm.assignedTo || undefined,
+          dueDate: taskForm.dueDate || undefined,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to create task')
+        return
+      }
+      setCreateTaskOpen(false)
+      resetTaskForm()
+      fetchData()
+    } catch (err) {
+      console.error('Error creating task:', err)
+      setError('Failed to create task. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreateSquad = async () => {
+    if (!squadForm.squadName.trim() || !squadForm.owner.trim()) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/tenant/tasks/squads', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          squadName: squadForm.squadName,
+          owner: squadForm.owner,
+          focus: squadForm.focus || undefined,
+          risk: squadForm.risk,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to create squad')
+        return
+      }
+      setCreateSquadOpen(false)
+      resetSquadForm()
+      fetchData()
+    } catch (err) {
+      console.error('Error creating squad:', err)
+      setError('Failed to create squad. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreateWorkstream = async () => {
+    if (!workstreamForm.label.trim()) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/tenant/tasks/workstreams', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          label: workstreamForm.label,
+          nextMilestone: workstreamForm.nextMilestone || undefined,
+          progress: 0,
+          blockers: 0,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to create workstream')
+        return
+      }
+      setCreateWorkstreamOpen(false)
+      resetWorkstreamForm()
+      fetchData()
+    } catch (err) {
+      console.error('Error creating workstream:', err)
+      setError('Failed to create workstream. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleSendDigest = async () => {
+    setDigestSending(true)
+    setError(null)
+    try {
+      const squadMessages = squads.map(s =>
+        `${s.squad_name}: ${s.task_count} tasks • Risk: ${s.risk} • Focus: ${s.focus || 'N/A'}`
+      ).join('\n')
+
+      const res = await fetch('/api/tenant/tasks/notifications', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          title: 'Squad Digest',
+          message: `Weekly squad digest:\n\n${squadMessages}`,
+          type: 'info',
+        })
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Failed to send digest')
+        return
+      }
+    } catch (err) {
+      console.error('Error sending digest:', err)
+      setError('Failed to send digest. Please try again.')
+    } finally {
+      setDigestSending(false)
+    }
+  }
+
+  const handleExportCalendar = () => {
+    const upcoming = tasks.filter(t => t.due_date && new Date(t.due_date) >= new Date())
+    if (upcoming.length === 0) {
+      alert('No upcoming deadlines to export')
+      return
+    }
+    const escapeCsv = (value: string) => {
+      const str = String(value ?? '')
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+    const csv = [
+      'Title,Owner,Due Date,Priority,Status',
+      ...upcoming.map(t =>
+        `${escapeCsv(t.title)},${escapeCsv(t.assigned_to_name || t.assigned_to || 'Unassigned')},${escapeCsv(t.due_date ? new Date(t.due_date).toLocaleDateString() : '')},${escapeCsv(t.priority)},${escapeCsv(t.status)}`
+      ),
+    ].join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `task-calendar-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleEnableSmartTriage = () => {
+    setSmartTriageEnabled(prev => !prev)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p>{error}</p>
+          <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-red-700 hover:bg-red-100" onClick={() => setError(null)}>Dismiss</Button>
+        </div>
+      )}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Notifications & tasks</p>
+          <h1 className="text-2xl font-bold text-gray-900">Task management</h1>
+          <p className="text-sm text-gray-600">Coordinate cross-functional workstreams, monitor blockers, and broadcast nudges.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="outline" onClick={() => { resetSquadForm(); setCreateSquadOpen(true) }}>
+            <Edit3 className="h-4 w-4 mr-2" /> Create squad
+          </Button>
+          <Button onClick={() => { resetTaskForm(); setCreateTaskOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" /> New task
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Open tasks</p>
+            <p className="text-3xl font-semibold text-gray-900">{stats?.openTasks || 0}</p>
+            <p className="text-xs text-gray-500">{stats?.dueToday || 0} due today</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Completed this week</p>
+            <p className="text-3xl font-semibold text-emerald-600">{stats?.completionRateThisWeek || 0}%</p>
+            <p className="text-xs text-gray-500">Real-time data</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">High priority</p>
+            <p className="text-3xl font-semibold text-rose-600">{stats?.highPriorityTasks || 0}</p>
+            <p className="text-xs text-gray-500">{stats?.overdueTasks || 0} overdue</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">On-track squads</p>
+            <p className="text-3xl font-semibold text-gray-900">{stats?.onTrackSquads || 0}</p>
+            <p className="text-xs text-gray-500">{stats?.atRiskSquads || 0} at risk</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Squad board</CardTitle>
+          <CardDescription>Who owns what and where risks sit.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {squads.length === 0 ? (
+            <p className="text-sm text-gray-500 col-span-full">No squads created yet</p>
+          ) : (
+            squads.map((squad) => (
+              <div key={squad.id} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium text-gray-900">{squad.squad_name}</p>
+                  <Badge variant={squad.risk === 'low' ? 'default' : squad.risk === 'medium' ? 'warning' : 'destructive'}>Risk: {squad.risk}</Badge>
+                </div>
+                <p className="text-sm text-gray-500">Owner: {squad.owner}</p>
+                <p className="text-xs text-gray-400">{squad.task_count} tasks • Focus: {squad.focus || 'N/A'}</p>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <CardTitle>Task pipeline</CardTitle>
+            <CardDescription>Real-time workflow board condensed into a table.</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={fetchData}>
+            <Kanban className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Due</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tasks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-gray-500">No tasks found</TableCell>
+                </TableRow>
+              ) : (
+                tasks.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="font-medium text-gray-900">{task.id.slice(0, 8)}</TableCell>
+                    <TableCell>{task.title}</TableCell>
+                    <TableCell>
+                      <Badge variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'warning' : 'default'}>{task.priority}</Badge>
+                    </TableCell>
+                    <TableCell>{task.assigned_to_name || task.assigned_to || 'Unassigned'}</TableCell>
+                    <TableCell>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</TableCell>
+                    <TableCell>
+                      <Badge variant={task.status === 'completed' ? 'default' : task.status === 'in_progress' ? 'default' : 'secondary'}>{task.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <CardTitle>Workstreams</CardTitle>
+            <CardDescription>Macro initiatives with progress bars and next milestones.</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => { resetWorkstreamForm(); setCreateWorkstreamOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" /> New workstream
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          {workstreams.length === 0 ? (
+            <p className="text-sm text-gray-500 col-span-full">No workstreams created yet</p>
+          ) : (
+            workstreams.map((stream) => (
+              <div key={stream.id} className="rounded-xl border border-gray-100 p-4">
+                <p className="font-medium text-gray-900">{stream.label}</p>
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                    <span>{stream.progress}% complete</span>
+                    <span>{stream.blockers} blockers</span>
+                  </div>
+                  <Progress value={stream.progress} />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Next: {stream.next_milestone || 'No milestone set'}</p>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Reminders & nudges</CardTitle>
+            <CardDescription>Automations keep everyone accountable.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {reminders.length === 0 ? (
+              <p className="text-sm text-gray-500">No active reminders</p>
+            ) : (
+              reminders.map((reminder) => (
+                <div key={reminder.id} className="rounded-xl border border-gray-100 p-4">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={reminder.severity === 'destructive' ? 'destructive' : 'warning'}>Alert</Badge>
+                    <p className="text-sm text-gray-700">{reminder.message}</p>
+                  </div>
+                </div>
+              ))
+            )}
+            <Button variant="outline" size="sm" className="w-full" onClick={handleSendDigest} disabled={digestSending || squads.length === 0}>
+              <Send className="h-4 w-4 mr-2" /> {digestSending ? 'Sending...' : 'Send digest'}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Ownership calendar</CardTitle>
+            <CardDescription>Upcoming deadlines that need executives looped in.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {tasks.filter(t => t.due_date && new Date(t.due_date) >= new Date()).slice(0, 2).map((task) => (
+              <div key={task.id} className="rounded-xl border border-gray-100 p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{task.title}</p>
+                  <p className="text-sm text-gray-500">{task.assigned_to_name || 'Unassigned'} • {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'}</p>
+                </div>
+                <Badge variant={task.priority === 'high' ? 'destructive' : 'secondary'}>{task.priority}</Badge>
+              </div>
+            ))}
+            {tasks.filter(t => t.due_date && new Date(t.due_date) >= new Date()).length === 0 && (
+              <p className="text-sm text-gray-500">No upcoming deadlines</p>
+            )}
+            <Button variant="ghost" size="sm" className="w-full" onClick={handleExportCalendar}>
+              <CalendarClock className="h-4 w-4 mr-2" /> Export calendar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className={`flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border p-4 text-sm transition-colors ${smartTriageEnabled ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-green-100 bg-green-50 text-green-900'}`}>
+        <div className="flex items-center gap-3">
+          <ClipboardList className="h-5 w-5" />
+          <p>{smartTriageEnabled ? 'Smart triage is active. Tasks will be auto-assigned based on workload, due dates, and skill tags.' : 'Enable "smart triage" to auto-assign tasks based on workload, due dates, and skill tags.'}</p>
+        </div>
+        <Button size="sm" onClick={handleEnableSmartTriage} variant={smartTriageEnabled ? 'secondary' : 'default'}>
+          <Users className="h-4 w-4 mr-2" /> {smartTriageEnabled ? 'Disable smart triage' : 'Turn on smart triage'}
+        </Button>
+      </div>
+
+      {/* Create Task Dialog */}
+      <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Task</DialogTitle>
+            <DialogDescription>Fill in the details to create a new task.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="task-title">Title</Label>
+              <Input id="task-title" value={taskForm.title} onChange={e => setTaskForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Enter task title" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-desc">Description</Label>
+              <Textarea id="task-desc" value={taskForm.description} onChange={e => setTaskForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Enter task description" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-priority">Priority</Label>
+              <Select value={taskForm.priority} onValueChange={v => setTaskForm(prev => ({ ...prev, priority: v }))}>
+                <SelectTrigger id="task-priority"><SelectValue placeholder="Select priority" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-assigned">Assigned To</Label>
+              <Input id="task-assigned" value={taskForm.assignedTo} onChange={e => setTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))} placeholder="Enter assignee name or email" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-due">Due Date</Label>
+              <Input id="task-due" type="date" value={taskForm.dueDate} onChange={e => setTaskForm(prev => ({ ...prev, dueDate: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTaskOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateTask} disabled={submitting || !taskForm.title.trim()}>{submitting ? 'Creating...' : 'Create Task'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Squad Dialog */}
+      <Dialog open={createSquadOpen} onOpenChange={setCreateSquadOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Squad</DialogTitle>
+            <DialogDescription>Define a new squad with an owner and risk profile.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="squad-name">Squad Name</Label>
+              <Input id="squad-name" value={squadForm.squadName} onChange={e => setSquadForm(prev => ({ ...prev, squadName: e.target.value }))} placeholder="e.g. Platform Team" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="squad-owner">Owner</Label>
+              <Input id="squad-owner" value={squadForm.owner} onChange={e => setSquadForm(prev => ({ ...prev, owner: e.target.value }))} placeholder="Enter owner name" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="squad-focus">Focus Area</Label>
+              <Input id="squad-focus" value={squadForm.focus} onChange={e => setSquadForm(prev => ({ ...prev, focus: e.target.value }))} placeholder="e.g. Infrastructure, Product, QA" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="squad-risk">Risk Level</Label>
+              <Select value={squadForm.risk} onValueChange={v => setSquadForm(prev => ({ ...prev, risk: v }))}>
+                <SelectTrigger id="squad-risk"><SelectValue placeholder="Select risk level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateSquadOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateSquad} disabled={submitting || !squadForm.squadName.trim() || !squadForm.owner.trim()}>{submitting ? 'Creating...' : 'Create Squad'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Workstream Dialog */}
+      <Dialog open={createWorkstreamOpen} onOpenChange={setCreateWorkstreamOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Workstream</DialogTitle>
+            <DialogDescription>Create a macro initiative to track cross-functional progress.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="ws-label">Label</Label>
+              <Input id="ws-label" value={workstreamForm.label} onChange={e => setWorkstreamForm(prev => ({ ...prev, label: e.target.value }))} placeholder="e.g. Q4 Product Launch" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ws-milestone">Next Milestone</Label>
+              <Input id="ws-milestone" value={workstreamForm.nextMilestone} onChange={e => setWorkstreamForm(prev => ({ ...prev, nextMilestone: e.target.value }))} placeholder="e.g. Beta release by Nov 15" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateWorkstreamOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateWorkstream} disabled={submitting || !workstreamForm.label.trim()}>{submitting ? 'Creating...' : 'Create Workstream'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+export default TaskManagement;

@@ -1,0 +1,53 @@
+name: Security Reminders
+
+on:
+  schedule:
+    # Run on the 1st of every month at 9:00 AM UTC
+    - cron: '0 9 1 * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Monthly Security Review Reminder
+        run: |
+          echo "🔒 MONTHLY SECURITY CHECKLIST 🔒"
+          echo ""
+          echo "1. Review parent_child_violations table"
+          echo "   - Connect to database: psql \$DATABASE_URL"
+          echo "   - Check: SELECT COUNT(*), MAX(last_attempt) FROM parent_child_violations;"
+          echo ""
+          echo "2. Check for suspicious patterns"
+          echo "   - Look for repeated violations from same parent"
+          echo "   - Query: SELECT parent_id, COUNT(*) as violations FROM parent_child_violations GROUP BY parent_id HAVING COUNT(*) > 10;"
+          echo ""
+          echo "3. JWT_SECRET rotation due?"
+          echo "   - Last rotation: Check deployment logs"
+          echo "   - Rotate every 90 days (next rotation: check calendar)"
+          echo ""
+          echo "4. Review webhook alerts"
+          echo "   - Check Slack/Discord for violation alerts"
+          echo "   - Verify alerts are actionable"
+          echo ""
+          echo "5. Dependency vulnerabilities"
+          echo "   - Run: pnpm audit"
+          echo "   - Address any high/critical issues"
+          echo ""
+          echo "6. Review access logs"
+          echo "   - Check Vercel analytics for unusual traffic"
+          echo "   - Look for repeated 403/401 errors"
+
+      - name: Create GitHub Issue (optional)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔒 Security Review - ${date}`,
+              body: `Monthly security review checklist:\n\n- [ ] Review parent_child_violations table\n- [ ] Check for suspicious violation patterns\n- [ ] JWT_SECRET rotation (if due)\n- [ ] Review webhook alerts\n- [ ] Run dependency audit\n- [ ] Review access logs\n\nSee .github/security-reminders.yml for details.`,
+              labels: ['security', 'monthly-review']
+            });
+        continue-on-error: true

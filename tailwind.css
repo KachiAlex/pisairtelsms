@@ -1,0 +1,115 @@
+@import 'tw-animate-css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 233 14% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 233 14% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 233 14% 10%;
+    --primary: 235 89% 17%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 231 23% 95%;
+    --secondary-foreground: 235 89% 17%;
+    --muted: 230 21% 94%;
+    --muted-foreground: 228 11% 46%;
+    --accent: 222 24% 96%;
+    --accent-foreground: 235 89% 17%;
+    --destructive: 348 83% 47%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 235 89% 17%;
+    --radius: 10px;
+
+    --chart-1: 28 80% 58%;
+    --chart-2: 197 60% 52%;
+    --chart-3: 158 64% 60%;
+    --chart-4: 45 94% 57%;
+    --chart-5: 340 72% 55%;
+  }
+
+  .dark {
+    --background: 233 14% 10%;
+    --foreground: 0 0% 100%;
+    --card: 233 14% 10%;
+    --card-foreground: 0 0% 100%;
+    --popover: 233 14% 10%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 233 14% 10%;
+    --secondary: 226 10% 24%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 226 10% 24%;
+    --muted-foreground: 226 12% 71%;
+    --accent: 226 10% 24%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 353 84% 47%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 227 10% 24%;
+    --input: 227 10% 24%;
+    --ring: 0 0% 100%;
+
+    --chart-1: 221 83% 53%;
+    --chart-2: 161 94% 30%;
+    --chart-3: 52 98% 50%;
+    --chart-4: 130 71% 70%;
+    --chart-5: 291 64% 42%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    font-size: var(--font-size, 16px);
+  }
+
+  h1 {
+    @apply text-2xl font-semibold leading-snug text-foreground;
+  }
+
+  h2 {
+    @apply text-xl font-semibold leading-snug text-foreground;
+  }
+
+  h3 {
+    @apply text-lg font-semibold leading-snug text-foreground;
+  }
+
+  h4 {
+    @apply text-base font-semibold leading-snug text-foreground;
+  }
+
+  label,
+  button,
+  input,
+  body {
+    font-weight: var(--font-weight-normal, 400);
+  }
+}
+
+@layer components {
+  .headline {
+    @apply text-2xl font-semibold text-foreground;
+  }
+
+  .subheadline {
+    @apply text-base text-muted-foreground;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

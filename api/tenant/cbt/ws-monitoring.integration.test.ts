@@ -9,7 +9,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import * as db from './_lib/db'
 
 // Mock database module
-vi.mock('./_lib/db')
+vi.mock('./_lib/db', () => ({
+  query: vi.fn(),
+  queryOne: vi.fn(),
+  queryAll: vi.fn(),
+  transaction: vi.fn(),
+}))
 
 /**
  * Mock WebSocket connection for testing

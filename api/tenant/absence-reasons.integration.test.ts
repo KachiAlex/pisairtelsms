@@ -5,6 +5,13 @@ vi.mock('../_lib/auth-middleware.js', () => ({
   requireRole: vi.fn(),
   requireAuth: vi.fn(),
 }));
+
+vi.mock('./cbt/_lib/db.js', () => ({
+  query: vi.fn(),
+  queryOne: vi.fn(),
+  queryAll: vi.fn(),
+  transaction: vi.fn(),
+}));
 import { requireRole } from '../_lib/auth-middleware.js'
 
 const mockRequireRole = vi.mocked(requireRole)

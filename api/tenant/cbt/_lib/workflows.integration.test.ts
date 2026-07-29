@@ -6,6 +6,13 @@ import * as resultsLib from './results';
 import * as syncLib from './sync';
 import * as monitoringLib from './monitoring';
 
+vi.mock('./db', () => ({
+  query: vi.fn(),
+  queryOne: vi.fn(),
+  queryAll: vi.fn(),
+  transaction: vi.fn(),
+}));
+
 /**
  * Integration Tests for CBT Workflows
  * Tests complete end-to-end workflows across the system

@@ -219,8 +219,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Expected WebSocket upgrade' })
   }
 
-  const tenantId = req.headers['x-tenant-id'] as string
-  const userId = req.headers['x-user-id'] as string
+  const tenantId = decoded.tenantId || 'default-tenant'
+  const userId = decoded.userId || decoded.staffId || 'system'
   const examId = req.query.examId as string
 
   // Validate headers

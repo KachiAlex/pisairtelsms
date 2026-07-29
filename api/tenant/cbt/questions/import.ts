@@ -446,8 +446,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
 
-  const tenantId = req.headers['x-tenant-id'] as string
-  const userId = req.headers['x-user-id'] as string
+  const tenantId = decoded.tenantId || 'default-tenant'
+  const userId = decoded.userId || decoded.staffId || 'system'
 
   if (!tenantId) {
     return res.status(400).json({ success: false, error: 'x-tenant-id header is required' })

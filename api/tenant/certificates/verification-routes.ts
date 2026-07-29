@@ -8,10 +8,7 @@ import certificateVerificationApi from './verification';
  *   POST /api/tenant/certificates/verification  (action: create-verification|create-registry|create-fraud-signal|issue-certificate|revoke-certificate)
  */
 export default function handler(req: VercelRequest, res: VercelResponse) {
-  const tenantId =
-    (req.headers['x-tenant-id'] as string) ||
-    (req.query.tenantId as string) ||
-    'default-tenant';
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   try {
     if (req.method === 'GET') {

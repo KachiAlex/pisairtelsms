@@ -76,31 +76,7 @@ function rowToFeeRecord(row: FeeRow): FeeRecord {
 
 export async function ensureFinanceTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS fee_records (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        student_id TEXT NOT NULL,
-        student_name TEXT NOT NULL,
-        admission_no TEXT NOT NULL,
-        class TEXT NOT NULL,
-        fee_type TEXT NOT NULL,
-        amount NUMERIC(12,2) NOT NULL,
-        paid NUMERIC(12,2) DEFAULT 0,
-        balance NUMERIC(12,2) DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'pending',
-        last_payment_date TIMESTAMP WITH TIME ZONE,
-        academic_session TEXT NOT NULL,
-        term TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_tenant ON fee_records(tenant_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_student_id ON fee_records(student_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_session_term ON fee_records(academic_session, term)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_records_class ON fee_records(class)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring fee_records table:', error)
   }
 }

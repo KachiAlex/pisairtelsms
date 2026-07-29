@@ -50,17 +50,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'messageId is required' });
     }
 
-    await sql`CREATE TABLE IF NOT EXISTS staff_messages (
-      id SERIAL PRIMARY KEY,
-      staff_id VARCHAR(255) NOT NULL,
-      sender_name VARCHAR(255),
-      sender_id VARCHAR(255),
-      subject VARCHAR(255),
-      body TEXT,
-      is_read BOOLEAN DEFAULT false,
-      created_at TIMESTAMP DEFAULT NOW()
-    )`;
-
     // Verify staff member is recipient (staff_id matches) or sender
     const msgRes = await sql`
       SELECT staff_id, sender_id FROM staff_messages WHERE id = ${messageId} LIMIT 1

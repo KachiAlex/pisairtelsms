@@ -30,11 +30,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    await sql`CREATE TABLE IF NOT EXISTS exams (
-      id SERIAL PRIMARY KEY, title TEXT, exam_date DATE, start_time TIME, end_time TIME,
-      room TEXT, student_class TEXT, description TEXT, status TEXT DEFAULT 'Draft', created_at TIMESTAMP DEFAULT NOW()
-    )`
-
     // Fetch students for this class
     const allStudents = await fetchStudents()
     const classStudents = allStudents.filter((student: any) =>

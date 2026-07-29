@@ -76,11 +76,7 @@ export const SystemAlerts: React.FC = () => {
       if (severityFilter) params.append('severity', severityFilter);
 
       const response = await fetch(`/api/tenant/alerts?${params}`, {
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to fetch alerts');
       const result = await response.json();
@@ -96,11 +92,7 @@ export const SystemAlerts: React.FC = () => {
   const fetchStats = async () => {
     try {
       const response = await fetch('/api/tenant/alerts/statistics/summary', {
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to fetch statistics');
       const result = await response.json();
@@ -114,11 +106,7 @@ export const SystemAlerts: React.FC = () => {
     try {
       const response = await fetch(`/api/tenant/alerts/${id}/acknowledge`, {
         method: 'POST',
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to acknowledge alert');
       await fetchAlerts();
@@ -132,11 +120,7 @@ export const SystemAlerts: React.FC = () => {
     try {
       const response = await fetch(`/api/tenant/alerts/${id}/resolve`, {
         method: 'POST',
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to resolve alert');
       await fetchAlerts();

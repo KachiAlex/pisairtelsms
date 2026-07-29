@@ -34,22 +34,9 @@ export async function logAuditEvent(
 ): Promise<void> {
   try {
     // Ensure audit_log table exists
-    await sql`
-      CREATE TABLE IF NOT EXISTS audit_log (
-        id SERIAL PRIMARY KEY,
-        action VARCHAR(50) NOT NULL,
-        user_id VARCHAR(255),
-        ip_address VARCHAR(50),
-        user_agent TEXT,
-        resource VARCHAR(255),
-        details JSONB,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `
     // Add role column if missing (migration for older tables)
     try {
-      await sql`ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS role VARCHAR(50)`
-    } catch {
+      } catch {
       // Ignore errors if column already exists or permission denied
     }
 

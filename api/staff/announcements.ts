@@ -56,17 +56,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { limit = '10', offset = '0' } = req.query;
 
     // Ensure announcements table exists with extra columns
-    await sql`
-      CREATE TABLE IF NOT EXISTS announcements (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        body TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `;
-    await sql`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS audience VARCHAR(255)`;
-    await sql`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sent_by VARCHAR(255)`;
-
     const result = await sql`
       SELECT id::text, title, body, created_at::date::text AS date, audience, sent_by
       FROM announcements

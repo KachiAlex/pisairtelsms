@@ -14,8 +14,7 @@ const statusVariant: Record<string, 'default' | 'secondary'> = {
   Draft: 'secondary',
 }
 
-const TENANT_ID = localStorage.getItem('tenantId') || 'default-tenant'
-const HEADERS = { 'x-tenant-id': TENANT_ID, 'Content-Type': 'application/json' }
+const HEADERS = { 'Content-Type': 'application/json' }
 
 export function GradingScale() {
   const [scales, setScales] = useState<any[]>([])

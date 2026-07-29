@@ -58,11 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = req.headers['x-tenant-id'] as string
-
-  if (!tenantId) {
-    return res.status(400).json({ success: false, error: 'x-tenant-id header is required' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   try {
     initializeDatabase()

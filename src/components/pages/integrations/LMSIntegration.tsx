@@ -29,9 +29,7 @@ interface SyncRecord {
 function getHeaders() {
   return {
     'Content-Type': 'application/json',
-    'x-tenant-id': localStorage.getItem('tenantId') || '',
-    'x-user-id':   localStorage.getItem('userId')   || '',
-  };
+          };
 }
 
 export function LMSIntegration() {

@@ -29,12 +29,9 @@ function getApiHeaders() {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
     return {
       'Content-Type': 'application/json',
-      'x-tenant-id': auth.tenantId || 'default-tenant',
-      'x-user-id': auth.userId || auth.email || 'system',
-    }
+                }
   } catch {
-    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant', 'x-user-id': 'system' }
-  }
+    return { 'Content-Type': 'application/json'}
 }
 
 function NewRoleDialog({ onCreated }: { onCreated: () => void }) {

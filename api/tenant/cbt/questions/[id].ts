@@ -53,8 +53,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = req.headers['x-tenant-id'] as string
-  const userId = req.headers['x-user-id'] as string
+  const tenantId = decoded.tenantId || 'default-tenant'
+  const userId = decoded.userId || decoded.staffId || 'system'
   const { id } = req.query
 
   if (!validateTenantId(tenantId, res)) return

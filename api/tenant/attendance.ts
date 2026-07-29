@@ -22,32 +22,13 @@ function isFutureDate(dateStr: string): boolean {
   return date > today
 }
 
-function getTenantId(req: VercelRequest): string | null {
-  // Try to get from header first
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  
-  // Try to get from query parameter
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  
-  return null
-}
-
-function getUserId(req: VercelRequest): string | null {
-  return (req.headers['x-user-id'] as string | undefined) || null
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication - only staff or tenant_admin can access tenant attendance
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   // Require tenant context
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   // GET /api/tenant/attendance - Fetch attendance records with filtering
   if (req.method === 'GET') {

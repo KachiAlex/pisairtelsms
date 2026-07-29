@@ -60,30 +60,7 @@ function rowToScore(row: ScoreRow): StudentScore {
 
 export async function ensureResultsTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS student_scores (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        student_id TEXT NOT NULL,
-        subject VARCHAR(100) NOT NULL,
-        academic_session VARCHAR(20) NOT NULL,
-        term VARCHAR(50) NOT NULL,
-        ca_score NUMERIC(5,2) NOT NULL CHECK (ca_score >= 0 AND ca_score <= 100),
-        exam_score NUMERIC(5,2) NOT NULL CHECK (exam_score >= 0 AND exam_score <= 100),
-        total_score NUMERIC(5,2) NOT NULL,
-        attendance_percentage NUMERIC(5,2) NOT NULL CHECK (attendance_percentage >= 0 AND attendance_percentage <= 100),
-        class VARCHAR(50) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(tenant_id, student_id, subject, academic_session, term)
-      )
-    `
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`
-    await sql`CREATE INDEX IF NOT EXISTS idx_scores_student_id ON student_scores(student_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_scores_session_term ON student_scores(academic_session, term)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_scores_class ON student_scores(class)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_scores_tenant ON student_scores(tenant_id)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring student_scores table:', error)
   }
 }

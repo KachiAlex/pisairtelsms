@@ -18,26 +18,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Ensure dependent tables exist
-    await sql`CREATE TABLE IF NOT EXISTS attendance (
-      id TEXT PRIMARY KEY, student_id TEXT, date DATE, status TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-    await sql`CREATE TABLE IF NOT EXISTS fee_assignments (
-      id TEXT PRIMARY KEY, student_id TEXT, amount NUMERIC, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-    await sql`CREATE TABLE IF NOT EXISTS payments (
-      id TEXT PRIMARY KEY, fee_assignment_id TEXT, amount NUMERIC, status TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-    await sql`CREATE TABLE IF NOT EXISTS exams (
-      id SERIAL PRIMARY KEY, title TEXT, exam_date DATE, start_time TIME, end_time TIME,
-      room TEXT, student_class TEXT, description TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-    await sql`CREATE TABLE IF NOT EXISTS announcements (
-      id SERIAL PRIMARY KEY, title TEXT, body TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-    await sql`CREATE TABLE IF NOT EXISTS student_messages (
-      id SERIAL PRIMARY KEY, student_id TEXT, sender_name TEXT, subject TEXT, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-
     // Fetch student record
     const studentResult = await sql`
       SELECT id, admission_no, name, class, arm, status

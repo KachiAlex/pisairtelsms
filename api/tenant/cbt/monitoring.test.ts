@@ -11,6 +11,25 @@ import * as monitoringService from './_lib/monitoring'
 import * as db from './_lib/db'
 import { broadcastToExam, closeExamConnections, getExamConnectionCount } from './ws-monitoring'
 
+vi.mock('../../_lib/auth-middleware.js', () => ({
+  requireRole: vi.fn(),
+  requireAuth: vi.fn(),
+}));
+import { requireRole } from '../../_lib/auth-middleware.js'
+
+const mockRequireRole = vi.mocked(requireRole)
+const mockDecoded = {
+  tenantId: 'tenant-123',
+  userId: 'test-user',
+  role: 'tenant_admin',
+  staffId: 'test-staff',
+  parentId: 'test-parent',
+  studentId: 'test-student',
+  childrenIds: ['child-123'],
+} as any
+
+
+
 // Mock dependencies
 vi.mock('./_lib/monitoring')
 vi.mock('./_lib/db')
@@ -41,6 +60,8 @@ function createMockResponse(): VercelResponse {
 
 describe('Live Monitoring API Endpoints', () => {
   beforeEach(() => {
+    mockRequireRole.mockReset()
+    mockRequireRole.mockResolvedValue(mockDecoded)
     vi.clearAllMocks()
   })
 

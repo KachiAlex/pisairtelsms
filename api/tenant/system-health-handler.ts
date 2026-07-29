@@ -1,11 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import systemHealthApi from './_lib/system-health';
+import { requireRole } from '../_lib/auth-middleware.js';
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  const tenantId =
-    (req.headers['x-tenant-id'] as string) ||
-    (req.query.tenantId as string) ||
-    'default-tenant';
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   try {
     if (req.method === 'GET') {

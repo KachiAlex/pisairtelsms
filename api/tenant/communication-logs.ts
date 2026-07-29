@@ -18,20 +18,6 @@ interface CommunicationLog {
 async function initializeTable() {
   try {
     initializeDatabase()
-    await query(`
-      CREATE TABLE IF NOT EXISTS communication_logs (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        recipient TEXT NOT NULL,
-        channel TEXT NOT NULL,
-        sent_at TIMESTAMP WITH TIME ZONE,
-        delivered_at TIMESTAMP WITH TIME ZONE,
-        read_at TIMESTAMP WITH TIME ZONE,
-        status TEXT DEFAULT 'sent',
-        error_message TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
   } catch (err) {
     console.error('communication_logs init error:', err)
   }

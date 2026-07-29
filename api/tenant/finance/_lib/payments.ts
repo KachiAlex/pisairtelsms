@@ -269,30 +269,6 @@ export async function ensurePaymentTables(): Promise<void> {
     }
 
     // Create payments table with tenant_id (will only create if doesn't exist)
-    await sql`
-      CREATE TABLE IF NOT EXISTS payments (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        student_id TEXT NOT NULL,
-        fee_assignment_id TEXT NOT NULL,
-        fee_structure_id TEXT NOT NULL,
-        amount NUMERIC(12,2) NOT NULL,
-        payment_method TEXT NOT NULL,
-        reference_number TEXT NOT NULL,
-        receipt_number TEXT NOT NULL UNIQUE,
-        payment_date DATE NOT NULL,
-        payment_time TIME NOT NULL,
-        recorded_by TEXT,
-        notes TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        gateway TEXT,
-        gateway_ref TEXT,
-        gateway_response TEXT,
-        paid_at TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-
     // Create indexes only if column exists
     const tenantIdExists = await sql`
       SELECT column_name
@@ -300,14 +276,7 @@ export async function ensurePaymentTables(): Promise<void> {
       WHERE table_name = 'payments' AND column_name = 'tenant_id'
     `
     if (tenantIdExists.rows.length > 0) {
-      await sql`CREATE INDEX IF NOT EXISTS idx_payments_tenant_id ON payments(tenant_id)`
-    }
-    await sql`CREATE INDEX IF NOT EXISTS idx_payments_student_id ON payments(student_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_payments_fee_assignment_id ON payments(fee_assignment_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_payments_payment_date ON payments(payment_date)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_payments_gateway_ref ON payments(gateway_ref)`
-
+      }
     // Check if tenant_payment_settings table exists and has tenant_id column
     const settingsTableCheck = await sql`
       SELECT column_name
@@ -334,20 +303,6 @@ export async function ensurePaymentTables(): Promise<void> {
     }
 
     // Create tenant_payment_settings table with tenant_id (will only create if doesn't exist)
-    await sql`
-      CREATE TABLE IF NOT EXISTS tenant_payment_settings (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        gateway TEXT NOT NULL,
-        public_key TEXT NOT NULL,
-        secret_key TEXT NOT NULL,
-        is_active BOOLEAN NOT NULL DEFAULT false,
-        metadata TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-
     // Create indexes only if column exists
     const settingsTenantIdExists = await sql`
       SELECT column_name
@@ -355,65 +310,9 @@ export async function ensurePaymentTables(): Promise<void> {
       WHERE table_name = 'tenant_payment_settings' AND column_name = 'tenant_id'
     `
     if (settingsTenantIdExists.rows.length > 0) {
-      await sql`CREATE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_id ON tenant_payment_settings(tenant_id)`
-      await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_payment_settings_tenant_gateway ON tenant_payment_settings(tenant_id, gateway)`
-    }
+      }
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS payment_proofs (
-        id TEXT PRIMARY KEY,
-        payment_id TEXT NOT NULL REFERENCES payments(id),
-        file_url TEXT NOT NULL,
-        file_type TEXT NOT NULL,
-        uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_payment_proofs_payment_id ON payment_proofs(payment_id)`
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS payment_reconciliation (
-        id TEXT PRIMARY KEY,
-        payment_id TEXT NOT NULL REFERENCES payments(id),
-        bank_deposit_date DATE NOT NULL,
-        bank_deposit_amount NUMERIC(12,2) NOT NULL,
-        bank_reference TEXT NOT NULL,
-        matched_at TIMESTAMP WITH TIME ZONE NOT NULL,
-        matched_by TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        exception_reason TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_payment_reconciliation_payment_id ON payment_reconciliation(payment_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_payment_reconciliation_status ON payment_reconciliation(status)`
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS payment_plans (
-        id TEXT PRIMARY KEY,
-        fee_assignment_id TEXT NOT NULL,
-        number_of_installments INTEGER NOT NULL,
-        installment_amount NUMERIC(12,2) NOT NULL,
-        start_date DATE NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active',
-        created_by TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_payment_plans_fee_assignment_id ON payment_plans(fee_assignment_id)`
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS payment_plan_installments (
-        id TEXT PRIMARY KEY,
-        payment_plan_id TEXT NOT NULL REFERENCES payment_plans(id),
-        installment_number INTEGER NOT NULL,
-        due_date DATE NOT NULL,
-        amount NUMERIC(12,2) NOT NULL,
-        paid_amount NUMERIC(12,2) DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'pending'
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_payment_plan_installments_payment_plan_id ON payment_plan_installments(payment_plan_id)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring payment tables:', error)
   }
 }

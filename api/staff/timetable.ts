@@ -58,32 +58,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
     }
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS timetable (
-        id SERIAL PRIMARY KEY,
-        staff_id VARCHAR(255) NOT NULL,
-        day VARCHAR(20) NOT NULL,
-        subject VARCHAR(255),
-        class_name VARCHAR(255),
-        room VARCHAR(255),
-        start_time VARCHAR(10),
-        end_time VARCHAR(10),
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `;
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS exams (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        exam_date DATE,
-        start_time TIME,
-        end_time TIME,
-        room VARCHAR(255),
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `;
-
     const dayOrder: Record<string, number> = {
       monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7
     };

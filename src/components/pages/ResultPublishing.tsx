@@ -11,8 +11,7 @@ import { useToast } from '../ui/use-toast'
 function tenantHeaders(): Record<string, string> {
   const tenantId =
     (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
-  return { 'Content-Type': 'application/json', 'x-tenant-id': tenantId }
-}
+  return { 'Content-Type': 'application/json', }
 
 interface ReleasePlanItem {
   id: string

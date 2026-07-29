@@ -25,8 +25,7 @@ export function SecurityCompliance() {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-    if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
-    const response = await fetch(url, { headers });
+        const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('Failed to fetch data');
     return response.json();
   };

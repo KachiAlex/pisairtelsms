@@ -2,13 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDevice, updateDeviceConfig, updateDeviceStatus, deleteDevice } from '../_lib/biometric-devices.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  return null
-}
+
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return null
@@ -33,10 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   const { deviceId } = req.query
   if (!deviceId || typeof deviceId !== 'string') {

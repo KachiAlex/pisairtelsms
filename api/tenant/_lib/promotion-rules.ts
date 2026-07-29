@@ -15,27 +15,7 @@ export interface PromotionRule {
 
 export async function ensurePromotionRulesTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS promotion_rules (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id UUID NOT NULL,
-        level VARCHAR(50) NOT NULL,
-        promotion_threshold NUMERIC(5,2) NOT NULL,
-        repeat_threshold NUMERIC(5,2) NOT NULL,
-        review_threshold NUMERIC(5,2) NOT NULL,
-        attendance_threshold NUMERIC(5,2) NOT NULL,
-        active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(tenant_id, level)
-      )
-    `
-
     // Create index on tenant_id for faster queries
-    await sql`
-      CREATE INDEX IF NOT EXISTS idx_promotion_rules_tenant ON promotion_rules(tenant_id)
-    `
-
     console.log('Promotion rules table ensured.')
   } catch (error) {
     console.error('Error ensuring promotion rules table:', error)

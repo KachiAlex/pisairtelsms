@@ -86,8 +86,7 @@ export function MyFees() {
 
   const apiHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-tenant-id': tenantId || '',
-  };
+      };
   if (auth?.token) apiHeaders['Authorization'] = `Bearer ${auth.token}`;
 
   const fetchData = useCallback(async () => {

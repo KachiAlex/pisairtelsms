@@ -60,9 +60,9 @@ function getTenantHeaders(): Record<string, string> {
   try {
     const auth = localStorage.getItem('auth')
     const tenantId = auth ? JSON.parse(auth).tenantId || 'default-tenant' : 'default-tenant'
-    return { 'x-tenant-id': tenantId, 'Content-Type': 'application/json' }
+    return { 'Content-Type': 'application/json' }
   } catch {
-    return { 'x-tenant-id': 'default-tenant', 'Content-Type': 'application/json' }
+    return { 'Content-Type': 'application/json' }
   }
 }
 

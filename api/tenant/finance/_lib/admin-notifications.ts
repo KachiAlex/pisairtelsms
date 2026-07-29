@@ -130,25 +130,7 @@ export async function getUnreadCount(tenantId: string): Promise<number> {
 
 export async function ensureAdminNotificationsTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS admin_notifications (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        payment_id TEXT NOT NULL,
-        student_id TEXT NOT NULL,
-        student_name TEXT,
-        amount NUMERIC(12,2) NOT NULL,
-        read BOOLEAN NOT NULL DEFAULT false,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_admin_notifications_tenant_id ON admin_notifications(tenant_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_admin_notifications_read ON admin_notifications(read)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_admin_notifications_payment_id ON admin_notifications(payment_id)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring admin_notifications table:', error)
   }
 }

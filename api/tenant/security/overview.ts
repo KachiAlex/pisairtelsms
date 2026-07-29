@@ -2,14 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  return null
-}
-
 /**
  * GET /api/tenant/security/overview
  * Returns security overview metrics
@@ -23,20 +15,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   try {
     // Ensure tables exist (best-effort)
-    try { await sql`CREATE TABLE IF NOT EXISTS user_sessions (id TEXT PRIMARY KEY, tenant_id TEXT, created_at TIMESTAMP, expires_at TIMESTAMP, terminated_at TIMESTAMP)` } catch (e) { /* ignore */ }
-    try { await sql`CREATE TABLE IF NOT EXISTS role_assignments (id TEXT PRIMARY KEY, tenant_id TEXT, role_id TEXT, is_active BOOLEAN DEFAULT TRUE)` } catch (e) { /* ignore */ }
-    try { await sql`CREATE TABLE IF NOT EXISTS privileged_roles (id TEXT PRIMARY KEY, tenant_id TEXT, is_active BOOLEAN DEFAULT TRUE, next_review_date TIMESTAMP)` } catch (e) { /* ignore */ }
-    try { await sql`CREATE TABLE IF NOT EXISTS encryption_keys (id TEXT PRIMARY KEY, tenant_id TEXT, status TEXT DEFAULT 'active')` } catch (e) { /* ignore */ }
-    try { await sql`CREATE TABLE IF NOT EXISTS security_events (id TEXT PRIMARY KEY, tenant_id TEXT, severity TEXT, created_at TIMESTAMP DEFAULT NOW())` } catch (e) { /* ignore */ }
-    try { await sql`CREATE TABLE IF NOT EXISTS backup_jobs (id TEXT PRIMARY KEY, tenant_id TEXT, status TEXT, created_at TIMESTAMP DEFAULT NOW())` } catch (e) { /* ignore */ }
-    try { await sql`CREATE TABLE IF NOT EXISTS compliance_tasks (id TEXT PRIMARY KEY, tenant_id TEXT, status TEXT)` } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
 
     // Get active sessions count
     let activeSessions = 0

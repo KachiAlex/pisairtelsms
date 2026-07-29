@@ -111,19 +111,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Mirror into tenant_users so the admin appears in tenant user management
       try {
-        await sql`
-          CREATE TABLE IF NOT EXISTS tenant_users (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            tenant_id VARCHAR(255) NOT NULL DEFAULT 'default-tenant',
-            name VARCHAR(255) NOT NULL,
-            email VARCHAR(255) NOT NULL,
-            role VARCHAR(255) NOT NULL DEFAULT 'Staff',
-            status VARCHAR(50) NOT NULL DEFAULT 'invited',
-            last_active TIMESTAMP WITH TIME ZONE,
-            invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-          )
-        `
         const existingUser = await sql`
           SELECT id FROM tenant_users WHERE email = ${email.toLowerCase()} LIMIT 1
         `

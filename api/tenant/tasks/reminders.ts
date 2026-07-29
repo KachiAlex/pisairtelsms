@@ -2,26 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  return null
-}
-
-function getUserId(req: VercelRequest): string | null {
-  const auth = req.headers['authorization'] as string | undefined
-  if (auth) {
-    try {
-      const token = auth.replace('Bearer ', '')
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
-      return payload.userId || null
-    } catch {
-      return null
-    }
-  }
-  return null
+function getUserId(decoded: any): string {
+  return decoded.userId || decoded.staffId || 'system'
 }
 
 /**
@@ -32,10 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({ success: false, error: 'Tenant context required' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   if (req.method === 'GET') {
     try {
@@ -70,10 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'POST') {
     try {
-      const userId = getUserId(req)
-      if (!userId) {
-        return res.status(401).json({ success: false, error: 'Authentication required' })
-      }
+      const userId = getUserId(decoded)
 
       const { taskId, message, severity = 'warning', dueDate } = req.body
 

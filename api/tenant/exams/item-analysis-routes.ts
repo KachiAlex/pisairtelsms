@@ -8,10 +8,7 @@ import itemAnalysisApi from './item-analysis';
  *   POST /api/tenant/exams/item-analysis  (action: create-item|create-distractor|create-blueprint|create-anchor|track-performance)
  */
 export default function handler(req: VercelRequest, res: VercelResponse) {
-  const tenantId =
-    (req.headers['x-tenant-id'] as string) ||
-    (req.query.tenantId as string) ||
-    'default-tenant';
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   const { examId } = req.query;
 

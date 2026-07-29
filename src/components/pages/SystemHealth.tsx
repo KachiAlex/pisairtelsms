@@ -23,13 +23,10 @@ function getAuthHeaders(): Record<string, string> {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
     return {
       'Content-Type': 'application/json',
-      'x-tenant-id': auth.tenantId || 'default-tenant',
-      'x-user-id': auth.userId || auth.email || 'system',
-      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+                  ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
     }
   } catch {
-    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant', 'x-user-id': 'system' }
-  }
+    return { 'Content-Type': 'application/json'}
 }
 
 export function SystemHealth() {

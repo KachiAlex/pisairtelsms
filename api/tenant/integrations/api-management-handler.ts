@@ -4,56 +4,13 @@ import { randomBytes } from 'crypto';
 import { requireRole } from '../../_lib/auth-middleware.js';
 
 async function ensureTables() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS api_keys (
-      id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id         TEXT NOT NULL,
-      name              TEXT NOT NULL,
-      key               TEXT NOT NULL UNIQUE,
-      secret            TEXT,
-      status            TEXT NOT NULL DEFAULT 'active',
-      rate_limit        INTEGER NOT NULL DEFAULT 60,
-      allowed_endpoints TEXT[],
-      expires_at        TIMESTAMPTZ,
-      last_used_at      TIMESTAMPTZ,
-      created_by        TEXT,
-      revoked_by        TEXT,
-      revoked_at        TIMESTAMPTZ,
-      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS api_usage (
-      id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id     TEXT NOT NULL,
-      api_key_id    TEXT NOT NULL,
-      endpoint      TEXT NOT NULL,
-      method        TEXT NOT NULL,
-      status_code   INTEGER,
-      response_time INTEGER,
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS api_rate_limit_configs (
-      id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id            TEXT NOT NULL,
-      api_key_id           TEXT NOT NULL UNIQUE,
-      requests_per_minute  INTEGER NOT NULL DEFAULT 60,
-      requests_per_hour    INTEGER NOT NULL DEFAULT 1000,
-      requests_per_day     INTEGER NOT NULL DEFAULT 10000,
-      created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-}
+  }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
 
-  const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenantId as string) || 'default-tenant';
+  const tenantId = decoded.tenantId || 'default-tenant';
   const userId   = (req.headers['x-user-id']   as string) || (req.query.userId   as string) || 'system';
   const id       = Array.isArray(req.query.id)     ? req.query.id[0]     : req.query.id;
   const action   = Array.isArray(req.query.action) ? req.query.action[0] : req.query.action;

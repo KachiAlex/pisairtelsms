@@ -60,8 +60,7 @@ export function SchoolBranding() {
       setError(null)
       const { tenantId, userId } = getAuth()
       const response = await fetch('/api/tenant/branding', {
-        headers: { 'x-tenant-id': tenantId, 'x-user-id': userId },
-      })
+        )
       if (!response.ok) throw new Error('Failed to load branding')
       const result = await response.json()
       const config = result.data
@@ -92,9 +91,7 @@ export function SchoolBranding() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-          'x-user-id': userId,
-        },
+                            },
         body: JSON.stringify(formData),
       })
       if (!response.ok) throw new Error('Failed to save branding')
@@ -171,9 +168,7 @@ export function SchoolBranding() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-          'x-user-id': userId,
-        },
+                            },
         body: JSON.stringify({ logoUrl: logoPreview, fileName: logoFile.name }),
       })
       if (!res.ok) throw new Error('Upload failed')
@@ -206,9 +201,7 @@ export function SchoolBranding() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-          'x-user-id': userId,
-        },
+                            },
         body: JSON.stringify({ logoUrl: null, fileName: null }),
       })
       if (!res.ok) throw new Error('Remove failed')

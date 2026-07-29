@@ -79,38 +79,7 @@ function rowToAuditLogEntry(row: AuditLogRow): AuditLogEntry {
 
 export async function ensureAdjustmentAuditTables(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS fee_adjustments (
-        id TEXT PRIMARY KEY,
-        fee_assignment_id TEXT NOT NULL,
-        adjustment_type TEXT NOT NULL,
-        amount NUMERIC(12,2) NOT NULL,
-        reason TEXT NOT NULL,
-        approved_by TEXT NOT NULL,
-        approval_date TIMESTAMP WITH TIME ZONE NOT NULL,
-        created_by TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_adjustments_fee_assignment_id ON fee_adjustments(fee_assignment_id)`
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS audit_log (
-        id TEXT PRIMARY KEY,
-        entity_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        action TEXT NOT NULL,
-        old_values JSONB,
-        new_values JSONB,
-        user_id TEXT NOT NULL,
-        timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        ip_address TEXT
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_audit_log_entity_type ON audit_log(entity_type)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_audit_log_entity_id ON audit_log(entity_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring adjustment and audit tables:', error)
   }
 }

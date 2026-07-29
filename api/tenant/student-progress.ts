@@ -45,10 +45,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    await sql`CREATE TABLE IF NOT EXISTS results (
-      id SERIAL PRIMARY KEY, student_id TEXT, subject TEXT, ca_score NUMERIC, exam_score NUMERIC, updated_at TIMESTAMP DEFAULT NOW()
-    )`
-
     if (studentId && typeof studentId === 'string') {
       const studentRes = await sql`
         SELECT id, name, class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1

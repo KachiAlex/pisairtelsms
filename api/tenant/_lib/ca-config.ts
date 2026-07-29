@@ -36,15 +36,6 @@ const defaultCAConfig: CAConfig = {
 
 export async function ensureCAConfigTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS ca_config (
-        id SERIAL PRIMARY KEY,
-        tenant_id VARCHAR(255) NOT NULL,
-        config JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(tenant_id)
-      )
-    `;
     console.log('CA config table ensured.');
   } catch (error) {
     console.error('Error ensuring CA config table:', error);

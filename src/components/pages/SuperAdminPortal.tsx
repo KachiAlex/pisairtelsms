@@ -127,8 +127,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
     const token = authRaw ? JSON.parse(authRaw).token : null
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-tenant-id': 'super-admin',
-    }
+          }
     if (token) headers['Authorization'] = `Bearer ${token}`
 
     Promise.all([
@@ -176,8 +175,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'super-admin',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           name: provisionName.trim(),
@@ -208,8 +206,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       const res = await fetch(`/api/admin/tenant-admins?tenantId=${tenantId}`, {
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'super-admin',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       })
       const data = await res.json()
@@ -259,8 +256,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'super-admin',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           name: adminName.trim(),
@@ -295,8 +291,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'super-admin',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ id, status }),
       })
@@ -318,8 +313,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'super-admin',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ id: adminId }),
       })
@@ -341,8 +335,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'super-admin',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ id: tenantId, status }),
       })

@@ -42,11 +42,9 @@ function getCalendarHeaders() {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
     return {
       'Content-Type': 'application/json',
-      'x-tenant-id': auth.tenantId || 'default-tenant',
-    }
+          }
   } catch {
-    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' }
-  }
+    return { 'Content-Type': 'application/json',   }
 }
 
 export function SystemSettings() {

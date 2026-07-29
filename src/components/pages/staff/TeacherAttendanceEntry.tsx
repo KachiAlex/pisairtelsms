@@ -141,8 +141,7 @@ export function TeacherAttendanceEntry() {
         const reasonsResponse = await fetch('/api/tenant/absence-reasons', {
           headers: {
             Authorization: `Bearer ${token}`,
-            'x-tenant-id': tenantId,
-          },
+                      },
         })
 
         if (reasonsResponse.ok) {
@@ -325,9 +324,7 @@ export function TeacherAttendanceEntry() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          'x-tenant-id': tenantId,
-          'x-user-id': userId,
-        },
+                            },
         body: JSON.stringify({ records }),
       })
 

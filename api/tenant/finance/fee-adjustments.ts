@@ -19,36 +19,14 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  return tenantId || null
-}
-
 async function ensureFeeAdjustmentsTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS fee_adjustments (
-      id TEXT PRIMARY KEY,
-      tenant_id TEXT NOT NULL,
-      fee_assignment_id TEXT NOT NULL,
-      adjustment_type TEXT NOT NULL,
-      amount NUMERIC(12,2) NOT NULL,
-      reason TEXT NOT NULL,
-      requires_approval BOOLEAN DEFAULT false,
-      status TEXT NOT NULL DEFAULT 'pending',
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `
-  await sql`CREATE INDEX IF NOT EXISTS idx_fee_adjustments_tenant ON fee_adjustments(tenant_id)`
-}
+  }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(400).json({ error: 'x-tenant-id header is required' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   // GET /api/tenant/finance/fee-adjustments
   if (req.method === 'GET') {

@@ -35,12 +35,10 @@ function getAuthHeaders() {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
     return {
       'Content-Type': 'application/json',
-      'x-tenant-id': auth.tenantId || 'default-tenant',
-      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+            ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
     }
   } catch {
-    return { 'Content-Type': 'application/json', 'x-tenant-id': 'default-tenant' }
-  }
+    return { 'Content-Type': 'application/json',   }
 }
 
 export function PayrollManagement() {

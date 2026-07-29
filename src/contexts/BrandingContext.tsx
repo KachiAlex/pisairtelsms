@@ -75,8 +75,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
     try {
       const { tenantId, userId } = getAuth()
       const res = await fetch('/api/tenant/branding', {
-        headers: { 'x-tenant-id': tenantId, 'x-user-id': userId },
-      })
+        )
       if (!res.ok) return
       const result = await res.json()
       if (result.data) setBranding(mapRow(result.data))

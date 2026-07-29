@@ -13,20 +13,14 @@ import { requireRole } from '../_lib/auth-middleware.js';
  *   GET    /api/tenant/branding/audit-logs         - Get audit logs
  */
 async function ensureColumns() {
-  await sql`ALTER TABLE branding_configs ADD COLUMN IF NOT EXISTS school_address TEXT`;
-  await sql`ALTER TABLE branding_configs ADD COLUMN IF NOT EXISTS school_email TEXT`;
-  await sql`ALTER TABLE branding_configs ADD COLUMN IF NOT EXISTS school_phone TEXT`;
-}
+  }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication - only staff or tenant_admin can access tenant branding
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId =
-    (req.headers['x-tenant-id'] as string) ||
-    (req.query.tenantId as string) ||
-    'default-tenant';
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   const userId =
     (req.headers['x-user-id'] as string) ||

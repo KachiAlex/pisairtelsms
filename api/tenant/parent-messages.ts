@@ -24,21 +24,6 @@ interface ParentMessage {
 async function initializeTable() {
   try {
     initializeDatabase()
-    await query(`
-      CREATE TABLE IF NOT EXISTS parent_messages (
-        id TEXT PRIMARY KEY,
-        parent_name TEXT NOT NULL,
-        student_name TEXT NOT NULL,
-        message TEXT NOT NULL,
-        message_type TEXT DEFAULT 'update',
-        priority TEXT DEFAULT 'normal',
-        sent_at TIMESTAMP WITH TIME ZONE,
-        status TEXT DEFAULT 'sent',
-        replies JSONB DEFAULT '[]'::jsonb,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
   } catch (err) {
     console.error('parent_messages init error:', err)
   }

@@ -23,21 +23,6 @@ interface BulkNotification {
 async function initializeTable() {
   try {
     initializeDatabase()
-    await query(`
-      CREATE TABLE IF NOT EXISTS bulk_notifications (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        channels TEXT[],
-        recipient_count INTEGER DEFAULT 0,
-        scheduled_for TIMESTAMP WITH TIME ZONE,
-        sent_at TIMESTAMP WITH TIME ZONE,
-        status TEXT DEFAULT 'scheduled',
-        delivery_status JSONB,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
   } catch (err) {
     console.error('bulk_notifications init error:', err)
   }

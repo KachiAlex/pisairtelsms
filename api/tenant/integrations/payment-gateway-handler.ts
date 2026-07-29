@@ -16,62 +16,13 @@ import { requireRole } from '../../_lib/auth-middleware.js';
  */
 
 async function ensureTables() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS payment_gateway_configs (
-      id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id       TEXT NOT NULL,
-      provider        TEXT NOT NULL,
-      mode            TEXT NOT NULL DEFAULT 'test',
-      api_key         TEXT NOT NULL,
-      secret_key      TEXT NOT NULL,
-      webhook_url     TEXT,
-      webhook_secret  TEXT,
-      is_active       BOOLEAN NOT NULL DEFAULT true,
-      created_by      TEXT,
-      updated_by      TEXT,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS payment_gateway_transactions (
-      id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id     TEXT NOT NULL,
-      gateway_id    TEXT,
-      provider      TEXT NOT NULL,
-      reference_id  TEXT NOT NULL,
-      amount        NUMERIC(14,2) NOT NULL,
-      currency      TEXT NOT NULL DEFAULT 'NGN',
-      status        TEXT NOT NULL DEFAULT 'pending',
-      student_id    TEXT,
-      description   TEXT,
-      metadata      JSONB,
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS payment_gateway_webhook_logs (
-      id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id   TEXT NOT NULL,
-      provider    TEXT NOT NULL,
-      event       TEXT NOT NULL,
-      payload     JSONB NOT NULL DEFAULT '{}',
-      processed   BOOLEAN NOT NULL DEFAULT false,
-      error       TEXT,
-      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-}
+  }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
 
-  const tenantId =
-    (req.headers['x-tenant-id'] as string) ||
-    (req.query.tenantId as string) ||
-    'default-tenant';
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   const userId =
     (req.headers['x-user-id'] as string) ||

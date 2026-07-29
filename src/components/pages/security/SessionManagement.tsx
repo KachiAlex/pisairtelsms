@@ -53,8 +53,7 @@ export function SessionManagement() {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/tenant/security/sessions', {
-        headers: { 'x-tenant-id': 'default-tenant', 'x-user-id': 'current-user' },
-      });
+        );
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data = await response.json();
       setSessions(data.data || []);
@@ -68,8 +67,7 @@ export function SessionManagement() {
   const fetchPolicy = async () => {
     try {
       const response = await fetch('/api/tenant/security/sessions/policy', {
-        headers: { 'x-tenant-id': 'default-tenant', 'x-user-id': 'current-user' },
-      });
+        );
       if (!response.ok) throw new Error('Failed to fetch session policy');
       const data = await response.json();
       setPolicy(data.data);
@@ -82,8 +80,7 @@ export function SessionManagement() {
   const fetchHistory = async () => {
     try {
       const response = await fetch('/api/tenant/security/sessions/history', {
-        headers: { 'x-tenant-id': 'default-tenant', 'x-user-id': 'current-user' },
-      });
+        );
       if (!response.ok) throw new Error('Failed to fetch session history');
       const data = await response.json();
       setHistory(data.data || []);
@@ -99,9 +96,7 @@ export function SessionManagement() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'default-tenant',
-          'x-user-id': 'current-user',
-        },
+                            },
         body: JSON.stringify({ reason: 'Force logout by admin' }),
       });
       if (!response.ok) throw new Error('Failed to logout session');
@@ -119,9 +114,7 @@ export function SessionManagement() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'default-tenant',
-          'x-user-id': 'current-user',
-        },
+                            },
         body: JSON.stringify(policyForm),
       });
       if (!response.ok) throw new Error('Failed to save session policy');

@@ -24,19 +24,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    await sql`CREATE TABLE IF NOT EXISTS timetable (
-      id SERIAL PRIMARY KEY, staff_id TEXT, day TEXT, subject TEXT,
-      class_name TEXT, room TEXT, start_time TEXT, end_time TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS staff (
-      id TEXT PRIMARY KEY, staff_id TEXT, name TEXT, department TEXT, role TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS subjects TEXT`
-    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS contract_hours NUMERIC`
-    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS allocation_periods TEXT`
-    await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Active'`
-
     const teachersRes = await sql`
       SELECT id, name, COALESCE(subjects, '') AS subjects, status FROM staff
       WHERE role ILIKE '%teacher%' OR role ILIKE '%staff%' ORDER BY name

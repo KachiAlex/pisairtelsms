@@ -81,48 +81,7 @@ const defaultPromotionRules: PromotionRule[] = [
 export async function ensurePromotionTables(): Promise<void> {
   try {
     // Create promotion_records table
-    await sql`
-      CREATE TABLE IF NOT EXISTS promotion_records (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        student_id TEXT NOT NULL,
-        student_name TEXT NOT NULL,
-        from_class TEXT NOT NULL,
-        to_class TEXT NOT NULL,
-        action TEXT NOT NULL CHECK (action IN ('promote', 'repeat', 'demote', 'hold')),
-        academic_session TEXT NOT NULL,
-        term TEXT NOT NULL,
-        average_score DECIMAL(5,2),
-        attendance DECIMAL(5,2),
-        teacher_recommendation TEXT,
-        reason TEXT,
-        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'completed')),
-        approved_by TEXT,
-        approved_at TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await sql`ALTER TABLE promotion_records ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`;
-
     // Create promotion_rules table
-    await sql`
-      CREATE TABLE IF NOT EXISTS promotion_rules (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        conditions JSONB NOT NULL,
-        action TEXT NOT NULL CHECK (action IN ('promote', 'review', 'repeat')),
-        is_active BOOLEAN NOT NULL DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
-    await sql`ALTER TABLE promotion_rules ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`;
-
-    await sql`CREATE INDEX IF NOT EXISTS idx_promotion_records_tenant ON promotion_records(tenant_id)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_promotion_rules_tenant ON promotion_rules(tenant_id)`;
-
     // Insert default rules if they don't exist
     for (const rule of defaultPromotionRules) {
       await sql`

@@ -53,8 +53,7 @@ export function DataEncryption() {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/tenant/security/encryption/config', {
-        headers: { 'x-tenant-id': 'default-tenant', 'x-user-id': 'current-user' },
-      });
+        );
       if (!response.ok) throw new Error('Failed to fetch encryption config');
       const data = await response.json();
       setConfig(data);
@@ -69,8 +68,7 @@ export function DataEncryption() {
   const fetchAuditLogs = async () => {
     try {
       const response = await fetch('/api/tenant/security/encryption/audit-logs', {
-        headers: { 'x-tenant-id': 'default-tenant', 'x-user-id': 'current-user' },
-      });
+        );
       if (!response.ok) throw new Error('Failed to fetch audit logs');
       const data = await response.json();
       setAuditLogs(data.data || []);
@@ -87,9 +85,7 @@ export function DataEncryption() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'default-tenant',
-          'x-user-id': 'current-user',
-        },
+                            },
         body: JSON.stringify(editForm),
       });
       if (!response.ok) throw new Error('Failed to save encryption config');
@@ -111,9 +107,7 @@ export function DataEncryption() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'default-tenant',
-          'x-user-id': 'current-user',
-        },
+                            },
         body: JSON.stringify({ encryptedFields: editForm.encryptedFields }),
       });
       if (!response.ok) throw new Error('Failed to save encrypted fields');
@@ -132,9 +126,7 @@ export function DataEncryption() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': 'default-tenant',
-          'x-user-id': 'current-user',
-        },
+                            },
       });
       if (!response.ok) throw new Error('Failed to rotate encryption keys');
       fetchConfig();

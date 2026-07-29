@@ -39,16 +39,14 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-function getTenantId(req: VercelRequest): string | null {
-  return (req.headers['x-tenant-id'] as string) || null
-}
+
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const { id, action } = req.query
-  const tenantId = getTenantId(req)
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   console.log('Payments request:', { method: req.method, id, action, tenantId })
 

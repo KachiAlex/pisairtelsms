@@ -1,5 +1,24 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Pool } from 'pg'
+
+vi.mock('../_lib/auth-middleware.js', () => ({
+  requireRole: vi.fn(),
+  requireAuth: vi.fn(),
+}));
+import { requireRole } from '../_lib/auth-middleware.js'
+
+const mockRequireRole = vi.mocked(requireRole)
+const mockDecoded = {
+  tenantId: 'tenant-123',
+  userId: 'test-user',
+  role: 'tenant_admin',
+  staffId: 'test-staff',
+  parentId: 'test-parent',
+  studentId: 'test-student',
+  childrenIds: ['child-123'],
+} as any
+
+
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://localhost/test_db',

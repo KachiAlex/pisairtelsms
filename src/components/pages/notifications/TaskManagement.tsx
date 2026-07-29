@@ -99,11 +99,7 @@ export const TaskManagement: React.FC = () => {
       if (priorityFilter) params.append('priority', priorityFilter);
 
       const response = await fetch(`/api/tenant/tasks?${params}`, {
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to fetch tasks');
       const result = await response.json();
@@ -119,11 +115,7 @@ export const TaskManagement: React.FC = () => {
   const fetchStats = async () => {
     try {
       const response = await fetch('/api/tenant/tasks/statistics', {
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to fetch statistics');
       const result = await response.json();
@@ -136,11 +128,7 @@ export const TaskManagement: React.FC = () => {
   const fetchTaskComments = async (taskId: string) => {
     try {
       const response = await fetch(`/api/tenant/tasks/${taskId}/comments`, {
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to fetch comments');
       const result = await response.json();
@@ -161,9 +149,7 @@ export const TaskManagement: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
+                            },
         body: JSON.stringify(formData),
       });
 
@@ -185,9 +171,7 @@ export const TaskManagement: React.FC = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
+                            },
         body: JSON.stringify(formData),
       });
 
@@ -207,11 +191,7 @@ export const TaskManagement: React.FC = () => {
     try {
       const response = await fetch(`/api/tenant/tasks/${id}`, {
         method: 'DELETE',
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to delete task');
       await fetchTasks();
@@ -229,9 +209,7 @@ export const TaskManagement: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
+                            },
         body: JSON.stringify({ text: newComment }),
       });
 

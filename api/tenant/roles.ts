@@ -3,31 +3,7 @@ import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 async function ensureRolesTables() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS tenant_roles (
-      id VARCHAR(255) PRIMARY KEY,
-      tenant_id VARCHAR(255) NOT NULL DEFAULT 'default-tenant',
-      name VARCHAR(255) NOT NULL,
-      description TEXT,
-      critical BOOLEAN NOT NULL DEFAULT false,
-      member_count INT NOT NULL DEFAULT 0,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS tenant_role_grants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      tenant_id VARCHAR(255) NOT NULL DEFAULT 'default-tenant',
-      role_id VARCHAR(255) NOT NULL,
-      module VARCHAR(255) NOT NULL,
-      scope VARCHAR(255) NOT NULL,
-      granted BOOLEAN NOT NULL DEFAULT false,
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      UNIQUE(tenant_id, role_id, module, scope)
-    )
-  `
-}
+  }
 
 const DEFAULT_ROLES = [
   { id: 'super-admin', name: 'Super Admin', description: 'Full platform control with guardrails on destructive actions.', critical: true },
@@ -45,11 +21,6 @@ const PERMISSION_MATRIX = [
   { module: 'Security', scopes: ['Manage roles', 'Force logout', 'View audit logs'] },
 ]
 
-function getHeaders(req: VercelRequest) {
-  return {
-    tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant',
-  }
-}
 
 async function seedDefaultRoles(tenantId: string) {
   for (const role of DEFAULT_ROLES) {
@@ -72,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('ensureRolesTables failed', e)
   }
 
-  const { tenantId } = getHeaders(req)
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   if (req.method === 'GET') {
     try {

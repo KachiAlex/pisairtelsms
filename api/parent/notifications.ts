@@ -22,18 +22,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const limit = parseInt(req.query.limit as string) || 20
     const type = req.query.type as string
 
-    await sql`CREATE TABLE IF NOT EXISTS parent_notifications (
-      id TEXT PRIMARY KEY,
-      parent_id TEXT NOT NULL,
-      student_id TEXT,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read BOOLEAN DEFAULT FALSE,
-      action_url TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    )`
-
     let query = sql`
       SELECT id, type, title, message, is_read, action_url, created_at::text AS date
       FROM parent_notifications

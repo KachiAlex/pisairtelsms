@@ -60,15 +60,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const { status, subject } = req.query;
 
-      await sql`CREATE TABLE IF NOT EXISTS student_assignments (
-        id TEXT PRIMARY KEY, student_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT,
-        subject TEXT, teacher TEXT, due_date DATE, status TEXT DEFAULT 'pending',
-        submission_type TEXT DEFAULT 'online', max_score NUMERIC DEFAULT 100,
-        score NUMERIC, feedback TEXT, attachments JSONB DEFAULT '[]'::jsonb,
-        submitted_at TIMESTAMP, submitted_files JSONB DEFAULT '[]'::jsonb,
-        instructions TEXT DEFAULT '', created_at TIMESTAMP DEFAULT NOW()
-      )`;
-
       let query = sql`SELECT id::text, title, description, subject, teacher, due_date::text AS due_date,
         status, submission_type, max_score, score, feedback, attachments,
         submitted_at::text AS submitted_at, submitted_files, instructions, created_at::text AS created_at

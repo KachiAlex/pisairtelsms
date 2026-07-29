@@ -2,13 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getDevice, getSyncLogs } from '../../_lib/biometric-devices.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  return null
-}
+
 
 /**
  * GET /api/tenant/biometric-devices/[deviceId]/sync-logs
@@ -23,10 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   const { deviceId, limit = '20', offset = '0' } = req.query
 

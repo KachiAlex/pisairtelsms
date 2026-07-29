@@ -80,11 +80,7 @@ export const PendingApprovals: React.FC = () => {
       if (typeFilter) params.append('type', typeFilter);
 
       const response = await fetch(`/api/tenant/approvals?${params}`, {
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to fetch approvals');
       const result = await response.json();
@@ -100,11 +96,7 @@ export const PendingApprovals: React.FC = () => {
   const fetchStats = async () => {
     try {
       const response = await fetch('/api/tenant/approvals/statistics', {
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to fetch statistics');
       const result = await response.json();
@@ -118,11 +110,7 @@ export const PendingApprovals: React.FC = () => {
     try {
       const response = await fetch(`/api/tenant/approvals/${id}/approve`, {
         method: 'POST',
-        headers: {
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
-      });
+              });
 
       if (!response.ok) throw new Error('Failed to approve');
       await fetchApprovals();
@@ -140,9 +128,7 @@ export const PendingApprovals: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
+                            },
         body: JSON.stringify({ reason: rejectionReason }),
       });
 
@@ -165,9 +151,7 @@ export const PendingApprovals: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
+                            },
         body: JSON.stringify({ ids: selectedApprovals }),
       });
 
@@ -188,9 +172,7 @@ export const PendingApprovals: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-tenant-id': localStorage.getItem('tenantId') || '',
-          'x-user-id': localStorage.getItem('userId') || '',
-        },
+                            },
         body: JSON.stringify({ ids: selectedApprovals, reason: rejectionReason }),
       });
 

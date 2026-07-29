@@ -16,20 +16,7 @@ const tokenBlacklist = new Map<string, BlacklistedToken>()
  */
 async function ensureBlacklistTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS token_blacklist (
-        id SERIAL PRIMARY KEY,
-        token TEXT NOT NULL UNIQUE,
-        user_id VARCHAR(255) NOT NULL,
-        expires_at BIGINT NOT NULL,
-        revoked_at BIGINT NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_token_blacklist_token ON token_blacklist(token)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_token_blacklist_user_id ON token_blacklist(user_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON token_blacklist(expires_at)`
-  } catch (error) {
+    } catch (error) {
     console.error('Failed to ensure token_blacklist table:', error)
   }
 }

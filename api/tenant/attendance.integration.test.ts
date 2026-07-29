@@ -2,6 +2,25 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import handler from './attendance.js'
 
+vi.mock('../_lib/auth-middleware.js', () => ({
+  requireRole: vi.fn(),
+  requireAuth: vi.fn(),
+}));
+import { requireRole } from '../_lib/auth-middleware.js'
+
+const mockRequireRole = vi.mocked(requireRole)
+const mockDecoded = {
+  tenantId: 'tenant-123',
+  userId: 'test-user',
+  role: 'tenant_admin',
+  staffId: 'test-staff',
+  parentId: 'test-parent',
+  studentId: 'test-student',
+  childrenIds: ['child-123'],
+} as any
+
+
+
 /**
  * Integration tests for attendance API endpoints
  * Tests POST /api/tenant/attendance and GET /api/tenant/attendance

@@ -3,13 +3,7 @@ import { parseCsvContent, generateCsvTemplate } from '../_lib/csv-parser.js'
 import { upsertAttendanceBatch, type AttendancePayload } from '../_lib/attendance.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  return null
-}
+
 
 function getUserId(req: VercelRequest): string | null {
   return (req.headers['x-user-id'] as string | undefined) || null
@@ -31,10 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   // GET - return CSV template
   if (req.method === 'GET') {

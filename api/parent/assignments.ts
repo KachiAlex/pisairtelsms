@@ -44,13 +44,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const childRes = await sql`SELECT name FROM students WHERE id = ${childId as string} AND deleted_at IS NULL LIMIT 1`;
     const childName = childRes.rows[0]?.name || '';
 
-    await sql`CREATE TABLE IF NOT EXISTS student_assignments (
-      id TEXT PRIMARY KEY, student_id TEXT NOT NULL, subject TEXT, title TEXT NOT NULL,
-      description TEXT, due_date DATE, status TEXT DEFAULT 'pending', type TEXT DEFAULT 'homework',
-      teacher_name TEXT, submitted_at TIMESTAMP, score NUMERIC, max_score NUMERIC DEFAULT 100,
-      feedback TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-
     const result = await sql`SELECT id::text, subject, title, description, due_date::text AS due_date,
       status, type, teacher_name, submitted_at::text AS submitted_at, score, max_score, feedback
       FROM student_assignments WHERE student_id = ${childId as string} ORDER BY due_date DESC`;

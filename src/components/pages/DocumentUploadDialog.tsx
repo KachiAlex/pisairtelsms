@@ -99,8 +99,7 @@ export function DocumentUploadDialog({
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
-      if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId
-      fetch('/api/tenant/students?limit=200', { headers })
+            fetch('/api/tenant/students?limit=200', { headers })
         .then(r => r.ok ? r.json() : { data: [] })
         .then(json => {
           const rows: StudentOption[] = (json.data || []).map((s: any) => ({

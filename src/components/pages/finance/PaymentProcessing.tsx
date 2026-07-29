@@ -50,9 +50,7 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
         const auth = JSON.parse(localStorage.getItem('auth') || '{}');
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-        if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
-
-        const params = new URLSearchParams();
+                const params = new URLSearchParams();
         if (filterMethod !== 'all') params.append('paymentMethod', filterMethod);
         if (filterStatus !== 'all') params.append('status', filterStatus);
         if (filterGateway !== 'all') params.append('gateway', filterGateway);

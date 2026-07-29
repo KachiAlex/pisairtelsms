@@ -27,7 +27,7 @@ const statusVariant: Record<string, 'default' | 'secondary'> = {
 
 function getHeaders() {
   const tenantId = localStorage.getItem('tenantId') || 'default-tenant'
-  return { 'x-tenant-id': tenantId, 'Content-Type': 'application/json' }
+  return { 'Content-Type': 'application/json' }
 }
 
 const AUDIENCE_OPTIONS = ['parents', 'students', 'staff', 'management']

@@ -29,13 +29,6 @@ const fallbackSettings: TenantSettingsPayload = {
 export async function ensureTenantSettingsTable(): Promise<void> {
   try {
     // Create table with fixed single-row id=1 if it doesn't exist yet
-    await sql`
-      CREATE TABLE IF NOT EXISTS tenant_settings (
-        id INT PRIMARY KEY DEFAULT 1,
-        settings JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `;
     // Migration: if existing table was SERIAL-based (multiple rows), consolidate into id=1
     const check = await sql`
       SELECT COUNT(*) as cnt FROM tenant_settings WHERE id != 1

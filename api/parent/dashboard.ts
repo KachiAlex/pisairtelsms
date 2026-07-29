@@ -60,26 +60,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!decoded) return
 
     // Ensure dependent tables exist
-    await sql`CREATE TABLE IF NOT EXISTS attendance (
-      id TEXT PRIMARY KEY, student_id TEXT, date DATE, status TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS fee_assignments (
-      id TEXT PRIMARY KEY, student_id TEXT, amount NUMERIC, created_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS payments (
-      id TEXT PRIMARY KEY, fee_assignment_id TEXT, amount NUMERIC, status TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS exams (
-      id SERIAL PRIMARY KEY, title TEXT, exam_date DATE, start_time TIME, end_time TIME,
-      room TEXT, student_class TEXT, description TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS results (
-      id SERIAL PRIMARY KEY, student_id TEXT, subject TEXT, ca_score NUMERIC, exam_score NUMERIC, updated_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS announcements (
-      id SERIAL PRIMARY KEY, title TEXT, body TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`
-
     const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
 
     // Get childId from query

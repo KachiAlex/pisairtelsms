@@ -6,10 +6,7 @@ const router = Router();
 // GET all notifications for tenant
 router.get('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const notifications = db
       .prepare(`
@@ -29,10 +26,7 @@ router.get('/', async (req, res) => {
 // GET unread notifications count
 router.get('/unread/count', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const result = db
       .prepare('SELECT COUNT(*) as count FROM notifications WHERE tenantId = ? AND read = 0')
@@ -48,10 +42,7 @@ router.get('/unread/count', async (req, res) => {
 // POST create notification
 router.post('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const { userId, type, title, body } = req.body;
 
@@ -90,10 +81,7 @@ router.post('/', async (req, res) => {
 // PUT mark as read
 router.put('/:id/read', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const notification = db
       .prepare('SELECT * FROM notifications WHERE id = ? AND tenantId = ?')
@@ -120,10 +108,7 @@ router.put('/:id/read', async (req, res) => {
 // PUT archive notification
 router.put('/:id/archive', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const notification = db
       .prepare('SELECT * FROM notifications WHERE id = ? AND tenantId = ?')
@@ -151,10 +136,7 @@ router.put('/:id/archive', async (req, res) => {
 // DELETE notification
 router.delete('/:id', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const notification = db
       .prepare('SELECT * FROM notifications WHERE id = ? AND tenantId = ?')

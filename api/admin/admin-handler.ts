@@ -3,35 +3,7 @@ import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 async function ensureAdminTables() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS admin_provisioning_queue (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      name VARCHAR(255) NOT NULL,
-      type VARCHAR(100) DEFAULT 'tenant',
-      eta VARCHAR(50) DEFAULT 'pending',
-      owner VARCHAR(255),
-      status VARCHAR(50) DEFAULT 'pending',
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS admin_activity_feed (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      title VARCHAR(500) NOT NULL,
-      meta VARCHAR(500),
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS admin_incidents (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      title VARCHAR(500) NOT NULL,
-      impact VARCHAR(255),
-      status VARCHAR(50) DEFAULT 'Open',
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `
-}
+  }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {

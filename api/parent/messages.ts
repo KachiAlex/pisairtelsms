@@ -6,17 +6,7 @@ import { verifyParentChildRelationship } from '../../src/lib/parentAuth'
 const VIOLATION_ALERT_THRESHOLD = 5
 
 async function ensureParentChildViolationTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS parent_child_violations (
-      parent_id TEXT NOT NULL,
-      child_id TEXT NOT NULL,
-      context TEXT NOT NULL,
-      attempts INTEGER NOT NULL DEFAULT 0,
-      first_attempt TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      last_attempt TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (parent_id, child_id, context)
-    )`
-}
+  }
 
 async function logParentChildViolation(parentId: string, childId: string, context: string, tenantId?: string) {
   await ensureParentChildViolationTable()
@@ -112,15 +102,6 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
-    await sql`CREATE TABLE IF NOT EXISTS parent_messages (
-      id TEXT PRIMARY KEY, parent_id TEXT, staff_id TEXT, child_id TEXT,
-      subject TEXT, body TEXT, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS timetable (
-      id SERIAL PRIMARY KEY, staff_id TEXT, day TEXT, subject TEXT,
-      class_name TEXT, room TEXT, start_time TEXT, end_time TEXT, created_at TIMESTAMP DEFAULT NOW()
-    )`
-
     const convResult = await sql`
       SELECT pm.id::text, pm.subject, pm.body AS last_message,
              pm.created_at::text AS last_message_date, pm.is_read,
@@ -190,11 +171,6 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
       logParentChildViolation(parentInfo.parentId, sanitizedChildId, 'POST /parent/messages', decoded.tenantId)
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
-
-    await sql`CREATE TABLE IF NOT EXISTS parent_messages (
-      id TEXT PRIMARY KEY, parent_id TEXT, staff_id TEXT, child_id TEXT,
-      subject TEXT, body TEXT, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
-    )`
 
     let targetTeacherId = teacherId
     if (conversationId) {

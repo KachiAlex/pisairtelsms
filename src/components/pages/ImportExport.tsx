@@ -10,11 +10,11 @@ function getApiHeaders() {
   try {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
     return {
-      'x-tenant-id': auth.tenantId || 'default-tenant',
-      'x-user-id': auth.userId || auth.email || 'system',
+      'Content-Type': 'application/json',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
     }
   } catch {
-    return { 'x-tenant-id': 'default-tenant', 'x-user-id': 'system' }
+    return { 'Content-Type': 'application/json' }
   }
 }
 

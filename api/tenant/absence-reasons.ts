@@ -27,15 +27,7 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
 
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-
-  return null
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication - only staff or tenant_admin can access tenant absence reasons
@@ -43,13 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!decoded) return
 
   // Require tenant context
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({
-      success: false,
-      error: 'Tenant context required (x-tenant-id header)',
-    })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   // GET /api/tenant/absence-reasons - List all absence reasons
   if (req.method === 'GET') {

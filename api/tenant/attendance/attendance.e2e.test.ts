@@ -12,6 +12,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
+vi.mock('../../_lib/auth-middleware.js', () => ({
+  requireRole: vi.fn(),
+  requireAuth: vi.fn(),
+}));
+import { requireRole } from '../../_lib/auth-middleware.js'
+
+const mockRequireRole = vi.mocked(requireRole)
+const mockDecoded = {
+  tenantId: 'tenant-e2e',
+  userId: 'test-user',
+  role: 'tenant_admin',
+  staffId: 'test-staff',
+  parentId: 'test-parent',
+  studentId: 'test-student',
+  childrenIds: ['child-123'],
+} as any
+
+
+
 // ============================================================================
 // Mock database layer only — business logic runs for real
 // ============================================================================
@@ -279,6 +298,8 @@ describe('5.3.2 Admin Analytics Dashboard Workflow', () => {
 
 describe('5.3.3 Device Management Workflow', () => {
   beforeEach(() => {
+    mockRequireRole.mockReset()
+    mockRequireRole.mockResolvedValue(mockDecoded)
     vi.clearAllMocks()
   })
 

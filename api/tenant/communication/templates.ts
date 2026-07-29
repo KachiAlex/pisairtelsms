@@ -6,10 +6,7 @@ const router = Router();
 // GET all templates for tenant
 router.get('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const templates = db
       .prepare('SELECT * FROM communication_templates WHERE tenantId = ? ORDER BY createdAt DESC')
@@ -25,10 +22,7 @@ router.get('/', async (req, res) => {
 // GET single template
 router.get('/:id', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const template = db
       .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')
@@ -48,10 +42,7 @@ router.get('/:id', async (req, res) => {
 // POST create template
 router.post('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const { name, category, subject, body, channels, variables } = req.body;
 
@@ -92,10 +83,7 @@ router.post('/', async (req, res) => {
 // PUT update template
 router.put('/:id', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const { name, category, subject, body, channels, variables } = req.body;
 
@@ -139,10 +127,7 @@ router.put('/:id', async (req, res) => {
 // DELETE template
 router.delete('/:id', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const template = db
       .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')

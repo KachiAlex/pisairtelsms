@@ -22,12 +22,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (method === 'GET') {
     try {
-      await sql`CREATE TABLE IF NOT EXISTS exams (
-        id SERIAL PRIMARY KEY, title TEXT, subject TEXT, exam_date DATE,
-        start_time TIME, end_time TIME, room TEXT, student_class TEXT,
-        description TEXT, status TEXT DEFAULT 'Draft', created_at TIMESTAMP DEFAULT NOW()
-      )`
-
       if (examId && typeof examId === 'string') {
         const examRes = await sql`SELECT id::text, title, subject, student_class FROM exams WHERE id = ${examId} LIMIT 1`
         if (!examRes.rows[0]) {

@@ -3,13 +3,7 @@ import { triggerAtRiskNotifications } from '../../_lib/attendance.js'
 import { getBulkNotificationJob } from '../../_lib/guardian-notifications.js'
 import { requireRole } from '../../../../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  return null
-}
+
 
 /**
  * POST /api/tenant/attendance/notifications/bulk-send
@@ -25,10 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(401).json({ success: false, error: 'Tenant context required (x-tenant-id header)' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   try {
     const { class: className, userId } = req.body

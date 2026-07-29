@@ -81,8 +81,7 @@ function tenantHeaders(): Record<string, string> {
   const tenantId = (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
   return {
     'Content-Type': 'application/json',
-    'x-tenant-id': tenantId,
-  }
+      }
 }
 
 const CHANNELS = ['email', 'sms', 'push', 'in-app']

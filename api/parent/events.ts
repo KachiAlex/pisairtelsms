@@ -45,12 +45,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   try {
     const { category } = req.query;
-    await sql`CREATE TABLE IF NOT EXISTS school_events (
-      id SERIAL PRIMARY KEY, title VARCHAR(255) NOT NULL, description TEXT,
-      event_date DATE, start_time TIME, end_time TIME, venue VARCHAR(255),
-      category VARCHAR(50), is_mandatory BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-
     let result;
     if (category) {
       result = await sql`SELECT id::text, title, COALESCE(description, '') AS description,

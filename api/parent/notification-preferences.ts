@@ -25,20 +25,6 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' })
     }
 
-    await sql`CREATE TABLE IF NOT EXISTS parent_notification_preferences (
-      parent_id TEXT PRIMARY KEY,
-      email_notifications BOOLEAN DEFAULT TRUE,
-      in_app_notifications BOOLEAN DEFAULT TRUE,
-      sms_notifications BOOLEAN DEFAULT FALSE,
-      academic BOOLEAN DEFAULT TRUE,
-      attendance BOOLEAN DEFAULT TRUE,
-      behavioral BOOLEAN DEFAULT TRUE,
-      fees BOOLEAN DEFAULT TRUE,
-      communication BOOLEAN DEFAULT TRUE,
-      health BOOLEAN DEFAULT TRUE,
-      updated_at TIMESTAMP DEFAULT NOW()
-    )`
-
     const result = await sql`
       SELECT * FROM parent_notification_preferences WHERE parent_id = ${parentInfo.parentId} LIMIT 1
     `
@@ -93,20 +79,6 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     }
 
     const { emailNotifications, inAppNotifications, smsNotifications, notificationTypes } = req.body
-
-    await sql`CREATE TABLE IF NOT EXISTS parent_notification_preferences (
-      parent_id TEXT PRIMARY KEY,
-      email_notifications BOOLEAN DEFAULT TRUE,
-      in_app_notifications BOOLEAN DEFAULT TRUE,
-      sms_notifications BOOLEAN DEFAULT FALSE,
-      academic BOOLEAN DEFAULT TRUE,
-      attendance BOOLEAN DEFAULT TRUE,
-      behavioral BOOLEAN DEFAULT TRUE,
-      fees BOOLEAN DEFAULT TRUE,
-      communication BOOLEAN DEFAULT TRUE,
-      health BOOLEAN DEFAULT TRUE,
-      updated_at TIMESTAMP DEFAULT NOW()
-    )`
 
     await sql`
       INSERT INTO parent_notification_preferences (

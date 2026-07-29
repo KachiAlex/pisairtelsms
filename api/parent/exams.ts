@@ -66,18 +66,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const childName = childRes.rows[0]?.name || '';
     const studentClass = childRes.rows[0]?.class || '';
 
-    await sql`CREATE TABLE IF NOT EXISTS exams (
-      id SERIAL PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      exam_date DATE,
-      start_time TIME,
-      end_time TIME,
-      room VARCHAR(255),
-      student_class VARCHAR(255),
-      description TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    )`;
-
     const examResult = await sql`SELECT id::text, title AS subject, COALESCE(description, '') AS paper,
       exam_date::text AS date, start_time::text AS start_time, end_time::text AS end_time,
       room AS venue, COALESCE(student_class, '') AS student_class

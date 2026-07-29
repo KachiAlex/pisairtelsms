@@ -87,40 +87,7 @@ function rowToFeeItem(row: FeeItemRow): FeeItem {
 
 export async function ensureFeeTables(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS fee_structures (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        academic_session TEXT NOT NULL,
-        term TEXT NOT NULL,
-        effective_from DATE NOT NULL,
-        effective_to DATE,
-        status TEXT NOT NULL DEFAULT 'active',
-        created_by TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_structures_tenant_id ON fee_structures(tenant_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_structures_session_term ON fee_structures(academic_session, term)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_structures_status ON fee_structures(status)`
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS fee_items (
-        id TEXT PRIMARY KEY,
-        fee_structure_id TEXT NOT NULL REFERENCES fee_structures(id),
-        category TEXT NOT NULL,
-        description TEXT NOT NULL,
-        amount NUMERIC(12,2) NOT NULL,
-        applicable_classes TEXT NOT NULL,
-        is_mandatory BOOLEAN NOT NULL DEFAULT false,
-        sequence INTEGER NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_fee_items_fee_structure_id ON fee_items(fee_structure_id)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring fee tables:', error)
   }
 }

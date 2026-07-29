@@ -10,8 +10,7 @@ import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
 
 async function ensureStudentAuthColumn() {
-  await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT`
-}
+  }
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')

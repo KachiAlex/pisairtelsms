@@ -140,8 +140,7 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
     setLoading(true)
     Promise.all([
       fetch('/api/tenant/staff').then(r => r.json()),
-      fetch('/api/tenant/academics/subjects', { headers: { 'x-tenant-id': 'default-tenant' } }).then(r => r.json())
-    ])
+      fetch('/api/tenant/academics/subjects', { headers: {     ])
       .then(([staffData, subjectsData]) => {
         const members = Array.isArray(staffData.data) ? staffData.data : []
         const subjects = Array.isArray(subjectsData.data) ? subjectsData.data : []

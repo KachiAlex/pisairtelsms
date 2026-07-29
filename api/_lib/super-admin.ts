@@ -53,19 +53,6 @@ function mapRow(row: SuperAdminRow): SuperAdminAccountResponse {
 
 export async function ensureSuperAdminTable() {
   if (!hasDatabase) return
-  if (!tableReady) {
-    tableReady = sql`
-      CREATE TABLE IF NOT EXISTS super_admin_accounts (
-        id SERIAL PRIMARY KEY,
-        full_name TEXT NOT NULL,
-        organization TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-    `.then(() => undefined)
-  }
   return tableReady
 }
 

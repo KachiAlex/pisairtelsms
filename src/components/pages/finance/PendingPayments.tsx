@@ -41,9 +41,7 @@ export function PendingPayments() {
       const auth = JSON.parse(localStorage.getItem('auth') || '{}');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-      if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
-
-      const response = await fetch('/api/tenant/finance/payments?action=pending', { headers });
+            const response = await fetch('/api/tenant/finance/payments?action=pending', { headers });
       if (!response.ok) throw new Error('Failed to fetch pending payments');
       const result = await response.json();
       setPayments(result.data || []);
@@ -60,9 +58,7 @@ export function PendingPayments() {
       const auth = JSON.parse(localStorage.getItem('auth') || '{}');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-      if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
-
-      const response = await fetch(`/api/tenant/finance/payments/${paymentId}/confirm`, {
+            const response = await fetch(`/api/tenant/finance/payments/${paymentId}/confirm`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ confirmedBy: 'admin' }),
@@ -89,9 +85,7 @@ export function PendingPayments() {
       const auth = JSON.parse(localStorage.getItem('auth') || '{}');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-      if (auth.tenantId) headers['x-tenant-id'] = auth.tenantId;
-
-      const response = await fetch(`/api/tenant/finance/payments/${paymentId}/reject`, {
+            const response = await fetch(`/api/tenant/finance/payments/${paymentId}/reject`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ reason: rejectReason || 'Payment rejected by admin' }),

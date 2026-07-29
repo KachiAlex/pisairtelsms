@@ -58,9 +58,7 @@ const STATUS_STYLES: Record<string, string> = {
 function getHeaders() {
   return {
     'Content-Type': 'application/json',
-    'x-tenant-id': localStorage.getItem('tenantId') || '',
-    'x-user-id':   localStorage.getItem('userId')   || '',
-  };
+          };
 }
 
 export default function PaymentGateway() {

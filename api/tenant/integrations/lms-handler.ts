@@ -3,56 +3,13 @@ import { sql } from '@vercel/postgres';
 import { requireRole } from '../../_lib/auth-middleware.js';
 
 async function ensureTables() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS lms_configs (
-      id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id     TEXT NOT NULL,
-      provider      TEXT NOT NULL,
-      base_url      TEXT NOT NULL,
-      api_key       TEXT NOT NULL,
-      is_active     BOOLEAN NOT NULL DEFAULT true,
-      sync_status   TEXT NOT NULL DEFAULT 'pending',
-      last_sync_at  TIMESTAMPTZ,
-      created_by    TEXT,
-      updated_by    TEXT,
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS lms_syncs (
-      id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id         TEXT NOT NULL,
-      lms_config_id     TEXT NOT NULL,
-      provider          TEXT NOT NULL,
-      sync_type         TEXT NOT NULL,
-      status            TEXT NOT NULL DEFAULT 'in_progress',
-      records_processed INTEGER NOT NULL DEFAULT 0,
-      records_failed    INTEGER NOT NULL DEFAULT 0,
-      error             TEXT,
-      started_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      completed_at      TIMESTAMPTZ,
-      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS lms_sync_logs (
-      id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      tenant_id     TEXT NOT NULL,
-      lms_config_id TEXT NOT NULL,
-      log_type      TEXT NOT NULL,
-      message       TEXT NOT NULL,
-      details       JSONB,
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-}
+  }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
 
-  const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenantId as string) || 'default-tenant';
+  const tenantId = decoded.tenantId || 'default-tenant';
   const userId   = (req.headers['x-user-id']   as string) || (req.query.userId   as string) || 'system';
   const id       = Array.isArray(req.query.id)       ? req.query.id[0]       : req.query.id;
   const action   = Array.isArray(req.query.action)   ? req.query.action[0]   : req.query.action;

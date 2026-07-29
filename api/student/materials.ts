@@ -56,15 +56,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const studentRes = await sql`SELECT class FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1`;
     const studentClass = studentRes.rows[0]?.class || '';
 
-    await sql`CREATE TABLE IF NOT EXISTS course_materials (
-      id SERIAL PRIMARY KEY, title VARCHAR(255) NOT NULL, description TEXT,
-      subject VARCHAR(255), teacher VARCHAR(255), type VARCHAR(50),
-      file_name VARCHAR(255), file_size VARCHAR(50), file_type VARCHAR(255),
-      url TEXT, upload_date TIMESTAMP DEFAULT NOW(), academic_session VARCHAR(50),
-      term VARCHAR(50), class_level VARCHAR(50), tags JSONB DEFAULT '[]'::jsonb,
-      is_required BOOLEAN DEFAULT false, view_count INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW()
-    )`;
-
     let queryStr = `SELECT id::text, title, COALESCE(description, '') AS description, COALESCE(subject, '') AS subject,
       COALESCE(teacher, '') AS teacher, COALESCE(type, 'document') AS type,
       COALESCE(file_name, '') AS file_name, COALESCE(file_size, '') AS file_size,

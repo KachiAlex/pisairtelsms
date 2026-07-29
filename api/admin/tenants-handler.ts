@@ -3,20 +3,7 @@ import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 async function ensureTenantsTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS tenants (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      name VARCHAR(255) NOT NULL,
-      subscription_plan VARCHAR(50) NOT NULL DEFAULT 'basic',
-      region VARCHAR(50) DEFAULT 'global',
-      usage_percent INT DEFAULT 0,
-      status VARCHAR(50) NOT NULL DEFAULT 'active',
-      last_sync_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      open_alerts INT DEFAULT 0,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `
-}
+  }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {

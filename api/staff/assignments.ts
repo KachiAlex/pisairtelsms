@@ -32,20 +32,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!staffId) return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
 
   try {
-    await sql`CREATE TABLE IF NOT EXISTS parent_notifications (
-      id TEXT PRIMARY KEY,
-      parent_id TEXT NOT NULL,
-      student_id TEXT,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      is_read BOOLEAN DEFAULT FALSE,
-      action_url TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    )`;
-
-    try { await sql`ALTER TABLE student_assignments ADD COLUMN IF NOT EXISTS teacher_id TEXT`; } catch (e) { /* ignore */ }
-    try { await sql`ALTER TABLE student_assignments ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'homework'`; } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
   } catch (e) {
     console.error('Schema setup error:', e);
   }

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import riskAlertsApi from './risk-alerts';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
 /**
  * Predictive Risk Alerts API Handler
@@ -7,11 +8,11 @@ import riskAlertsApi from './risk-alerts';
  *   GET  /api/tenant/students/risk-alerts?type=alerts|models|playbooks|clusters|statistics
  *   POST /api/tenant/students/risk-alerts  (action: create-alert|create-model|create-playbook|create-cluster|create-intervention)
  */
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  const tenantId =
-    (req.headers['x-tenant-id'] as string) ||
-    (req.query.tenantId as string) ||
-    'default-tenant';
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   try {
     if (req.method === 'GET') {

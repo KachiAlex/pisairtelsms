@@ -14,20 +14,7 @@ interface LeadRow {
 
 export async function ensureLeadTable() {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS leads (
-        id VARCHAR(255) PRIMARY KEY,
-        student_name VARCHAR(255) NOT NULL,
-        parent_name VARCHAR(255),
-        contact_phone VARCHAR(255),
-        contact_email VARCHAR(255),
-        class_interested VARCHAR(255),
-        source VARCHAR(255),
-        created_at TIMESTAMP DEFAULT NOW(),
-        status VARCHAR(255) DEFAULT 'new'
-      )
-    `
-  } catch (error) {
+    } catch (error) {
     console.error('Error creating leads table:', error)
   }
 }

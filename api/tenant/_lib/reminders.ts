@@ -6,10 +6,7 @@ const router = Router();
 // GET all reminders for tenant
 router.get('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const reminders = db
       .prepare('SELECT * FROM reminders WHERE tenantId = ? ORDER BY scheduledTime ASC')
@@ -25,10 +22,7 @@ router.get('/', async (req, res) => {
 // GET reminders for a task
 router.get('/task/:taskId', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const reminders = db
       .prepare('SELECT * FROM reminders WHERE tenantId = ? AND taskId = ? ORDER BY scheduledTime ASC')
@@ -44,10 +38,7 @@ router.get('/task/:taskId', async (req, res) => {
 // POST create reminder
 router.post('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const { taskId, channel, scheduledTime } = req.body;
 
@@ -84,10 +75,7 @@ router.post('/', async (req, res) => {
 // PUT update reminder
 router.put('/:id', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const { channel, scheduledTime } = req.body;
 
@@ -124,10 +112,7 @@ router.put('/:id', async (req, res) => {
 // DELETE reminder
 router.delete('/:id', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) {
-      return res.status(400).json({ error: 'x-tenant-id header required' });
-    }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     const reminder = db
       .prepare('SELECT * FROM reminders WHERE id = ? AND tenantId = ?')

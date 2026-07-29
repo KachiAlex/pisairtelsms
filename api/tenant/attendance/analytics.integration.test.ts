@@ -113,6 +113,25 @@ import atRiskHandler from './analytics/at-risk-students.js'
 import leaderboardHandler from './analytics/homeroom-leaderboard.js'
 import auditTrailHandler from './audit-trail.js'
 
+vi.mock('../../_lib/auth-middleware.js', () => ({
+  requireRole: vi.fn(),
+  requireAuth: vi.fn(),
+}));
+import { requireRole } from '../../_lib/auth-middleware.js'
+
+const mockRequireRole = vi.mocked(requireRole)
+const mockDecoded = {
+  tenantId: 'tenant-123',
+  userId: 'test-user',
+  role: 'tenant_admin',
+  staffId: 'test-staff',
+  parentId: 'test-parent',
+  studentId: 'test-student',
+  childrenIds: ['child-123'],
+} as any
+
+
+
 // ---------------------------------------------------------------------------
 // Dashboard endpoint tests
 // ---------------------------------------------------------------------------

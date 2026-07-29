@@ -104,8 +104,7 @@ export function SystemAlerts() {
     try {
       const res = await fetch('/api/tenant/alerts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': fetchTenantId() },
-        body: JSON.stringify({ title: 'Broadcast alert', severity: 'medium', status: 'open' }),
+        headers: { 'Content-Type': 'application/json',         body: JSON.stringify({ title: 'Broadcast alert', severity: 'medium', status: 'open' }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -128,8 +127,7 @@ export function SystemAlerts() {
     try {
       const res = await fetch('/api/tenant/alerts/maintenance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': fetchTenantId() },
-        body: JSON.stringify({
+        headers: { 'Content-Type': 'application/json',         body: JSON.stringify({
           label: 'Scheduled maintenance',
           window_start: new Date().toISOString(),
           window_end: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
@@ -157,8 +155,7 @@ export function SystemAlerts() {
     try {
       const res = await fetch('/api/tenant/alerts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': fetchTenantId() },
-        body: JSON.stringify({ title: 'Pre-emptive anomaly scanning enabled', severity: 'low', status: 'open' }),
+        headers: { 'Content-Type': 'application/json',         body: JSON.stringify({ title: 'Pre-emptive anomaly scanning enabled', severity: 'low', status: 'open' }),
       })
       if (res.ok) {
         toast({ title: 'Pre-emptive mode activated', description: 'Anomaly scanning is now running proactively.' })

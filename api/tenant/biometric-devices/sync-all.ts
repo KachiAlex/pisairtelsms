@@ -14,13 +14,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { syncTenantDevices, formatSyncResult } from '../_lib/sync-scheduler.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  const tenantId = req.headers['x-tenant-id'] as string | undefined
-  if (tenantId) return tenantId
-  const queryTenantId = req.query['tenantId'] as string | undefined
-  if (queryTenantId) return queryTenantId
-  return null
-}
+
 
 /**
  * Verify request is authorized (basic check)
@@ -35,7 +29,7 @@ function isAuthorized(req: VercelRequest): boolean {
   }
 
   // Check for tenant context (less secure but acceptable for internal use)
-  const tenantId = getTenantId(req)
+  const tenantId = decoded.tenantId || 'default-tenant'
   return !!tenantId
 }
 
@@ -56,13 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   }
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Tenant context required (x-tenant-id header)',
-    })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   try {
     // Extract optional academic session and term from request body

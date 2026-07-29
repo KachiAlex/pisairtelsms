@@ -135,9 +135,7 @@ export function TaskManagement() {
     const { tenantId, userId, token } = getAuth()
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-tenant-id': tenantId,
-      'x-user-id': userId,
-    }
+                }
     if (token) headers['Authorization'] = `Bearer ${token}`
     return headers
   }

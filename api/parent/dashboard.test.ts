@@ -1,6 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import handler from './dashboard'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireRole } from '../_lib/auth-middleware.js'
+
+vi.mock('../_lib/auth-middleware.js', () => ({
+  requireRole: vi.fn(),
+  requireAuth: vi.fn(),
+}));
+
+const mockRequireRole = vi.mocked(requireRole);
+
+const mockDecoded = {
+  tenantId: 'test-tenant',
+  role: 'parent',
+  parentId: 'test-parent',
+  childrenIds: ['child-123'],
+} as any;
 
 describe('Parent Dashboard API', () => {
   let req: Partial<VercelRequest>
@@ -11,6 +26,8 @@ describe('Parent Dashboard API', () => {
   beforeEach(() => {
     statusCode = 200
     responseData = null
+    mockRequireRole.mockReset()
+    mockRequireRole.mockResolvedValue(mockDecoded)
 
     req = {
       method: 'GET',
@@ -42,6 +59,10 @@ describe('Parent Dashboard API', () => {
 
   it('should return 401 when no token provided', async () => {
     req.headers = {}
+    mockRequireRole.mockImplementationOnce(async (_req: any, _res: any) => {
+      _res.status(401).json({ error: 'Unauthorized: Missing token' })
+      return null
+    })
     await handler(req as VercelRequest, res as VercelResponse)
     expect(statusCode).toBe(401)
     expect(responseData.error).toContain('Unauthorized')

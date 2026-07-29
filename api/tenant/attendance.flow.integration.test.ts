@@ -9,6 +9,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
+vi.mock('../_lib/auth-middleware.js', () => ({
+  requireRole: vi.fn(),
+  requireAuth: vi.fn(),
+}));
+import { requireRole } from '../_lib/auth-middleware.js'
+
+const mockRequireRole = vi.mocked(requireRole)
+const mockDecoded = {
+  tenantId: 'tenant-123',
+  userId: 'test-user',
+  role: 'tenant_admin',
+  staffId: 'test-staff',
+  parentId: 'test-parent',
+  studentId: 'test-student',
+  childrenIds: ['child-123'],
+} as any
+
+
+
 // ============================================================================
 // Mock database and external dependencies
 // ============================================================================

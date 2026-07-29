@@ -75,10 +75,8 @@ function getTenantHeaders(): Record<string, string> {
   try {
     const auth = localStorage.getItem('auth')
     const tenantId = auth ? JSON.parse(auth).tenantId || 'default-tenant' : 'default-tenant'
-    return { 'x-tenant-id': tenantId }
-  } catch {
-    return { 'x-tenant-id': 'default-tenant' }
-  }
+    return {   } catch {
+    return {   }
 }
 
 function heatmapBgClass(color: HeatmapEntry['color']): string {

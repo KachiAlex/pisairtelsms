@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireAuth } from '../_lib/auth-middleware.js';
 
 interface StudentAttendanceRecord {
   id: string;
@@ -36,33 +37,6 @@ interface AttendanceSubmissionResponse {
   message: string;
 }
 
-function extractPayload(req: VercelRequest): { staffId: string | null; tenantId: string } {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
-    return { staffId: xUserId.trim(), tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
-  }
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { staffId: null, tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
-  }
-
-  const token = authHeader.substring(7);
-  if (!token) return { staffId: null, tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
-
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return { staffId: payload.staffId || payload.userId || payload.sub || null, tenantId: payload.tenantId || (req.headers['x-tenant-id'] as string) || 'default-tenant' };
-    }
-  } catch {
-    // not a JWT
-  }
-
-  return { staffId: token || null, tenantId: (req.headers['x-tenant-id'] as string) || 'default-tenant' };
-}
-
 function parseBody(req: VercelRequest): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -80,7 +54,10 @@ function parseBody(req: VercelRequest): Promise<any> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { staffId, tenantId } = extractPayload(req);
+  const decoded = await requireAuth(req, res);
+  if (!decoded) return;
+  const staffId = decoded.staffId || decoded.userId || null;
+  const tenantId = decoded.tenantId || 'default-tenant';
   if (!staffId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
   }
@@ -88,43 +65,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     try {
       const { classId, date } = req.query;
-
-      await sql`
-        CREATE TABLE IF NOT EXISTS students (
-          id TEXT PRIMARY KEY,
-          tenant_id TEXT NOT NULL,
-          admission_no TEXT,
-          name TEXT NOT NULL,
-          class TEXT,
-          arm TEXT,
-          gender TEXT,
-          status TEXT,
-          guardian TEXT,
-          phone TEXT,
-          guardian_email TEXT,
-          deleted_at TIMESTAMP WITH TIME ZONE
-        )
-      `;
-      await sql`
-        CREATE TABLE IF NOT EXISTS attendance_records (
-          id TEXT PRIMARY KEY,
-          tenant_id TEXT NOT NULL,
-          student_id TEXT NOT NULL,
-          class TEXT,
-          date DATE NOT NULL,
-          status TEXT NOT NULL,
-          absence_reason_id TEXT,
-          source TEXT,
-          device_id TEXT,
-          user_id TEXT,
-          academic_session TEXT,
-          term TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          created_by TEXT,
-          updated_by TEXT
-        )
-      `;
 
       const studentsResult = await sql`
         SELECT id, name, admission_no

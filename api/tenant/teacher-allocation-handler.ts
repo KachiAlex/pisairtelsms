@@ -2,53 +2,27 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
 
-function getTenantId(req: VercelRequest): string | null {
-  return (req.headers['x-tenant-id'] as string) || (req.query['tenantId'] as string) || null
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication - only staff or tenant_admin can access tenant teacher allocation
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = getTenantId(req)
-  if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context required' })
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   const action = req.query['action'] as string
 
   try {
     // Ensure schema exists (best-effort)
     try {
-      await sql`CREATE TABLE IF NOT EXISTS teacher_allocation_slots (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT,
-        class TEXT,
-        subject TEXT,
-        teacher TEXT,
-        coverage TEXT DEFAULT 'Open',
-        warnings INT DEFAULT 0,
-        day_of_week INT,
-        created_at TIMESTAMP DEFAULT NOW()
-      )`
-    } catch (e) { /* ignore */ }
+      } catch (e) { /* ignore */ }
     try {
-      await sql`CREATE TABLE IF NOT EXISTS teacher_substitution_log (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT,
-        slot TEXT,
-        priority TEXT,
-        action TEXT,
-        relief TEXT,
-        eta TEXT,
-        impacted TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      )`
-    } catch (e) { /* ignore */ }
-    try { await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS level TEXT` } catch (e) { /* ignore */ }
-    try { await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS risk_flag TEXT` } catch (e) { /* ignore */ }
-    try { await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS subjects TEXT` } catch (e) { /* ignore */ }
-    try { await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS allocation_periods INT` } catch (e) { /* ignore */ }
-    try { await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS contract_hours INT` } catch (e) { /* ignore */ }
+      } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
+    try { } catch (e) { /* ignore */ }
   } catch (e) { console.error('Schema setup error:', e) }
 
   try {

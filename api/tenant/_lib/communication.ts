@@ -45,24 +45,7 @@ function rowToAnnouncement(row: AnnouncementRow): Announcement {
 
 export async function ensureCommunicationTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS announcements (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        body TEXT NOT NULL,
-        audience TEXT NOT NULL CHECK (audience IN ('all', 'students', 'staff', 'parents')),
-        sent_by TEXT NOT NULL DEFAULT 'Admin',
-        sent_at TIMESTAMP WITH TIME ZONE,
-        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sent')),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `
-    await sql`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`
-    await sql`CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_announcements_sent_at ON announcements(sent_at)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_announcements_tenant ON announcements(tenant_id)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring announcements table:', error)
   }
 }
@@ -124,23 +107,8 @@ export interface AnnouncementRead {
 
 export async function ensureAnnouncementReadsTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS announcement_reads (
-        id TEXT PRIMARY KEY,
-        announcement_id TEXT NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
-        reader_id TEXT NOT NULL,
-        reader_type TEXT NOT NULL CHECK (reader_type IN ('student', 'parent', 'staff')),
-        reader_name TEXT,
-        read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        tenant_id TEXT NOT NULL
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_announcement_reads_announcement ON announcement_reads(announcement_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_announcement_reads_reader ON announcement_reads(reader_id, announcement_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_announcement_reads_tenant ON announcement_reads(tenant_id)`
     // Prevent duplicate reads from the same reader
-    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_announcement_reads_unique ON announcement_reads(announcement_id, reader_id, reader_type)`
-  } catch (error) {
+    } catch (error) {
     console.error('Error ensuring announcement_reads table:', error)
   }
 }

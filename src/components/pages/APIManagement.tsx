@@ -36,10 +36,11 @@ function getHeaders() {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}');
     return {
       'Content-Type': 'application/json',
-                  ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
     };
   } catch {
-    return { 'Content-Type': 'application/json'}
+    return { 'Content-Type': 'application/json' };
+  }
 }
 
 const STATUS_STYLE: Record<string, string> = {

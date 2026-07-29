@@ -60,9 +60,10 @@ const AUDIT_PAGE_SIZE = 25
 function getTenantHeaders(): Record<string, string> {
   try {
     const auth = localStorage.getItem('auth')
-    const tenantId = auth ? JSON.parse(auth).tenantId || 'default-tenant' : 'default-tenant'
-    return {   } catch {
-    return {   }
+    return { 'Content-Type': 'application/json' }
+  } catch {
+    return { 'Content-Type': 'application/json' }
+  }
 }
 
 function getActionBadgeVariant(action: string): 'default' | 'secondary' | 'destructive' {

@@ -62,7 +62,8 @@ export function LeaveManagement() {
         const response = await fetch('/api/staff/leave', {
           headers: {
             Authorization: `Bearer ${token}`,
-            ...(userId ? {           },
+            'Content-Type': 'application/json',
+          },
         })
 
         if (!response.ok) {
@@ -120,7 +121,7 @@ export function LeaveManagement() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          ...(userId ? {         },
+        },
         body: JSON.stringify(formData),
       })
 
@@ -142,7 +143,8 @@ export function LeaveManagement() {
       const refreshResponse = await fetch('/api/staff/leave', {
         headers: {
           Authorization: `Bearer ${token}`,
-          ...(userId ? {         },
+          'Content-Type': 'application/json',
+        },
       })
       if (refreshResponse.ok) {
         const leaveData = await refreshResponse.json()

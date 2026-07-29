@@ -58,7 +58,6 @@ export function SchoolBranding() {
     try {
       setLoading(true)
       setError(null)
-      const { tenantId, userId } = getAuth()
       const response = await fetch('/api/tenant/branding')
       if (!response.ok) throw new Error('Failed to load branding')
       const result = await response.json()
@@ -85,7 +84,6 @@ export function SchoolBranding() {
     try {
       setSaving(true)
       setError(null)
-      const { tenantId, userId } = getAuth()
       const response = await fetch('/api/tenant/branding', {
         method: 'PUT',
         headers: {
@@ -162,7 +160,6 @@ export function SchoolBranding() {
     if (!logoFile || !logoPreview) return
     setUploadingLogo(true)
     try {
-      const { tenantId, userId } = getAuth()
       const res = await fetch('/api/tenant/branding/logo', {
         method: 'POST',
         headers: {
@@ -194,7 +191,6 @@ export function SchoolBranding() {
   }
 
   const handleRemoveLogo = async () => {
-    const { tenantId, userId } = getAuth()
     try {
       const res = await fetch('/api/tenant/branding/logo', {
         method: 'POST',

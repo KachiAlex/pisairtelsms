@@ -73,7 +73,6 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const { tenantId, userId } = getAuth()
       const res = await fetch('/api/tenant/branding')
       if (!res.ok) return
       const result = await res.json()

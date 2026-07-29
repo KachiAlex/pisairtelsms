@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { fc } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
+import { it, fc } from '@fast-check/vitest'
 
 /**
  * Property-based tests for StudentPromotion data derivation
@@ -60,11 +60,7 @@ const promotionRuleArbitrary = () =>
 
 describe('StudentPromotion Data Derivation - Property Tests', () => {
   describe('Property 10: StudentPromotion Data Derivation', () => {
-    it(
-      'should derive averageScore from fetched score records',
-      fc.prop(
-        fc.array(scoreRecordArbitrary(), { minLength: 1, maxLength: 10 }),
-        scores => {
+    it.prop([fc.array(scoreRecordArbitrary(), { minLength: 1, maxLength: 10 })])('should derive averageScore from fetched score records', scores => {
           // Property: averageScore should be the mean of all totalScores
           const totalScores = scores.map(s => s.totalScore)
           const expectedAverage = Math.round(
@@ -74,15 +70,9 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
           // Verify calculation
           expect(expectedAverage).toBeGreaterThanOrEqual(0)
           expect(expectedAverage).toBeLessThanOrEqual(100)
-        }
-      )
-    )
+        })
 
-    it(
-      'should derive attendance from fetched score records',
-      fc.prop(
-        fc.array(scoreRecordArbitrary(), { minLength: 1, maxLength: 10 }),
-        scores => {
+    it.prop([fc.array(scoreRecordArbitrary(), { minLength: 1, maxLength: 10 })])('should derive attendance from fetched score records', scores => {
           // Property: attendance should be the mean of all attendancePercentages
           const attendances = scores.map(s => s.attendancePercentage)
           const expectedAttendance = Math.round(
@@ -92,39 +82,24 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
           // Verify calculation
           expect(expectedAttendance).toBeGreaterThanOrEqual(0)
           expect(expectedAttendance).toBeLessThanOrEqual(100)
-        }
-      )
-    )
+        })
 
-    it(
-      'should set hasScores to true when score records exist',
-      fc.prop(
-        fc.array(scoreRecordArbitrary(), { minLength: 1, maxLength: 10 }),
-        scores => {
+    it.prop([fc.array(scoreRecordArbitrary(), { minLength: 1, maxLength: 10 })])('should set hasScores to true when score records exist', scores => {
           // Property: hasScores should be true when scores array is not empty
           const hasScores = scores.length > 0
           expect(hasScores).toBe(true)
-        }
-      )
-    )
+        })
 
-    it(
-      'should set hasScores to false when no score records exist',
-      fc.prop(fc.constant([]), scores => {
+    it.prop([fc.constant([])])('should set hasScores to false when no score records exist', scores => {
         // Property: hasScores should be false when scores array is empty
         const hasScores = scores.length > 0
         expect(hasScores).toBe(false)
       })
-    )
 
-    it(
-      'should not use hardcoded values for averageScore and attendance',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.array(scoreRecordArbitrary(), { minLength: 1, maxLength: 10 }),
           studentArbitrary()
-        ),
-        ([scores, student]) => {
+        )])('should not use hardcoded values for averageScore and attendance', ([scores, student]) => {
           // Property: Derived values should match calculated values, not hardcoded ones
           const totalScores = scores.map(s => s.totalScore)
           const calculatedAverage = Math.round(
@@ -144,18 +119,12 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
           // This is a probabilistic check - with random data, they shouldn't always match
           expect(typeof calculatedAverage).toBe('number')
           expect(typeof calculatedAttendance).toBe('number')
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle multiple students with different score records',
-      fc.prop(
-        fc.array(
+    it.prop([fc.array(
           fc.tuple(studentArbitrary(), fc.array(scoreRecordArbitrary(), { minLength: 0, maxLength: 5 })),
           { minLength: 1, maxLength: 10 }
-        ),
-        studentScorePairs => {
+        )])('should handle multiple students with different score records', studentScorePairs => {
           // Property: Each student should have independent averageScore and attendance
           const derivedData = studentScorePairs.map(([student, scores]) => {
             if (scores.length === 0) {
@@ -198,21 +167,15 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
               expect(data.attendance).toBeNull()
             }
           })
-        }
-      )
-    )
+        })
   })
 
   describe('Property 11: Promotion Rule Application', () => {
-    it(
-      'should apply promotion rules correctly based on averageScore',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.integer({ min: 0, max: 100 }),
           fc.integer({ min: 0, max: 100 }),
           promotionRuleArbitrary()
-        ),
-        ([averageScore, attendance, rule]) => {
+        )])('should apply promotion rules correctly based on averageScore', ([averageScore, attendance, rule]) => {
           // Property: Promotion decision should be based on thresholds
           let recommendedAction: string
 
@@ -238,19 +201,13 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
           if (averageScore < rule.repeatThreshold) {
             expect(recommendedAction).toBe('repeat')
           }
-        }
-      )
-    )
+        })
 
-    it(
-      'should consider attendance threshold in promotion decision',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.integer({ min: 0, max: 100 }),
           fc.integer({ min: 0, max: 100 }),
           promotionRuleArbitrary()
-        ),
-        ([averageScore, attendance, rule]) => {
+        )])('should consider attendance threshold in promotion decision', ([averageScore, attendance, rule]) => {
           // Property: Even with high score, low attendance should prevent promotion
           if (averageScore >= rule.promotionThreshold && attendance < rule.attendanceThreshold) {
             // Should not promote due to low attendance
@@ -260,13 +217,9 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
           // Property: Attendance threshold should be between 0 and 100
           expect(rule.attendanceThreshold).toBeGreaterThanOrEqual(0)
           expect(rule.attendanceThreshold).toBeLessThanOrEqual(100)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle threshold ordering correctly',
-      fc.prop(promotionRuleArbitrary(), rule => {
+    it.prop([promotionRuleArbitrary()])('should handle threshold ordering correctly', rule => {
         // Property: Thresholds should be in logical order
         // repeatThreshold < reviewThreshold < promotionThreshold (generally)
         expect(rule.repeatThreshold).toBeGreaterThanOrEqual(0)
@@ -278,17 +231,12 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
         expect(rule.reviewThreshold).toBeLessThanOrEqual(100)
         expect(rule.promotionThreshold).toBeLessThanOrEqual(100)
       })
-    )
 
-    it(
-      'should apply the same rule consistently for students with identical scores',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.integer({ min: 0, max: 100 }),
           fc.integer({ min: 0, max: 100 }),
           promotionRuleArbitrary()
-        ),
-        ([score, attendance, rule]) => {
+        )])('should apply the same rule consistently for students with identical scores', ([score, attendance, rule]) => {
           // Property: Two students with identical scores should get identical recommendations
           const getRecommendation = (s: number, a: number) => {
             if (s >= rule.promotionThreshold && a >= rule.attendanceThreshold) {
@@ -306,13 +254,9 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
           const rec2 = getRecommendation(score, attendance)
 
           expect(rec1).toBe(rec2)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle edge cases at threshold boundaries',
-      fc.prop(promotionRuleArbitrary(), rule => {
+    it.prop([promotionRuleArbitrary()])('should handle edge cases at threshold boundaries', rule => {
         // Property: Scores exactly at thresholds should be handled consistently
         const testScores = [
           rule.repeatThreshold,
@@ -339,30 +283,22 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
           expect(['promote', 'repeat', 'review', 'hold']).toContain(action)
         })
       })
-    )
 
-    it(
-      'should show "review" action for students with no scores',
-      fc.prop(studentArbitrary(), student => {
+    it.prop([studentArbitrary()])('should show "review" action for students with no scores', student => {
         // Property: Students without scores should always get "review" action
         const hasScores = false
         const recommendedAction = hasScores ? 'promote' : 'review'
 
         expect(recommendedAction).toBe('review')
       })
-    )
   })
 
   describe('Property 10 & 11 Combined: Data Derivation and Rule Application', () => {
-    it(
-      'should derive data and apply rules consistently',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           studentArbitrary(),
           fc.array(scoreRecordArbitrary(), { minLength: 0, maxLength: 10 }),
           promotionRuleArbitrary()
-        ),
-        ([student, scores, rule]) => {
+        )])('should derive data and apply rules consistently', ([student, scores, rule]) => {
           // Derive data
           const hasScores = scores.length > 0
           let averageScore: number | null = null
@@ -410,8 +346,6 @@ describe('StudentPromotion Data Derivation - Property Tests', () => {
             expect(averageScore).not.toBeNull()
             expect(attendance).not.toBeNull()
           }
-        }
-      )
-    )
+        })
   })
 })

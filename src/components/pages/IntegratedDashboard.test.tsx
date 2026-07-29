@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { fc } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
+import { it, fc } from '@fast-check/vitest'
 
 /**
  * Property-based tests for Dashboard data aggregation
@@ -129,54 +129,32 @@ const announcementArbitrary = () =>
 
 describe('Dashboard Data Aggregation - Property Tests', () => {
   describe('Property 1: Dashboard Data Aggregation', () => {
-    it(
-      'should aggregate totalStudents from students table',
-      fc.prop(
-        fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 }),
-        students => {
+    it.prop([fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 })])('should aggregate totalStudents from students table', students => {
           // Property: totalStudents should equal count of students
           const totalStudents = students.length
 
           expect(totalStudents).toBeGreaterThanOrEqual(0)
           expect(typeof totalStudents).toBe('number')
-        }
-      )
-    )
+        })
 
-    it(
-      'should aggregate totalTeachers from staff table',
-      fc.prop(
-        fc.array(staffMemberArbitrary(), { minLength: 0, maxLength: 100 }),
-        staff => {
+    it.prop([fc.array(staffMemberArbitrary(), { minLength: 0, maxLength: 100 })])('should aggregate totalTeachers from staff table', staff => {
           // Property: totalTeachers should equal count of staff with role 'Teacher'
           const totalTeachers = staff.filter(s => s.role === 'Teacher').length
 
           expect(totalTeachers).toBeGreaterThanOrEqual(0)
           expect(totalTeachers).toBeLessThanOrEqual(staff.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should aggregate classesCount from unique classes in students',
-      fc.prop(
-        fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 }),
-        students => {
+    it.prop([fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 })])('should aggregate classesCount from unique classes in students', students => {
           // Property: classesCount should equal count of unique classes
           const uniqueClasses = new Set(students.map(s => s.class))
           const classesCount = uniqueClasses.size
 
           expect(classesCount).toBeGreaterThanOrEqual(0)
           expect(classesCount).toBeLessThanOrEqual(students.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should aggregate classSummaries with correct student counts',
-      fc.prop(
-        fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 }),
-        students => {
+    it.prop([fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 })])('should aggregate classSummaries with correct student counts', students => {
           // Property: Each class summary should have correct student count
           const classSummaries = Array.from(
             new Map(
@@ -197,19 +175,13 @@ describe('Dashboard Data Aggregation - Property Tests', () => {
           // Property: Sum of student counts should equal total students
           const totalFromSummaries = classSummaries.reduce((sum, cs) => sum + cs.studentCount, 0)
           expect(totalFromSummaries).toBe(students.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute recentActivity from multiple sources',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.array(studentArbitrary(), { minLength: 0, maxLength: 10 }),
           fc.array(attendanceRecordArbitrary(), { minLength: 0, maxLength: 10 }),
           fc.array(announcementArbitrary(), { minLength: 0, maxLength: 10 })
-        ),
-        ([students, attendance, announcements]) => {
+        )])('should compute recentActivity from multiple sources', ([students, attendance, announcements]) => {
           // Property: recentActivity should aggregate from all sources
           const allActivities = [
             ...students.map(s => ({
@@ -237,15 +209,9 @@ describe('Dashboard Data Aggregation - Property Tests', () => {
           expect(hasStudentActivities || students.length === 0).toBe(true)
           expect(hasAttendanceActivities || attendance.length === 0).toBe(true)
           expect(hasAnnouncements || announcements.length === 0).toBe(true)
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute revenueByMonth from fee records',
-      fc.prop(
-        fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        feeRecords => {
+    it.prop([fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should compute revenueByMonth from fee records', feeRecords => {
           // Property: revenueByMonth should aggregate paid amounts by month
           const revenueByMonth = feeRecords.reduce(
             (acc, record) => {
@@ -270,19 +236,13 @@ describe('Dashboard Data Aggregation - Property Tests', () => {
           const totalRevenue = revenueByMonth.reduce((sum, r) => sum + r.amount, 0)
           const expectedTotal = feeRecords.reduce((sum, r) => sum + r.paid, 0)
           expect(totalRevenue).toBe(expectedTotal)
-        }
-      )
-    )
+        })
 
-    it(
-      'should maintain data integrity across aggregation',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.array(studentArbitrary(), { minLength: 1, maxLength: 50 }),
           fc.array(staffMemberArbitrary(), { minLength: 1, maxLength: 50 }),
           fc.array(scoreRecordArbitrary(), { minLength: 0, maxLength: 50 })
-        ),
-        ([students, staff, scores]) => {
+        )])('should maintain data integrity across aggregation', ([students, staff, scores]) => {
           // Property: Aggregated data should be consistent
           const totalStudents = students.length
           const totalTeachers = staff.filter(s => s.role === 'Teacher').length
@@ -298,13 +258,9 @@ describe('Dashboard Data Aggregation - Property Tests', () => {
 
           // Property: Classes should not exceed students
           expect(uniqueClasses).toBeLessThanOrEqual(totalStudents)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle empty upstream data gracefully',
-      fc.prop(fc.constant(null), _ => {
+    it.prop([fc.constant(null)])('should handle empty upstream data gracefully', _ => {
         // Property: Empty data should result in zero aggregates
         const emptyStats: DashboardStats = {
           totalStudents: 0,
@@ -329,17 +285,12 @@ describe('Dashboard Data Aggregation - Property Tests', () => {
         expect(emptyStats.recentActivity.length).toBe(0)
         expect(emptyStats.classSummaries.length).toBe(0)
       })
-    )
 
-    it(
-      'should compute correct totals for mixed data',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.array(studentArbitrary(), { minLength: 1, maxLength: 100 }),
           fc.array(staffMemberArbitrary(), { minLength: 1, maxLength: 100 }),
           fc.array(feeRecordArbitrary(), { minLength: 1, maxLength: 100 })
-        ),
-        ([students, staff, fees]) => {
+        )])('should compute correct totals for mixed data', ([students, staff, fees]) => {
           // Property: Aggregated totals should match source data
           const totalStudents = students.length
           const totalTeachers = staff.filter(s => s.role === 'Teacher').length
@@ -349,15 +300,9 @@ describe('Dashboard Data Aggregation - Property Tests', () => {
           expect(totalStudents).toBe(students.length)
           expect(totalTeachers).toBeLessThanOrEqual(staff.length)
           expect(totalRevenue).toBeGreaterThanOrEqual(0)
-        }
-      )
-    )
+        })
 
-    it(
-      'should preserve data accuracy during aggregation',
-      fc.prop(
-        fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 }),
-        students => {
+    it.prop([fc.array(studentArbitrary(), { minLength: 0, maxLength: 100 })])('should preserve data accuracy during aggregation', students => {
           // Property: Aggregated class summaries should preserve individual counts
           const classCounts = new Map<string, number>()
           students.forEach(s => {
@@ -377,27 +322,19 @@ describe('Dashboard Data Aggregation - Property Tests', () => {
           // Property: Total should match
           const totalFromSummaries = classSummaries.reduce((sum, cs) => sum + cs.studentCount, 0)
           expect(totalFromSummaries).toBe(students.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle system health status correctly',
-      fc.prop(
-        fc.record({
+    it.prop([fc.record({
           studentsApi: fc.boolean(),
           teachersApi: fc.boolean(),
           examsApi: fc.boolean(),
           database: fc.boolean(),
-        }),
-        health => {
+        })])('should handle system health status correctly', health => {
           // Property: System health should be a valid boolean object
           expect(typeof health.studentsApi).toBe('boolean')
           expect(typeof health.teachersApi).toBe('boolean')
           expect(typeof health.examsApi).toBe('boolean')
           expect(typeof health.database).toBe('boolean')
-        }
-      )
-    )
+        })
   })
 })

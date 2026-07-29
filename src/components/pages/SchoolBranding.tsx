@@ -59,8 +59,7 @@ export function SchoolBranding() {
       setLoading(true)
       setError(null)
       const { tenantId, userId } = getAuth()
-      const response = await fetch('/api/tenant/branding', {
-        )
+      const response = await fetch('/api/tenant/branding')
       if (!response.ok) throw new Error('Failed to load branding')
       const result = await response.json()
       const config = result.data

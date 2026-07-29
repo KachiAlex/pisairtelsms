@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { fc } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
+import { it, fc } from '@fast-check/vitest'
 
 /**
  * Property-based tests for Dashboard data rendering
@@ -52,9 +52,7 @@ const dashboardStatsArbitrary = () =>
 
 describe('Dashboard Data Rendering - Property Tests', () => {
   describe('Property 2: Dashboard Section Rendering', () => {
-    it(
-      'should render all sections with correct data values for any valid DashboardStats',
-      fc.prop(dashboardStatsArbitrary(), stats => {
+    it.prop([dashboardStatsArbitrary()])('should render all sections with correct data values for any valid DashboardStats', stats => {
         // Property: All numeric values should be non-negative
         expect(stats.totalStudents).toBeGreaterThanOrEqual(0)
         expect(stats.totalTeachers).toBeGreaterThanOrEqual(0)
@@ -101,11 +99,8 @@ describe('Dashboard Data Rendering - Property Tests', () => {
           })
         }
       })
-    )
 
-    it(
-      'should maintain data integrity when rendering multiple sections',
-      fc.prop(dashboardStatsArbitrary(), stats => {
+    it.prop([dashboardStatsArbitrary()])('should maintain data integrity when rendering multiple sections', stats => {
         // Property: Total students should equal sum of class summaries
         const totalFromClasses = stats.classSummaries.reduce((sum, cs) => sum + cs.studentCount, 0)
         // Note: This is a soft check - in real implementation, these might not match exactly
@@ -118,13 +113,10 @@ describe('Dashboard Data Rendering - Property Tests', () => {
         const statsCount = 4 // totalStudents, totalTeachers, totalExams, classes
         expect(statsCount).toBeGreaterThanOrEqual(0)
       })
-    )
   })
 
   describe('Property 3: Empty State Display', () => {
-    it(
-      'should display empty state when all sections have zero data',
-      fc.prop(dashboardStatsArbitrary(), stats => {
+    it.prop([dashboardStatsArbitrary()])('should display empty state when all sections have zero data', stats => {
         // Create a stats object with all zero/empty values
         const emptyStats = {
           ...stats,
@@ -146,20 +138,15 @@ describe('Dashboard Data Rendering - Property Tests', () => {
         expect(emptyStats.recentActivity.length).toBe(0)
         expect(emptyStats.classSummaries.length).toBe(0)
       })
-    )
 
-    it(
-      'should display contextual empty-state messages for individual sections',
-      fc.prop(
-        fc.record({
+    it.prop([fc.record({
           hasStudents: fc.boolean(),
           hasTeachers: fc.boolean(),
           hasExams: fc.boolean(),
           hasClasses: fc.boolean(),
           hasActivity: fc.boolean(),
           hasRevenue: fc.boolean(),
-        }),
-        sections => {
+        })])('should display contextual empty-state messages for individual sections', sections => {
           // Property: Each section should independently determine its empty state
           const sections_with_data = [
             sections.hasStudents,
@@ -175,13 +162,9 @@ describe('Dashboard Data Rendering - Property Tests', () => {
           const allEmpty = sections_with_data.every(s => !s)
 
           expect(hasAnyData || allEmpty).toBe(true)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle partial data gracefully',
-      fc.prop(dashboardStatsArbitrary(), stats => {
+    it.prop([dashboardStatsArbitrary()])('should handle partial data gracefully', stats => {
         // Property: If classSummaries is empty, enrollment chart should show empty state
         if (stats.classSummaries.length === 0) {
           expect(stats.classSummaries).toHaveLength(0)
@@ -197,18 +180,13 @@ describe('Dashboard Data Rendering - Property Tests', () => {
           expect(stats.recentActivity).toHaveLength(0)
         }
       })
-    )
 
-    it(
-      'should display correct empty-state message based on data availability',
-      fc.prop(
-        fc.record({
+    it.prop([fc.record({
           enrollmentDataAvailable: fc.boolean(),
           revenueDataAvailable: fc.boolean(),
           performanceDataAvailable: fc.boolean(),
           activityDataAvailable: fc.boolean(),
-        }),
-        availability => {
+        })])('should display correct empty-state message based on data availability', availability => {
           // Property: Each section should have a corresponding empty-state message
           const messages = {
             enrollment: availability.enrollmentDataAvailable
@@ -230,15 +208,11 @@ describe('Dashboard Data Rendering - Property Tests', () => {
             expect(typeof msg).toBe('string')
             expect(msg.length).toBeGreaterThan(0)
           })
-        }
-      )
-    )
+        })
   })
 
   describe('Property 2 & 3 Combined: Data Rendering with Empty States', () => {
-    it(
-      'should correctly render or show empty state for any combination of data',
-      fc.prop(dashboardStatsArbitrary(), stats => {
+    it.prop([dashboardStatsArbitrary()])('should correctly render or show empty state for any combination of data', stats => {
         // Property: For each section, either render data or show empty state
         const sections = [
           { name: 'enrollment', hasData: stats.classSummaries.length > 0 },
@@ -257,6 +231,5 @@ describe('Dashboard Data Rendering - Property Tests', () => {
         expect(stats.totalExams).toBeGreaterThanOrEqual(0)
         expect(stats.classesCount).toBeGreaterThanOrEqual(0)
       })
-    )
   })
 })

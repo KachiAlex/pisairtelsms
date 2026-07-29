@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { fc } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
+import { it, fc } from '@fast-check/vitest'
 
 /**
  * Property-based tests for StudentEnrollment pipeline
@@ -44,55 +44,39 @@ const applicationArbitrary = () =>
 
 describe('StudentEnrollment Pipeline - Property Tests', () => {
   describe('Property 12: Enrollment Pipeline Status Mapping', () => {
-    it(
-      'should map pending status to Application stage',
-      fc.prop(applicationArbitrary(), app => {
+    it.prop([applicationArbitrary()])('should map pending status to Application stage', app => {
         const application = { ...app, status: 'pending' as const }
 
         // Property: pending status should map to "Application" stage
         const stage = application.status === 'pending' ? 'Application' : 'Unknown'
         expect(stage).toBe('Application')
       })
-    )
 
-    it(
-      'should map reviewing status to Review stage',
-      fc.prop(applicationArbitrary(), app => {
+    it.prop([applicationArbitrary()])('should map reviewing status to Review stage', app => {
         const application = { ...app, status: 'reviewing' as const }
 
         // Property: reviewing status should map to "Review" stage
         const stage = application.status === 'reviewing' ? 'Review' : 'Unknown'
         expect(stage).toBe('Review')
       })
-    )
 
-    it(
-      'should map approved status to Offer stage',
-      fc.prop(applicationArbitrary(), app => {
+    it.prop([applicationArbitrary()])('should map approved status to Offer stage', app => {
         const application = { ...app, status: 'approved' as const }
 
         // Property: approved status should map to "Offer" stage
         const stage = application.status === 'approved' ? 'Offer' : 'Unknown'
         expect(stage).toBe('Offer')
       })
-    )
 
-    it(
-      'should exclude rejected status from pipeline',
-      fc.prop(applicationArbitrary(), app => {
+    it.prop([applicationArbitrary()])('should exclude rejected status from pipeline', app => {
         const application = { ...app, status: 'rejected' as const }
 
         // Property: rejected status should not appear in pipeline stages
         const isInPipeline = ['pending', 'reviewing', 'approved'].includes(application.status)
         expect(isInPipeline).toBe(false)
       })
-    )
 
-    it(
-      'should map all valid statuses consistently',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 1, maxLength: 20 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 1, maxLength: 20 })])('should map all valid statuses consistently', applications => {
           // Property: Each application should map to exactly one stage (or be excluded)
           const stageMapping = {
             pending: 'Application',
@@ -111,31 +95,19 @@ describe('StudentEnrollment Pipeline - Property Tests', () => {
               expect(['Application', 'Review', 'Offer']).toContain(mappedStage)
             }
           })
-        }
-      )
-    )
+        })
 
-    it(
-      'should maintain status-to-stage mapping for all applications',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 })])('should maintain status-to-stage mapping for all applications', applications => {
           // Property: All applications should have a valid mapping
           const validStatuses = ['pending', 'reviewing', 'approved', 'rejected']
           applications.forEach(app => {
             expect(validStatuses).toContain(app.status)
           })
-        }
-      )
-    )
+        })
   })
 
   describe('Property 13: Enrollment Pipeline Distribution', () => {
-    it(
-      'should count applications correctly in each stage',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 })])('should count applications correctly in each stage', applications => {
           // Property: Sum of counts in all stages should equal total non-rejected applications
           const applicationCount = applications.filter(a => a.status !== 'rejected').length
           const reviewCount = applications.filter(a => a.status === 'reviewing').length
@@ -144,51 +116,27 @@ describe('StudentEnrollment Pipeline - Property Tests', () => {
 
           const totalInPipeline = applicationStageCount + reviewCount + offerCount
           expect(totalInPipeline).toBe(applicationCount)
-        }
-      )
-    )
+        })
 
-    it(
-      'should display correct badge count for Application stage',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 })])('should display correct badge count for Application stage', applications => {
           // Property: Application stage count should equal number of pending applications
           const pendingCount = applications.filter(a => a.status === 'pending').length
           expect(pendingCount).toBeGreaterThanOrEqual(0)
-        }
-      )
-    )
+        })
 
-    it(
-      'should display correct badge count for Review stage',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 })])('should display correct badge count for Review stage', applications => {
           // Property: Review stage count should equal number of reviewing applications
           const reviewingCount = applications.filter(a => a.status === 'reviewing').length
           expect(reviewingCount).toBeGreaterThanOrEqual(0)
-        }
-      )
-    )
+        })
 
-    it(
-      'should display correct badge count for Offer stage',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 0, maxLength: 50 })])('should display correct badge count for Offer stage', applications => {
           // Property: Offer stage count should equal number of approved applications
           const approvedCount = applications.filter(a => a.status === 'approved').length
           expect(approvedCount).toBeGreaterThanOrEqual(0)
-        }
-      )
-    )
+        })
 
-    it(
-      'should maintain distribution across all stages',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 1, maxLength: 100 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 1, maxLength: 100 })])('should maintain distribution across all stages', applications => {
           // Property: Each application should be counted in exactly one stage (or excluded)
           const pendingCount = applications.filter(a => a.status === 'pending').length
           const reviewingCount = applications.filter(a => a.status === 'reviewing').length
@@ -197,13 +145,9 @@ describe('StudentEnrollment Pipeline - Property Tests', () => {
 
           const totalCounted = pendingCount + reviewingCount + approvedCount + rejectedCount
           expect(totalCounted).toBe(applications.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle empty pipeline correctly',
-      fc.prop(fc.constant([]), applications => {
+    it.prop([fc.constant([])])('should handle empty pipeline correctly', applications => {
         // Property: Empty applications array should result in zero counts for all stages
         const pendingCount = applications.filter(a => a.status === 'pending').length
         const reviewingCount = applications.filter(a => a.status === 'reviewing').length
@@ -213,13 +157,8 @@ describe('StudentEnrollment Pipeline - Property Tests', () => {
         expect(reviewingCount).toBe(0)
         expect(approvedCount).toBe(0)
       })
-    )
 
-    it(
-      'should handle all applications in single stage',
-      fc.prop(
-        fc.constantFrom('pending', 'reviewing', 'approved', 'rejected'),
-        status => {
+    it.prop([fc.constantFrom('pending', 'reviewing', 'approved', 'rejected')])('should handle all applications in single stage', status => {
           // Create applications all with the same status
           const applications = Array.from({ length: 10 }, (_, i) => ({
             id: `app-${i}`,
@@ -245,20 +184,14 @@ describe('StudentEnrollment Pipeline - Property Tests', () => {
           )
           expect(nonZeroCounts.length).toBe(1)
           expect(nonZeroCounts[0]).toBe(10)
-        }
-      )
-    )
+        })
 
-    it(
-      'should correctly distribute applications across multiple stages',
-      fc.prop(
-        fc.tuple(
+    it.prop([fc.tuple(
           fc.integer({ min: 0, max: 20 }),
           fc.integer({ min: 0, max: 20 }),
           fc.integer({ min: 0, max: 20 }),
           fc.integer({ min: 0, max: 20 })
-        ),
-        ([pending, reviewing, approved, rejected]) => {
+        )])('should correctly distribute applications across multiple stages', ([pending, reviewing, approved, rejected]) => {
           // Create applications with specified distribution
           const applications: Application[] = [
             ...Array.from({ length: pending }, (_, i) => ({
@@ -325,17 +258,11 @@ describe('StudentEnrollment Pipeline - Property Tests', () => {
           // Property: Pipeline count should exclude rejected
           const pipelineCount = pendingCount + reviewingCount + approvedCount
           expect(pipelineCount).toBe(pending + reviewing + approved)
-        }
-      )
-    )
+        })
   })
 
   describe('Property 12 & 13 Combined: Status Mapping and Distribution', () => {
-    it(
-      'should correctly map and count applications in pipeline',
-      fc.prop(
-        fc.array(applicationArbitrary(), { minLength: 0, maxLength: 100 }),
-        applications => {
+    it.prop([fc.array(applicationArbitrary(), { minLength: 0, maxLength: 100 })])('should correctly map and count applications in pipeline', applications => {
           // Create pipeline stages
           const stages = {
             Application: applications.filter(a => a.status === 'pending'),
@@ -364,8 +291,6 @@ describe('StudentEnrollment Pipeline - Property Tests', () => {
           expect(stages.Application.length).toBeGreaterThanOrEqual(0)
           expect(stages.Review.length).toBeGreaterThanOrEqual(0)
           expect(stages.Offer.length).toBeGreaterThanOrEqual(0)
-        }
-      )
-    )
+        })
   })
 })

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { fc } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
+import { it, fc } from '@fast-check/vitest'
 
 /**
  * Property-based tests for StaffHR statistics computation
@@ -37,67 +37,39 @@ const staffRecordArbitrary = () =>
 
 describe('StaffHR Statistics Computation - Property Tests', () => {
   describe('Property 17: Staff Statistics Computation', () => {
-    it(
-      'should compute total staff count correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should compute total staff count correctly', staffRecords => {
           // Property: Total count should equal length of staff array
           const totalCount = staffRecords.length
 
           expect(totalCount).toBeGreaterThanOrEqual(0)
           expect(typeof totalCount).toBe('number')
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute active staff count correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should compute active staff count correctly', staffRecords => {
           // Property: Active count should equal number of staff with status 'active'
           const activeCount = staffRecords.filter(s => s.status === 'active').length
 
           expect(activeCount).toBeGreaterThanOrEqual(0)
           expect(activeCount).toBeLessThanOrEqual(staffRecords.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute inactive staff count correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should compute inactive staff count correctly', staffRecords => {
           // Property: Inactive count should equal number of staff with status 'inactive'
           const inactiveCount = staffRecords.filter(s => s.status === 'inactive').length
 
           expect(inactiveCount).toBeGreaterThanOrEqual(0)
           expect(inactiveCount).toBeLessThanOrEqual(staffRecords.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute on-leave staff count correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should compute on-leave staff count correctly', staffRecords => {
           // Property: On-leave count should equal number of staff with status 'on-leave'
           const onLeaveCount = staffRecords.filter(s => s.status === 'on-leave').length
 
           expect(onLeaveCount).toBeGreaterThanOrEqual(0)
           expect(onLeaveCount).toBeLessThanOrEqual(staffRecords.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should satisfy: total = active + inactive + on-leave',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should satisfy: total = active + inactive + on-leave', staffRecords => {
           // Property: Sum of all status counts should equal total
           const totalCount = staffRecords.length
           const activeCount = staffRecords.filter(s => s.status === 'active').length
@@ -105,15 +77,9 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
           const onLeaveCount = staffRecords.filter(s => s.status === 'on-leave').length
 
           expect(totalCount).toBe(activeCount + inactiveCount + onLeaveCount)
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute department distribution correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should compute department distribution correctly', staffRecords => {
           // Property: Sum of department counts should equal total
           const departments = ['Academic', 'Administration', 'Support', 'Finance', 'HR']
           const departmentCounts = departments.map(
@@ -122,28 +88,18 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
           const totalFromDepts = departmentCounts.reduce((sum, count) => sum + count, 0)
 
           expect(totalFromDepts).toBe(staffRecords.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute role distribution correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should compute role distribution correctly', staffRecords => {
           // Property: Sum of role counts should equal total
           const roles = ['Teacher', 'Administrator', 'Support Staff', 'Principal', 'Vice Principal']
           const roleCounts = roles.map(role => staffRecords.filter(s => s.role === role).length)
           const totalFromRoles = roleCounts.reduce((sum, count) => sum + count, 0)
 
           expect(totalFromRoles).toBe(staffRecords.length)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle empty staff records',
-      fc.prop(fc.constant([]), staffRecords => {
+    it.prop([fc.constant([])])('should handle empty staff records', staffRecords => {
         // Property: Empty records should result in zero counts
         const totalCount = staffRecords.length
         const activeCount = staffRecords.filter((s: StaffRecord) => s.status === 'active').length
@@ -155,11 +111,8 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
         expect(inactiveCount).toBe(0)
         expect(onLeaveCount).toBe(0)
       })
-    )
 
-    it(
-      'should handle single staff record',
-      fc.prop(staffRecordArbitrary(), staffRecord => {
+    it.prop([staffRecordArbitrary()])('should handle single staff record', staffRecord => {
         // Property: Single record should have total count of 1
         const staffRecords = [staffRecord]
         const totalCount = staffRecords.length
@@ -176,13 +129,8 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
         expect(nonZeroCounts.length).toBe(1)
         expect(nonZeroCounts[0]).toBe(1)
       })
-    )
 
-    it(
-      'should compute percentages correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 1, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 1, maxLength: 100 })])('should compute percentages correctly', staffRecords => {
           // Property: All percentages should be between 0 and 100
           const totalCount = staffRecords.length
           const activeCount = staffRecords.filter(s => s.status === 'active').length
@@ -205,15 +153,9 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
             const totalPercentage = activePercentage + inactivePercentage + onLeavePercentage
             expect(totalPercentage).toBe(100)
           }
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute department distribution percentages correctly',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 1, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 1, maxLength: 100 })])('should compute department distribution percentages correctly', staffRecords => {
           // Property: Department percentages should sum to 100
           const totalCount = staffRecords.length
           const departments = ['Academic', 'Administration', 'Support', 'Finance', 'HR']
@@ -224,15 +166,9 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
           const totalPercentage = departmentPercentages.reduce((sum, pct) => sum + pct, 0)
 
           expect(totalPercentage).toBe(100)
-        }
-      )
-    )
+        })
 
-    it(
-      'should not use hardcoded values for statistics',
-      fc.prop(
-        fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 }),
-        staffRecords => {
+    it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should not use hardcoded values for statistics', staffRecords => {
           // Property: Statistics should be derived from data, not hardcoded
           const totalCount = staffRecords.length
           const activeCount = staffRecords.filter(s => s.status === 'active').length

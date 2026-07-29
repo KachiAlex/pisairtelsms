@@ -52,8 +52,7 @@ export function DataEncryption() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/tenant/security/encryption/config', {
-        );
+      const response = await fetch('/api/tenant/security/encryption/config');
       if (!response.ok) throw new Error('Failed to fetch encryption config');
       const data = await response.json();
       setConfig(data);
@@ -67,8 +66,7 @@ export function DataEncryption() {
 
   const fetchAuditLogs = async () => {
     try {
-      const response = await fetch('/api/tenant/security/encryption/audit-logs', {
-        );
+      const response = await fetch('/api/tenant/security/encryption/audit-logs');
       if (!response.ok) throw new Error('Failed to fetch audit logs');
       const data = await response.json();
       setAuditLogs(data.data || []);

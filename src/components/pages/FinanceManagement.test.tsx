@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { fc } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
+import { it, fc } from '@fast-check/vitest'
 
 /**
  * Property-based tests for Finance total computation
@@ -45,53 +45,31 @@ const feeRecordArbitrary = () =>
 
 describe('Finance Total Computation - Property Tests', () => {
   describe('Property 14: Finance Total Computation', () => {
-    it(
-      'should compute totalExpected as sum of all amounts',
-      fc.prop(
-        fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 }),
-        records => {
+    it.prop([fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 })])('should compute totalExpected as sum of all amounts', records => {
           // Property: totalExpected = sum of all amounts
           const totalExpected = records.reduce((sum, record) => sum + record.amount, 0)
 
           expect(totalExpected).toBeGreaterThanOrEqual(0)
           expect(typeof totalExpected).toBe('number')
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute totalCollected as sum of all paid amounts',
-      fc.prop(
-        fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 }),
-        records => {
+    it.prop([fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 })])('should compute totalCollected as sum of all paid amounts', records => {
           // Property: totalCollected = sum of all paid amounts
           const totalCollected = records.reduce((sum, record) => sum + record.paid, 0)
 
           expect(totalCollected).toBeGreaterThanOrEqual(0)
           expect(typeof totalCollected).toBe('number')
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute totalOutstanding as sum of all balance amounts',
-      fc.prop(
-        fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 }),
-        records => {
+    it.prop([fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 })])('should compute totalOutstanding as sum of all balance amounts', records => {
           // Property: totalOutstanding = sum of all balance amounts
           const totalOutstanding = records.reduce((sum, record) => sum + record.balance, 0)
 
           expect(totalOutstanding).toBeGreaterThanOrEqual(0)
           expect(typeof totalOutstanding).toBe('number')
-        }
-      )
-    )
+        })
 
-    it(
-      'should satisfy the equation: totalExpected = totalCollected + totalOutstanding',
-      fc.prop(
-        fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 }),
-        records => {
+    it.prop([fc.array(feeRecordArbitrary(), { minLength: 0, maxLength: 50 })])('should satisfy the equation: totalExpected = totalCollected + totalOutstanding', records => {
           // Property: totalExpected = totalCollected + totalOutstanding
           const totalExpected = records.reduce((sum, record) => sum + record.amount, 0)
           const totalCollected = records.reduce((sum, record) => sum + record.paid, 0)
@@ -99,13 +77,9 @@ describe('Finance Total Computation - Property Tests', () => {
 
           // The fundamental equation must hold
           expect(totalExpected).toBe(totalCollected + totalOutstanding)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle empty fee records',
-      fc.prop(fc.constant([]), records => {
+    it.prop([fc.constant([])])('should handle empty fee records', records => {
         // Property: Empty records should result in zero totals
         const totalExpected = records.reduce((sum: number, record: FeeRecord) => sum + record.amount, 0)
         const totalCollected = records.reduce((sum: number, record: FeeRecord) => sum + record.paid, 0)
@@ -116,11 +90,8 @@ describe('Finance Total Computation - Property Tests', () => {
         expect(totalOutstanding).toBe(0)
         expect(totalExpected).toBe(totalCollected + totalOutstanding)
       })
-    )
 
-    it(
-      'should handle single fee record',
-      fc.prop(feeRecordArbitrary(), record => {
+    it.prop([feeRecordArbitrary()])('should handle single fee record', record => {
         // Property: Single record totals should equal the record values
         const records = [record]
         const totalExpected = records.reduce((sum, r) => sum + r.amount, 0)
@@ -132,12 +103,8 @@ describe('Finance Total Computation - Property Tests', () => {
         expect(totalOutstanding).toBe(record.balance)
         expect(totalExpected).toBe(totalCollected + totalOutstanding)
       })
-    )
 
-    it(
-      'should maintain equation for fully paid records',
-      fc.prop(
-        fc.array(
+    it.prop([fc.array(
           fc.record({
             id: fc.uuid(),
             studentId: fc.uuid(),
@@ -155,8 +122,7 @@ describe('Finance Total Computation - Property Tests', () => {
             createdAt: fc.date().map(d => d.toISOString()),
           }),
           { minLength: 0, maxLength: 50 }
-        ),
-        records => {
+        )])('should maintain equation for fully paid records', records => {
           // Property: For fully paid records, balance should be 0
           const totalExpected = records.reduce((sum, record) => sum + record.amount, 0)
           const totalCollected = records.reduce((sum, record) => sum + record.paid, 0)
@@ -165,14 +131,9 @@ describe('Finance Total Computation - Property Tests', () => {
           expect(totalOutstanding).toBe(0)
           expect(totalExpected).toBe(totalCollected)
           expect(totalExpected).toBe(totalCollected + totalOutstanding)
-        }
-      )
-    )
+        })
 
-    it(
-      'should maintain equation for unpaid records',
-      fc.prop(
-        fc.array(
+    it.prop([fc.array(
           fc.record({
             id: fc.uuid(),
             studentId: fc.uuid(),
@@ -190,8 +151,7 @@ describe('Finance Total Computation - Property Tests', () => {
             createdAt: fc.date().map(d => d.toISOString()),
           }),
           { minLength: 0, maxLength: 50 }
-        ),
-        records => {
+        )])('should maintain equation for unpaid records', records => {
           // Property: For unpaid records, collected should be 0
           const totalExpected = records.reduce((sum, record) => sum + record.amount, 0)
           const totalCollected = records.reduce((sum, record) => sum + record.paid, 0)
@@ -200,21 +160,15 @@ describe('Finance Total Computation - Property Tests', () => {
           expect(totalCollected).toBe(0)
           expect(totalExpected).toBe(totalOutstanding)
           expect(totalExpected).toBe(totalCollected + totalOutstanding)
-        }
-      )
-    )
+        })
 
-    it(
-      'should maintain equation for partially paid records',
-      fc.prop(
-        fc.array(
+    it.prop([fc.array(
           fc.tuple(
             fc.integer({ min: 1000, max: 100000 }),
             fc.integer({ min: 1, max: 99 })
           ),
           { minLength: 0, maxLength: 50 }
-        ),
-        amountAndPercentages => {
+        )])('should maintain equation for partially paid records', amountAndPercentages => {
           // Create partially paid records
           const records = amountAndPercentages.map(([amount, paidPercent]) => ({
             id: fc.sample(fc.uuid(), 1)[0],
@@ -239,14 +193,9 @@ describe('Finance Total Computation - Property Tests', () => {
           const totalOutstanding = records.reduce((sum, record) => sum + record.balance, 0)
 
           expect(totalExpected).toBe(totalCollected + totalOutstanding)
-        }
-      )
-    )
+        })
 
-    it(
-      'should handle large numbers correctly',
-      fc.prop(
-        fc.array(
+    it.prop([fc.array(
           fc.record({
             id: fc.uuid(),
             studentId: fc.uuid(),
@@ -264,23 +213,16 @@ describe('Finance Total Computation - Property Tests', () => {
             createdAt: fc.date().map(d => d.toISOString()),
           }),
           { minLength: 0, maxLength: 50 }
-        ),
-        records => {
+        )])('should handle large numbers correctly', records => {
           // Property: Equation should hold even with large numbers
           const totalExpected = records.reduce((sum, record) => sum + record.amount, 0)
           const totalCollected = records.reduce((sum, record) => sum + record.paid, 0)
           const totalOutstanding = records.reduce((sum, record) => sum + record.balance, 0)
 
           expect(totalExpected).toBe(totalCollected + totalOutstanding)
-        }
-      )
-    )
+        })
 
-    it(
-      'should compute percentages correctly',
-      fc.prop(
-        fc.array(feeRecordArbitrary(), { minLength: 1, maxLength: 50 }),
-        records => {
+    it.prop([fc.array(feeRecordArbitrary(), { minLength: 1, maxLength: 50 })])('should compute percentages correctly', records => {
           // Property: Collection percentage should be between 0 and 100
           const totalExpected = records.reduce((sum, record) => sum + record.amount, 0)
           const totalCollected = records.reduce((sum, record) => sum + record.paid, 0)
@@ -290,8 +232,6 @@ describe('Finance Total Computation - Property Tests', () => {
             expect(collectionPercentage).toBeGreaterThanOrEqual(0)
             expect(collectionPercentage).toBeLessThanOrEqual(100)
           }
-        }
-      )
-    )
+        })
   })
 })

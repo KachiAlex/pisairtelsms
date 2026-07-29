@@ -52,8 +52,7 @@ export function SessionManagement() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/tenant/security/sessions', {
-        );
+      const response = await fetch('/api/tenant/security/sessions');
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data = await response.json();
       setSessions(data.data || []);
@@ -66,8 +65,7 @@ export function SessionManagement() {
 
   const fetchPolicy = async () => {
     try {
-      const response = await fetch('/api/tenant/security/sessions/policy', {
-        );
+      const response = await fetch('/api/tenant/security/sessions/policy');
       if (!response.ok) throw new Error('Failed to fetch session policy');
       const data = await response.json();
       setPolicy(data.data);
@@ -79,8 +77,7 @@ export function SessionManagement() {
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch('/api/tenant/security/sessions/history', {
-        );
+      const response = await fetch('/api/tenant/security/sessions/history');
       if (!response.ok) throw new Error('Failed to fetch session history');
       const data = await response.json();
       setHistory(data.data || []);

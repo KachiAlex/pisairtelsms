@@ -58,7 +58,8 @@ const DroppableSlot = ({ slot }) => {
 function tenantHeaders(): Record<string, string> {
   const tenantId =
     (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
-  return { 'Content-Type': 'application/json', }
+  return { 'Content-Type': 'application/json' };
+}
 
 interface CoverageStat { label: string; value: string; detail: string; color: string }
 interface TeacherCard { name: string; level: string; risk: string; subjects: string[]; allocation: number; contractHours: number }

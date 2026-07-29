@@ -32,7 +32,8 @@ function tenantHeaders(): Record<string, string> {
   const tenantId =
     (typeof window !== 'undefined' && localStorage.getItem('tenantId')) ||
     'default-tenant';
-  return { 'Content-Type': 'application/json', }
+  return { 'Content-Type': 'application/json' };
+}
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;

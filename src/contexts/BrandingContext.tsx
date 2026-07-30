@@ -21,11 +21,11 @@ interface BrandingContextType {
 const DEFAULT_BRANDING: BrandingConfig = {
   schoolName: 'Pisairtel-Schools',
   schoolMotto: '',
-  logoUrl: null,
-  logoFileName: null,
-  primaryColor: '#1E3A8A',
-  secondaryColor: '#10B981',
-  accentColor: '#F59E0B',
+  logoUrl: '/pisairtel-logo.svg',
+  logoFileName: 'pisairtel-logo.svg',
+  primaryColor: '#E31E24',
+  secondaryColor: '#F7931E',
+  accentColor: '#F7C93C',
   isPublished: false,
   updatedAt: null,
 }

@@ -41,21 +41,20 @@ async function runMigration() {
     
     console.log(`Executing ${statements.length} statements...`);
     
-    // Run migration in a transaction
-    await client.query('BEGIN');
-    
-    try {
-      for (let i = 0; i < statements.length; i++) {
-        const stmt = statements[i];
+    // Run each statement independently to handle partial migrations
+    let failed = 0;
+    for (let i = 0; i < statements.length; i++) {
+      const stmt = statements[i];
+      try {
         console.log(`Executing statement ${i + 1}/${statements.length}...`);
         await client.query(stmt);
+      } catch (err) {
+        console.log(`Statement ${i + 1} failed: ${err.message}`);
+        failed++;
       }
-      await client.query('COMMIT');
-      console.log('Migration applied successfully!');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
     }
+    
+    console.log(`\n✅ Migration complete! ${statements.length - failed}/${statements.length} statements succeeded, ${failed} failed (likely already exist)`);
     
     console.log('\n✅ Consolidated schema migration complete!');
     

@@ -16,11 +16,13 @@ async function ensureColumns() {
   }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant branding
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
-  if (!decoded) return
+  // Require authentication for POST/PUT, but allow public GET for branding config
+  if (req.method !== 'GET') {
+    const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+    if (!decoded) return
+  }
 
-  const tenantId = decoded.tenantId || 'default-tenant';
+  const tenantId = 'default-tenant';
 
   const userId =
     (req.headers['x-user-id'] as string) ||

@@ -181,7 +181,7 @@ export function UserAccounts() {
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Workspace directory</p>
           <h1 className="text-2xl font-bold text-gray-900">User accounts</h1>
-          <p className="text-sm text-gray-500">Invite, suspend, or reactivate teammates across your Scholix tenant.</p>
+          <p className="text-sm text-gray-500">Invite, suspend, or reactivate teammates across your Pisairtel-Schools tenant.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={loadUsers} disabled={loading}>

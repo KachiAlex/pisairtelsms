@@ -91,7 +91,7 @@ export function AuditLogs() {
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Observability</p>
           <h1 className="text-2xl font-bold text-gray-900">Audit logs</h1>
-          <p className="text-sm text-gray-500">Trace every configuration change across Scholix tenant surfaces.</p>
+          <p className="text-sm text-gray-500">Trace every configuration change across Pisairtel-Schools tenant surfaces.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline">

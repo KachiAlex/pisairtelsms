@@ -65,7 +65,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
               <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
-              <span className="font-bold text-2xl text-gray-900">SCHOLIX</span>
+              <span className="font-bold text-2xl text-gray-900">Pisairtel-Schools</span>
             </div>
 
             {/* Desktop Menu */}
@@ -144,7 +144,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
                 Transform Your School With{' '}
                 <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  SCHOLIX
+                  Pisairtel-Schools
                 </span>
               </h1>
               <p className="text-lg sm:text-xl text-gray-600 mb-8 leading-relaxed">
@@ -235,7 +235,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
                           <GraduationCap className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">SCHOLIX Dashboard</p>
+                          <p className="font-semibold text-gray-900">Pisairtel-Schools Dashboard</p>
                           <p className="text-xs text-gray-500">Real-time Overview</p>
                         </div>
                       </div>
@@ -367,7 +367,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6">
-                Why Schools Choose SCHOLIX
+                Why Schools Choose Pisairtel-Schools
               </h2>
               <p className="text-lg text-gray-600 mb-8">
                 Join hundreds of schools that have transformed their operations with our comprehensive platform.
@@ -421,7 +421,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
             Ready to Transform Your School?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Join thousands of educators who trust SCHOLIX for their school management needs
+            Join thousands of educators who trust Pisairtel-Schools for their school management needs
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
@@ -448,7 +448,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                   <GraduationCap className="w-5 h-5 text-white" />
                 </div>
-                <span className="font-bold text-xl text-white">SCHOLIX</span>
+                <span className="font-bold text-xl text-white">Pisairtel-Schools</span>
               </div>
               <p className="text-sm text-gray-400">
                 Empowering educational institutions with comprehensive school management solutions.
@@ -482,7 +482,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2026 SCHOLIX. All rights reserved.</p>
+            <p>&copy; 2026 Pisairtel-Schools. All rights reserved.</p>
           </div>
         </div>
       </footer>

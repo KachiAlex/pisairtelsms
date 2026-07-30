@@ -151,7 +151,7 @@ export function SchoolProfile() {
               <Users className="h-5 w-5 text-blue-600" />
               Governance & leadership
             </CardTitle>
-            <CardDescription>Trusted contacts for regulators and Scholix support.</CardDescription>
+            <CardDescription>Trusted contacts for regulators and Pisairtel-Schools support.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {governanceContacts.map((contact) => (

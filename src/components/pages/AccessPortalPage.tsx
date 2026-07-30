@@ -86,10 +86,10 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
             className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-white"
           >
             <ArrowRight className="h-4 w-4 rotate-180" />
-            Back to Scholix overview
+            Back to Pisairtel-Schools overview
           </Button>
           <Link to="/" className="text-sm text-white/70 hover:text-white">
-            scholix.cloud
+            Pisairtel-Schools.cloud
           </Link>
         </header>
 
@@ -97,13 +97,13 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
           <div className="space-y-6 text-white">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-1 text-xs uppercase tracking-wide text-white/70">
               <Shield className="h-3.5 w-3.5" />
-              Scholix Access Portal
+              Pisairtel-Schools Access Portal
             </div>
             <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
               Sign in to orchestrate every learning network.
             </h1>
             <p className="text-lg text-white/80">
-              Tenant administrators manage day-to-day school operations while super admins oversee compliance, provisioning, and billing signals across the entire Scholix platform footprint.
+              Tenant administrators manage day-to-day school operations while super admins oversee compliance, provisioning, and billing signals across the entire Pisairtel-Schools platform footprint.
             </p>
 
             <Tabs defaultValue="tenant" className="space-y-6" onValueChange={(value) => {
@@ -129,7 +129,7 @@ export function AccessPortalPage({ onLoginSuccess, onBackToMarketing }: AccessPo
                   Staff
                 </TabsTrigger>
                 <TabsTrigger value="super">
-                  Scholix super admin
+                  Pisairtel-Schools super admin
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="tenant" className="space-y-4">

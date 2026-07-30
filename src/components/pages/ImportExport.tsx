@@ -142,7 +142,7 @@ export function ImportExport() {
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Data operations</p>
           <h1 className="text-2xl font-bold text-gray-900">Import &amp; export</h1>
-          <p className="text-sm text-gray-500">Sync Scholix with your SIS, HR, and finance tooling.</p>
+          <p className="text-sm text-gray-500">Sync Pisairtel-Schools with your SIS, HR, and finance tooling.</p>
         </div>
         <div className="flex items-center gap-3">
           <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelected} />

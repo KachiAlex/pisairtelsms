@@ -2,8 +2,8 @@ import { createOrUpdateSuperAdmin } from '../api/_lib/super-admin.ts'
 
 async function main() {
   const result = await createOrUpdateSuperAdmin({
-    fullName: 'Scholix Admin',
-    organization: 'Scholix',
+    fullName: 'Pisairtel-Schools Admin',
+    organization: 'Pisairtel-Schools',
     email: 'admin@scholarx.com',
     password: 'admin123',
   })

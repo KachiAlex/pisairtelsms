@@ -19,7 +19,7 @@ interface BrandingContextType {
 }
 
 const DEFAULT_BRANDING: BrandingConfig = {
-  schoolName: 'SCHOLIX',
+  schoolName: 'Pisairtel-Schools',
   schoolMotto: '',
   logoUrl: null,
   logoFileName: null,

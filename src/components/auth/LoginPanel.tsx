@@ -18,7 +18,7 @@ interface LoginPanelProps {
   onLogin: (role: LoginRole) => void
 }
 
-const STORAGE_KEY = 'scholix.superAdminAccount'
+const STORAGE_KEY = 'Pisairtel-Schools.superAdminAccount'
 
 export function LoginPanel({ onLogin }: LoginPanelProps) {
   const [email, setEmail] = useState('')
@@ -48,7 +48,7 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
         const message =
           loadError instanceof Error
             ? loadError.message
-            : 'Unable to reach Scholix cloud right now. Please retry later.'
+            : 'Unable to reach Pisairtel-Schools cloud right now. Please retry later.'
         setAccountLoadError(message)
       } finally {
         if (!cancelled) {
@@ -71,8 +71,8 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
   }, [normalizedInputEmail, normalizedStoredEmail, storedAccount])
 
   const helperText = isSuperAdminFlow
-    ? 'Super admin account detected. Enter the credentials configured for your Scholix command center.'
-    : 'Use your school workspace email to enter the Scholix tenant console.'
+    ? 'Super admin account detected. Enter the credentials configured for your Pisairtel-Schools command center.'
+    : 'Use your school workspace email to enter the Pisairtel-Schools tenant console.'
 
   const handleAccountCreated = async (account: SuperAdminAccountFormData) => {
     const savedAccount = await upsertSuperAdminAccount(account)
@@ -189,7 +189,7 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Secure Access</p>
-            <h3 className="text-lg font-semibold text-gray-900">Sign in to Scholix Console</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Sign in to Pisairtel-Schools Console</h3>
           </div>
         </div>
       </div>
@@ -269,7 +269,7 @@ export function LoginPanel({ onLogin }: LoginPanelProps) {
               <Building2 className="h-4 w-4 text-blue-700" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-blue-900">Scholix provisioning</p>
+              <p className="text-sm font-semibold text-blue-900">Pisairtel-Schools provisioning</p>
               {storedAccount ? (
                 <p>Super admin account registered for {storedAccount.organization} ({storedAccount.email}).</p>
               ) : (

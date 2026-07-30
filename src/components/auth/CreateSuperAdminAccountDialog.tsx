@@ -77,7 +77,7 @@ export function CreateSuperAdminAccountDialog({
 
     onAccountCreated(formState)
       .then(() => {
-        setSuccessMessage('Super admin account secured in the Scholix cloud.')
+        setSuccessMessage('Super admin account secured in the Pisairtel-Schools cloud.')
         setFormState((prev) => ({ ...prev, password: '' }))
       })
       .catch((error) => {
@@ -101,7 +101,7 @@ export function CreateSuperAdminAccountDialog({
         <DialogHeader>
           <DialogTitle>Super admin account</DialogTitle>
           <DialogDescription>
-            Provision secure top-level access. Credentials are encrypted and stored in the Scholix cloud before every
+            Provision secure top-level access. Credentials are encrypted and stored in the Pisairtel-Schools cloud before every
             portal login.
           </DialogDescription>
         </DialogHeader>
@@ -123,7 +123,7 @@ export function CreateSuperAdminAccountDialog({
                 id="super-admin-organization"
                 value={formState.organization}
                 onChange={(event) => setFormState((prev) => ({ ...prev, organization: event.target.value }))}
-                placeholder="Scholix Platform Ops"
+                placeholder="Pisairtel-Schools Platform Ops"
                 required
               />
             </div>
@@ -134,7 +134,7 @@ export function CreateSuperAdminAccountDialog({
                 type="email"
                 value={formState.email}
                 onChange={(event) => setFormState((prev) => ({ ...prev, email: event.target.value.trim() }))}
-                placeholder="you@scholix.cloud"
+                placeholder="you@Pisairtel-Schools.cloud"
                 required
               />
             </div>
@@ -154,7 +154,7 @@ export function CreateSuperAdminAccountDialog({
           <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-xs text-blue-900">
             <div className="flex items-start gap-2">
               <ShieldCheck className="h-4 w-4" />
-              <p>These credentials are encrypted in transit and stored securely via the Scholix platform cluster.</p>
+              <p>These credentials are encrypted in transit and stored securely via the Pisairtel-Schools platform cluster.</p>
             </div>
           </div>
           {errorMessage && <p className="text-sm font-medium text-red-600">{errorMessage}</p>}

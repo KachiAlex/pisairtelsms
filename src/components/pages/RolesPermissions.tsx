@@ -184,7 +184,7 @@ export function RolesPermissions() {
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Access Control</p>
           <h1 className="text-2xl font-bold text-gray-900">Roles & permissions</h1>
-          <p className="text-sm text-gray-500">Shape who can change what inside your Scholix tenant.</p>
+          <p className="text-sm text-gray-500">Shape who can change what inside your Pisairtel-Schools tenant.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={loadAll} disabled={loading}>

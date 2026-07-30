@@ -116,7 +116,7 @@ export function AcademicStructureOverview() {
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Academic control center</p>
           <h1 className="text-2xl font-bold text-gray-900">Academic structure</h1>
-          <p className="text-sm text-gray-600">Orchestrate levels, subjects, and policies powering Scholix experiences.</p>
+          <p className="text-sm text-gray-600">Orchestrate levels, subjects, and policies powering Pisairtel-Schools experiences.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button variant="outline">

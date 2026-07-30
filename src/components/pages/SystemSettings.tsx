@@ -317,7 +317,7 @@ export function SystemSettings() {
               <div>
                 <Label>Sender ID</Label>
                 <Input
-                  placeholder="SCHOLIX"
+                  placeholder="Pisairtel-Schools"
                   value={(settings as any).smsSenderId || ''}
                   onChange={(e) => updateSetting('smsSenderId' as any, e.target.value)}
                 />

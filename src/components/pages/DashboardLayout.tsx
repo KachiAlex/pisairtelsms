@@ -87,7 +87,7 @@ export default function DashboardLayout() {
               <GraduationCap className="h-6 w-6" />
             </div>
             <div className="hidden sm:block">
-              <h1 className="font-bold text-lg">SCHOLIX</h1>
+              <h1 className="font-bold text-lg">Pisairtel-Schools</h1>
               <p className="text-xs text-gray-500">School Management System</p>
             </div>
           </div>
@@ -170,7 +170,7 @@ export default function DashboardLayout() {
                 <DropdownMenuLabel>
                   <div className="flex flex-col">
                     <p className="text-sm">Admin User</p>
-                    <p className="text-xs text-gray-500">admin@scholix.edu</p>
+                    <p className="text-xs text-gray-500">admin@Pisairtel-Schools.edu</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

@@ -374,7 +374,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-wide text-slate-500">Scholix Super Admin</p>
+            <p className="text-sm uppercase tracking-wide text-slate-500">Pisairtel-Schools Super Admin</p>
             <h1 className="text-2xl font-semibold text-slate-900">Tenant orchestration command center</h1>
             <p className="text-sm text-slate-500">
               Monitor health, compliance, and provisioning across every subscribed school network.

@@ -341,7 +341,7 @@ export default function App() {
       'academic-analytics': 'Analytics & Reports',
       'system-settings': 'System Settings',
     };
-    return pageTitles[activePage] || 'SCHOLIX';
+    return pageTitles[activePage] || 'Pisairtel-Schools';
   };
 
   const tenantShell = (

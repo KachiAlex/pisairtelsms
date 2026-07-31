@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select'
 import { getAuthFromStorage } from '../../lib/auth'
+import { LiveClassRoom } from './LiveClassRoom'
 
 interface Classroom {
   id: string
@@ -77,6 +78,7 @@ export function VirtualClassroom() {
   const [showLessonDialog, setShowLessonDialog] = useState(false)
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false)
   const [showMaterialDialog, setShowMaterialDialog] = useState(false)
+  const [liveLesson, setLiveLesson] = useState<Lesson | null>(null)
 
   const auth = getAuthFromStorage()
   const headers: Record<string, string> = {
@@ -156,11 +158,17 @@ export function VirtualClassroom() {
   }
 
   const handleCreateLesson = async (data: any) => {
+    // Auto-generate Jitsi meeting URL for live lessons
+    let meetingUrl = data.meetingUrl
+    if (data.type === 'live' && !meetingUrl) {
+      const roomSlug = data.title.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30)
+      meetingUrl = `https://meet.jit.si/pisairtel-${roomSlug}-${Date.now().toString(36)}`
+    }
     try {
       const res = await fetch('/api/tenant/lessons', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ ...data, classroomId: selectedClassroom?.id }),
+        body: JSON.stringify({ ...data, meetingUrl, classroomId: selectedClassroom?.id }),
       })
       if (res.ok) {
         setShowLessonDialog(false)
@@ -222,6 +230,23 @@ export function VirtualClassroom() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (c.description || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  // Live class view
+  if (liveLesson && selectedClassroom) {
+    return (
+      <LiveClassRoom
+        lesson={liveLesson}
+        classroomName={selectedClassroom.name}
+        onBack={() => setLiveLesson(null)}
+        onRecordingSaved={(url) => {
+          // Update lesson in state with recording URL
+          setLessons(prev => prev.map(l =>
+            l.id === liveLesson.id ? { ...l, recording_url: url, status: 'completed' } : l
+          ))
+        }}
+      />
+    )
+  }
 
   // Classroom detail view
   if (selectedClassroom) {
@@ -316,13 +341,22 @@ export function VirtualClassroom() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{lesson.status}</Badge>
-                        {lesson.meeting_url && (
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={lesson.meeting_url} target="_blank" rel="noopener noreferrer">
-                              <Video className="h-4 w-4 mr-1" /> Join
+                        {lesson.recording_url && (
+                          <Button size="sm" variant="ghost" asChild>
+                            <a href={lesson.recording_url} target="_blank" rel="noopener noreferrer">
+                              <PlayCircle className="h-4 w-4 mr-1" /> Recording
                             </a>
                           </Button>
                         )}
+                        {lesson.type === 'live' && lesson.status !== 'completed' ? (
+                          <Button size="sm" variant="outline" onClick={() => setLiveLesson(lesson)}>
+                            <Video className="h-4 w-4 mr-1" /> Join Live
+                          </Button>
+                        ) : lesson.type === 'live' && lesson.status === 'completed' ? (
+                          <Button size="sm" variant="ghost" onClick={() => setLiveLesson(lesson)}>
+                            <Video className="h-4 w-4 mr-1" /> Replay
+                          </Button>
+                        ) : null}
                       </div>
                     </CardContent>
                   </Card>

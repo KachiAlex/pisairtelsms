@@ -52,6 +52,7 @@ const GradingScale = lazy(() => import('./components/pages/GradingScale'));
 const IntegrationsHub = lazy(() => import('./components/pages/IntegrationsHub'));
 const CBTExaminations = lazy(() => import('./components/pages/cbt/CBTExaminations'));
 const OfflineCBTSync = lazy(() => import('./components/pages/OfflineCBTSync'));
+const VirtualClassroom = lazy(() => import('./components/pages/VirtualClassroom'));
 const ExamItemAnalysis = lazy(() => import('./components/pages/ExamItemAnalysis'));
 const PredictiveRiskAlerts = lazy(() => import('./components/pages/PredictiveRiskAlerts'));
 const CertificateVerification = lazy(() => import('./components/pages/CertificateVerification'));
@@ -173,6 +174,9 @@ export default function App() {
       case 'staff-attendance':
       case 'attendance-reports':
         return <StudentAttendance />;
+      case 'virtual-classroom':
+      case 'virtual-classrooms':
+        return <VirtualClassroom />;
       case 'cbt':
       case 'cbt-question-bank':
       case 'cbt-exam-creation':

@@ -21,7 +21,8 @@ import {
   GraduationCap,
   Settings,
   Menu,
-  X
+  X,
+  MonitorPlay
 } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -101,6 +102,14 @@ const navItems: NavItem[] = [
       { id: 'cbt-live-monitoring', label: 'Live Monitoring' },
       { id: 'cbt-results', label: 'Results' },
       { id: 'cbt-security', label: 'Security Settings' },
+    ]
+  },
+  {
+    id: 'digital-learning',
+    label: 'Digital Learning',
+    icon: <MonitorPlay className="w-5 h-5" />,
+    children: [
+      { id: 'virtual-classrooms', label: 'Virtual Classrooms' },
     ]
   },
   {

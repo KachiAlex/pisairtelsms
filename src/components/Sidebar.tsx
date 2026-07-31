@@ -110,6 +110,9 @@ const navItems: NavItem[] = [
     icon: <MonitorPlay className="w-5 h-5" />,
     children: [
       { id: 'virtual-classrooms', label: 'Virtual Classrooms' },
+      { id: 'private-lesson-request', label: 'Private Lesson Requests' },
+      { id: 'private-lesson-approvals', label: 'Lesson Approvals' },
+      { id: 'virtual-learning-settings', label: 'VL Settings' },
     ]
   },
   {

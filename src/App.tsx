@@ -53,6 +53,9 @@ const IntegrationsHub = lazy(() => import('./components/pages/IntegrationsHub'))
 const CBTExaminations = lazy(() => import('./components/pages/cbt/CBTExaminations'));
 const OfflineCBTSync = lazy(() => import('./components/pages/OfflineCBTSync'));
 const VirtualClassroom = lazy(() => import('./components/pages/VirtualClassroom'));
+const PrivateLessonRequest = lazy(() => import('./components/pages/PrivateLessonRequest'));
+const PrivateLessonApprovals = lazy(() => import('./components/pages/PrivateLessonApprovals'));
+const VirtualLearningSettings = lazy(() => import('./components/pages/VirtualLearningSettings'));
 const ExamItemAnalysis = lazy(() => import('./components/pages/ExamItemAnalysis'));
 const PredictiveRiskAlerts = lazy(() => import('./components/pages/PredictiveRiskAlerts'));
 const CertificateVerification = lazy(() => import('./components/pages/CertificateVerification'));
@@ -177,6 +180,12 @@ export default function App() {
       case 'virtual-classroom':
       case 'virtual-classrooms':
         return <VirtualClassroom />;
+      case 'private-lesson-request':
+        return <PrivateLessonRequest />;
+      case 'private-lesson-approvals':
+        return <PrivateLessonApprovals />;
+      case 'virtual-learning-settings':
+        return <VirtualLearningSettings />;
       case 'cbt':
       case 'cbt-question-bank':
       case 'cbt-exam-creation':

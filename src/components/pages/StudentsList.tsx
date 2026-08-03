@@ -245,7 +245,7 @@ export default function StudentsList() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Lifecycle</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Lifecycle</p>
           <h1 className="text-2xl font-bold text-gray-900">Student management</h1>
           <p className="text-sm text-gray-600 mt-1">Monitor admissions, wellbeing, and documents in one workspace.</p>
         </div>
@@ -258,7 +258,7 @@ export default function StudentsList() {
             <Upload className="w-4 h-4 mr-2" />
             Import Students
           </Button>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-red-600 hover:bg-red-700">
             <UserPlus className="w-4 h-4 mr-2" />
             Add student
           </Button>
@@ -316,28 +316,28 @@ export default function StudentsList() {
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Total students</p>
             <p className="text-3xl font-bold text-gray-900 mt-2">{students.length}</p>
-            <p className="text-xs text-gray-500 mt-1">Updated 5 mins ago</p>
+            <p className="text-xs text-gray-500 mt-1">{students.length > 0 ? 'Live data' : 'No data yet'}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Active</p>
             <p className="text-3xl font-bold text-emerald-600 mt-2">{totalActive}</p>
-            <p className="text-xs text-emerald-600 mt-1">Retention 97%</p>
+            <p className="text-xs text-emerald-600 mt-1">{students.length > 0 ? `${Math.round((totalActive / students.length) * 100)}% active` : '—'}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Male</p>
-            <p className="text-3xl font-bold text-blue-600 mt-2">{totalMale}</p>
-            <p className="text-xs text-gray-500 mt-1">52% of cohort</p>
+            <p className="text-3xl font-bold text-red-600 mt-2">{totalMale}</p>
+            <p className="text-xs text-gray-500 mt-1">{students.length > 0 ? `${Math.round((totalMale / students.length) * 100)}% of total` : '—'}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Female</p>
-            <p className="text-3xl font-bold text-purple-600 mt-2">{totalFemale}</p>
-            <p className="text-xs text-gray-500 mt-1">48% of cohort</p>
+            <p className="text-3xl font-bold text-orange-600 mt-2">{totalFemale}</p>
+            <p className="text-xs text-gray-500 mt-1">{students.length > 0 ? `${Math.round((totalFemale / students.length) * 100)}% of total` : '—'}</p>
           </CardContent>
         </Card>
       </div>
@@ -361,7 +361,7 @@ export default function StudentsList() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge className={getStatusColor(student.status)}>{student.status}</Badge>
-                  <Button variant="ghost" size="sm" className="text-blue-600">
+                  <Button variant="ghost" size="sm" className="text-red-600">
                     Open profile
                   </Button>
                 </div>
@@ -372,22 +372,22 @@ export default function StudentsList() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <BookOpen className="w-4 h-4 text-blue-600" />
+              <BookOpen className="w-4 h-4 text-red-600" />
               Enrollment signals
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-gray-600">
             <div className="flex items-center justify-between">
-              <span>Pending applications</span>
-              <span className="font-semibold text-gray-900">18</span>
+              <span>Active students</span>
+              <span className="font-semibold text-gray-900">{totalActive}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Transfers in progress</span>
-              <span className="font-semibold text-gray-900">5</span>
+              <span>Suspended</span>
+              <span className="font-semibold text-gray-900">{students.filter(s => s.status === 'Suspended').length}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Scholarships awaiting docs</span>
-              <span className="font-semibold text-amber-600">3</span>
+              <span>Graduated</span>
+              <span className="font-semibold text-gray-900">{students.filter(s => s.status === 'Graduated').length}</span>
             </div>
             <Button variant="outline" size="sm" className="w-full mt-2">
               View pipeline
@@ -634,7 +634,7 @@ export default function StudentsList() {
                 Cancel
               </Button>
               <Button
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-red-600 hover:bg-red-700"
                 onClick={handleAddStudent}
               >
                 Add Student
@@ -770,7 +770,7 @@ export default function StudentsList() {
                   onChange={(e) => setEditStudent(prev => ({ ...prev, guardianEmail: e.target.value }))}
                 />
                 {!selectedStudent?.guardianEmail && editStudent.guardianEmail && (
-                  <p className="text-xs text-blue-600 mt-1">Saving will provision parent portal access and send an invite email.</p>
+                  <p className="text-xs text-red-600 mt-1">Saving will provision parent portal access and send an invite email.</p>
                 )}
               </div>
             </div>
@@ -779,7 +779,7 @@ export default function StudentsList() {
                 Cancel
               </Button>
               <Button
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-red-600 hover:bg-red-700"
                 onClick={handleSaveEdit}
                 disabled={isSaving}
               >

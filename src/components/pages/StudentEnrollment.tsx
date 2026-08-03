@@ -217,7 +217,7 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Admissions</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Admissions</p>
           <h1 className="text-2xl font-bold text-gray-900">Enrollment pipeline</h1>
           <p className="text-sm text-gray-600">Track inquiries through assessments until onboarding day.</p>
         </div>
@@ -264,12 +264,31 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) {
-                          // Mock parsing - in real app, parse CSV
-                          setParsedData([
-                            { name: 'John Doe', email: 'john@example.com', class: 'JSS 1A', status: 'Valid' },
-                            { name: 'Jane Smith', email: 'jane@example.com', class: 'JSS 1B', status: 'Valid' },
-                          ])
-                          setUploadStep('preview')
+                          const reader = new FileReader()
+                          reader.onload = (event) => {
+                            const text = event.target?.result as string
+                            const lines = text.split('\n').filter(l => l.trim())
+                            if (lines.length < 2) {
+                              alert('CSV file appears to be empty or has no data rows.')
+                              return
+                            }
+                            const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+                            const nameIdx = headers.findIndex(h => h.includes('name') && !h.includes('parent'))
+                            const emailIdx = headers.findIndex(h => h.includes('email'))
+                            const classIdx = headers.findIndex(h => h.includes('class'))
+                            const rows = lines.slice(1).map(line => {
+                              const cols = line.split(',').map(c => c.trim())
+                              return {
+                                name: nameIdx >= 0 ? `${cols[nameIdx] || ''} ${cols[nameIdx + 1] || ''}`.trim() || 'Unknown' : 'Unknown',
+                                email: emailIdx >= 0 ? cols[emailIdx] || '—' : '—',
+                                class: classIdx >= 0 ? cols[classIdx] || '—' : '—',
+                                status: 'Valid' as const,
+                              }
+                            })
+                            setParsedData(rows)
+                            setUploadStep('preview')
+                          }
+                          reader.readAsText(file)
                         }
                       }}
                     />
@@ -355,11 +374,27 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
                         Back to Preview
                       </Button>
                       <Button
-                        onClick={() => {
-                          // Mock import success
-                          setBatchUploadOpen(false)
-                          setUploadStep('upload')
-                          setParsedData([])
+                        onClick={async () => {
+                          try {
+                            const payloads = parsedData.map(d => ({
+                              name: d.name,
+                              class: d.class,
+                              arm: '',
+                              gender: 'Male',
+                              status: 'Active',
+                              guardian: '',
+                              phone: '',
+                              guardianEmail: d.email !== '—' ? d.email : undefined,
+                            }))
+                            const { createStudents } = await import('../../lib/studentsClient')
+                            await createStudents(payloads)
+                            setBatchUploadOpen(false)
+                            setUploadStep('upload')
+                            setParsedData([])
+                          } catch (err) {
+                            console.error('Import failed:', err)
+                            alert('Failed to import students. Please try again.')
+                          }
                         }}
                       >
                         Import Students
@@ -449,7 +484,7 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
                     </div>
                   ))
                 )}
-                <Button variant="ghost" className="w-full text-blue-600">
+                <Button variant="ghost" className="w-full text-red-600">
                   View all in {column.stage}
                 </Button>
               </CardContent>
@@ -485,7 +520,7 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4 text-blue-600" />
+              <MapPin className="h-4 w-4 text-red-600" />
               Feeder schools
             </CardTitle>
           </CardHeader>
@@ -501,26 +536,17 @@ Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <BookOpen className="h-4 w-4 text-purple-600" />
+              <BookOpen className="h-4 w-4 text-orange-600" />
               Orientation checklist
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-gray-600">
-            <div className="flex items-center justify-between">
-              <span>Medical screening</span>
-              <Badge variant="outline">7/12 complete</Badge>
+            <div className="flex items-center justify-center py-6 text-center">
+              <div>
+                <BookOpen className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">Orientation checklist will appear here once configured.</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span>Uniform measurements</span>
-              <Badge variant="outline">5/12 complete</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Parent onboarding call</span>
-              <Badge variant="outline">4/12 booked</Badge>
-            </div>
-            <Button variant="ghost" size="sm" className="text-blue-600">
-              Manage tasks
-            </Button>
           </CardContent>
         </Card>
       </div>

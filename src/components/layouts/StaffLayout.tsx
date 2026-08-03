@@ -141,7 +141,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
                 className="w-8 h-8 rounded-lg object-contain"
               />
             ) : (
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
             )}
@@ -220,7 +220,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
           <div className="flex items-center gap-2">
             <NotificationsDropdown />
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4 text-white" />
               </div>
               <div className="hidden sm:block">

@@ -180,7 +180,7 @@ export function ParentLayout({ children }: ParentLayoutProps) {
             {branding.logoUrl ? (
               <img src={branding.logoUrl} alt={branding.schoolName} className="w-8 h-8 rounded-lg object-contain" />
             ) : (
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
             )}
@@ -254,7 +254,7 @@ export function ParentLayout({ children }: ParentLayoutProps) {
                 onClick={() => setIsChildSelectorOpen(!isChildSelectorOpen)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
               >
-                <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
                   {selectedChild?.name?.charAt(0) || 'C'}
                 </div>
                 <span className="text-sm font-medium text-gray-700 hidden sm:inline max-w-[100px] truncate">
@@ -296,7 +296,7 @@ export function ParentLayout({ children }: ParentLayoutProps) {
 
             {/* Profile */}
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-xs font-bold">P</span>
               </div>
               <div className="hidden sm:block">

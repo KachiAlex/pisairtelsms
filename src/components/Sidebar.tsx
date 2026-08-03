@@ -278,7 +278,7 @@ export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProp
                 className="w-8 h-8 rounded-lg object-contain"
               />
             ) : (
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
             )}

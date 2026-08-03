@@ -94,14 +94,47 @@ export function StudentHealth() {
   const resetIncidentForm = () =>
     setIncidentForm({ student: '', type: 'Medical', severity: 'Low', location: '', notes: '' })
 
-  const handleScreeningSubmit = () => {
-    toast({ title: 'Screening scheduled', description: 'Placeholder submission captured locally.' })
+  const handleScreeningSubmit = async () => {
+    try {
+      await fetch('/api/student-health', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: screeningForm.student,
+          recordType: 'screening',
+          details: screeningForm.screeningType,
+          owner: screeningForm.owner,
+          dueDate: screeningForm.dueDate || null,
+          notes: screeningForm.notes,
+        }),
+      })
+      toast({ title: 'Screening scheduled', description: 'Screening record saved successfully.' })
+      loadHealthData()
+    } catch {
+      toast({ title: 'Error', description: 'Failed to schedule screening. Please try again.' })
+    }
     setIsScreeningOpen(false)
     resetScreeningForm()
   }
 
-  const handleIncidentSubmit = () => {
-    toast({ title: 'Incident logged', description: 'Workflow hook will notify guardians when wired.' })
+  const handleIncidentSubmit = async () => {
+    try {
+      await fetch('/api/student-health', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: incidentForm.student,
+          recordType: 'incident',
+          details: incidentForm.notes,
+          severity: incidentForm.severity,
+          location: incidentForm.location,
+        }),
+      })
+      toast({ title: 'Incident logged', description: 'Incident record saved successfully.' })
+      loadHealthData()
+    } catch {
+      toast({ title: 'Error', description: 'Failed to log incident. Please try again.' })
+    }
     setIsIncidentOpen(false)
     resetIncidentForm()
   }
@@ -110,7 +143,7 @@ export function StudentHealth() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Wellness</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Wellness</p>
           <h1 className="text-2xl font-bold text-gray-900">Health & wellness tracker</h1>
           <p className="text-sm text-gray-600">
             Monitor screenings, counseling, and safeguarding incidents across every cohort.

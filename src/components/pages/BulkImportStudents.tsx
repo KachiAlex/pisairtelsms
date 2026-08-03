@@ -6,7 +6,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
-import { Download, FileText, Eye } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
 
 interface Student {
   id: string
@@ -27,88 +27,13 @@ interface BulkImportStudentsProps {
   currentStudentCount: number
 }
 
-// Sample data for demonstration
 const sampleCsvData = `Name,Class,Arm,Gender,Guardian,Phone
-John Doe,JSS 1,A,Male,Jane Doe,+1234567890
-Jane Smith,JSS 2,B,Female,Bob Smith,+1234567891
-Michael Johnson,JSS 3,C,Male,Sarah Johnson,+1234567892
-Emily Davis,SS 1,A,Female,Robert Davis,+1234567893
-David Wilson,SS 2,B,Male,Mary Wilson,+1234567894
-Lisa Brown,SS 3,C,Female,James Brown,+1234567895`
-
-const sampleStudents: Student[] = [
-  {
-    id: '1',
-    admissionNo: 'SCH/2024/001',
-    name: 'John Doe',
-    class: 'JSS 1',
-    arm: 'A',
-    gender: 'Male',
-    status: 'Active',
-    guardian: 'Jane Doe',
-    phone: '+1234567890',
-  },
-  {
-    id: '2',
-    admissionNo: 'SCH/2024/002',
-    name: 'Jane Smith',
-    class: 'JSS 2',
-    arm: 'B',
-    gender: 'Female',
-    status: 'Active',
-    guardian: 'Bob Smith',
-    phone: '+1234567891',
-  },
-  {
-    id: '3',
-    admissionNo: 'SCH/2024/003',
-    name: 'Michael Johnson',
-    class: 'JSS 3',
-    arm: 'C',
-    gender: 'Male',
-    status: 'Active',
-    guardian: 'Sarah Johnson',
-    phone: '+1234567892',
-  },
-  {
-    id: '4',
-    admissionNo: 'SCH/2024/004',
-    name: 'Emily Davis',
-    class: 'SS 1',
-    arm: 'A',
-    gender: 'Female',
-    status: 'Active',
-    guardian: 'Robert Davis',
-    phone: '+1234567893',
-  },
-  {
-    id: '5',
-    admissionNo: 'SCH/2024/005',
-    name: 'David Wilson',
-    class: 'SS 2',
-    arm: 'B',
-    gender: 'Male',
-    status: 'Active',
-    guardian: 'Mary Wilson',
-    phone: '+1234567894',
-  },
-  {
-    id: '6',
-    admissionNo: 'SCH/2024/006',
-    name: 'Lisa Brown',
-    class: 'SS 3',
-    arm: 'C',
-    gender: 'Female',
-    status: 'Active',
-    guardian: 'James Brown',
-    phone: '+1234567895',
-  },
-]
+,,A,Male,,
+,,B,Female,,`
 
 export function BulkImportStudents({ open, onClose, onImport, currentStudentCount }: BulkImportStudentsProps) {
   const [parsedData, setParsedData] = useState<Student[]>([])
   const [errors, setErrors] = useState<{row: number, field: string, message: string}[]>([])
-  const [showSample, setShowSample] = useState(false)
 
   const downloadSampleCsv = () => {
     const blob = new Blob([sampleCsvData], { type: 'text/csv;charset=utf-8;' })
@@ -124,12 +49,7 @@ export function BulkImportStudents({ open, onClose, onImport, currentStudentCoun
 
   const downloadSampleExcel = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { Name: 'John Doe', Class: 'JSS 1', Arm: 'A', Gender: 'Male', Guardian: 'Jane Doe', Phone: '+1234567890' },
-      { Name: 'Jane Smith', Class: 'JSS 2', Arm: 'B', Gender: 'Female', Guardian: 'Bob Smith', Phone: '+1234567891' },
-      { Name: 'Michael Johnson', Class: 'JSS 3', Arm: 'C', Gender: 'Male', Guardian: 'Sarah Johnson', Phone: '+1234567892' },
-      { Name: 'Emily Davis', Class: 'SS 1', Arm: 'A', Gender: 'Female', Guardian: 'Robert Davis', Phone: '+1234567893' },
-      { Name: 'David Wilson', Class: 'SS 2', Arm: 'B', Gender: 'Male', Guardian: 'Mary Wilson', Phone: '+1234567894' },
-      { Name: 'Lisa Brown', Class: 'SS 3', Arm: 'C', Gender: 'Female', Guardian: 'James Brown', Phone: '+1234567895' },
+      { Name: '', Class: '', Arm: 'A', Gender: 'Male', Guardian: '', Phone: '' },
     ])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Students')
@@ -238,12 +158,28 @@ export function BulkImportStudents({ open, onClose, onImport, currentStudentCoun
     setErrors(errs)
   }
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (errors.length === 0 && parsedData.length > 0) {
-      onImport(parsedData)
-      onClose()
-      setParsedData([])
-      setErrors([])
+      try {
+        const { createStudents } = await import('../../lib/studentsClient')
+        const payloads = parsedData.map(s => ({
+          name: s.name,
+          class: s.class,
+          arm: s.arm,
+          gender: s.gender,
+          status: s.status as 'Active' | 'Suspended' | 'Graduated',
+          guardian: s.guardian,
+          phone: s.phone,
+        }))
+        await createStudents(payloads)
+        onImport(parsedData)
+        onClose()
+        setParsedData([])
+        setErrors([])
+      } catch (err) {
+        console.error('Import failed:', err)
+        setErrors([{ row: 0, field: 'import', message: 'Failed to import students. Please try again.' }])
+      }
     }
   }
 
@@ -258,17 +194,17 @@ export function BulkImportStudents({ open, onClose, onImport, currentStudentCoun
         </DialogHeader>
         <div className="space-y-4">
           {/* Sample Data Section */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-blue-900 mb-3">📋 Sample Data & Format Guide</h3>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-red-900 mb-3">📋 Format Guide</h3>
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-blue-700 mb-2">
+                <p className="text-xs text-red-700 mb-2">
                   <strong>Required columns:</strong> Name, Class, Arm, Gender, Guardian, Phone
                 </p>
-                <p className="text-xs text-blue-700 mb-2">
+                <p className="text-xs text-red-700 mb-2">
                   <strong>Valid classes:</strong> JSS 1, JSS 2, JSS 3, SS 1, SS 2, SS 3
                 </p>
-                <p className="text-xs text-blue-700 mb-2">
+                <p className="text-xs text-red-700 mb-2">
                   <strong>Valid genders:</strong> Male, Female
                 </p>
               </div>
@@ -281,43 +217,7 @@ export function BulkImportStudents({ open, onClose, onImport, currentStudentCoun
                   <Download className="w-4 h-4 mr-2" />
                   Download Sample Excel
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowSample(!showSample)}>
-                  <Eye className="w-4 h-4 mr-2" />
-                  {showSample ? 'Hide' : 'Show'} Sample Data
-                </Button>
               </div>
-              {showSample && (
-                <div className="mt-4">
-                  <h4 className="text-xs font-semibold text-blue-900 mb-2">Sample Data Preview:</h4>
-                  <div className="bg-white border border-blue-200 rounded overflow-hidden max-h-48 overflow-y-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs">Name</TableHead>
-                          <TableHead className="text-xs">Class</TableHead>
-                          <TableHead className="text-xs">Arm</TableHead>
-                          <TableHead className="text-xs">Gender</TableHead>
-                          <TableHead className="text-xs">Guardian</TableHead>
-                          <TableHead className="text-xs">Phone</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {sampleStudents.slice(0, 3).map((student, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="text-xs">{student.name}</TableCell>
-                            <TableCell className="text-xs">{student.class}</TableCell>
-                            <TableCell className="text-xs">{student.arm}</TableCell>
-                            <TableCell className="text-xs">{student.gender}</TableCell>
-                            <TableCell className="text-xs">{student.guardian}</TableCell>
-                            <TableCell className="text-xs">{student.phone}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <p className="text-xs text-blue-600 mt-2">Showing first 3 rows of 6 total sample students</p>
-                </div>
-              )}
             </div>
           </div>
 

@@ -47,7 +47,7 @@ const STATUS_BADGE_VARIANT: Record<StudentDocumentStatus, 'secondary' | 'outline
 
 const STATUS_TONE: Record<StudentDocumentStatus, string> = {
   'Pending review': 'text-amber-600',
-  'Awaiting upload': 'text-blue-600',
+  'Awaiting upload': 'text-red-600',
   Escalated: 'text-rose-600',
 }
 

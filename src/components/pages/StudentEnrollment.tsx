@@ -61,8 +61,7 @@ const pipelineStages = [
 export function StudentEnrollment() {
   const downloadSampleCSV = () => {
     const csvContent = `First Name,Last Name,Email,Phone,Date of Birth,Class,Parent Name
-John,Doe,john@example.com,+1234567890,2005-05-15,JSS 1,Jane Doe
-Jane,Smith,jane@example.com,+1234567891,2006-03-20,JSS 2,Bob Smith`
+,,,,,,`
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

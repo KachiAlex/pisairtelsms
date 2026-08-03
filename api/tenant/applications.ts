@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchApplications, createApplication, updateApplicationStatus, type ApplicationPayload } from './_lib/applications.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -23,6 +24,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication - only staff or tenant_admin can access tenant applications
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
+
+  try {
+    initializeDatabase()
+    await runMigrations()
+  } catch (error) {
+    console.error('Database initialization error:', error)
+    return res.status(500).json({ error: 'Database initialization failed' })
+  }
 
   const { method } = req
 

@@ -1,5 +1,4 @@
-// Mock in-memory storage for applications (for development/demo purposes)
-const applicationsStore: Map<string, ApplicationDTO> = new Map();
+import { queryAll, queryOne } from '../cbt/_lib/db.js';
 
 // DTO for API responses — camelCase
 export interface ApplicationDTO {
@@ -26,65 +25,20 @@ export interface ApplicationPayload {
   source?: string
 }
 
-// Initialize with sample data
-function initializeSampleData() {
-  if (applicationsStore.size === 0) {
-    const sampleApplications: ApplicationDTO[] = [
-      {
-        id: 'app_1',
-        studentName: 'Amara Okonkwo',
-        parentName: 'Mr. Okonkwo',
-        contactPhone: '+234801111111',
-        contactEmail: 'amara@example.com',
-        classApplying: 'JSS 1',
-        status: 'pending',
-        academicSession: '2025/2026',
-        source: 'Online Form',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'app_2',
-        studentName: 'Emeka Nwosu',
-        parentName: 'Mrs. Nwosu',
-        contactPhone: '+234802222222',
-        contactEmail: 'emeka@example.com',
-        classApplying: 'JSS 1',
-        status: 'reviewing',
-        academicSession: '2025/2026',
-        source: 'Online Form',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'app_3',
-        studentName: 'Zainab Hassan',
-        parentName: 'Mr. Hassan',
-        contactPhone: '+234803333333',
-        contactEmail: 'zainab@example.com',
-        classApplying: 'JSS 2',
-        status: 'approved',
-        academicSession: '2025/2026',
-        source: 'Referral',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'app_4',
-        studentName: 'Chidi Eze',
-        parentName: 'Mr. Eze',
-        contactPhone: '+234804444444',
-        contactEmail: 'chidi@example.com',
-        classApplying: 'JSS 1',
-        status: 'pending',
-        academicSession: '2025/2026',
-        source: 'Online Form',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-    sampleApplications.forEach(a => applicationsStore.set(a.id, a));
-  }
+function rowToDTO(row: any): ApplicationDTO {
+  return {
+    id: row.id,
+    studentName: row.student_name || '',
+    parentName: row.parent_name || '',
+    contactPhone: row.contact_phone || '',
+    contactEmail: row.contact_email || '',
+    classApplying: row.class_interested || row.class_applying || '',
+    status: (row.status || 'pending') as ApplicationDTO['status'],
+    academicSession: row.academic_session || null,
+    source: row.source || null,
+    createdAt: row.created_at?.toISOString?.() || String(row.created_at || ''),
+    updatedAt: row.updated_at?.toISOString?.() || String(row.updated_at || row.created_at || ''),
+  };
 }
 
 export async function fetchApplications(
@@ -92,20 +46,25 @@ export async function fetchApplications(
   academicSession?: string
 ): Promise<ApplicationDTO[]> {
   try {
-    initializeSampleData();
-    
-    let filtered = Array.from(applicationsStore.values());
-    
+    let sql = `SELECT * FROM leads ORDER BY created_at DESC`;
+    const values: any[] = [];
+    const conditions: string[] = [];
+
     if (status) {
-      filtered = filtered.filter(a => a.status === status);
+      values.push(status);
+      conditions.push(`status = $${values.length}`);
     }
     if (academicSession) {
-      filtered = filtered.filter(a => a.academicSession === academicSession);
+      values.push(academicSession);
+      conditions.push(`academic_session = $${values.length}`);
     }
-    
-    return filtered.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+
+    if (conditions.length > 0) {
+      sql = `SELECT * FROM leads WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`;
+    }
+
+    const rows = await queryAll<any>(sql, values.length > 0 ? values : undefined);
+    return rows.map(rowToDTO);
   } catch (error) {
     console.error('Error fetching applications:', error);
     return [];
@@ -114,23 +73,24 @@ export async function fetchApplications(
 
 export async function createApplication(payload: ApplicationPayload): Promise<ApplicationDTO> {
   try {
-    initializeSampleData();
-    
     const id = `app_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
-    
-    const application: ApplicationDTO = {
-      id,
-      ...payload,
-      status: 'pending',
-      academicSession: payload.academicSession || null,
-      source: payload.source || null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    
-    applicationsStore.set(id, application);
-    return application;
+    const row = await queryOne<any>(
+      `INSERT INTO leads (id, student_name, parent_name, contact_phone, contact_email, class_interested, source, status, academic_session)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
+       RETURNING *`,
+      [
+        id,
+        payload.studentName,
+        payload.parentName,
+        payload.contactPhone,
+        payload.contactEmail,
+        payload.classApplying,
+        payload.source || 'Online Form',
+        payload.academicSession || null,
+      ]
+    );
+    if (!row) throw new Error('Failed to create application');
+    return rowToDTO(row);
   } catch (error) {
     console.error('Error creating application:', error);
     throw new Error('Failed to create application');
@@ -142,21 +102,12 @@ export async function updateApplicationStatus(
   status: ApplicationDTO['status']
 ): Promise<ApplicationDTO | null> {
   try {
-    initializeSampleData();
-    
-    const existing = applicationsStore.get(id);
-    if (!existing) {
-      return null;
-    }
-    
-    const updated: ApplicationDTO = {
-      ...existing,
-      status,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    applicationsStore.set(id, updated);
-    return updated;
+    const row = await queryOne<any>(
+      `UPDATE leads SET status = $1 WHERE id = $2 RETURNING *`,
+      [status, id]
+    );
+    if (!row) return null;
+    return rowToDTO(row);
   } catch (error) {
     console.error('Error updating application status:', error);
     throw new Error('Failed to update application status');

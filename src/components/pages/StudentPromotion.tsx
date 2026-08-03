@@ -188,7 +188,7 @@ export function StudentPromotion() {
     }
 
     loadData()
-  }, [academicSession, term, fromClass])
+  }, [academicSession, term, fromClass, tenantId])
 
   // Calculate promotion recommendations for each student
   const studentsWithRecommendations = useMemo(() => {

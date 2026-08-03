@@ -118,14 +118,14 @@ export function StudentDocuments() {
         value: totalDocuments.toString(),
         detail: totalDocuments ? `${pendingReviewCount} pending review` : 'No documents yet',
         trend: lastSyncedAt ? `Synced ${lastSyncedAt.toLocaleTimeString()}` : 'Sync pending',
-        tone: 'text-blue-600',
+        tone: 'text-red-600',
       },
       {
         label: 'Awaiting uploads',
         value: awaitingUploadCount.toString(),
         detail: awaitingUploadCount ? 'Follow up with guardians' : 'All uploads received',
         trend: `${uniqueOwners} owner${uniqueOwners === 1 ? '' : 's'} involved`,
-        tone: 'text-amber-600',
+        tone: 'text-red-600',
       },
       {
         label: 'Escalations',
@@ -204,7 +204,7 @@ export function StudentDocuments() {
           label: 'Awaiting uploads',
           value: awaitingUploadCount,
           action: 'Send guardian reminders',
-          tone: 'text-blue-600',
+          tone: 'text-red-600',
         },
         {
           label: 'Escalations',
@@ -240,11 +240,58 @@ export function StudentDocuments() {
     [loadDocuments]
   )
 
+  const handleConfirmAction = useCallback(async () => {
+    if (!selectedDoc || !actionType) return
+    const statusMap: Record<string, string> = {
+      approve: 'Pending review',
+      request: 'Awaiting upload',
+      reject: 'Escalated',
+    }
+    try {
+      const response = await fetch(`/api/student-documents?id=${encodeURIComponent(selectedDoc.student + '-' + selectedDoc.doc)}&status=${encodeURIComponent(statusMap[actionType])}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!response.ok) throw new Error('Failed to update document status')
+      setActionType(null)
+      setSelectedDoc(null)
+      loadDocuments()
+    } catch (err) {
+      console.error('Error updating document:', err)
+      setError('Failed to update document status. Please try again.')
+    }
+  }, [selectedDoc, actionType, loadDocuments])
+
+  const handleExportReport = useCallback(() => {
+    if (documents.length === 0) {
+      alert('No documents to export')
+      return
+    }
+    const headers = ['Student', 'Cohort', 'Category', 'Document', 'Owner', 'Status', 'Aging', 'File Type', 'Last Updated']
+    const rows = filteredDocuments.map(doc => [
+      doc.student, doc.cohort, doc.category, doc.doc, doc.owner, doc.status, doc.aging, doc.fileType, doc.lastUpdated,
+    ])
+    const escapeCsv = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`
+      return val
+    }
+    const csv = [headers.join(','), ...rows.map(r => r.map(escapeCsv).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `student_documents_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }, [documents, filteredDocuments])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Compliance</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Compliance</p>
           <h1 className="text-2xl font-bold text-gray-900">Student document vault</h1>
           <p className="text-sm text-gray-600">Track every checklist, approvals, and expiring documents for each cohort.</p>
         </div>
@@ -311,7 +358,7 @@ export function StudentDocuments() {
                   </option>
                 ))}
               </select>
-              <Button variant="outline">
+              <Button variant="outline" size="sm" onClick={handleExportReport}>
                 <Download className="h-4 w-4 mr-2" />
                 Export report
               </Button>
@@ -445,7 +492,7 @@ export function StudentDocuments() {
               </TableBody>
             </Table>
             <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-              <Button variant="ghost" size="sm" className="text-blue-600">
+              <Button variant="ghost" size="sm" className="text-red-600">
                 View escalation board
               </Button>
               <div className="flex gap-2">
@@ -476,7 +523,7 @@ export function StudentDocuments() {
                   <span>{alert.status}</span>
                   <span className={`text-xs ${alert.tone}`}>{alert.count} item{alert.count === 1 ? '' : 's'}</span>
                 </p>
-                <Button variant="ghost" size="sm" className="text-blue-600 p-0" onClick={() => setStatusFilter(alert.status)}>
+                <Button variant="ghost" size="sm" className="text-red-600 p-0" onClick={() => setStatusFilter(alert.status)}>
                   Filter to {alert.status.toLowerCase()}
                 </Button>
               </div>
@@ -492,7 +539,7 @@ export function StudentDocuments() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <ScanLine className="h-4 w-4 text-blue-600" />
+              <ScanLine className="h-4 w-4 text-red-600" />
               Owner activity
             </CardTitle>
             <CardDescription>Top contributors based on latest document sync.</CardDescription>
@@ -533,7 +580,7 @@ export function StudentDocuments() {
                 <p className="text-xs text-gray-500">{insight.action}</p>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="text-blue-600" onClick={() => loadDocuments()}>
+            <Button variant="ghost" size="sm" className="text-red-600" onClick={() => loadDocuments()}>
               Re-run insights
             </Button>
           </CardContent>
@@ -600,14 +647,15 @@ export function StudentDocuments() {
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-gray-600">
-            This is a placeholder modal for future workflows. In production we will capture comments, route approvals,
-            and push notifications to guardians or staff.
+            {actionType === 'approve' && 'This will mark the document as reviewed and archive it.'}
+            {actionType === 'request' && 'This will set the document status to awaiting upload and notify the guardian.'}
+            {actionType === 'reject' && 'This will escalate the document for further action.'}
           </p>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setActionType(null)}>
               Cancel
             </Button>
-            <Button onClick={() => setActionType(null)}>
+            <Button onClick={handleConfirmAction}>
               Confirm
             </Button>
           </div>

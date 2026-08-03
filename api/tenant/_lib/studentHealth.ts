@@ -75,7 +75,7 @@ export async function fetchStudentHealthData(tenantId: string): Promise<StudentH
     }));
 
     const counselingColumns: CounselingColumn[] = [
-      { stage: 'Assessment', color: 'bg-blue-100 text-blue-700', cases: counselings.filter(r => r.status === 'assessment').map(r => ({
+      { stage: 'Assessment', color: 'bg-red-100 text-red-700', cases: counselings.filter(r => r.status === 'assessment').map(r => ({
         student: r.student_name || '', topic: r.details || '', owner: r.owner || '', nextStep: 'Schedule follow-up',
       }))},
       { stage: 'Active sessions', color: 'bg-amber-100 text-amber-700', cases: counselings.filter(r => r.status === 'active').map(r => ({

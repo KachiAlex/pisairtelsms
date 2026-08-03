@@ -196,7 +196,7 @@ export function StudentHealth() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Stethoscope className="h-4 w-4 text-blue-600" /> Screening compliance
+              <Stethoscope className="h-4 w-4 text-red-600" /> Screening compliance
             </CardTitle>
             <CardDescription>Upcoming health screenings and tasks.</CardDescription>
           </CardHeader>
@@ -217,7 +217,7 @@ export function StudentHealth() {
                 <Badge variant="outline">{item.status}</Badge>
               </div>
             ))}
-            <Button variant="ghost" className="w-full text-blue-600">
+            <Button variant="ghost" className="w-full text-red-600">
               Open screening calendar
             </Button>
           </CardContent>
@@ -242,7 +242,7 @@ export function StudentHealth() {
                     <p className="text-sm font-semibold text-gray-900">{caseItem.student}</p>
                     <p className="text-xs text-gray-500">{caseItem.topic}</p>
                     <p className="text-xs text-gray-600">Owner: {caseItem.owner}</p>
-                    <p className="text-xs text-blue-700 mt-1">{caseItem.nextStep}</p>
+                    <p className="text-xs text-red-700 mt-1">{caseItem.nextStep}</p>
                   </div>
                 ))}
               </div>
@@ -301,7 +301,7 @@ export function StudentHealth() {
                 </div>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="text-blue-600">
+            <Button variant="ghost" size="sm" className="text-red-600">
               View full task list
             </Button>
           </CardContent>

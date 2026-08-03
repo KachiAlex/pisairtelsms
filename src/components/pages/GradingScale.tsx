@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { Scale, Save, ShieldCheck, Calculator, AlertTriangle, FileText, ArrowUpWideNarrow, Loader, AlertCircle } from 'lucide-react'
+import { Scale, Save, ShieldCheck, Calculator, FileText, ArrowUpWideNarrow, Loader, AlertCircle } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
 const statusVariant: Record<string, 'default' | 'secondary'> = {
   live: 'default',
@@ -13,8 +14,6 @@ const statusVariant: Record<string, 'default' | 'secondary'> = {
   draft: 'secondary',
   Draft: 'secondary',
 }
-
-const HEADERS = { 'Content-Type': 'application/json' }
 
 export function GradingScale() {
   const [scales, setScales] = useState<any[]>([])
@@ -33,8 +32,8 @@ export function GradingScale() {
       setLoading(true)
       setError(null)
       const [scalesRes, auditRes] = await Promise.all([
-        fetch('/api/tenant/grading-scales', { headers: HEADERS }),
-        fetch('/api/tenant/grading-scales?id=audit', { headers: HEADERS }),
+        tenantApiGet('/api/tenant/grading-scales'),
+        tenantApiGet('/api/tenant/grading-scales?id=audit'),
       ])
       if (!scalesRes.ok) throw new Error('Failed to load grading scales')
       const scalesJson = await scalesRes.json()
@@ -55,11 +54,7 @@ export function GradingScale() {
     try {
       setCreating(true)
       setError(null)
-      const res = await fetch('/api/tenant/grading-scales', {
-        method: 'POST',
-        headers: HEADERS,
-        body: JSON.stringify({ name: newScaleName, type: 'primary' }),
-      })
+      const res = await tenantApiPost('/api/tenant/grading-scales', { name: newScaleName, type: 'primary' })
       if (!res.ok) throw new Error('Failed to create scale')
       const json = await res.json()
       setScales([json.data, ...scales])
@@ -73,9 +68,7 @@ export function GradingScale() {
 
   const handlePublish = async (scaleId: string) => {
     try {
-      const res = await fetch(`/api/tenant/grading-scales?id=${scaleId}&action=publish`, {
-        method: 'POST', headers: HEADERS,
-      })
+      const res = await tenantApiPost(`/api/tenant/grading-scales?id=${scaleId}&action=publish`, {})
       if (!res.ok) throw new Error('Failed to publish scale')
       await loadAll()
     } catch (err) {
@@ -111,7 +104,7 @@ export function GradingScale() {
         </div>
       )}
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <div className="rounded-full bg-red-50 text-red-600 w-10 h-10 flex items-center justify-center">
@@ -140,16 +133,6 @@ export function GradingScale() {
             <p className="text-xs text-gray-500 mt-3">Draft scales</p>
             <p className="text-3xl font-semibold text-gray-900">{draftScales.length}</p>
             <p className="text-xs text-gray-500">Awaiting review</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="rounded-full bg-amber-50 text-amber-600 w-10 h-10 flex items-center justify-center">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Open alerts</p>
-            <p className="text-3xl font-semibold text-rose-600">0</p>
-            <p className="text-xs text-gray-500">All systems normal</p>
           </CardContent>
         </Card>
       </div>
@@ -238,9 +221,6 @@ export function GradingScale() {
                 </div>
               ))
             )}
-            <Button variant="outline" size="sm" className="w-full">
-              <ArrowUpWideNarrow className="h-4 w-4 mr-2" /> Import mapping
-            </Button>
           </CardContent>
         </Card>
 
@@ -280,9 +260,6 @@ export function GradingScale() {
                 </div>
               ))
             )}
-            <Button variant="ghost" size="sm" className="w-full">
-              <Scale className="h-4 w-4 mr-2" /> Edit policy
-            </Button>
           </CardContent>
         </Card>
       </div>
@@ -309,21 +286,8 @@ export function GradingScale() {
               </div>
             ))
           )}
-          <Button variant="ghost" size="sm" className="w-full">
-            <FileText className="h-4 w-4 mr-2" /> Export change log
-          </Button>
         </CardContent>
       </Card>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5" />
-          <p>Create and configure grading scales to manage academic performance standards.</p>
-        </div>
-        <Button size="sm">
-          <ShieldCheck className="h-4 w-4 mr-2" /> Learn more
-        </Button>
-      </div>
     </div>
   )
 }

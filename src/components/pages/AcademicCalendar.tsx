@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { CalendarRange, Clock3, MapPin, Download, Upload, BellRing, AlertTriangle } from 'lucide-react'
+import { CalendarRange } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import {
   Dialog,
   DialogContent,
@@ -18,26 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
-const termSummary = [
-  { term: 'First Term', start: '09 Sep 2025', end: '06 Dec 2025', exams: '25 Nov - 04 Dec', status: 'In session' },
-  { term: 'Second Term', start: '13 Jan 2026', end: '27 Mar 2026', exams: '17 Mar - 26 Mar', status: 'Upcoming' },
-  { term: 'Third Term', start: '27 Apr 2026', end: '17 Jul 2026', exams: '07 Jul - 15 Jul', status: 'Upcoming' },
-]
-
-const milestoneTimeline = [
-  { title: 'CA entry window', date: '12 - 23 Feb', owner: 'Assessment team', status: 'Live' },
-  { title: 'Mid-term break', date: '01 Mar', owner: 'Principal', status: 'Locked' },
-  { title: 'External competition', date: '08 Mar', owner: 'Student affairs', status: 'Tentative' },
-  { title: 'WAEC practicals', date: '15 Mar', owner: 'Exams dept', status: 'High priority' },
-]
-
-const eventTable = [
-  { type: 'Academic', name: 'STEM Innovation Week', date: '19 Feb', audience: 'SS1-SS3', venue: 'Innovation Hub', state: 'Confirmed' },
-  { type: 'Assessment', name: 'Continuous Assessment 2', date: '26 Feb', audience: 'All classes', venue: 'Homerooms', state: 'Live' },
-  { type: 'Holiday', name: 'Good Friday', date: '03 Apr', audience: 'All', venue: '—', state: 'Public holiday' },
-  { type: 'Compliance', name: 'Curriculum review submission', date: '10 Apr', audience: 'HODs', venue: 'Portal upload', state: 'Due soon' },
-]
-
 export function AcademicCalendar() {
   const { toast } = useToast()
   const [addMilestoneOpen, setAddMilestoneOpen] = useState(false)
@@ -47,7 +26,7 @@ export function AcademicCalendar() {
     owner: '',
     status: 'Tentative' as 'Tentative' | 'Live' | 'Locked' | 'High priority'
   })
-  const [milestones, setMilestones] = useState(milestoneTimeline)
+  const [milestones, setMilestones] = useState<Array<{ title: string; date: string; owner: string; status: string }>>([])
   const [loading, setLoading] = useState(true)
 
   const loadMilestones = useCallback(async () => {
@@ -55,7 +34,7 @@ export function AcademicCalendar() {
       const res = await tenantApiGet('/api/tenant/academics/calendar/milestones')
       if (res.ok) {
         const data = await res.json()
-        if (data.data && data.data.length > 0) {
+        if (data.data) {
           setMilestones(data.data)
         }
       }
@@ -99,142 +78,55 @@ export function AcademicCalendar() {
           <p className="text-sm text-gray-600">Visualize term timelines, milestones, and alerts across campuses.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" /> Import ICS
-          </Button>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" /> Export calendar
-          </Button>
           <Button onClick={() => setAddMilestoneOpen(true)}>
             <CalendarRange className="h-4 w-4 mr-2" /> Add milestone
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-        {termSummary.map((term) => (
-          <Card key={term.term}>
-            <CardHeader>
-              <CardTitle className="text-base">{term.term}</CardTitle>
-              <CardDescription>{term.status}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div>
-                <p className="text-xs text-gray-500">Start</p>
-                <p className="font-semibold text-gray-900">{term.start}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">End</p>
-                <p className="font-semibold text-gray-900">{term.end}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Exam window</p>
-                <p className="font-semibold text-gray-900">{term.exams}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
+      {loading ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[1, 2].map(i => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
         <Card>
           <CardHeader>
             <CardTitle>Milestone timeline</CardTitle>
             <CardDescription>All academic-critical events sorted by urgency.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {milestones.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-3 justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                  <p className="text-xs text-gray-500">{item.owner}</p>
-                  <p className="text-[11px] text-gray-400">{item.date}</p>
-                </div>
-                <Badge variant={item.status === 'High priority' ? 'destructive' : 'secondary'} className="text-[11px] uppercase tracking-wide">
-                  {item.status}
-                </Badge>
+            {milestones.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <CalendarRange className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No milestones yet. Add one to get started.</p>
               </div>
-            ))}
+            ) : (
+              milestones.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-3 justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                    <p className="text-xs text-gray-500">{item.owner}</p>
+                    <p className="text-[11px] text-gray-400">{item.date}</p>
+                  </div>
+                  <Badge variant={item.status === 'High priority' ? 'destructive' : 'secondary'} className="text-[11px] uppercase tracking-wide">
+                    {item.status}
+                  </Badge>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Alert center</CardTitle>
-            <CardDescription>Automated nudges from timetable, exams, and compliance.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[1, 2, 3].map((idx) => (
-              <div key={idx} className="rounded-2xl border border-gray-100 p-4 flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${idx === 2 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                  {idx === 3 ? <AlertTriangle className="h-5 w-5" /> : <BellRing className="h-5 w-5" />}
-                </div>
-                <div className="flex-1 text-sm text-gray-900">
-                  <p>{idx === 1 ? 'Exam timetable conflict detected for SS2 Science.' : idx === 2 ? 'Waec practical rehearsal overlaps with CA window.' : 'Curriculum uploads pending for 2 electives.'}</p>
-                  <p className="text-xs text-gray-500 mt-1">{idx === 1 ? 'Resolve by assigning alternate lab.' : idx === 2 ? 'Confirm reschedule with principal.' : 'Remind HODs to upload scheme of work.'}</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Event matrix</CardTitle>
-          <CardDescription>Filterable grid across activity type and audience.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between text-sm text-gray-600">
-            <div className="flex gap-2">
-              <Badge variant="outline">Academic</Badge>
-              <Badge variant="outline">Assessment</Badge>
-              <Badge variant="outline">Compliance</Badge>
-              <Badge variant="outline">Holiday</Badge>
-            </div>
-            <div className="text-xs text-gray-500">Session: 2025/2026 • Term 1</div>
-          </div>
-          <div className="rounded-2xl border border-gray-100 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Audience</TableHead>
-                  <TableHead>Venue</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {eventTable.map((event) => (
-                  <TableRow key={event.name}>
-                    <TableCell className="font-semibold text-gray-900">{event.type}</TableCell>
-                    <TableCell>{event.name}</TableCell>
-                    <TableCell>{event.date}</TableCell>
-                    <TableCell>{event.audience}</TableCell>
-                    <TableCell>{event.venue}</TableCell>
-                    <TableCell>
-                      <Badge variant={event.state === 'High priority' ? 'destructive' : 'secondary'} className="text-xs">
-                        {event.state}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="rounded-2xl border border-dashed border-gray-200 p-4 flex items-center justify-between text-sm text-gray-600">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-red-500" />
-              Sync with facility bookings
-            </div>
-            <Button variant="outline" size="sm">
-              Connect now
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      )}
 
       <Dialog open={addMilestoneOpen} onOpenChange={setAddMilestoneOpen}>
         <DialogContent>

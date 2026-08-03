@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Alert, AlertDescription } from '../ui/alert'
 import { useTenant } from '../../contexts/TenantContext'
+import { useToast } from '../ui/use-toast'
+import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
 
 const defaultGradeBands = [
   { grade: 'A1', min: 80, max: 100, remark: 'Distinction', descriptor: 'Exemplary mastery of outcomes' },
@@ -32,6 +34,7 @@ const defaultPromotionRules = {
 
 export function GradingPolicy() {
   const { tenantId } = useTenant()
+  const { toast } = useToast()
   const [gradeBands, setGradeBands] = useState(defaultGradeBands)
   const [promotionRules, setPromotionRules] = useState(defaultPromotionRules)
   const [hasChanges, setHasChanges] = useState(false)
@@ -46,7 +49,7 @@ export function GradingPolicy() {
       if (!tenantId) return
 
       try {
-        const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}&type=grading-policy`)
+        const response = await tenantApiGet(`/api/tenant/ca-config?tenantId=${tenantId}&type=grading-policy`)
         if (response.ok) {
           const data = await response.json()
           if (data && data.gradeBands) {
@@ -90,11 +93,7 @@ export function GradingPolicy() {
   const handleSave = async () => {
     setSaveStatus('saving')
     try {
-      const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}&type=grading-policy`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gradeBands, promotionRules }),
-      })
+      const response = await tenantApiPut(`/api/tenant/ca-config?tenantId=${tenantId}&type=grading-policy`, { gradeBands, promotionRules })
 
       if (!response.ok) {
         throw new Error('Failed to save grading policy')
@@ -204,14 +203,14 @@ export function GradingPolicy() {
                   try {
                     await handlePublish();
                     setPublishStatus('published');
-                    alert('Grading Policy published successfully! New grade bands and promotion rules are now active.');
+                    toast({ title: 'Grading Policy published', description: 'New grade bands and promotion rules are now active.' });
                     setTimeout(() => {
                       setPublishDialogOpen(false);
                       setPublishStatus('idle');
                     }, 2000);
                   } catch (error) {
                     setPublishStatus('error');
-                    alert('Failed to publish Grading Policy. Please try again.');
+                    toast({ title: 'Publish failed', description: 'Failed to publish Grading Policy. Please try again.', variant: 'destructive' });
                     setPublishStatus('idle');
                   }
                 }} disabled={publishStatus === 'publishing'}>
@@ -231,8 +230,8 @@ export function GradingPolicy() {
               <CheckCircle className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Policy status</p>
-            <p className="text-lg font-semibold text-gray-900">Published</p>
-            <p className="text-xs text-gray-500">Last updated Jan 16</p>
+            <p className="text-lg font-semibold text-gray-900">{hasChanges ? 'Draft' : 'Saved'}</p>
+            <p className="text-xs text-gray-500">{hasChanges ? 'Unsaved changes' : 'No pending changes'}</p>
           </CardContent>
         </Card>
         <Card>
@@ -402,7 +401,7 @@ export function GradingPolicy() {
               <h3 className="font-semibold text-gray-900">Need to customize further?</h3>
               <p className="text-sm text-gray-600">Set up subject-specific grading rules or import from external standards.</p>
             </div>
-            <Button variant="outline" onClick={() => alert('Advanced grading rules functionality - would open advanced configuration dialog')}>
+            <Button variant="outline" onClick={() => toast({ title: 'Advanced rules', description: 'Advanced grading configuration would open here.' })}>
               <Scale className="h-4 w-4 mr-2" />
               Advanced rules
             </Button>

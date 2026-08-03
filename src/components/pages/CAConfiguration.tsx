@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from '../ui/alert'
 import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
+import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
 
 const defaultWeights = {
   primary: { tests: 30, assignments: 20, projects: 10, exams: 40 },
@@ -34,7 +35,7 @@ export function CAConfiguration() {
       if (!tenantId) return
 
       try {
-        const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}`)
+        const response = await tenantApiGet(`/api/tenant/ca-config?tenantId=${tenantId}`)
         if (response.ok) {
           const config = await response.json()
           if (config && typeof config === 'object') {
@@ -73,13 +74,7 @@ export function CAConfiguration() {
   const handleSave = async () => {
     setSaveStatus('saving')
     try {
-      const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(weights),
-      })
+      const response = await tenantApiPut(`/api/tenant/ca-config?tenantId=${tenantId}`, weights)
 
       if (!response.ok) {
         const error = await response.json()
@@ -234,7 +229,7 @@ export function CAConfiguration() {
                 <div className="grid gap-3 sm:grid-cols-3 text-sm">
                   <div className="text-center p-3 bg-red-50 rounded-lg">
                     <Users className="h-5 w-5 mx-auto mb-1 text-red-600" />
-                    <p className="font-semibold">24 Classes</p>
+                    <p className="font-semibold">All Classes</p>
                     <p className="text-xs text-gray-600">Will be updated</p>
                   </div>
                   <div className="text-center p-3 bg-green-50 rounded-lg">

@@ -207,7 +207,7 @@ export function TeacherAllocation() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <Activity className="h-4 w-4 text-amber-600" /> 19 uncovered periods this week (11 are STEM).
+            <Activity className="h-4 w-4 text-amber-600" /> {openPeriodTimeline.reduce((sum, b) => sum + b.periods, 0)} uncovered periods this week.
           </div>
           <div className="grid gap-3 sm:grid-cols-5">
             {openPeriodTimeline.map((bucket) => (

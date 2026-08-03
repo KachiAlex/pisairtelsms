@@ -140,7 +140,7 @@ export function ClassesAndArms() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Level orchestration</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Level orchestration</p>
           <h1 className="text-2xl font-bold text-gray-900">Classes & arms</h1>
           <p className="text-sm text-gray-600">Balance capacity, shift policies, and advisor coverage in one view.</p>
         </div>
@@ -186,7 +186,7 @@ export function ClassesAndArms() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-4">
-            <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
+            <div className="rounded-full bg-red-50 text-red-600 w-10 h-10 flex items-center justify-center">
               <Building2 className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Unique levels</p>

@@ -86,7 +86,7 @@ export function GradingScale() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader className="h-8 w-8 animate-spin text-red-600" />
       </div>
     )
   }
@@ -98,7 +98,7 @@ export function GradingScale() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Customization</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Customization</p>
           <h1 className="text-2xl font-bold text-gray-900">Grading scale</h1>
           <p className="text-sm text-gray-600">Control grade bands, GPA weights, and equivalency mappings for every division.</p>
         </div>
@@ -114,7 +114,7 @@ export function GradingScale() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-4">
-            <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
+            <div className="rounded-full bg-red-50 text-red-600 w-10 h-10 flex items-center justify-center">
               <Scale className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Grading scales</p>

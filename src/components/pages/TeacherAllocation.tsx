@@ -23,42 +23,20 @@ import {
 } from '../ui/select'
 import { useToast } from '../ui/use-toast'
 
-const DraggableTeacher = ({ teacher, onDragStart, onDragEnd }) => {
-  const style = {
-    cursor: 'grab',
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={`p-3 bg-blue-50 rounded-lg cursor-grab ${isDragging ? 'opacity-50' : ''}`}
-    >
-      {teacher.name}
-    </div>
-  )
-}
-
-const DroppableSlot = ({ slot }) => {
-  const { setNodeRef, isOver } = useDroppable({ id: slot.id })
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`p-3 border rounded-lg bg-gray-50 ${isOver ? 'bg-green-100 border-green-300' : ''}`}
-    >
-      {slot.class} - {slot.subject}
-      {slot.assignedTeacher && <div className="mt-2 text-green-600 font-semibold">Assigned: {slot.assignedTeacher}</div>}
-    </div>
-  )
-}
-
 function tenantHeaders(): Record<string, string> {
-  const tenantId =
-    (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
-  return { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const stored = localStorage.getItem('auth');
+    if (stored) {
+      const auth = JSON.parse(stored);
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+    }
+  } catch {
+    // fall through
+  }
+  return headers;
 }
 
 interface CoverageStat { label: string; value: string; detail: string; color: string }
@@ -106,7 +84,7 @@ export function TeacherAllocation() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Coverage intelligence</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Coverage intelligence</p>
           <h1 className="text-2xl font-bold text-gray-900">Teacher allocation</h1>
           <p className="text-sm text-gray-600">Balance loads, fill gaps, and monitor risks across timetable slots.</p>
         </div>
@@ -149,7 +127,7 @@ export function TeacherAllocation() {
                     key={teacher.name}
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', teacher.name)}
-                    className="p-3 bg-blue-50 rounded-lg cursor-grab"
+                    className="p-3 bg-red-50 rounded-lg cursor-grab"
                   >
                     {teacher.name}
                   </div>

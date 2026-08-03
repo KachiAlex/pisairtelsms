@@ -103,7 +103,7 @@ export function CAConfiguration() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Assessment setup</p>
+            <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Assessment setup</p>
             <h1 className="text-2xl font-bold text-gray-900">CA configuration</h1>
             <p className="text-sm text-gray-600">Configure assessment weights for each class level.</p>
           </div>
@@ -202,7 +202,7 @@ export function CAConfiguration() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Assessment setup</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Assessment setup</p>
           <h1 className="text-2xl font-bold text-gray-900">CA configuration</h1>
           <p className="text-sm text-gray-600">Configure assessment weights for each class level.</p>
         </div>
@@ -230,8 +230,8 @@ export function CAConfiguration() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-3 text-sm">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <Users className="h-5 w-5 mx-auto mb-1 text-blue-600" />
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <Users className="h-5 w-5 mx-auto mb-1 text-red-600" />
                     <p className="font-semibold">24 Classes</p>
                     <p className="text-xs text-gray-600">Will be updated</p>
                   </div>
@@ -292,7 +292,7 @@ export function CAConfiguration() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
+            <div className="rounded-full bg-red-50 text-red-600 w-10 h-10 flex items-center justify-center">
               <Users className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Classes using config</p>

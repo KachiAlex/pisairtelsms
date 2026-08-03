@@ -46,12 +46,13 @@ export function GradingPolicy() {
       if (!tenantId) return
 
       try {
-        // For now, we'll use localStorage as a fallback since we don't have a backend endpoint yet
-        const saved = localStorage.getItem(`grading-policy-${tenantId}`)
-        if (saved) {
-          const data = JSON.parse(saved)
-          setGradeBands(data.gradeBands || defaultGradeBands)
-          setPromotionRules(data.promotionRules || defaultPromotionRules)
+        const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}&type=grading-policy`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data && data.gradeBands) {
+            setGradeBands(data.gradeBands)
+            setPromotionRules(data.promotionRules || defaultPromotionRules)
+          }
         }
       } catch (error) {
         console.error('Failed to load grading policy:', error)
@@ -89,12 +90,15 @@ export function GradingPolicy() {
   const handleSave = async () => {
     setSaveStatus('saving')
     try {
-      // Save to localStorage for now (backend integration would go here)
-      const data = { gradeBands, promotionRules }
-      localStorage.setItem(`grading-policy-${tenantId}`, JSON.stringify(data))
+      const response = await fetch(`/api/tenant/ca-config?tenantId=${tenantId}&type=grading-policy`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gradeBands, promotionRules }),
+      })
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      if (!response.ok) {
+        throw new Error('Failed to save grading policy')
+      }
 
       setSaveStatus('saved')
       setHasChanges(false)
@@ -114,7 +118,7 @@ export function GradingPolicy() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Result governance</p>
+            <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Result governance</p>
             <h1 className="text-2xl font-bold text-gray-900">Grading policy</h1>
             <p className="text-sm text-gray-600">Configure grade bands and promotion rules.</p>
           </div>
@@ -143,7 +147,7 @@ export function GradingPolicy() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Result governance</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Result governance</p>
           <h1 className="text-2xl font-bold text-gray-900">Grading policy</h1>
           <p className="text-sm text-gray-600">Configure grade bands and promotion rules for result computation.</p>
         </div>
@@ -171,8 +175,8 @@ export function GradingPolicy() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-3 text-sm">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <Award className="h-5 w-5 mx-auto mb-1 text-blue-600" />
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <Award className="h-5 w-5 mx-auto mb-1 text-red-600" />
                     <p className="font-semibold">9 Grades</p>
                     <p className="text-xs text-gray-600">Configured</p>
                   </div>
@@ -233,7 +237,7 @@ export function GradingPolicy() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
+            <div className="rounded-full bg-red-50 text-red-600 w-10 h-10 flex items-center justify-center">
               <Award className="h-5 w-5" />
             </div>
             <p className="text-xs text-gray-500 mt-3">Grade bands</p>

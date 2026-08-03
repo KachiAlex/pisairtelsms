@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { CalendarRange, Clock3, MapPin, Download, Upload, BellRing, AlertTriangle } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -15,6 +15,8 @@ import {
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { useToast } from '../ui/use-toast'
 
 const termSummary = [
   { term: 'First Term', start: '09 Sep 2025', end: '06 Dec 2025', exams: '25 Nov - 04 Dec', status: 'In session' },
@@ -37,6 +39,7 @@ const eventTable = [
 ]
 
 export function AcademicCalendar() {
+  const { toast } = useToast()
   const [addMilestoneOpen, setAddMilestoneOpen] = useState(false)
   const [newMilestone, setNewMilestone] = useState({
     title: '',
@@ -44,11 +47,54 @@ export function AcademicCalendar() {
     owner: '',
     status: 'Tentative' as 'Tentative' | 'Live' | 'Locked' | 'High priority'
   })
+  const [milestones, setMilestones] = useState(milestoneTimeline)
+  const [loading, setLoading] = useState(true)
+
+  const loadMilestones = useCallback(async () => {
+    try {
+      const res = await tenantApiGet('/api/tenant/academics/calendar/milestones')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.data && data.data.length > 0) {
+          setMilestones(data.data)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading milestones:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadMilestones()
+  }, [loadMilestones])
+
+  const handleAddMilestone = async () => {
+    if (!newMilestone.title.trim()) {
+      toast({ title: 'Validation error', description: 'Title is required.', variant: 'destructive' })
+      return
+    }
+    try {
+      const res = await tenantApiPost('/api/tenant/academics/calendar/milestones', newMilestone)
+      if (res.ok) {
+        toast({ title: 'Milestone added', description: `${newMilestone.title} has been created.` })
+        setNewMilestone({ title: '', date: '', owner: '', status: 'Tentative' })
+        setAddMilestoneOpen(false)
+        loadMilestones()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to add milestone', description: err.error || 'Unknown error', variant: 'destructive' })
+      }
+    } catch (error) {
+      toast({ title: 'Network error', description: 'Failed to add milestone.', variant: 'destructive' })
+    }
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Session heartbeat</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Session heartbeat</p>
           <h1 className="text-2xl font-bold text-gray-900">Academic calendar</h1>
           <p className="text-sm text-gray-600">Visualize term timelines, milestones, and alerts across campuses.</p>
         </div>
@@ -97,7 +143,7 @@ export function AcademicCalendar() {
             <CardDescription>All academic-critical events sorted by urgency.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {milestoneTimeline.map((item) => (
+            {milestones.map((item) => (
               <div key={item.title} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-3 justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{item.title}</p>
@@ -120,7 +166,7 @@ export function AcademicCalendar() {
           <CardContent className="space-y-3">
             {[1, 2, 3].map((idx) => (
               <div key={idx} className="rounded-2xl border border-gray-100 p-4 flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${idx === 2 ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${idx === 2 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
                   {idx === 3 ? <AlertTriangle className="h-5 w-5" /> : <BellRing className="h-5 w-5" />}
                 </div>
                 <div className="flex-1 text-sm text-gray-900">
@@ -180,7 +226,7 @@ export function AcademicCalendar() {
           </div>
           <div className="rounded-2xl border border-dashed border-gray-200 p-4 flex items-center justify-between text-sm text-gray-600">
             <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-blue-500" />
+              <MapPin className="h-4 w-4 text-red-500" />
               Sync with facility bookings
             </div>
             <Button variant="outline" size="sm">
@@ -242,9 +288,7 @@ export function AcademicCalendar() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setAddMilestoneOpen(false)}>Cancel</Button>
             <Button onClick={() => {
-              console.log('Adding milestone:', newMilestone)
-              setNewMilestone({ title: '', date: '', owner: '', status: 'Tentative' })
-              setAddMilestoneOpen(false)
+              handleAddMilestone()
             }}>Add Milestone</Button>
           </div>
         </DialogContent>

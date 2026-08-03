@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Layers, GraduationCap, ShieldCheck, BookText, Sparkles, Clock3, TrendingUp, Building, Target, GitMerge, Megaphone } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -14,6 +14,8 @@ import {
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { useToast } from '../ui/use-toast'
 
 const structureMetrics = [
   {
@@ -21,7 +23,7 @@ const structureMetrics = [
     value: '3',
     detail: 'Primary • Junior • Senior',
     icon: Layers,
-    color: 'text-blue-600',
+    color: 'text-red-600',
   },
   {
     label: 'Departments',
@@ -108,13 +110,92 @@ const complianceWatch = [
 ]
 
 export function AcademicStructureOverview() {
+  const { toast } = useToast()
   const [addProgramOpen, setAddProgramOpen] = useState(false)
   const [addDepartmentOpen, setAddDepartmentOpen] = useState(false)
+  const [newProgram, setNewProgram] = useState({ name: '', level: '', description: '' })
+  const [newDepartment, setNewDepartment] = useState({ name: '', description: '' })
+  const [classArmsCount, setClassArmsCount] = useState(0)
+  const [subjectsCount, setSubjectsCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  const loadOverviewData = useCallback(async () => {
+    try {
+      const [classesRes, subjectsRes] = await Promise.all([
+        tenantApiGet('/api/tenant/cbt/classes'),
+        tenantApiGet('/api/tenant/academics/subjects'),
+      ])
+      if (classesRes.ok) {
+        const data = await classesRes.json()
+        setClassArmsCount(data.data?.length || 0)
+      }
+      if (subjectsRes.ok) {
+        const data = await subjectsRes.json()
+        setSubjectsCount(data.data?.length || 0)
+      }
+    } catch (error) {
+      console.error('Error loading overview data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOverviewData()
+  }, [loadOverviewData])
+
+  const liveMetrics = structureMetrics.map(m => {
+    if (m.label === 'Streams & Arms') return { ...m, value: String(classArmsCount) }
+    if (m.label === 'Departments') return { ...m, value: String(Math.max(subjectsCount, 0)) }
+    return m
+  })
+
+  const handleAddProgram = async () => {
+    if (!newProgram.name.trim()) {
+      toast({ title: 'Validation error', description: 'Program name is required.', variant: 'destructive' })
+      return
+    }
+    try {
+      const res = await tenantApiPost('/api/tenant/academics/programs', newProgram)
+      if (res.ok) {
+        toast({ title: 'Program added', description: `${newProgram.name} has been created.` })
+        setNewProgram({ name: '', level: '', description: '' })
+        setAddProgramOpen(false)
+        loadOverviewData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to add program', description: err.error || 'Unknown error', variant: 'destructive' })
+      }
+    } catch (error) {
+      toast({ title: 'Network error', description: 'Failed to add program.', variant: 'destructive' })
+    }
+  }
+
+  const handleAddDepartment = async () => {
+    if (!newDepartment.name.trim()) {
+      toast({ title: 'Validation error', description: 'Department name is required.', variant: 'destructive' })
+      return
+    }
+    try {
+      const res = await tenantApiPost('/api/tenant/academics/departments', newDepartment)
+      if (res.ok) {
+        toast({ title: 'Department added', description: `${newDepartment.name} has been created.` })
+        setNewDepartment({ name: '', description: '' })
+        setAddDepartmentOpen(false)
+        loadOverviewData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to add department', description: err.error || 'Unknown error', variant: 'destructive' })
+      }
+    } catch (error) {
+      toast({ title: 'Network error', description: 'Failed to add department.', variant: 'destructive' })
+    }
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Academic control center</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Academic control center</p>
           <h1 className="text-2xl font-bold text-gray-900">Academic structure</h1>
           <p className="text-sm text-gray-600">Orchestrate levels, subjects, and policies powering Pisairtel-Schools experiences.</p>
         </div>
@@ -132,7 +213,7 @@ export function AcademicStructureOverview() {
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        {structureMetrics.map((metric) => {
+        {liveMetrics.map((metric) => {
           const Icon = metric.icon
           return (
             <Card key={metric.label}>
@@ -154,7 +235,7 @@ export function AcademicStructureOverview() {
               <div
                 className="relative w-20 h-20 rounded-full"
                 style={{
-                  background: 'conic-gradient(#2563eb 0deg, #2563eb 240deg, #e2e8f0 240deg)'
+                  background: 'conic-gradient(#dc2626 0deg, #dc2626 240deg, #e2e8f0 240deg)'
                 }}
               >
                 <div className="absolute inset-2 rounded-full bg-white flex items-center justify-center">
@@ -245,7 +326,7 @@ export function AcademicStructureOverview() {
           <CardContent className="space-y-3">
             {quickActions.map((action) => (
               <div key={action.title} className="rounded-2xl border border-gray-100 p-4 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
                   {action.icon ? <action.icon className="h-5 w-5" /> : <BookText className="h-5 w-5" />}
                 </div>
                 <div className="flex-1">
@@ -256,7 +337,7 @@ export function AcademicStructureOverview() {
                   <p className="text-xs text-gray-500">{action.description}</p>
                   <p className="text-[11px] text-gray-400 mt-1">Runs automation across timetable + notifications.</p>
                 </div>
-                <Button variant="ghost" size="sm" className="text-blue-600">
+                <Button variant="ghost" size="sm" className="text-red-600">
                   Start
                 </Button>
               </div>
@@ -276,7 +357,7 @@ export function AcademicStructureOverview() {
                 <span>86%</span>
               </div>
               <div className="mt-2 h-2 rounded-full bg-gray-100">
-                <div className="h-2 rounded-full bg-blue-500" style={{ width: '86%' }} />
+                <div className="h-2 rounded-full bg-red-500" style={{ width: '86%' }} />
               </div>
             </div>
             <div>
@@ -319,20 +400,20 @@ export function AcademicStructureOverview() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="programName">Program Name</Label>
-                <Input id="programName" placeholder="e.g., Primary Education" />
+                <Input id="programName" placeholder="e.g., Primary Education" value={newProgram.name} onChange={(e) => setNewProgram({ ...newProgram, name: e.target.value })} />
               </div>
               <div>
                 <Label htmlFor="level">Level</Label>
-                <Input id="level" placeholder="e.g., Primary" />
+                <Input id="level" placeholder="e.g., Primary" value={newProgram.level} onChange={(e) => setNewProgram({ ...newProgram, level: e.target.value })} />
               </div>
               <div>
                 <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Program description" />
+                <Textarea id="description" placeholder="Program description" value={newProgram.description} onChange={(e) => setNewProgram({ ...newProgram, description: e.target.value })} />
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setAddProgramOpen(false)}>Cancel</Button>
-              <Button onClick={() => { /* handle add */ setAddProgramOpen(false) }}>Add Program</Button>
+              <Button onClick={() => { handleAddProgram(); setAddProgramOpen(false) }}>Add Program</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -348,16 +429,16 @@ export function AcademicStructureOverview() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="departmentName">Department Name</Label>
-                <Input id="departmentName" placeholder="e.g., Science Department" />
+                <Input id="departmentName" placeholder="e.g., Science Department" value={newDepartment.name} onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })} />
               </div>
               <div>
                 <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Department description" />
+                <Textarea id="description" placeholder="Department description" value={newDepartment.description} onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })} />
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setAddDepartmentOpen(false)}>Cancel</Button>
-              <Button onClick={() => { /* handle add */ setAddDepartmentOpen(false) }}>Add Department</Button>
+              <Button onClick={() => { handleAddDepartment(); setAddDepartmentOpen(false) }}>Add Department</Button>
             </div>
           </DialogContent>
         </Dialog>

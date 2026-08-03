@@ -125,7 +125,7 @@ export function SubjectsCatalog() {
 
   const qualityMetrics = useMemo(
     () => [
-      { label: 'Descriptions added', value: descriptionPct, color: 'bg-blue-500' },
+      { label: 'Descriptions added', value: descriptionPct, color: 'bg-red-500' },
       { label: 'Version tracking', value: versionPct, color: 'bg-emerald-500' },
       { label: 'Resource readiness', value: resourceReadyPct, color: 'bg-amber-500' },
     ],
@@ -204,7 +204,7 @@ export function SubjectsCatalog() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Curriculum registry</p>
+          <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Curriculum registry</p>
           <h1 className="text-2xl font-bold text-gray-900">Subjects catalog</h1>
           <p className="text-sm text-gray-600">Control core and elective subjects, curriculum versions, and resources.</p>
         </div>
@@ -212,7 +212,27 @@ export function SubjectsCatalog() {
           <Button variant="outline" onClick={() => alert('Advanced filtering functionality - would open filter dialog')}>
             <Filter className="h-4 w-4 mr-2" /> Filters
           </Button>
-          <Button variant="outline" onClick={() => alert('Export CSV functionality - would download subjects catalog')}>
+          <Button variant="outline" onClick={() => {
+            if (subjects.length === 0) { alert('No subjects to export'); return }
+            const headers = ['Code', 'Name', 'Levels', 'Type', 'Department', 'Version', 'Owner', 'Last Audit', 'Resources Status']
+            const rows = filteredSubjects.map(s => [
+              s.code, s.name, (s.levels || []).join('; '), s.type, s.department, s.version || '', s.owner || '', s.auditDate || '', s.resourcesStatus || ''
+            ])
+            const escapeCsv = (val: string) => {
+              if (val.includes(',') || val.includes('"') || val.includes('\n')) return `"${val.replace(/"/g, '""')}"`
+              return val
+            }
+            const csv = [headers.join(','), ...rows.map(r => r.map(escapeCsv).join(','))].join('\n')
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+            const link = document.createElement('a')
+            const url = URL.createObjectURL(blob)
+            link.setAttribute('href', url)
+            link.setAttribute('download', `subjects_catalog_${new Date().toISOString().split('T')[0]}.csv`)
+            link.style.visibility = 'hidden'
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+          }}>
             <Download className="h-4 w-4 mr-2" /> Export CSV
           </Button>
           <Dialog open={addSubjectOpen} onOpenChange={setAddSubjectOpen}>
@@ -373,7 +393,7 @@ export function SubjectsCatalog() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">{dept.coverage}%</p>
-                  <p className="text-[11px] uppercase tracking-wide text-blue-500">of catalog</p>
+                  <p className="text-[11px] uppercase tracking-wide text-red-500">of catalog</p>
                 </div>
               </div>
             ))}
@@ -423,7 +443,7 @@ export function SubjectsCatalog() {
                   key={dept}
                   onClick={() => setActiveDepartment(dept)}
                   className={`px-3 py-1 rounded-full border transition ${
-                    activeDepartment === dept ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-transparent bg-gray-100 text-gray-600 hover:text-gray-900'
+                    activeDepartment === dept ? 'border-red-500 bg-red-50 text-red-700 font-medium' : 'border-transparent bg-gray-100 text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   {dept}

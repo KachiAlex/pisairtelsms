@@ -62,9 +62,11 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-white" />
-              </div>
+              <img
+                src="/pisairtel-logo.svg"
+                alt="Pisairtel SMS"
+                className="w-10 h-10 rounded-lg object-contain"
+              />
               <span className="font-bold text-2xl text-gray-900">Pisairtel-Schools</span>
             </div>
 
@@ -445,9 +447,11 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-white" />
-                </div>
+                <img
+                  src="/pisairtel-logo.svg"
+                  alt="Pisairtel SMS"
+                  className="w-8 h-8 rounded-lg object-contain bg-white p-0.5"
+                />
                 <span className="font-bold text-xl text-white">Pisairtel-Schools</span>
               </div>
               <p className="text-sm text-gray-400">

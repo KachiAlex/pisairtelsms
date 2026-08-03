@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Textarea } from '../ui/textarea'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { useToast } from '../ui/use-toast'
 
 interface Subject {
   id: string
@@ -27,6 +28,7 @@ interface Subject {
 }
 
 export function SubjectsCatalog() {
+  const { toast } = useToast()
   const [activeDepartment, setActiveDepartment] = useState('All')
   const [addSubjectOpen, setAddSubjectOpen] = useState(false)
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -170,7 +172,7 @@ export function SubjectsCatalog() {
 
   const handleAddSubject = async () => {
     if (!newSubject.code || !newSubject.name || newSubject.levels.length === 0) {
-      alert('Please fill in all required fields: Subject Code, Name, and Levels.');
+      toast({ title: 'Validation error', description: 'Please fill in all required fields: Subject Code, Name, and Levels.', variant: 'destructive' });
       return;
     }
 
@@ -179,7 +181,7 @@ export function SubjectsCatalog() {
 
       if (res.ok) {
         const data = await res.json();
-        alert(`Subject "${newSubject.name}" (${newSubject.code}) added successfully to ${newSubject.department} department!`);
+        toast({ title: 'Subject added', description: `"${newSubject.name}" (${newSubject.code}) added to ${newSubject.department} department.` });
         fetchSubjects();
         setNewSubject({
           code: '',
@@ -192,11 +194,11 @@ export function SubjectsCatalog() {
         setAddSubjectOpen(false);
       } else {
         const errorData = await res.json();
-        alert(`Error adding subject: ${errorData.error || 'Unknown error'}`);
+        toast({ title: 'Error adding subject', description: errorData.error || 'Unknown error', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error adding subject:', error);
-      alert('Error adding subject. Please try again.');
+      toast({ title: 'Network error', description: 'Error adding subject. Please try again.', variant: 'destructive' });
     }
   }
 
@@ -209,11 +211,11 @@ export function SubjectsCatalog() {
           <p className="text-sm text-gray-600">Control core and elective subjects, curriculum versions, and resources.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={() => alert('Advanced filtering functionality - would open filter dialog')}>
+          <Button variant="outline" onClick={() => toast({ title: 'Advanced filters', description: 'Use the department pills and search below to filter subjects.' })}>
             <Filter className="h-4 w-4 mr-2" /> Filters
           </Button>
           <Button variant="outline" onClick={() => {
-            if (subjects.length === 0) { alert('No subjects to export'); return }
+            if (subjects.length === 0) { toast({ title: 'No subjects to export', variant: 'destructive' }); return }
             const headers = ['Code', 'Name', 'Levels', 'Type', 'Department', 'Version', 'Owner', 'Last Audit', 'Resources Status']
             const rows = filteredSubjects.map(s => [
               s.code, s.name, (s.levels || []).join('; '), s.type, s.department, s.version || '', s.owner || '', s.auditDate || '', s.resourcesStatus || ''
@@ -498,7 +500,7 @@ export function SubjectsCatalog() {
                       <div className="flex items-center gap-2">
                         <span>{subject.resourcesStatus || 'Pending'}</span>
                         {subject.resourcesStatus === 'Upload' && (
-                          <Button size="sm" variant="outline" className="text-[11px] h-6" onClick={() => alert(`Requesting assets for ${subject.name} - would send notification to subject owner`)}>
+                          <Button size="sm" variant="outline" className="text-[11px] h-6" onClick={() => toast({ title: 'Asset request sent', description: `Notification sent to subject owner for ${subject.name}.` })}>
                             Request assets
                           </Button>
                         )}

@@ -10,6 +10,7 @@ import { Slider } from '../ui/slider'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Alert, AlertDescription } from '../ui/alert'
 import { useTenant } from '../../contexts/TenantContext'
+import { useToast } from '../ui/use-toast'
 
 const defaultWeights = {
   primary: { tests: 30, assignments: 20, projects: 10, exams: 40 },
@@ -18,6 +19,7 @@ const defaultWeights = {
 }
 
 export function CAConfiguration() {
+  const { toast } = useToast()
   const { tenantId } = useTenant()
   const [weights, setWeights] = useState(defaultWeights)
   const [hasChanges, setHasChanges] = useState(false)
@@ -259,14 +261,14 @@ export function CAConfiguration() {
                   try {
                     await handlePublish();
                     setPublishStatus('published');
-                    alert('CA Configuration published successfully! Assessment weights have been applied to all classes.');
+                    toast({ title: 'CA Configuration published', description: 'Assessment weights have been applied to all classes.' });
                     setTimeout(() => {
                       setPublishDialogOpen(false);
                       setPublishStatus('idle');
                     }, 2000);
                   } catch (error) {
                     setPublishStatus('error');
-                    alert('Failed to publish CA Configuration. Please try again.');
+                    toast({ title: 'Publish failed', description: 'Failed to publish CA Configuration. Please try again.', variant: 'destructive' });
                     setPublishStatus('idle');
                   }
                 }} disabled={publishStatus === 'publishing'}>
@@ -329,7 +331,7 @@ export function CAConfiguration() {
               <h3 className="font-semibold text-gray-900">Need to customize for specific classes?</h3>
               <p className="text-sm text-gray-600">You can override these defaults for individual subjects or classes.</p>
             </div>
-            <Button variant="outline" onClick={() => alert('Advanced overrides functionality - would open advanced configuration dialog')}>
+            <Button variant="outline" onClick={() => toast({ title: 'Advanced overrides', description: 'Advanced configuration dialog would open here.' })}>
               <Settings className="h-4 w-4 mr-2" />
               Advanced overrides
             </Button>

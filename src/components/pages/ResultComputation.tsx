@@ -1,280 +1,295 @@
-import React, { useState } from 'react'
-import { Calculator, Activity, AlertTriangle, PlayCircle, Cpu, Database, ShieldCheck, RefreshCcw, Gauge } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { PlayCircle, RefreshCw, AlertCircle, CheckCircle2, Loader2, Calculator, Database } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
-import { Progress } from '../ui/progress'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Alert, AlertDescription } from '../ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { useTenant } from '../../contexts/TenantContext'
+import { useToast } from '../ui/use-toast'
+import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
 
-const pipelineStages = [
-  { id: 'stage-1', label: 'Aggregate CA scores', status: 'Done', duration: '4 min', owner: 'Engine' },
-  { id: 'stage-2', label: 'Apply grading policy', status: 'Processing', duration: '—', owner: 'Rules Engine' },
-  { id: 'stage-3', label: 'Compute rank & position', status: 'Queued', duration: '—', owner: 'Analytics' },
-  { id: 'stage-4', label: 'Sync to broadsheets', status: 'Pending', duration: '—', owner: 'Data Lake' },
-]
+interface RecomputeDetail {
+  studentId: string
+  subject: string
+  class: string
+  oldTotal: number
+  newTotal: number
+}
 
-const computeQueue = [
-  { id: 'RUN-9824', cohort: 'JSS 2', scope: 'All subjects', initiatedBy: 'Academics Bot', status: 'Running', started: '08:22 AM' },
-  { id: 'RUN-9825', cohort: 'SS 1 Science', scope: 'Math & Physics only', initiatedBy: 'Mrs. Aminat', status: 'Queued', started: '—' },
-  { id: 'RUN-9826', cohort: 'Primary 5', scope: 'Selective recompute', initiatedBy: 'Data QA', status: 'Blocked', started: '—' },
-]
-
-const recomputeScenarios = [
-  { id: 'scenario-1', label: 'What-if: +5% CA weight for STEM', impact: '+0.6 GPA shift for 42 students', status: 'Draft' },
-  { id: 'scenario-2', label: 'Corrected Biology practical scores', impact: 'Reprocess 6 subjects', status: 'Ready to run' },
-  { id: 'scenario-3', label: 'Merge twin arms (SS 3A/B)', impact: 'Broadsheet alignment & ranks', status: 'Needs dependency' },
-]
-
-const guardrails = [
-  { id: 'guard-1', label: 'Score drift monitor', detail: 'Flags >12% variance vs last term', status: 'No alert' },
-  { id: 'guard-2', label: 'Missing CA handler', detail: 'Auto uses class mean when CA absent', status: '12 substitutions' },
-  { id: 'guard-3', label: 'Double entry detector', detail: 'Stops duplicate uploads before compute', status: '2 quarantined' },
-]
-
-const statusBadges: Record<string, { text: string; variant: 'default' | 'secondary' | 'warning' | 'destructive' }> = {
-  Done: { text: 'Done', variant: 'default' },
-  Processing: { text: 'Running', variant: 'default' },
-  Queued: { text: 'Queued', variant: 'secondary' },
-  Pending: { text: 'Pending', variant: 'secondary' },
-  Running: { text: 'Running', variant: 'default' },
-  Blocked: { text: 'Blocked', variant: 'destructive' },
-  Draft: { text: 'Draft', variant: 'secondary' },
-  'Ready to run': { text: 'Ready', variant: 'default' },
-  'Needs dependency': { text: 'Dependency', variant: 'warning' },
+interface ScoreSummary {
+  id: string
+  studentId: string
+  subject: string
+  class: string
+  totalScore: number
+  submissionStatus: string
+  updatedAt: string
 }
 
 export function ResultComputation() {
-  const [isComputing, setIsComputing] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
+  const { tenant } = useTenant()
+  const { toast } = useToast()
 
-  const handleTriggerRecompute = async () => {
-    setIsComputing(true)
+  const [academicSession, setAcademicSession] = useState('')
+  const [term, setTerm] = useState('')
+  const [selectedClass, setSelectedClass] = useState('')
+  const [computing, setComputing] = useState(false)
+  const [loadingScores, setLoadingScores] = useState(false)
+  const [recomputeResult, setRecomputeResult] = useState<{ recomputed: number; details: RecomputeDetail[] } | null>(null)
+  const [allScores, setAllScores] = useState<ScoreSummary[]>([])
+
+  const currentYear = new Date().getFullYear()
+  const defaultSession = `${currentYear}/${currentYear + 1}`
+
+  useEffect(() => {
+    setAcademicSession(defaultSession)
+    setTerm('First Term')
+  }, [])
+
+  const loadScores = useCallback(async () => {
+    if (!academicSession || !term) return
+    setLoadingScores(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      alert('Full recompute triggered successfully! Processing will begin in the background.')
-    } catch (error) {
-      alert('Failed to trigger recompute. Please try again.')
+      const params = new URLSearchParams({ academicSession, term })
+      if (selectedClass) params.set('class', selectedClass)
+      const res = await tenantApiGet(`/api/tenant/results?${params.toString()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAllScores(data.data || [])
+      }
+    } catch { /* silent */ } finally {
+      setLoadingScores(false)
+    }
+  }, [academicSession, term, selectedClass])
+
+  useEffect(() => {
+    if (academicSession && term) loadScores()
+  }, [academicSession, term, selectedClass, loadScores])
+
+  const handleRecompute = async () => {
+    setComputing(true)
+    setRecomputeResult(null)
+    try {
+      const params = new URLSearchParams({ action: 'recompute', academicSession, term })
+      if (selectedClass) params.set('class', selectedClass)
+      const res = await tenantApiPut(`/api/tenant/results?${params.toString()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setRecomputeResult({ recomputed: data.recomputed, details: data.details || [] })
+        toast({
+          title: 'Recompute complete',
+          description: `${data.recomputed} score(s) updated with current CA Configuration weights.`,
+        })
+        loadScores()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast({ title: 'Error', description: data.error || 'Failed to recompute', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Network error. Please try again.', variant: 'destructive' })
     } finally {
-      setIsComputing(false)
+      setComputing(false)
     }
   }
 
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      alert('Pipeline status refreshed!')
-    } finally {
-      setRefreshing(false)
-    }
+  const totalScores = allScores.length
+  const submittedScores = allScores.filter(s => s.submissionStatus === 'submitted').length
+  const draftScores = allScores.filter(s => s.submissionStatus === 'draft').length
+  const approvedScores = allScores.filter(s => s.submissionStatus === 'approved').length
+
+  const statusBadge = (status: string) => {
+    if (status === 'submitted') return <Badge variant="default">Submitted</Badge>
+    if (status === 'draft') return <Badge variant="secondary">Draft</Badge>
+    if (status === 'approved') return <Badge variant="default">Approved</Badge>
+    return <Badge variant="secondary">{status}</Badge>
   }
 
-  const handleGuardrailSettings = () => {
-    alert('Opening guardrail settings...\n\nYou can configure:\n- Score drift thresholds\n- Missing CA handlers\n- Double entry detection rules')
-  }
-
-  const handleBuildScenario = () => {
-    alert('Opening scenario builder...\n\nCreate what-if scenarios to model:\n- CA weight changes\n- Score corrections\n- Cohort merges')
-  }
-
-  const handleGuardrailCatalog = () => {
-    alert('Guardrail Catalog:\n\n1. Score drift monitor - Flags >12% variance\n2. Missing CA handler - Uses class mean\n3. Double entry detector - Stops duplicates\n\nAll guardrails are currently active.')
-  }
-
-  const handleAllocateCompute = () => {
-    alert('Allocating additional compute resources...\n\nThis will increase processing speed for the current queue.')
-  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Computation control tower</p>
-          <h1 className="text-2xl font-bold text-gray-900">Result computation</h1>
-          <p className="text-sm text-gray-600">Orchestrate score aggregation, detect anomalies, and run what-if simulations safely.</p>
+          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Result computation</p>
+          <h1 className="text-2xl font-bold text-gray-900">Result Computation</h1>
+          <p className="text-sm text-gray-600">Recompute weighted totals using current CA Configuration. Apply updated weights to existing scores.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={handleGuardrailSettings}>
-            <Gauge className="h-4 w-4 mr-2" /> Guardrail settings
-          </Button>
-          <Button onClick={handleTriggerRecompute} disabled={isComputing}>
-            <PlayCircle className="h-4 w-4 mr-2" /> {isComputing ? 'Computing...' : 'Trigger full recompute'}
-          </Button>
-        </div>
+        <Button onClick={handleRecompute} disabled={computing || !academicSession || !term}>
+          {computing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}
+          {computing ? 'Computing...' : 'Trigger Recompute'}
+        </Button>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Cohorts computed</p>
-            <p className="text-3xl font-semibold text-gray-900">11</p>
-            <p className="text-xs text-gray-500">Out of 14 active this term</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Average compute time</p>
-            <p className="text-3xl font-semibold text-gray-900">5m 12s</p>
-            <p className="text-xs text-gray-500">-37s vs last term</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Guardrail breaches</p>
-            <p className="text-3xl font-semibold text-rose-600">2</p>
-            <p className="text-xs text-gray-500">Auto-paused until review</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Last full compute</p>
-            <p className="text-3xl font-semibold text-gray-900">47 mins ago</p>
-            <p className="text-xs text-gray-500">Triggered by Academics Bot</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>Compute pipeline</CardTitle>
-              <CardDescription>Live status across the orchestration layers.</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing}>
-              <RefreshCcw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Refreshing...' : 'Refresh'}
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pipelineStages.map((stage) => (
-              <div key={stage.id} className="flex flex-col gap-2 rounded-xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{stage.label}</p>
-                  <p className="text-xs text-gray-500">Owner: {stage.owner}</p>
-                </div>
-                <div className="flex items-center gap-4 text-sm text-gray-500">
-                  <div>Runtime: {stage.duration}</div>
-                  <Badge variant={statusBadges[stage.status].variant}>{statusBadges[stage.status].text}</Badge>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Scenario lab</CardTitle>
-            <CardDescription>Model change requests without touching production data.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {recomputeScenarios.map((scenario) => (
-              <div key={scenario.id} className="rounded-xl border border-gray-100 p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="font-medium text-gray-900">{scenario.label}</p>
-                  <Badge variant={statusBadges[scenario.status].variant}>{statusBadges[scenario.status].text}</Badge>
-                </div>
-                <p className="text-sm text-gray-500">{scenario.impact}</p>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" className="w-full" onClick={handleBuildScenario}>
-              <Calculator className="h-4 w-4 mr-2" /> Build new scenario
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Total scores</p>
+          <p className="text-3xl font-semibold text-gray-900">{totalScores}</p>
+          <p className="text-xs text-gray-500">For {term} {academicSession}</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Submitted</p>
+          <p className="text-3xl font-semibold text-blue-600">{submittedScores}</p>
+          <p className="text-xs text-gray-500">Ready for computation</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Drafts</p>
+          <p className="text-3xl font-semibold text-amber-600">{draftScores}</p>
+          <p className="text-xs text-gray-500">Not yet submitted by teachers</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Approved</p>
+          <p className="text-3xl font-semibold text-emerald-600">{approvedScores}</p>
+          <p className="text-xs text-gray-500">Cleared for publishing</p>
+        </CardContent></Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Compute queue</CardTitle>
-          <CardDescription>Prioritize batches and know which runs are blocking publishing.</CardDescription>
+          <CardTitle>Computation Controls</CardTitle>
+          <CardDescription>Select scope and trigger recompute to apply current CA Configuration weights to all scores.</CardDescription>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Run ID</TableHead>
-                <TableHead>Cohort</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Initiated by</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Started at</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {computeQueue.map((run) => (
-                <TableRow key={run.id}>
-                  <TableCell className="font-medium text-gray-900">{run.id}</TableCell>
-                  <TableCell>{run.cohort}</TableCell>
-                  <TableCell>{run.scope}</TableCell>
-                  <TableCell>{run.initiatedBy}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusBadges[run.status].variant}>{statusBadges[run.status].text}</Badge>
-                  </TableCell>
-                  <TableCell>{run.started}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Academic Session</Label>
+              <Input value={academicSession} onChange={e => setAcademicSession(e.target.value)} placeholder="2025/2026" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Term</Label>
+              <Select value={term} onValueChange={setTerm}>
+                <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="First Term">First Term</SelectItem>
+                  <SelectItem value="Second Term">Second Term</SelectItem>
+                  <SelectItem value="Third Term">Third Term</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Class (optional - leave empty for all)</Label>
+              <Input value={selectedClass} onChange={e => setSelectedClass(e.target.value)} placeholder="e.g. JSS 2A" />
+            </div>
+          </div>
+
+          <Alert>
+            <Calculator className="h-4 w-4" />
+            <AlertDescription>
+              Recompute will recalculate the total score for every student using the published CA Configuration weights.
+              Only scores where the total has changed will be updated.
+            </AlertDescription>
+          </Alert>
+
+          {recomputeResult && (
+            <Alert>
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
+                <span className="font-medium">{recomputeResult.recomputed}</span> score(s) were updated.
+                {recomputeResult.details.length > 0 && (
+                  <span className="block mt-1 text-xs">See details below in the recompute log.</span>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {recomputeResult && recomputeResult.details.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Guardrails & anomaly watch</CardTitle>
-            <CardDescription>Automatic interrupts before incorrect results propagate.</CardDescription>
+            <CardTitle>Recompute Log</CardTitle>
+            <CardDescription>Students whose totals changed after applying updated weights.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {guardrails.map((guard) => (
-              <div key={guard.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
-                <div>
-                  <p className="font-medium text-gray-900">{guard.label}</p>
-                  <p className="text-sm text-gray-500">{guard.detail}</p>
-                </div>
-                <Badge variant={guard.status === 'No alert' ? 'secondary' : 'warning'}>{guard.status}</Badge>
-              </div>
-            ))}
-            <Button variant="ghost" size="sm" className="w-full" onClick={handleGuardrailCatalog}>
-              <ShieldCheck className="h-4 w-4 mr-2" /> Guardrail catalog
-            </Button>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student ID</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Class</TableHead>
+                  <TableHead>Old Total</TableHead>
+                  <TableHead>New Total</TableHead>
+                  <TableHead>Change</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recomputeResult.details.map((d, i) => {
+                  const change = (d.newTotal - d.oldTotal).toFixed(2)
+                  const isPositive = d.newTotal > d.oldTotal
+                  return (
+                    <TableRow key={i}>
+                      <TableCell className="font-medium text-gray-900">{d.studentId}</TableCell>
+                      <TableCell>{d.subject}</TableCell>
+                      <TableCell>{d.class}</TableCell>
+                      <TableCell>{d.oldTotal}</TableCell>
+                      <TableCell className="font-medium">{d.newTotal}</TableCell>
+                      <TableCell>
+                        <Badge variant={isPositive ? 'default' : 'destructive'}>
+                          {isPositive ? '+' : ''}{change}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Throughput monitor</CardTitle>
-            <CardDescription>Track how close we are to publishing readiness.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                <span>Subjects processed</span>
-                <span>78%</span>
-              </div>
-              <Progress value={78} />
+      <Card>
+        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <CardTitle>Score Records</CardTitle>
+            <CardDescription>All computed scores for the selected term and session.</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={loadScores} disabled={loadingScores}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loadingScores ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {loadingScores ? (
+            <div className="flex items-center justify-center py-8 text-gray-500">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading scores...
             </div>
-            <div>
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                <span>Broadsheet sync</span>
-                <span>52%</span>
-              </div>
-              <Progress value={52} />
+          ) : allScores.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Database className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No scores found for {term} {academicSession}.</p>
             </div>
-            <div>
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                <span>Publishing readiness</span>
-                <span>41%</span>
-              </div>
-              <Progress value={41} />
-            </div>
-            <Button className="w-full" onClick={handleAllocateCompute}>
-              <Cpu className="h-4 w-4 mr-2" /> Allocate more compute
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student ID</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Class</TableHead>
+                  <TableHead>Total Score</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Updated</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allScores.slice(0, 50).map((score) => (
+                  <TableRow key={score.id}>
+                    <TableCell className="font-medium text-gray-900">{score.studentId}</TableCell>
+                    <TableCell>{score.subject}</TableCell>
+                    <TableCell>{score.class}</TableCell>
+                    <TableCell className="font-medium">{score.totalScore}</TableCell>
+                    <TableCell>{statusBadge(score.submissionStatus)}</TableCell>
+                    <TableCell className="text-sm text-gray-500">{new Date(score.updatedAt).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {allScores.length > 50 && (
+            <p className="text-xs text-gray-400 mt-2 text-center">Showing first 50 of {allScores.length} records</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchScores, createScore, type ScorePayload } from './_lib/results.js'
+import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, type ScorePayload } from './_lib/results.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,POST')
+  res.setHeader('Allow', 'GET,POST,PUT')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -16,15 +16,38 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant results
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
+
   if (req.method === 'GET') {
-    const { studentId, academicSession, term, class: className } = req.query
+    const { studentId, academicSession, term, class: className, action, subject } = req.query
+
     try {
+      if (action === 'teacher-submissions') {
+        const submissions = await fetchTeacherSubmissions(
+          tenantId,
+          academicSession as string,
+          term as string,
+          className as string | undefined
+        )
+        return res.status(200).json({ data: submissions })
+      }
+
+      if (action === 'class-scores' && className && subject && academicSession && term) {
+        const scores = await fetchScoresByClassAndSubject(
+          tenantId,
+          className as string,
+          subject as string,
+          academicSession as string,
+          term as string
+        )
+        return res.status(200).json({ data: scores })
+      }
+
       const scores = await fetchScores(
-        decoded.tenantId || 'default-tenant',
+        tenantId,
         studentId as string | undefined,
         academicSession as string | undefined,
         term as string | undefined,
@@ -41,32 +64,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = parseBody(req)
     if (!body) return res.status(400).json({ error: 'Request body is required' })
 
-    const { studentId, subject, academicSession, term, caScore, examScore, attendancePercentage, class: className } = body
+    const {
+      studentId, subject, academicSession, term, class: className,
+      caScore, examScore, attendancePercentage,
+      testsScore, assignmentsScore, projectsScore, examsScore,
+      submittedBy, submittedByName, submissionStatus,
+    } = body
 
-    // Validate required fields
     const missing: string[] = []
     if (!studentId) missing.push('studentId')
     if (!subject) missing.push('subject')
     if (!academicSession) missing.push('academicSession')
     if (!term) missing.push('term')
-    if (caScore === undefined || caScore === null) missing.push('caScore')
-    if (examScore === undefined || examScore === null) missing.push('examScore')
-    if (attendancePercentage === undefined || attendancePercentage === null) missing.push('attendancePercentage')
     if (!className) missing.push('class')
+
+    // Either legacy (caScore+examScore) or new (testsScore+assignmentsScore+projectsScore+examsScore) must be provided
+    const hasLegacy = caScore !== undefined && caScore !== null && examScore !== undefined && examScore !== null
+    const hasBreakdown = testsScore !== undefined || assignmentsScore !== undefined || projectsScore !== undefined || examsScore !== undefined
+
+    if (!hasLegacy && !hasBreakdown) {
+      missing.push('scores (provide caScore+examScore or testsScore+assignmentsScore+projectsScore+examsScore)')
+    }
 
     if (missing.length > 0) {
       return res.status(400).json({ error: 'Missing required fields', details: missing })
     }
 
     // Validate score ranges
-    if (Number(caScore) < 0 || Number(caScore) > 100) {
-      return res.status(400).json({ error: 'caScore must be between 0 and 100' })
+    const validateScore = (val: any, name: string) => {
+      if (val !== undefined && val !== null && (Number(val) < 0 || Number(val) > 100)) {
+        return `${name} must be between 0 and 100`
+      }
+      return null
     }
-    if (Number(examScore) < 0 || Number(examScore) > 100) {
-      return res.status(400).json({ error: 'examScore must be between 0 and 100' })
+
+    const scoreErrors: string[] = []
+    for (const [val, name] of [[caScore, 'caScore'], [examScore, 'examScore'], [testsScore, 'testsScore'], [assignmentsScore, 'assignmentsScore'], [projectsScore, 'projectsScore'], [examsScore, 'examsScore'], [attendancePercentage, 'attendancePercentage']] as [any, string][]) {
+      const err = validateScore(val, name)
+      if (err) scoreErrors.push(err)
     }
-    if (Number(attendancePercentage) < 0 || Number(attendancePercentage) > 100) {
-      return res.status(400).json({ error: 'attendancePercentage must be between 0 and 100' })
+
+    if (scoreErrors.length > 0) {
+      return res.status(400).json({ error: 'Score validation failed', details: scoreErrors })
     }
 
     try {
@@ -75,17 +114,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         subject,
         academicSession,
         term,
-        caScore: Number(caScore),
-        examScore: Number(examScore),
-        attendancePercentage: Number(attendancePercentage),
         class: className,
+        caScore: caScore !== undefined && caScore !== null ? Number(caScore) : 0,
+        examScore: examScore !== undefined && examScore !== null ? Number(examScore) : 0,
+        attendancePercentage: attendancePercentage !== undefined && attendancePercentage !== null ? Number(attendancePercentage) : 0,
+        testsScore: testsScore !== undefined ? Number(testsScore) : undefined,
+        assignmentsScore: assignmentsScore !== undefined ? Number(assignmentsScore) : undefined,
+        projectsScore: projectsScore !== undefined ? Number(projectsScore) : undefined,
+        examsScore: examsScore !== undefined ? Number(examsScore) : undefined,
+        submittedBy: submittedBy ?? decoded.userId,
+        submittedByName: submittedByName ?? decoded.email,
+        submissionStatus: submissionStatus ?? 'submitted',
       }
-      const score = await createScore(decoded.tenantId || 'default-tenant', payload)
+      const score = await createScore(tenantId, payload)
       return res.status(201).json({ data: score })
     } catch (error) {
       console.error('Error creating score:', error)
       return res.status(500).json({ error: 'Failed to create score' })
     }
+  }
+
+  if (req.method === 'PUT') {
+    const { action, academicSession, term, class: className } = req.query
+
+    if (action === 'recompute') {
+      try {
+        const result = await recomputeAllScores(
+          tenantId,
+          academicSession as string | undefined,
+          term as string | undefined,
+          className as string | undefined
+        )
+        return res.status(200).json({
+          success: true,
+          recomputed: result.recomputed,
+          details: result.details,
+        })
+      } catch (error) {
+        console.error('Error recomputing scores:', error)
+        return res.status(500).json({ error: 'Failed to recompute scores' })
+      }
+    }
+
+    return res.status(400).json({ error: 'Unknown PUT action. Use ?action=recompute' })
   }
 
   return methodNotAllowed(res)

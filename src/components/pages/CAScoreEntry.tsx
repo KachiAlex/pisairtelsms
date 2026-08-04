@@ -1,263 +1,419 @@
-import React, { useMemo } from 'react'
-import { ClipboardList, Clock3, AlertTriangle, Upload, CheckCircle2, Gauge, Send, Mail } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Save, Send, CheckCircle2, AlertCircle, RefreshCw, Users, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
-import { Progress } from '../ui/progress'
 import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Alert, AlertDescription } from '../ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { useTenant } from '../../contexts/TenantContext'
+import { useToast } from '../ui/use-toast'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
-const entryWindows = [
-  { title: 'JSS 2 CA2 window', range: '12 Feb – 23 Feb', progress: 72, classes: 12, status: 'In progress' },
-  { title: 'SS 1 CA1 window', range: '26 Feb – 08 Mar', progress: 18, classes: 9, status: 'Scheduled' },
-  { title: 'Primary 5 CA2 window', range: '04 Mar – 12 Mar', progress: 0, classes: 6, status: 'Not opened' },
-]
-
-const classProgress = [
-  { className: 'JSS 2A', subjects: 12, submitted: 9, owner: 'Mrs. Angela Ojo', overdue: 1 },
-  { className: 'JSS 2B', subjects: 12, submitted: 6, owner: 'Mr. Idris Lawal', overdue: 2 },
-  { className: 'JSS 2C', subjects: 12, submitted: 11, owner: 'Ms. Tobi Aina', overdue: 0 },
-  { className: 'JSS 2D', subjects: 12, submitted: 7, owner: 'Mrs. Rita Ajao', overdue: 3 },
-]
-
-const teacherSubmissions = [
-  { teacher: 'Mrs. Angela Ojo', subjects: ['Mathematics', 'Further Math'], status: 'Synced', updated: '2 hrs ago' },
-  { teacher: 'Mr. Idris Lawal', subjects: ['Basic Science'], status: 'Pending QA', updated: '30 mins ago' },
-  { teacher: 'Ms. Yemi Thomas', subjects: ['Business Studies'], status: 'Awaiting upload', updated: '—' },
-]
-
-const qaChecks = [
-  { id: 'QA-203', label: 'Outlier detection (CA2)', result: '3 scores beyond 2σ', severity: 'warning' },
-  { id: 'QA-187', label: 'Missing template fields', result: 'Home Economics (JSS 2B)', severity: 'critical' },
-  { id: 'QA-182', label: 'Score drift vs CA1', result: '+18% spike in CRS', severity: 'info' },
-]
-
-const severityMap: Record<string, { text: string; badgeVariant: 'default' | 'secondary' | 'warning' | 'destructive' }> = {
-  critical: { text: 'Critical', badgeVariant: 'destructive' },
-  warning: { text: 'Warning', badgeVariant: 'warning' },
-  info: { text: 'Heads-up', badgeVariant: 'secondary' },
+interface ClassItem { id: string; name: string }
+interface SubjectItem { id: string; name: string }
+interface StudentScore {
+  id: string; studentId: string; subject: string; academicSession: string; term: string
+  caScore: number; examScore: number; totalScore: number; attendancePercentage: number
+  class: string; testsScore: number | null; assignmentsScore: number | null
+  projectsScore: number | null; examsScore: number | null
+  submittedBy: string | null; submittedByName: string | null
+  submissionStatus: 'draft' | 'submitted' | 'approved'
+  createdAt: string; updatedAt: string
+}
+interface TeacherSubmission {
+  submittedBy: string; submittedByName: string; subject: string
+  class: string; status: string; updatedAt: string
+}
+interface ScoreInput {
+  studentId: string; testsScore: string; assignmentsScore: string
+  projectsScore: string; examsScore: string; attendance: string
 }
 
 export function CAScoreEntry() {
-  const totalSubjects = useMemo(() => classProgress.reduce((sum, item) => sum + item.subjects, 0), [])
-  const totalSubmitted = useMemo(() => classProgress.reduce((sum, item) => sum + item.submitted, 0), [])
+  const { tenant } = useTenant()
+  const { toast } = useToast()
+
+  const [classes, setClasses] = useState<ClassItem[]>([])
+  const [subjects, setSubjects] = useState<SubjectItem[]>([])
+  const [selectedClass, setSelectedClass] = useState('')
+  const [selectedSubject, setSelectedSubject] = useState('')
+  const [academicSession, setAcademicSession] = useState('')
+  const [term, setTerm] = useState('')
+  const [existingScores, setExistingScores] = useState<StudentScore[]>([])
+  const [scoreInputs, setScoreInputs] = useState<Record<string, ScoreInput>>({})
+  const [teacherSubmissions, setTeacherSubmissions] = useState<TeacherSubmission[]>([])
+  const [loadingMeta, setLoadingMeta] = useState(false)
+  const [loadingScores, setLoadingScores] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false)
+
+  const currentYear = new Date().getFullYear()
+  const defaultSession = `${currentYear}/${currentYear + 1}`
+
+  useEffect(() => {
+    setAcademicSession(defaultSession)
+    setTerm('First Term')
+  }, [])
+
+  const loadMeta = useCallback(async () => {
+    setLoadingMeta(true)
+    try {
+      const [classRes, subjectRes] = await Promise.all([
+        tenantApiGet('/api/tenant/cbt/classes'),
+        tenantApiGet('/api/tenant/academics/subjects'),
+      ])
+      if (classRes.ok) {
+        const data = await classRes.json()
+        setClasses(data.data || data.classes || [])
+      }
+      if (subjectRes.ok) {
+        const data = await subjectRes.json()
+        setSubjects(data.data || data.subjects || [])
+      }
+    } catch { /* silent */ } finally {
+      setLoadingMeta(false)
+    }
+  }, [])
+
+  useEffect(() => { loadMeta() }, [loadMeta])
+
+  const loadScores = useCallback(async () => {
+    if (!selectedClass || !selectedSubject || !academicSession || !term) return
+    setLoadingScores(true)
+    try {
+      const res = await tenantApiGet(
+        `/api/tenant/results?action=class-scores&class=${encodeURIComponent(selectedClass)}&subject=${encodeURIComponent(selectedSubject)}&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}`
+      )
+      if (res.ok) {
+        const data = await res.json()
+        setExistingScores(data.data || [])
+      }
+    } catch { /* silent */ } finally {
+      setLoadingScores(false)
+    }
+  }, [selectedClass, selectedSubject, academicSession, term])
+
+  useEffect(() => {
+    if (selectedClass && selectedSubject && academicSession && term) loadScores()
+  }, [selectedClass, selectedSubject, academicSession, term, loadScores])
+
+  const loadSubmissions = useCallback(async () => {
+    if (!academicSession || !term) return
+    setLoadingSubmissions(true)
+    try {
+      const res = await tenantApiGet(
+        `/api/tenant/results?action=teacher-submissions&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}`
+      )
+      if (res.ok) {
+        const data = await res.json()
+        setTeacherSubmissions(data.data || [])
+      }
+    } catch { /* silent */ } finally {
+      setLoadingSubmissions(false)
+    }
+  }, [academicSession, term])
+
+  useEffect(() => { loadSubmissions() }, [loadSubmissions])
+
+  useEffect(() => {
+    const inputs: Record<string, ScoreInput> = {}
+    for (const score of existingScores) {
+      inputs[score.studentId] = {
+        studentId: score.studentId,
+        testsScore: score.testsScore?.toString() || '',
+        assignmentsScore: score.assignmentsScore?.toString() || '',
+        projectsScore: score.projectsScore?.toString() || '',
+        examsScore: score.examsScore?.toString() || '',
+        attendance: score.attendancePercentage?.toString() || '',
+      }
+    }
+    setScoreInputs(inputs)
+  }, [existingScores])
+
+  const handleScoreChange = (studentId: string, field: keyof ScoreInput, value: string) => {
+    setScoreInputs(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
+  }
+
+  const handleAddStudent = () => {
+    const studentId = prompt('Enter student ID:')
+    if (!studentId || scoreInputs[studentId]) return
+    setScoreInputs(prev => ({
+      ...prev,
+      [studentId]: { studentId, testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '' },
+    }))
+  }
+
+  const handleSaveScore = async (studentId: string, status: 'draft' | 'submitted') => {
+    const input = scoreInputs[studentId]
+    if (!input) return
+    setSaving(true)
+    try {
+      const res = await tenantApiPost('/api/tenant/results', {
+        studentId, subject: selectedSubject, academicSession, term, class: selectedClass,
+        attendancePercentage: input.attendance ? Number(input.attendance) : 0,
+        testsScore: input.testsScore ? Number(input.testsScore) : 0,
+        assignmentsScore: input.assignmentsScore ? Number(input.assignmentsScore) : 0,
+        projectsScore: input.projectsScore ? Number(input.projectsScore) : 0,
+        examsScore: input.examsScore ? Number(input.examsScore) : 0,
+        submissionStatus: status,
+      })
+      if (res.ok) {
+        toast({ title: status === 'draft' ? 'Draft saved' : 'Score submitted',
+          description: `Scores for ${studentId} have been ${status === 'draft' ? 'saved as draft' : 'submitted'}.` })
+        loadScores(); loadSubmissions()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast({ title: 'Error', description: data.error || 'Failed to save score', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Network error. Please try again.', variant: 'destructive' })
+    } finally { setSaving(false) }
+  }
+
+  const handleSaveAll = async () => {
+    const studentIds = Object.keys(scoreInputs)
+    if (studentIds.length === 0) {
+      toast({ title: 'No scores to save', description: 'Add students first.', variant: 'destructive' })
+      return
+    }
+    setSaving(true)
+    let success = 0, failed = 0
+    for (const studentId of studentIds) {
+      const input = scoreInputs[studentId]
+      try {
+        const res = await tenantApiPost('/api/tenant/results', {
+          studentId, subject: selectedSubject, academicSession, term, class: selectedClass,
+          attendancePercentage: input.attendance ? Number(input.attendance) : 0,
+          testsScore: input.testsScore ? Number(input.testsScore) : 0,
+          assignmentsScore: input.assignmentsScore ? Number(input.assignmentsScore) : 0,
+          projectsScore: input.projectsScore ? Number(input.projectsScore) : 0,
+          examsScore: input.examsScore ? Number(input.examsScore) : 0,
+          submissionStatus: 'submitted',
+        })
+        if (res.ok) success++; else failed++
+      } catch { failed++ }
+    }
+    setSaving(false)
+    toast({ title: 'Batch save complete',
+      description: `${success} saved successfully${failed > 0 ? `, ${failed} failed` : ''}.`,
+      variant: failed > 0 ? 'destructive' : 'default' })
+    loadScores(); loadSubmissions()
+  }
+
+  const submittedCount = teacherSubmissions.length
+  const draftCount = teacherSubmissions.filter(s => s.status === 'draft').length
+
+  const statusBadge = (status: string) => {
+    if (status === 'submitted') return <Badge variant="default">Submitted</Badge>
+    if (status === 'draft') return <Badge variant="secondary">Draft</Badge>
+    if (status === 'approved') return <Badge variant="default">Approved</Badge>
+    return <Badge variant="secondary">{status}</Badge>
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Continuous assessment cockpit</p>
-          <h1 className="text-2xl font-bold text-gray-900">CA score entry</h1>
-          <p className="text-sm text-gray-600">Monitor entry windows, track subject submissions, and nudge teachers in real time.</p>
+          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Continuous assessment</p>
+          <h1 className="text-2xl font-bold text-gray-900">CA Score Entry</h1>
+          <p className="text-sm text-gray-600">Enter and manage student CA scores by assessment type. Weights are applied from CA Configuration.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" /> Bulk upload template
-          </Button>
-          <Button>
-            <ClipboardList className="h-4 w-4 mr-2" /> Configure window
-          </Button>
-        </div>
+        <Button variant="outline" onClick={loadSubmissions} disabled={loadingSubmissions}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loadingSubmissions ? 'animate-spin' : ''}`} /> Refresh submissions
+        </Button>
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Subjects submitted</p>
-            <p className="text-3xl font-semibold text-gray-900">{totalSubmitted}</p>
-            <p className="text-xs text-gray-500">of {totalSubjects} total subjects in this cycle</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Late uploads</p>
-            <p className="text-3xl font-semibold text-rose-600">6</p>
-            <p className="text-xs text-gray-500">Auto-escalations in 2 hrs</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Automation rules</p>
-            <p className="text-3xl font-semibold text-gray-900">8</p>
-            <p className="text-xs text-gray-500">Reminders via email, SMS, in-app</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Data integrity</p>
-            <p className="text-3xl font-semibold text-emerald-600">99.1%</p>
-            <p className="text-xs text-gray-500">Last QA sweep 35 mins ago</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Teacher submissions</p>
+          <p className="text-3xl font-semibold text-gray-900">{submittedCount}</p>
+          <p className="text-xs text-gray-500">Across all classes this term</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Draft entries</p>
+          <p className="text-3xl font-semibold text-amber-600">{draftCount}</p>
+          <p className="text-xs text-gray-500">Awaiting final submission</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Classes available</p>
+          <p className="text-3xl font-semibold text-gray-900">{classes.length}</p>
+          <p className="text-xs text-gray-500">{subjects.length} subjects</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Current term</p>
+          <p className="text-3xl font-semibold text-gray-900">{term || '—'}</p>
+          <p className="text-xs text-gray-500">{academicSession || '—'}</p>
+        </CardContent></Card>
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <CardTitle>Active entry windows</CardTitle>
-            <CardDescription>Monitor coverage across cohorts and proactively resolve bottlenecks.</CardDescription>
-          </div>
-          <Button variant="ghost" size="sm">
-            <Clock3 className="h-4 w-4 mr-2" /> SLA matrix
-          </Button>
+        <CardHeader>
+          <CardTitle>Score Entry</CardTitle>
+          <CardDescription>Select a class and subject to enter or edit student scores. Total is computed using CA Configuration weights.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {entryWindows.map((window) => (
-            <div key={window.title} className="flex flex-col gap-3 rounded-xl border border-gray-100 p-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="font-medium text-gray-900">{window.title}</p>
-                <p className="text-sm text-gray-500">{window.range}</p>
-              </div>
-              <div className="w-full lg:w-1/2">
-                <Progress value={window.progress} />
-                <p className="text-xs text-gray-500 mt-1">{window.progress}% subjects synced • {window.classes} classes</p>
-              </div>
-              <Badge variant={window.progress === 0 ? 'secondary' : window.progress < 30 ? 'warning' : 'default'}>{window.status}</Badge>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Class</Label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                <SelectContent>
+                  {classes.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Subject</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+                <SelectContent>
+                  {subjects.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Academic Session</Label>
+              <Input value={academicSession} onChange={e => setAcademicSession(e.target.value)} placeholder="2025/2026" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Term</Label>
+              <Select value={term} onValueChange={setTerm}>
+                <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="First Term">First Term</SelectItem>
+                  <SelectItem value="Second Term">Second Term</SelectItem>
+                  <SelectItem value="Third Term">Third Term</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {loadingMeta && (
+            <div className="flex items-center justify-center py-8 text-gray-500">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading classes and subjects...
+            </div>
+          )}
+
+          {!loadingMeta && !selectedClass && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Select a class and subject to begin entering scores.</AlertDescription>
+            </Alert>
+          )}
+
+          {selectedClass && selectedSubject && (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  {loadingScores ? 'Loading scores...' : `${Object.keys(scoreInputs).length} students`}
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleAddStudent}>Add student</Button>
+                  <Button size="sm" onClick={handleSaveAll} disabled={saving || Object.keys(scoreInputs).length === 0}>
+                    {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save & Submit All
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student ID</TableHead>
+                      <TableHead className="w-20">Tests</TableHead>
+                      <TableHead className="w-20">Assignments</TableHead>
+                      <TableHead className="w-20">Projects</TableHead>
+                      <TableHead className="w-20">Exams</TableHead>
+                      <TableHead className="w-20">Attend %</TableHead>
+                      <TableHead className="w-24">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.values(scoreInputs).map((input) => {
+                      const existing = existingScores.find(s => s.studentId === input.studentId)
+                      return (
+                        <TableRow key={input.studentId}>
+                          <TableCell className="font-medium text-gray-900">
+                            {input.studentId}
+                            {existing && <span className="ml-2 text-xs text-gray-400">(total: {existing.totalScore})</span>}
+                          </TableCell>
+                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.testsScore} onChange={e => handleScoreChange(input.studentId, 'testsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.assignmentsScore} onChange={e => handleScoreChange(input.studentId, 'assignmentsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.projectsScore} onChange={e => handleScoreChange(input.studentId, 'projectsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.examsScore} onChange={e => handleScoreChange(input.studentId, 'examsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.attendance} onChange={e => handleScoreChange(input.studentId, 'attendance', e.target.value)} /></TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => handleSaveScore(input.studentId, 'draft')} disabled={saving} title="Save as draft"><Save className="h-3 w-3" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleSaveScore(input.studentId, 'submitted')} disabled={saving} title="Submit score"><Send className="h-3 w-3" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <Alert>
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription>
+                  Scores are weighted using the published CA Configuration. Total = (Tests x weight% + Assignments x weight% + Projects x weight% + Exams x weight%) / 100.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Class-level progress</CardTitle>
-            <CardDescription>Spot late subjects and nudge class advisors before deadlines slip.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-gray-500">Sorted by submission status</div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">Export</Button>
-                <Button variant="ghost" size="sm">Share digest</Button>
-              </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Teacher Submission Feed</CardTitle>
+          <CardDescription>Track which teachers have submitted scores across classes and subjects.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loadingSubmissions ? (
+            <div className="flex items-center justify-center py-6 text-gray-500">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading submissions...
             </div>
+          ) : teacherSubmissions.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">
+              <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No teacher submissions yet for {term} {academicSession}.</p>
+            </div>
+          ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Teacher</TableHead>
+                    <TableHead>Subject</TableHead>
                     <TableHead>Class</TableHead>
-                    <TableHead>Subjects</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead>Advisor</TableHead>
-                    <TableHead>Past due</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Updated</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {classProgress.map((entry) => (
-                    <TableRow key={entry.className}>
-                      <TableCell className="font-medium text-gray-900">{entry.className}</TableCell>
-                      <TableCell>{entry.subjects}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-28">
-                            <Progress value={(entry.submitted / entry.subjects) * 100} />
-                          </div>
-                          <span className="text-sm text-gray-600">
-                            {entry.submitted}/{entry.subjects}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{entry.owner}</TableCell>
-                      <TableCell>
-                        {entry.overdue === 0 ? (
-                          <Badge variant="secondary">On track</Badge>
-                        ) : (
-                          <Badge variant="warning">{entry.overdue} overdue</Badge>
-                        )}
-                      </TableCell>
+                  {teacherSubmissions.map((sub, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-medium text-gray-900">{sub.submittedByName || sub.submittedBy}</TableCell>
+                      <TableCell>{sub.subject}</TableCell>
+                      <TableCell>{sub.class}</TableCell>
+                      <TableCell>{statusBadge(sub.status)}</TableCell>
+                      <TableCell className="text-sm text-gray-500">{new Date(sub.updatedAt).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Teacher submission feed</CardTitle>
-            <CardDescription>Watch recently synced files and outstanding uploads.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input placeholder="Search teacher" className="bg-gray-50 focus-visible:ring-blue-500" />
-            <div className="space-y-3">
-              {teacherSubmissions.map((entry) => (
-                <div key={entry.teacher} className="rounded-xl border border-gray-100 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">{entry.teacher}</p>
-                    <Badge variant={entry.status === 'Synced' ? 'default' : entry.status.includes('Pending') ? 'warning' : 'secondary'}>{entry.status}</Badge>
-                  </div>
-                  <p className="text-sm text-gray-500">{entry.subjects.join(' • ')}</p>
-                  <p className="text-xs text-gray-400 mt-1">Updated {entry.updated}</p>
-                </div>
-              ))}
-            </div>
-            <Button variant="outline" size="sm" className="w-full">
-              <Send className="h-4 w-4 mr-2" /> Send reminder
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>QA & integrity monitor</CardTitle>
-            <CardDescription>Automated rules run every 15 minutes.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {qaChecks.map((check) => (
-              <div key={check.id} className="rounded-xl border border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{check.label}</p>
-                    <p className="text-sm text-gray-500">{check.result}</p>
-                  </div>
-                  <Badge variant={severityMap[check.severity].badgeVariant}>{severityMap[check.severity].text}</Badge>
-                </div>
-              </div>
-            ))}
-            <Button variant="ghost" size="sm" className="w-full">
-              <Gauge className="h-4 w-4 mr-2" /> Configure guardrails
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Reminder channels</CardTitle>
-            <CardDescription>Automations keep nudging teachers until uploads land.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
-              <div>
-                <p className="font-medium text-gray-900">In-app prompts</p>
-                <p className="text-sm text-gray-500">Triggered after 24h of inactivity.</p>
-              </div>
-              <Badge variant="default">Live</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
-              <div>
-                <p className="font-medium text-gray-900">Email escalations</p>
-                <p className="text-sm text-gray-500">Daily digest to HODs at 6pm.</p>
-              </div>
-              <Badge variant="secondary">Queued</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
-              <div>
-                <p className="font-medium text-gray-900">SMS fallback</p>
-                <p className="text-sm text-gray-500">Only for critical overdue uploads.</p>
-              </div>
-              <Badge variant="warning">Testing</Badge>
-            </div>
-            <Button className="w-full">
-              <Mail className="h-4 w-4 mr-2" /> Launch escalation now
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

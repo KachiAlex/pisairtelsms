@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, TrendingUp, Clock, DollarSign, Calendar } from 'lucide-react';
+import { AlertCircle, TrendingUp, Clock, DollarSign, Calendar, BookOpen } from 'lucide-react';
 import { MetricCard } from './MetricCard';
 import { AnnouncementsSection } from './AnnouncementsSection';
 import { MessagesSection } from './MessagesSection';
@@ -36,6 +36,16 @@ interface StudentData {
     subject: string;
     date: string;
     isRead: boolean;
+  }>;
+  recentGrades?: Array<{
+    id: string;
+    subject: string;
+    score: number;
+    testsScore: number | null;
+    assignmentsScore: number | null;
+    projectsScore: number | null;
+    examsScore: number | null;
+    date: string;
   }>;
 }
 
@@ -217,6 +227,42 @@ export function StudentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Recent Grades */}
+      {data.recentGrades && data.recentGrades.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <BookOpen className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Recent Grades</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 px-3 font-medium text-gray-500">Subject</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-500">Tests</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-500">Assignments</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-500">Projects</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-500">Exams</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-500">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentGrades.map((grade) => (
+                  <tr key={grade.id} className="border-b border-gray-100">
+                    <td className="py-2 px-3 font-medium text-gray-900">{grade.subject}</td>
+                    <td className="text-center py-2 px-3 text-gray-600">{grade.testsScore ?? '-'}</td>
+                    <td className="text-center py-2 px-3 text-gray-600">{grade.assignmentsScore ?? '-'}</td>
+                    <td className="text-center py-2 px-3 text-gray-600">{grade.projectsScore ?? '-'}</td>
+                    <td className="text-center py-2 px-3 text-gray-600">{grade.examsScore ?? '-'}</td>
+                    <td className="text-center py-2 px-3 font-semibold text-gray-900">{grade.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Next Exam Info */}
       {data.metrics.nextExam && (

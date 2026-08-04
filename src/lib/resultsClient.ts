@@ -11,6 +11,13 @@ export interface StudentScore {
   totalScore: number
   attendancePercentage: number
   class: string
+  testsScore: number | null
+  assignmentsScore: number | null
+  projectsScore: number | null
+  examsScore: number | null
+  submittedBy: string | null
+  submittedByName: string | null
+  submissionStatus: 'draft' | 'submitted' | 'approved'
   createdAt: string
   updatedAt: string
 }

@@ -84,6 +84,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ORDER BY created_at DESC LIMIT 5
     `;
 
+    // GPA and recent grades from student_scores
+    const gpaResult = await sql`
+      SELECT COALESCE(AVG(total_score), 0) AS gpa,
+             COUNT(*) AS subject_count
+      FROM student_scores
+      WHERE student_id = ${studentId}
+    `;
+    const gpa = Math.round(parseFloat(gpaResult.rows[0]?.gpa ?? '0') * 100) / 100;
+
+    const gradesResult = await sql`
+      SELECT id::text, subject, total_score AS score,
+             tests_score, assignments_score, projects_score, exams_score,
+             updated_at::date::text AS date
+      FROM student_scores
+      WHERE student_id = ${studentId}
+      ORDER BY updated_at DESC LIMIT 5
+    `;
+    const recentGrades = gradesResult.rows.map(r => ({
+      id: r.id,
+      subject: r.subject,
+      score: Number(r.score),
+      testsScore: r.tests_score !== null ? Number(r.tests_score) : null,
+      assignmentsScore: r.assignments_score !== null ? Number(r.assignments_score) : null,
+      projectsScore: r.projects_score !== null ? Number(r.projects_score) : null,
+      examsScore: r.exams_score !== null ? Number(r.exams_score) : null,
+      date: r.date,
+    }));
+
     return res.status(200).json({
       student: {
         id: s.id,
@@ -92,7 +120,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         class: s.class,
         arm: s.arm,
       },
-      metrics: { gpa: 0, attendancePercent, nextExam, feeBalance },
+      metrics: { gpa, attendancePercent, nextExam, feeBalance },
+      recentGrades,
       recentAnnouncements: annResult.rows.map(r => ({ id: r.id, title: r.title, date: r.date, preview: r.preview })),
       recentMessages: msgResult.rows.map(r => ({ id: r.id, sender: r.sender, subject: r.subject, date: r.date, isRead: r.is_read })),
     });

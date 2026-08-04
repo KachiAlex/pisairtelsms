@@ -7,6 +7,10 @@ interface StudentResult {
   caScore: number;
   examScore: number;
   totalScore: number;
+  testsScore: number;
+  assignmentsScore: number;
+  projectsScore: number;
+  examsScore: number;
   attendancePercent: number;
   grade: string;
 }
@@ -83,9 +87,10 @@ export function MyResults() {
   };
 
   const gradeColor = (grade: string) => {
-    if (grade === 'A') return 'text-green-700 bg-green-50';
-    if (grade === 'B') return 'text-blue-700 bg-blue-50';
-    if (grade === 'C') return 'text-amber-700 bg-amber-50';
+    if (grade.startsWith('A')) return 'text-green-700 bg-green-50';
+    if (grade.startsWith('B')) return 'text-blue-700 bg-blue-50';
+    if (grade.startsWith('C')) return 'text-amber-700 bg-amber-50';
+    if (grade.startsWith('D') || grade.startsWith('E')) return 'text-orange-700 bg-orange-50';
     return 'text-red-700 bg-red-50';
   };
 
@@ -151,9 +156,11 @@ export function MyResults() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Subject</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">CA (20)</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Exam (80)</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Total (100)</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Tests</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Assignments</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Projects</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Exams</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Total</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Attendance</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Grade</th>
                   </tr>
@@ -162,8 +169,10 @@ export function MyResults() {
                   {data.results.map((r) => (
                     <tr key={r.subject} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{r.subject}</td>
-                      <td className="px-4 py-3 text-center text-gray-700">{r.caScore}</td>
-                      <td className="px-4 py-3 text-center text-gray-700">{r.examScore}</td>
+                      <td className="px-4 py-3 text-center text-gray-700">{r.testsScore ?? 0}</td>
+                      <td className="px-4 py-3 text-center text-gray-700">{r.assignmentsScore ?? 0}</td>
+                      <td className="px-4 py-3 text-center text-gray-700">{r.projectsScore ?? 0}</td>
+                      <td className="px-4 py-3 text-center text-gray-700">{r.examsScore ?? 0}</td>
                       <td className={`px-4 py-3 text-center font-semibold ${r.totalScore >= data.classAverage ? 'text-green-700' : 'text-red-700'}`}>
                         {r.totalScore}
                       </td>

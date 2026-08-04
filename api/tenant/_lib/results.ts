@@ -385,3 +385,378 @@ export async function recomputeAllScores(
     return { recomputed: 0, details: [] }
   }
 }
+
+// ─── Compiled Results ──────────────────────────────────────────────
+
+interface CompiledResult {
+  studentId: string
+  subject: string
+  class: string
+  totalScore: number
+  grade: string
+  remark: string
+  classAverage: number
+  highestScore: number
+  lowestScore: number
+  subjectPosition: number
+  overallTotal: number
+  overallAverage: number
+  classPosition: number
+  totalStudents: number
+  attendancePercent: number
+  principalComment: string
+}
+
+function assignGrade(score: number): string {
+  if (score >= 80) return 'A1'
+  if (score >= 70) return 'B2'
+  if (score >= 65) return 'B3'
+  if (score >= 60) return 'C4'
+  if (score >= 55) return 'C5'
+  if (score >= 50) return 'C6'
+  if (score >= 45) return 'D7'
+  if (score >= 40) return 'E8'
+  return 'F9'
+}
+
+function gradeRemark(grade: string): string {
+  const remarks: Record<string, string> = {
+    A1: 'Distinction', B2: 'Very Good', B3: 'Good',
+    C4: 'Credit', C5: 'Credit', C6: 'Satisfactory',
+    D7: 'Pass', E8: 'Marginal Pass', F9: 'Fail',
+  }
+  return remarks[grade] || ''
+}
+
+function principalCommentFor(avg: number): string {
+  if (avg >= 75) return 'Excellent performance. Keep up the outstanding work.'
+  if (avg >= 60) return 'Very good performance. Continue to work hard.'
+  if (avg >= 50) return 'Satisfactory performance. There is room for improvement.'
+  if (avg >= 40) return 'Below average performance. More effort is required.'
+  return 'Poor performance. Urgent intervention needed.'
+}
+
+async function ensureCompiledResultsTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS compiled_results (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      class TEXT NOT NULL,
+      academic_session TEXT NOT NULL,
+      term TEXT NOT NULL,
+      total_score NUMERIC(5,2) DEFAULT 0,
+      grade TEXT,
+      remark TEXT,
+      class_average NUMERIC(5,2) DEFAULT 0,
+      highest_score NUMERIC(5,2) DEFAULT 0,
+      lowest_score NUMERIC(5,2) DEFAULT 0,
+      subject_position INTEGER DEFAULT 0,
+      overall_total NUMERIC(6,2) DEFAULT 0,
+      overall_average NUMERIC(5,2) DEFAULT 0,
+      class_position INTEGER DEFAULT 0,
+      total_students INTEGER DEFAULT 0,
+      attendance_percent NUMERIC(5,2) DEFAULT 0,
+      principal_comment TEXT,
+      status TEXT DEFAULT 'compiled',
+      compiled_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(tenant_id, student_id, subject, academic_session, term)
+    )
+  `
+}
+
+export async function compileResults(
+  tenantId: string,
+  academicSession: string,
+  term: string,
+  className?: string
+): Promise<{ compiled: number; results: CompiledResult[] }> {
+  await ensureResultsTable()
+  await ensureCompiledResultsTable()
+
+  try {
+    // Fetch all submitted/approved scores for the scope
+    let scoresQuery
+    if (className) {
+      scoresQuery = await sql<ScoreRow>`
+        SELECT * FROM student_scores
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+          AND class = ${className}
+          AND submission_status IN ('submitted', 'approved')
+      `
+    } else {
+      scoresQuery = await sql<ScoreRow>`
+        SELECT * FROM student_scores
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+          AND submission_status IN ('submitted', 'approved')
+      `
+    }
+
+    if (scoresQuery.rows.length === 0) {
+      return { compiled: 0, results: [] }
+    }
+
+    // Group by class
+    const classGroups: Record<string, ScoreRow[]> = {}
+    for (const row of scoresQuery.rows) {
+      const cls = row.class || 'Unknown'
+      if (!classGroups[cls]) classGroups[cls] = []
+      classGroups[cls].push(row)
+    }
+
+    const allResults: CompiledResult[] = []
+    let compiled = 0
+
+    for (const cls of Object.keys(classGroups)) {
+      const classRows = classGroups[cls]
+
+      // Group by subject for subject-level stats
+      const subjectGroups: Record<string, ScoreRow[]> = {}
+      for (const row of classRows) {
+        if (!subjectGroups[row.subject]) subjectGroups[row.subject] = []
+        subjectGroups[row.subject].push(row)
+      }
+
+      // Compute subject-level stats
+      const subjectStats: Record<string, { avg: number; highest: number; lowest: number }> = {}
+      for (const subject of Object.keys(subjectGroups)) {
+        const subjRows = subjectGroups[subject]
+        const totals = subjRows.map(r => parseFloat(r.total_score))
+        subjectStats[subject] = {
+          avg: totals.reduce((a, b) => a + b, 0) / totals.length,
+          highest: Math.max(...totals),
+          lowest: Math.min(...totals),
+        }
+      }
+
+      // Compute overall totals per student for class ranking
+      const studentTotals: Record<string, { total: number; attendanceSum: number; count: number }> = {}
+      for (const row of classRows) {
+        if (!studentTotals[row.student_id]) {
+          studentTotals[row.student_id] = { total: 0, attendanceSum: 0, count: 0 }
+        }
+        studentTotals[row.student_id].total += parseFloat(row.total_score)
+        studentTotals[row.student_id].attendanceSum += parseFloat(row.attendance_percentage)
+        studentTotals[row.student_id].count++
+      }
+
+      // Sort students by total for class position
+      const sortedStudents = Object.keys(studentTotals).sort((a, b) =>
+        studentTotals[b].total - studentTotals[a].total
+      )
+      const classPositionMap: Record<string, number> = {}
+      sortedStudents.forEach((sid, idx) => { classPositionMap[sid] = idx + 1 })
+      const totalStudents = sortedStudents.length
+
+      // Build compiled results
+      for (const row of classRows) {
+        const totalScore = parseFloat(row.total_score)
+        const grade = assignGrade(totalScore)
+        const remark = gradeRemark(grade)
+        const stats = subjectStats[row.subject] || { avg: 0, highest: 0, lowest: 0 }
+
+        // Subject position
+        const subjRows = subjectGroups[row.subject] || []
+        const subjectPosition = subjRows
+          .filter(r => parseFloat(r.total_score) > totalScore)
+          .length + 1
+
+        const overallTotal = studentTotals[row.student_id].total
+        const overallAverage = studentTotals[row.student_id].count > 0
+          ? overallTotal / studentTotals[row.student_id].count
+          : 0
+        const attendancePercent = studentTotals[row.student_id].count > 0
+          ? studentTotals[row.student_id].attendanceSum / studentTotals[row.student_id].count
+          : 0
+
+        const compiled: CompiledResult = {
+          studentId: row.student_id,
+          subject: row.subject,
+          class: row.class,
+          totalScore,
+          grade,
+          remark,
+          classAverage: Math.round(stats.avg * 100) / 100,
+          highestScore: stats.highest,
+          lowestScore: stats.lowest,
+          subjectPosition,
+          overallTotal: Math.round(overallTotal * 100) / 100,
+          overallAverage: Math.round(overallAverage * 100) / 100,
+          classPosition: classPositionMap[row.student_id],
+          totalStudents,
+          attendancePercent: Math.round(attendancePercent * 100) / 100,
+          principalComment: principalCommentFor(overallAverage),
+        }
+        allResults.push(compiled)
+
+        // Persist to compiled_results table
+        const id = `compiled_${tenantId}_${row.student_id}_${row.subject}_${academicSession}_${term}`.replace(/\s+/g, '_')
+        await sql`
+          INSERT INTO compiled_results (
+            id, tenant_id, student_id, subject, class, academic_session, term,
+            total_score, grade, remark, class_average, highest_score, lowest_score,
+            subject_position, overall_total, overall_average, class_position,
+            total_students, attendance_percent, principal_comment, status, compiled_at
+          ) VALUES (
+            ${id}, ${tenantId}, ${row.student_id}, ${row.subject}, ${row.class},
+            ${academicSession}, ${term},
+            ${totalScore}, ${grade}, ${remark},
+            ${Math.round(stats.avg * 100) / 100}, ${stats.highest}, ${stats.lowest},
+            ${subjectPosition}, ${Math.round(overallTotal * 100) / 100},
+            ${Math.round(overallAverage * 100) / 100}, ${classPositionMap[row.student_id]},
+            ${totalStudents}, ${Math.round(attendancePercent * 100) / 100},
+            ${principalCommentFor(overallAverage)}, 'compiled', NOW()
+          )
+          ON CONFLICT (tenant_id, student_id, subject, academic_session, term)
+          DO UPDATE SET
+            total_score = EXCLUDED.total_score,
+            grade = EXCLUDED.grade,
+            remark = EXCLUDED.remark,
+            class_average = EXCLUDED.class_average,
+            highest_score = EXCLUDED.highest_score,
+            lowest_score = EXCLUDED.lowest_score,
+            subject_position = EXCLUDED.subject_position,
+            overall_total = EXCLUDED.overall_total,
+            overall_average = EXCLUDED.overall_average,
+            class_position = EXCLUDED.class_position,
+            total_students = EXCLUDED.total_students,
+            attendance_percent = EXCLUDED.attendance_percent,
+            principal_comment = EXCLUDED.principal_comment,
+            status = 'compiled',
+            compiled_at = NOW()
+        `
+        compiled_count_increment()
+      }
+    }
+
+    return { compiled: getCompiledCount(), results: allResults }
+  } catch (error) {
+    console.error('Error compiling results:', error)
+    return { compiled: 0, results: [] }
+  }
+}
+
+let _compiledCount = 0
+function compiled_count_increment() { _compiledCount++ }
+function getCompiledCount() { const c = _compiledCount; _compiledCount = 0; return c }
+
+// ─── Fetch Compiled Results ────────────────────────────────────────
+
+export async function fetchCompiledResults(
+  tenantId: string,
+  academicSession: string,
+  term: string,
+  className?: string
+): Promise<any[]> {
+  await ensureCompiledResultsTable()
+  try {
+    let result
+    if (className) {
+      result = await sql`
+        SELECT * FROM compiled_results
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+          AND class = ${className}
+        ORDER BY class, class_position, subject
+      `
+    } else {
+      result = await sql`
+        SELECT * FROM compiled_results
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+        ORDER BY class, class_position, subject
+      `
+    }
+    return result.rows
+  } catch (error) {
+    console.error('Error fetching compiled results:', error)
+    return []
+  }
+}
+
+// ─── Approve Compiled Results ──────────────────────────────────────
+
+export async function approveCompiledResults(
+  tenantId: string,
+  academicSession: string,
+  term: string,
+  className?: string
+): Promise<number> {
+  await ensureCompiledResultsTable()
+  try {
+    let result
+    if (className) {
+      result = await sql`
+        UPDATE compiled_results
+        SET status = 'approved', compiled_at = NOW()
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+          AND class = ${className}
+          AND status = 'compiled'
+        RETURNING id
+      `
+    } else {
+      result = await sql`
+        UPDATE compiled_results
+        SET status = 'approved', compiled_at = NOW()
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+          AND status = 'compiled'
+        RETURNING id
+      `
+    }
+    return result.rows.length
+  } catch (error) {
+    console.error('Error approving compiled results:', error)
+    return 0
+  }
+}
+
+// ─── Publish Compiled Results ──────────────────────────────────────
+
+export async function publishCompiledResults(
+  tenantId: string,
+  academicSession: string,
+  term: string,
+  className?: string
+): Promise<number> {
+  await ensureCompiledResultsTable()
+  try {
+    let result
+    if (className) {
+      result = await sql`
+        UPDATE compiled_results
+        SET status = 'published', compiled_at = NOW()
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+          AND class = ${className}
+          AND status = 'approved'
+        RETURNING id
+      `
+    } else {
+      result = await sql`
+        UPDATE compiled_results
+        SET status = 'published', compiled_at = NOW()
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+          AND status = 'approved'
+        RETURNING id
+      `
+    }
+    return result.rows.length
+  } catch (error) {
+    console.error('Error publishing compiled results:', error)
+    return 0
+  }
+}

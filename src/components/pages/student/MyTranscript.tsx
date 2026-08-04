@@ -9,6 +9,10 @@ interface SubjectResult {
   caScore: number
   examScore: number
   totalScore: number
+  testsScore: number
+  assignmentsScore: number
+  projectsScore: number
+  examsScore: number
   grade: string
   remark: string
   classAverage: number
@@ -50,6 +54,15 @@ interface TranscriptData {
 }
 
 const gradeColors: Record<string, string> = {
+  A1: 'text-green-700 bg-green-50 border-green-200',
+  B2: 'text-blue-700 bg-blue-50 border-blue-200',
+  B3: 'text-blue-700 bg-blue-50 border-blue-200',
+  C4: 'text-amber-700 bg-amber-50 border-amber-200',
+  C5: 'text-amber-700 bg-amber-50 border-amber-200',
+  C6: 'text-amber-700 bg-amber-50 border-amber-200',
+  D7: 'text-orange-700 bg-orange-50 border-orange-200',
+  E8: 'text-red-700 bg-red-50 border-red-200',
+  F9: 'text-red-800 bg-red-100 border-red-300',
   A: 'text-green-700 bg-green-50 border-green-200',
   B: 'text-blue-700 bg-blue-50 border-blue-200',
   C: 'text-amber-700 bg-amber-50 border-amber-200',
@@ -247,8 +260,10 @@ export function MyTranscript() {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="text-left px-4 py-3 font-medium text-gray-700">Subject</th>
-                      <th className="text-center px-4 py-3 font-medium text-gray-700">CA (30%)</th>
-                      <th className="text-center px-4 py-3 font-medium text-gray-700">Exam (70%)</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">Tests</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">Assignments</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">Projects</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">Exams</th>
                       <th className="text-center px-4 py-3 font-medium text-gray-700">Total</th>
                       <th className="text-center px-4 py-3 font-medium text-gray-700">Grade</th>
                       <th className="text-left px-4 py-3 font-medium text-gray-700 hidden sm:table-cell">Remark</th>
@@ -262,8 +277,10 @@ export function MyTranscript() {
                           <p className="font-medium text-gray-900">{sub.subject}</p>
                           <p className="text-xs text-gray-500">{sub.teacher}</p>
                         </td>
-                        <td className="text-center px-4 py-3 text-gray-700">{sub.caScore}</td>
-                        <td className="text-center px-4 py-3 text-gray-700">{sub.examScore}</td>
+                        <td className="text-center px-4 py-3 text-gray-700">{sub.testsScore ?? 0}</td>
+                        <td className="text-center px-4 py-3 text-gray-700">{sub.assignmentsScore ?? 0}</td>
+                        <td className="text-center px-4 py-3 text-gray-700">{sub.projectsScore ?? 0}</td>
+                        <td className="text-center px-4 py-3 text-gray-700">{sub.examsScore ?? 0}</td>
                         <td className="text-center px-4 py-3">
                           <span className="font-semibold text-gray-900">{sub.totalScore}</span>
                         </td>
@@ -282,7 +299,7 @@ export function MyTranscript() {
                   <tfoot className="bg-gray-50 border-t border-gray-200 font-medium">
                     <tr>
                       <td className="px-4 py-3 text-gray-900">TOTAL / AVERAGE</td>
-                      <td colSpan={2} className="text-center px-4 py-3 text-gray-700"></td>
+                      <td colSpan={4} className="text-center px-4 py-3 text-gray-700"></td>
                       <td className="text-center px-4 py-3 text-blue-700 font-bold">{session.totalScore}</td>
                       <td className="text-center px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${getGradeColor(session.averageScore)}`}>
@@ -354,12 +371,15 @@ export function MyTranscript() {
 }
 
 function getGrade(score: number): string {
-  if (score >= 75) return 'A'
-  if (score >= 60) return 'B'
-  if (score >= 50) return 'C'
-  if (score >= 45) return 'D'
-  if (score >= 40) return 'E'
-  return 'F'
+  if (score >= 80) return 'A1'
+  if (score >= 70) return 'B2'
+  if (score >= 65) return 'B3'
+  if (score >= 60) return 'C4'
+  if (score >= 55) return 'C5'
+  if (score >= 50) return 'C6'
+  if (score >= 45) return 'D7'
+  if (score >= 40) return 'E8'
+  return 'F9'
 }
 
 function getGradeColor(score: number): string {

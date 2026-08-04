@@ -5,6 +5,7 @@ interface SubjectResult {
   subject: string; teacher: string; caScore: number; examScore: number;
   totalScore: number; grade: string; remark: string;
   classAverage: number; highestScore: number; lowestScore: number; position: number;
+  testsScore: number; assignmentsScore: number; projectsScore: number; examsScore: number;
 }
 
 interface TermResult {
@@ -36,6 +37,33 @@ function extractStudentIdFromToken(req: VercelRequest): string | null {
   return token || null;
 }
 
+function assignGrade(score: number): string {
+  if (score >= 80) return 'A1';
+  if (score >= 70) return 'B2';
+  if (score >= 65) return 'B3';
+  if (score >= 60) return 'C4';
+  if (score >= 55) return 'C5';
+  if (score >= 50) return 'C6';
+  if (score >= 45) return 'D7';
+  if (score >= 40) return 'E8';
+  return 'F9';
+}
+
+function gradeRemark(grade: string): string {
+  const remarks: Record<string, string> = {
+    A1: 'Distinction', B2: 'Very Good', B3: 'Good',
+    C4: 'Credit', C5: 'Credit', C6: 'Satisfactory',
+    D7: 'Pass', E8: 'Marginal Pass', F9: 'Fail',
+  };
+  return remarks[grade] || '';
+}
+
+function ordinalSuffix(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const studentId = extractStudentIdFromToken(req);
   if (!studentId) return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
@@ -52,35 +80,151 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       class: s.class || '', arm: s.arm || '', dateOfBirth: '', gender: s.gender || '',
     };
 
-    const resultsRes = await sql`SELECT id::text, subject, ca_score, exam_score,
-      (ca_score+exam_score) AS total_score, grade, term, academic_session
-      FROM results WHERE student_id = ${studentId} ORDER BY term, subject`;
+    // Fetch all scores for this student from student_scores
+    const resultsRes = await sql`
+      SELECT subject, ca_score, exam_score, total_score,
+             tests_score, assignments_score, projects_score, exams_score,
+             attendance_percentage, term, academic_session, class
+      FROM student_scores
+      WHERE student_id = ${studentId}
+      ORDER BY academic_session, term, subject
+    `;
 
-    const termsMap: Record<string, SubjectResult[]> = {};
-    const termMeta: Record<string, { academicSession: string }> = {};
+    // Group by term+session
+    const termGroups: Record<string, { subjects: any[]; academicSession: string; term: string; class: string }> = {};
     for (const r of resultsRes.rows) {
-      const term = r.term || 'Unknown';
-      if (!termsMap[term]) { termsMap[term] = []; termMeta[term] = { academicSession: r.academic_session || '' }; }
-      termsMap[term].push({
-        subject: r.subject, teacher: '', caScore: Number(r.ca_score), examScore: Number(r.exam_score),
-        totalScore: Number(r.total_score), grade: r.grade || '', remark: '',
-        classAverage: 0, highestScore: 0, lowestScore: 0, position: 0,
+      const key = `${r.academic_session || ''}|${r.term || 'Unknown'}`;
+      if (!termGroups[key]) {
+        termGroups[key] = { subjects: [], academicSession: r.academic_session || '', term: r.term || 'Unknown', class: r.class || '' };
+      }
+      termGroups[key].subjects.push({
+        subject: r.subject,
+        caScore: Number(r.ca_score),
+        examScore: Number(r.exam_score),
+        totalScore: Number(r.total_score),
+        testsScore: r.tests_score !== null ? Number(r.tests_score) : 0,
+        assignmentsScore: r.assignments_score !== null ? Number(r.assignments_score) : 0,
+        projectsScore: r.projects_score !== null ? Number(r.projects_score) : 0,
+        examsScore: r.exams_score !== null ? Number(r.exams_score) : 0,
+        attendancePercent: Number(r.attendance_percentage),
       });
     }
 
-    const sessions: TermResult[] = Object.keys(termsMap).map(term => {
-      const subjects = termsMap[term];
+    // For each term group, compute grades, class averages, ranks
+    const sessions: TermResult[] = [];
+    let cumulativeTotal = 0;
+    let cumulativeSubjectCount = 0;
+
+    for (const key of Object.keys(termGroups)) {
+      const group = termGroups[key];
+      const subjects: SubjectResult[] = [];
+
+      for (const subj of group.subjects) {
+        const grade = assignGrade(subj.totalScore);
+        const remark = gradeRemark(grade);
+
+        // Class statistics for this subject + term + session
+        const statsRes = await sql`
+          SELECT
+            ROUND(AVG(total_score)) AS class_avg,
+            MAX(total_score) AS highest,
+            MIN(total_score) AS lowest,
+            COUNT(*) AS total_entries
+          FROM student_scores
+          WHERE academic_session = ${group.academicSession}
+            AND term = ${group.term}
+            AND subject = ${subj.subject}
+            AND class = ${group.class}
+        `;
+        const stats = statsRes.rows[0] || {};
+        const classAverage = Number(stats.class_avg || 0);
+        const highestScore = Number(stats.highest || 0);
+        const lowestScore = Number(stats.lowest || 0);
+
+        // Subject position: count students with higher total in same subject+class+term
+        const posRes = await sql`
+          SELECT COUNT(*) + 1 AS position
+          FROM student_scores
+          WHERE academic_session = ${group.academicSession}
+            AND term = ${group.term}
+            AND subject = ${subj.subject}
+            AND class = ${group.class}
+            AND total_score > ${subj.totalScore}
+        `;
+        const position = Number(posRes.rows[0]?.position || 1);
+
+        subjects.push({
+          subject: subj.subject,
+          teacher: '',
+          caScore: subj.caScore,
+          examScore: subj.examScore,
+          totalScore: subj.totalScore,
+          grade,
+          remark,
+          classAverage,
+          highestScore,
+          lowestScore,
+          position,
+          testsScore: subj.testsScore,
+          assignmentsScore: subj.assignmentsScore,
+          projectsScore: subj.projectsScore,
+          examsScore: subj.examsScore,
+        });
+      }
+
       const totalScore = subjects.reduce((sum, sub) => sum + sub.totalScore, 0);
       const avgScore = subjects.length > 0 ? Math.round(totalScore / subjects.length) : 0;
-      return {
-        term, academicSession: termMeta[term].academicSession || '', subjects, totalScore, averageScore: avgScore,
-        classPosition: '', totalStudents: 0, attendancePercent: 0, conduct: '',
-        nextTermResumption: '', principalComment: '',
-      };
-    });
+      cumulativeTotal += totalScore;
+      cumulativeSubjectCount += subjects.length;
 
-    const totalSubjectsTaken = Object.values(termsMap).reduce((sum, arr) => sum + arr.length, 0);
-    return res.status(200).json({ student, sessions, cumulativeGPA: 0, totalSubjectsTaken } as TranscriptResponse);
+      // Class position: rank by total score across all students in same class
+      const classPosRes = await sql`
+        WITH student_totals AS (
+          SELECT student_id, SUM(total_score) AS total
+          FROM student_scores
+          WHERE academic_session = ${group.academicSession}
+            AND term = ${group.term}
+            AND class = ${group.class}
+          GROUP BY student_id
+        )
+        SELECT COUNT(*) + 1 AS position, COUNT(*) AS total_students
+        FROM student_totals
+        WHERE total > ${totalScore}
+      `;
+      const classPosition = ordinalSuffix(Number(classPosRes.rows[0]?.position || 1));
+      const totalStudents = Number(classPosRes.rows[0]?.total_students || 0) + 1;
+
+      // Attendance average
+      const attRes = await sql`
+        SELECT ROUND(AVG(attendance_percentage)) AS avg_att
+        FROM student_scores
+        WHERE student_id = ${studentId}
+          AND academic_session = ${group.academicSession}
+          AND term = ${group.term}
+      `;
+      const attendancePercent = Number(attRes.rows[0]?.avg_att || 0);
+
+      sessions.push({
+        term: group.term,
+        academicSession: group.academicSession,
+        subjects,
+        totalScore,
+        averageScore: avgScore,
+        classPosition: totalStudents > 0 ? `${classPosition} of ${totalStudents}` : '',
+        totalStudents,
+        attendancePercent,
+        conduct: '',
+        nextTermResumption: '',
+        principalComment: avgScore >= 70 ? 'Excellent performance. Keep it up.' : avgScore >= 50 ? 'Satisfactory performance. More effort needed.' : 'Below average. Requires significant improvement.',
+      });
+    }
+
+    const cumulativeGPA = cumulativeSubjectCount > 0
+      ? Math.round((cumulativeTotal / cumulativeSubjectCount) * 100) / 100
+      : 0;
+    const totalSubjectsTaken = cumulativeSubjectCount;
+
+    return res.status(200).json({ student, sessions, cumulativeGPA, totalSubjectsTaken } as TranscriptResponse);
   } catch (error) {
     console.error('Error fetching transcript:', error);
     return res.status(500).json({ error: 'Failed to fetch transcript' });

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, type ScorePayload } from './_lib/results.js'
+import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, publishCompiledResults, type ScorePayload } from './_lib/results.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 function methodNotAllowed(res: VercelResponse) {
@@ -44,6 +44,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           term as string
         )
         return res.status(200).json({ data: scores })
+      }
+
+      if (action === 'compiled' && academicSession && term) {
+        const compiled = await fetchCompiledResults(
+          tenantId,
+          academicSession as string,
+          term as string,
+          className as string | undefined
+        )
+        return res.status(200).json({ data: compiled })
       }
 
       const scores = await fetchScores(
@@ -156,7 +166,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return res.status(400).json({ error: 'Unknown PUT action. Use ?action=recompute' })
+    if (action === 'compile') {
+      const { academicSession, term, class: className } = req.query
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required for compile action' })
+      }
+      try {
+        const result = await compileResults(
+          tenantId,
+          academicSession as string,
+          term as string,
+          className as string | undefined
+        )
+        return res.status(200).json({
+          success: true,
+          compiled: result.compiled,
+          results: result.results,
+        })
+      } catch (error) {
+        console.error('Error compiling results:', error)
+        return res.status(500).json({ error: 'Failed to compile results' })
+      }
+    }
+
+    if (action === 'approve') {
+      const { academicSession, term, class: className } = req.query
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required for approve action' })
+      }
+      try {
+        const approved = await approveCompiledResults(
+          tenantId,
+          academicSession as string,
+          term as string,
+          className as string | undefined
+        )
+        return res.status(200).json({ success: true, approved })
+      } catch (error) {
+        console.error('Error approving results:', error)
+        return res.status(500).json({ error: 'Failed to approve results' })
+      }
+    }
+
+    if (action === 'publish') {
+      const { academicSession, term, class: className } = req.query
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required for publish action' })
+      }
+      try {
+        const published = await publishCompiledResults(
+          tenantId,
+          academicSession as string,
+          term as string,
+          className as string | undefined
+        )
+        return res.status(200).json({ success: true, published })
+      } catch (error) {
+        console.error('Error publishing results:', error)
+        return res.status(500).json({ error: 'Failed to publish results' })
+      }
+    }
+
+    return res.status(400).json({ error: 'Unknown PUT action. Use ?action=recompute, ?action=compile, ?action=approve, or ?action=publish' })
   }
 
   return methodNotAllowed(res)

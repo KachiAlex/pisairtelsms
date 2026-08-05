@@ -864,6 +864,103 @@ export async function approveCompiledResults(
   }
 }
 
+// ─── Broadsheet ────────────────────────────────────────────────────
+
+export interface BroadsheetStudent {
+  studentId: string
+  studentName: string
+  classPosition: number
+  totalStudents: number
+  overallTotal: number
+  overallAverage: number
+  attendancePercent: number
+  subjects: Record<string, { score: number; grade: string; position: number; remark: string }>
+}
+
+export interface BroadsheetData {
+  className: string
+  academicSession: string
+  term: string
+  subjects: string[]
+  students: BroadsheetStudent[]
+  statusBreakdown: Record<string, number>
+}
+
+export async function fetchBroadsheet(
+  tenantId: string,
+  academicSession: string,
+  term: string,
+  className: string
+): Promise<BroadsheetData | null> {
+  await ensureCompiledResultsTable()
+  try {
+    // Fetch compiled results joined with student names
+    const result = await sql`
+      SELECT cr.student_id, cr.subject, cr.class, cr.total_score, cr.grade,
+             cr.remark, cr.subject_position, cr.overall_total, cr.overall_average,
+             cr.class_position, cr.total_students, cr.attendance_percent, cr.status,
+             s.name AS student_name
+      FROM compiled_results cr
+      LEFT JOIN students s ON s.id = cr.student_id
+      WHERE cr.tenant_id = ${tenantId}
+        AND cr.academic_session = ${academicSession}
+        AND cr.term = ${term}
+        AND cr.class = ${className}
+      ORDER BY cr.class_position, cr.student_id, cr.subject
+    `
+
+    if (result.rows.length === 0) return null
+
+    // Collect all unique subjects
+    const subjectSet = new Set<string>()
+    const studentMap: Record<string, BroadsheetStudent> = {}
+    const statusBreakdown: Record<string, number> = {}
+
+    for (const row of result.rows) {
+      const sid = row.student_id
+      subjectSet.add(row.subject)
+
+      if (!studentMap[sid]) {
+        studentMap[sid] = {
+          studentId: sid,
+          studentName: row.student_name || sid,
+          classPosition: Number(row.class_position) || 0,
+          totalStudents: Number(row.total_students) || 0,
+          overallTotal: Number(row.overall_total) || 0,
+          overallAverage: Number(row.overall_average) || 0,
+          attendancePercent: Number(row.attendance_percent) || 0,
+          subjects: {},
+        }
+      }
+
+      studentMap[sid].subjects[row.subject] = {
+        score: Number(row.total_score),
+        grade: row.grade,
+        position: Number(row.subject_position) || 0,
+        remark: row.remark || '',
+      }
+
+      const status = row.status || 'compiled'
+      statusBreakdown[status] = (statusBreakdown[status] || 0) + 1
+    }
+
+    const subjects = Array.from(subjectSet).sort()
+    const students = Object.values(studentMap).sort((a, b) => a.classPosition - b.classPosition)
+
+    return {
+      className,
+      academicSession,
+      term,
+      subjects,
+      students,
+      statusBreakdown,
+    }
+  } catch (error) {
+    console.error('Error fetching broadsheet:', error)
+    return null
+  }
+}
+
 // ─── Publish Compiled Results ──────────────────────────────────────
 
 export async function publishCompiledResults(

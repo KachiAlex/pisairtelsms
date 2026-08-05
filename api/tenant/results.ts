@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, publishCompiledResults, computeAttendanceBatch, type ScorePayload } from './_lib/results.js'
+import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, publishCompiledResults, computeAttendanceBatch, fetchBroadsheet, type ScorePayload } from './_lib/results.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 function methodNotAllowed(res: VercelResponse) {
@@ -64,6 +64,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           term as string
         )
         return res.status(200).json({ data: attendanceMap })
+      }
+
+      if (action === 'broadsheet' && className && academicSession && term) {
+        const broadsheet = await fetchBroadsheet(
+          tenantId,
+          academicSession as string,
+          term as string,
+          className as string
+        )
+        if (!broadsheet) {
+          return res.status(404).json({ error: 'No compiled results found for this class/term. Run Result Computation first.' })
+        }
+        return res.status(200).json({ data: broadsheet })
       }
 
       const scores = await fetchScores(

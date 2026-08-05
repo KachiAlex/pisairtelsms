@@ -13,6 +13,11 @@ import {
   Trophy,
   Loader2,
   FileText,
+  Upload,
+  Check,
+  X,
+  Clock,
+  ClipboardCheck,
 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -133,6 +138,23 @@ export function StudentAttendance() {
   const [staffAttendance, setStaffAttendance] = useState<any[]>([])
   const [staffAttendanceLoading, setStaffAttendanceLoading] = useState(false)
   const [staffAttendanceError, setStaffAttendanceError] = useState<string | null>(null)
+
+  // Mark Attendance tab
+  const [markClass, setMarkClass] = useState('')
+  const [markDate, setMarkDate] = useState('')
+  const [markTerm, setMarkTerm] = useState('First Term')
+  const [markStudents, setMarkStudents] = useState<any[]>([])
+  const [markAttendance, setMarkAttendance] = useState<Record<string, 'present' | 'absent' | 'late'>>({})
+  const [markLoading, setMarkLoading] = useState(false)
+  const [markSubmitting, setMarkSubmitting] = useState(false)
+  const [markError, setMarkError] = useState<string | null>(null)
+
+  // Batch Upload tab
+  const [batchFile, setBatchFile] = useState<File | null>(null)
+  const [batchPreview, setBatchPreview] = useState<any>(null)
+  const [batchPreviewLoading, setBatchPreviewLoading] = useState(false)
+  const [batchUploading, setBatchUploading] = useState(false)
+  const [batchError, setBatchError] = useState<string | null>(null)
 
   useEffect(() => {
     const now = new Date()
@@ -295,6 +317,137 @@ export function StudentAttendance() {
     }
   }, [])
 
+  // Mark Attendance handlers
+  const fetchStudentsForMarking = useCallback(async (selectedClass: string) => {
+    if (!selectedClass) return
+    setMarkLoading(true)
+    setMarkError(null)
+    try {
+      const params = new URLSearchParams({ class: selectedClass })
+      const res = await tenantApiGet(`/api/tenant/students?${params}`)
+      if (!res.ok) throw new Error('Failed to fetch students')
+      const json = await res.json()
+      setMarkStudents(json.data || [])
+      const initialMarks: Record<string, 'present' | 'absent' | 'late'> = {}
+      ;(json.data || []).forEach((s: any) => {
+        initialMarks[s.id] = 'present'
+      })
+      setMarkAttendance(initialMarks)
+    } catch (err) {
+      setMarkError(err instanceof Error ? err.message : 'Failed to load students')
+    } finally {
+      setMarkLoading(false)
+    }
+  }, [])
+
+  const handleMarkAll = (status: 'present' | 'absent' | 'late') => {
+    const allMarks: Record<string, 'present' | 'absent' | 'late'> = {}
+    markStudents.forEach((s) => {
+      allMarks[s.id] = status
+    })
+    setMarkAttendance(allMarks)
+  }
+
+  const handleSubmitAttendance = async () => {
+    if (!markClass || !markDate || markStudents.length === 0) {
+      toast({ title: 'Missing fields', description: 'Please select class and date, and load students.', variant: 'destructive' })
+      return
+    }
+    setMarkSubmitting(true)
+    try {
+      const records = markStudents.map((s) => ({
+        studentId: s.id,
+        class: s.class,
+        date: markDate,
+        status: markAttendance[s.id] || 'present',
+        source: 'teacher_entry',
+        academicSession,
+        term: markTerm,
+      }))
+      const res = await tenantApiPost('/api/tenant/attendance', { records })
+      const data = await res.json()
+      if (res.ok) {
+        toast({ title: 'Attendance saved', description: `${records.length} student records marked for ${markClass} on ${markDate}.` })
+      } else {
+        toast({ title: 'Failed to save', description: data.error || 'Please try again.', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Network error', description: 'Could not reach the server.', variant: 'destructive' })
+    } finally {
+      setMarkSubmitting(false)
+    }
+  }
+
+  // Batch Upload handlers
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await tenantApiGet('/api/tenant/attendance/batch-upload')
+      if (!res.ok) throw new Error('Failed to download template')
+      const text = await res.text()
+      const blob = new Blob([text], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'attendance-template.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      toast({ title: 'Download failed', description: e instanceof Error ? e.message : 'Could not download template.', variant: 'destructive' })
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setBatchFile(file)
+      setBatchPreview(null)
+      setBatchError(null)
+    }
+  }
+
+  const handlePreviewUpload = async () => {
+    if (!batchFile) return
+    setBatchPreviewLoading(true)
+    setBatchError(null)
+    try {
+      const csvContent = await batchFile.text()
+      const res = await tenantApiPost('/api/tenant/attendance/batch-upload?preview=true', csvContent)
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setBatchPreview(data.data)
+      } else {
+        setBatchError(data.error || 'Preview failed')
+      }
+    } catch (e) {
+      setBatchError(e instanceof Error ? e.message : 'Failed to preview file')
+    } finally {
+      setBatchPreviewLoading(false)
+    }
+  }
+
+  const handleConfirmUpload = async () => {
+    if (!batchFile) return
+    setBatchUploading(true)
+    setBatchError(null)
+    try {
+      const csvContent = await batchFile.text()
+      const res = await tenantApiPost('/api/tenant/attendance/batch-upload', csvContent)
+      const data = await res.json()
+      if (res.ok && data.success) {
+        toast({ title: 'Upload complete', description: data.data?.message || 'Attendance records imported successfully.' })
+        setBatchPreview(null)
+        setBatchFile(null)
+      } else {
+        setBatchError(data.error || 'Upload failed')
+        toast({ title: 'Upload failed', description: data.error || 'Some records could not be processed.', variant: 'destructive' })
+      }
+    } catch (e) {
+      setBatchError(e instanceof Error ? e.message : 'Failed to upload file')
+    } finally {
+      setBatchUploading(false)
+    }
+  }
+
   // Initial load
   useEffect(() => {
     fetchDashboard()
@@ -438,14 +591,22 @@ export function StudentAttendance() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="students">
             <Users className="h-4 w-4 mr-2" />
             Student Attendance
           </TabsTrigger>
+          <TabsTrigger value="mark">
+            <ClipboardCheck className="h-4 w-4 mr-2" />
+            Mark Attendance
+          </TabsTrigger>
           <TabsTrigger value="staff">
             <Users className="h-4 w-4 mr-2" />
             Staff Attendance
+          </TabsTrigger>
+          <TabsTrigger value="batch">
+            <Upload className="h-4 w-4 mr-2" />
+            Batch Upload
           </TabsTrigger>
           <TabsTrigger value="reports">
             <BarChart3 className="h-4 w-4 mr-2" />
@@ -753,6 +914,167 @@ export function StudentAttendance() {
           </Card>
         </TabsContent>
 
+        {/* Mark Attendance Tab */}
+        <TabsContent value="mark" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <ClipboardCheck className="h-4 w-4 text-blue-600" /> Mark Daily Attendance
+              </CardTitle>
+              <CardDescription>
+                Select a class and date, then mark each student as present, absent, or late. All students default to present.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Selectors */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Class</Label>
+                  <ClassArmSelect
+                    value={markClass}
+                    onChange={(v) => {
+                      setMarkClass(v)
+                      if (v) fetchStudentsForMarking(v)
+                      else setMarkStudents([])
+                    }}
+                    placeholder="Select class"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mark-date">Date</Label>
+                  <Input
+                    id="mark-date"
+                    type="date"
+                    value={markDate}
+                    onChange={(e) => setMarkDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Term</Label>
+                  <Select value={markTerm} onValueChange={setMarkTerm}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="First Term">First Term</SelectItem>
+                      <SelectItem value="Second Term">Second Term</SelectItem>
+                      <SelectItem value="Third Term">Third Term</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {markError && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{markError}</AlertDescription>
+                </Alert>
+              )}
+
+              {markLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  <span className="ml-2 text-sm text-gray-500">Loading students…</span>
+                </div>
+              ) : markStudents.length > 0 ? (
+                <>
+                  {/* Bulk actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-gray-500 mr-2">Mark all:</span>
+                    <Button size="sm" variant="outline" onClick={() => handleMarkAll('present')}>
+                      <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Present
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleMarkAll('absent')}>
+                      <X className="h-3.5 w-3.5 mr-1 text-rose-600" /> Absent
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleMarkAll('late')}>
+                      <Clock className="h-3.5 w-3.5 mr-1 text-amber-600" /> Late
+                    </Button>
+                    <span className="ml-auto text-sm text-gray-500">
+                      {markStudents.length} students
+                    </span>
+                  </div>
+
+                  {/* Student list */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[50px]">#</TableHead>
+                          <TableHead>Admission No</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead className="text-center">Present</TableHead>
+                          <TableHead className="text-center">Absent</TableHead>
+                          <TableHead className="text-center">Late</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {markStudents.map((student, idx) => (
+                          <TableRow key={student.id}>
+                            <TableCell className="text-gray-400">{idx + 1}</TableCell>
+                            <TableCell className="font-mono text-sm">{student.admissionNo || '—'}</TableCell>
+                            <TableCell className="font-medium">{student.name}</TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                variant={markAttendance[student.id] === 'present' ? 'default' : 'outline'}
+                                className="h-8 w-8 p-0"
+                                onClick={() => setMarkAttendance((prev) => ({ ...prev, [student.id]: 'present' }))}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                variant={markAttendance[student.id] === 'absent' ? 'destructive' : 'outline'}
+                                className="h-8 w-8 p-0"
+                                onClick={() => setMarkAttendance((prev) => ({ ...prev, [student.id]: 'absent' }))}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                variant={markAttendance[student.id] === 'late' ? 'secondary' : 'outline'}
+                                className="h-8 w-8 p-0"
+                                onClick={() => setMarkAttendance((prev) => ({ ...prev, [student.id]: 'late' }))}
+                              >
+                                <Clock className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Submit */}
+                  <div className="flex justify-end">
+                    <Button onClick={handleSubmitAttendance} disabled={markSubmitting || !markDate}>
+                      {markSubmitting ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-2" />
+                      )}
+                      Save Attendance
+                    </Button>
+                  </div>
+                </>
+              ) : markClass ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-sm text-gray-500">No students found in this class.</p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-sm text-gray-500">Select a class to load students.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Staff Attendance Tab */}
         <TabsContent value="staff" className="space-y-4">
           <Card>
@@ -817,6 +1139,164 @@ export function StudentAttendance() {
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Batch Upload Tab */}
+        <TabsContent value="batch" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Upload className="h-4 w-4 text-blue-600" /> Batch Upload Attendance
+              </CardTitle>
+              <CardDescription>
+                Upload a CSV file to import attendance records in bulk. Download the template, fill it in, then upload.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Step 1: Download template */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">1</span>
+                  <Label className="text-sm font-medium">Download CSV template</Label>
+                </div>
+                <p className="text-sm text-gray-500 ml-8">
+                  The template includes the required column headers and a sample row. Required columns:
+                  <code className="ml-1 text-xs bg-gray-100 px-1 py-0.5 rounded">studentId, class, date, status, academicSession, term</code>
+                  . Optional: <code className="ml-1 text-xs bg-gray-100 px-1 py-0.5 rounded">absenceReason</code>.
+                </p>
+                <div className="ml-8">
+                  <Button variant="outline" onClick={handleDownloadTemplate}>
+                    <Download className="h-4 w-4 mr-2" /> Download template
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border-t pt-4" />
+
+              {/* Step 2: Upload file */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">2</span>
+                  <Label className="text-sm font-medium">Select CSV file</Label>
+                </div>
+                <div className="ml-8">
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileSelect}
+                    className="max-w-md"
+                  />
+                  {batchFile && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      Selected: <span className="font-medium">{batchFile.name}</span> ({(batchFile.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t pt-4" />
+
+              {/* Step 3: Preview */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">3</span>
+                  <Label className="text-sm font-medium">Preview & validate</Label>
+                </div>
+                <div className="ml-8 flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handlePreviewUpload}
+                    disabled={!batchFile || batchPreviewLoading}
+                  >
+                    {batchPreviewLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4 mr-2" />
+                    )}
+                    Preview file
+                  </Button>
+                </div>
+
+                {batchError && (
+                  <Alert variant="destructive" className="ml-8">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{batchError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {batchPreview && (
+                  <div className="ml-8 space-y-3">
+                    <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Total rows</p>
+                        <p className="text-xl font-bold">{batchPreview.totalRecords}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Valid</p>
+                        <p className="text-xl font-bold text-emerald-600">{batchPreview.validRecords}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Invalid</p>
+                        <p className="text-xl font-bold text-rose-600">{batchPreview.invalidRecords}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-gray-500">Will skip</p>
+                        <p className="text-xl font-bold text-amber-600">{batchPreview.skipped}</p>
+                      </div>
+                    </div>
+
+                    {batchPreview.errors && batchPreview.errors.length > 0 && (
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 max-h-48 overflow-y-auto">
+                        <p className="text-sm font-medium text-rose-700 mb-2">
+                          Errors ({batchPreview.errors.length} shown):
+                        </p>
+                        <ul className="space-y-1">
+                          {batchPreview.errors.slice(0, 20).map((err: any, i: number) => (
+                            <li key={i} className="text-xs text-rose-600">
+                              Row {err.row}: {err.field} — {err.message}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <Alert>
+                      <Check className="h-4 w-4" />
+                      <AlertDescription>
+                        {batchPreview.message || `${batchPreview.validRecords} valid records ready to import.`}
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t pt-4" />
+
+              {/* Step 4: Confirm upload */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">4</span>
+                  <Label className="text-sm font-medium">Confirm & import</Label>
+                </div>
+                <div className="ml-8">
+                  <Button
+                    onClick={handleConfirmUpload}
+                    disabled={!batchFile || batchUploading || !batchPreview}
+                  >
+                    {batchUploading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Confirm & Upload
+                  </Button>
+                  {!batchPreview && (
+                    <p className="text-sm text-gray-400 mt-2">Preview the file first before confirming upload.</p>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

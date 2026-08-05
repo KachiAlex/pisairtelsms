@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { publishCompiledResults } from './_lib/results.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
@@ -10,81 +11,175 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context required' })
 
   const action = req.query['action'] as string
+  const academicSession = req.query['academicSession'] as string | undefined
+  const term = req.query['term'] as string | undefined
+  const className = req.query['class'] as string | undefined
 
   try {
-    if (action === 'release-plan' && req.method === 'GET') {
-      const r = await sql`
-        SELECT id, cohort, channel, release_window AS window, owner, status
-        FROM result_release_plan WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT 20`
-      return res.json({ success: true, data: r.rows })
-    }
-
-    if (action === 'checklist' && req.method === 'GET') {
-      const r = await sql`
-        SELECT id, label, status, detail FROM result_readiness_checklist
-        WHERE tenant_id = ${tenantId} ORDER BY sort_order ASC`
-      return res.json({ success: true, data: r.rows })
-    }
-
-    if (action === 'channel-health' && req.method === 'GET') {
-      const r = await sql`
-        SELECT id, label, status, usage FROM result_channel_health
-        WHERE tenant_id = ${tenantId} ORDER BY label ASC`
-      return res.json({ success: true, data: r.rows })
-    }
-
-    if (action === 'incidents' && req.method === 'GET') {
-      const r = await sql`
-        SELECT id, label, severity, owner, eta FROM result_incidents
-        WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT 20`
-      return res.json({ success: true, data: r.rows })
-    }
-
-    if (action === 'incidents' && req.method === 'POST') {
-      const { label, severity, owner, eta } = req.body
-      const r = await sql`
-        INSERT INTO result_incidents (tenant_id, label, severity, owner, eta)
-        VALUES (${tenantId}, ${label}, ${severity}, ${owner}, ${eta})
-        RETURNING *`
-      return res.status(201).json({ success: true, data: r.rows[0] })
-    }
-
-    if (action === 'adoption-stats' && req.method === 'GET') {
-      const r = await sql`
-        SELECT label, value FROM result_adoption_stats
-        WHERE tenant_id = ${tenantId} ORDER BY sort_order ASC`
-      return res.json({ success: true, data: r.rows })
-    }
-
+    // ── Stats: summary counts by status ──────────────────────────────
     if (action === 'stats' && req.method === 'GET') {
-      const cohorts = await sql`SELECT COUNT(*)::int AS n FROM result_release_plan WHERE tenant_id = ${tenantId}`
-      const channels = await sql`
-        SELECT COUNT(*)::int AS total, SUM(CASE WHEN status='Operational' THEN 1 ELSE 0 END)::int AS healthy
-        FROM result_channel_health WHERE tenant_id = ${tenantId}`
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required' })
+      }
+      let result
+      if (className) {
+        result = await sql`
+          SELECT
+            COUNT(*)::int AS total,
+            SUM(CASE WHEN status = 'compiled' THEN 1 ELSE 0 END)::int AS compiled,
+            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END)::int AS approved,
+            SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END)::int AS published
+          FROM compiled_results
+          WHERE tenant_id = ${tenantId}
+            AND academic_session = ${academicSession}
+            AND term = ${term}
+            AND class = ${className}
+        `
+      } else {
+        result = await sql`
+          SELECT
+            COUNT(*)::int AS total,
+            SUM(CASE WHEN status = 'compiled' THEN 1 ELSE 0 END)::int AS compiled,
+            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END)::int AS approved,
+            SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END)::int AS published
+          FROM compiled_results
+          WHERE tenant_id = ${tenantId}
+            AND academic_session = ${academicSession}
+            AND term = ${term}
+        `
+      }
+      const row = result.rows[0] || { total: 0, compiled: 0, approved: 0, published: 0 }
       return res.json({
         success: true,
         data: {
-          cohortsStaged: cohorts.rows[0]?.n ?? 0,
-          guardiansToNotify: null,
-          channelsHealthy: channels.rows[0] ? `${channels.rows[0].healthy} / ${channels.rows[0].total}` : '0 / 0',
-          nextReleaseWindow: null,
+          total: row.total,
+          compiled: row.compiled,
+          approved: row.approved,
+          published: row.published,
+          studentsNotified: row.published,
         },
       })
     }
 
-    if (action === 'launch' && req.method === 'POST') {
-      await sql`
-        UPDATE result_release_plan SET status = 'Launched', launched_at = NOW()
-        WHERE tenant_id = ${tenantId} AND status = 'Scheduled'`
-      return res.json({ success: true, message: 'Release launched. Guardians are being notified.' })
+    // ── Class summaries: per-class breakdown ─────────────────────────
+    if (action === 'class-summaries' && req.method === 'GET') {
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required' })
+      }
+      const result = await sql`
+        SELECT
+          class,
+          COUNT(*)::int AS total,
+          SUM(CASE WHEN status = 'compiled' THEN 1 ELSE 0 END)::int AS compiled,
+          SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END)::int AS approved,
+          SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END)::int AS published,
+          COUNT(DISTINCT student_id)::int AS students
+        FROM compiled_results
+        WHERE tenant_id = ${tenantId}
+          AND academic_session = ${academicSession}
+          AND term = ${term}
+        GROUP BY class
+        ORDER BY class
+      `
+      return res.json({ success: true, data: result.rows })
     }
 
-    if (action === 'pre-release' && req.method === 'POST') {
-      await sql`
-        INSERT INTO result_pre_release_config (tenant_id, enabled, updated_at)
-        VALUES (${tenantId}, true, NOW())
-        ON CONFLICT (tenant_id) DO UPDATE SET enabled = true, updated_at = NOW()`
-      return res.json({ success: true, message: 'Pre-release access enabled.' })
+    // ── Published results: list of published results ─────────────────
+    if (action === 'published-list' && req.method === 'GET') {
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required' })
+      }
+      let result
+      if (className) {
+        result = await sql`
+          SELECT DISTINCT class, student_id,
+            MAX(compiled_at) AS published_at,
+            COUNT(*)::int AS subjects,
+            MAX(overall_total) AS overall_total,
+            MAX(overall_average) AS overall_average,
+            MAX(class_position) AS class_position,
+            MAX(attendance_percent) AS attendance_percent
+          FROM compiled_results
+          WHERE tenant_id = ${tenantId}
+            AND academic_session = ${academicSession}
+            AND term = ${term}
+            AND class = ${className}
+            AND status = 'published'
+          GROUP BY class, student_id
+          ORDER BY class, class_position
+        `
+      } else {
+        result = await sql`
+          SELECT DISTINCT class, student_id,
+            MAX(compiled_at) AS published_at,
+            COUNT(*)::int AS subjects,
+            MAX(overall_total) AS overall_total,
+            MAX(overall_average) AS overall_average,
+            MAX(class_position) AS class_position,
+            MAX(attendance_percent) AS attendance_percent
+          FROM compiled_results
+          WHERE tenant_id = ${tenantId}
+            AND academic_session = ${academicSession}
+            AND term = ${term}
+            AND status = 'published'
+          GROUP BY class, student_id
+          ORDER BY class, class_position
+        `
+      }
+      return res.json({ success: true, data: result.rows })
+    }
+
+    // ── Publish: publish approved results ────────────────────────────
+    if (action === 'publish' && req.method === 'POST') {
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required' })
+      }
+      const published = await publishCompiledResults(
+        tenantId,
+        academicSession,
+        term,
+        className || undefined
+      )
+      return res.json({
+        success: true,
+        published,
+        message: `${published} result(s) published successfully. Students and parents can now view results.`,
+      })
+    }
+
+    // ── Unpublish: revert published results back to approved ─────────
+    if (action === 'unpublish' && req.method === 'POST') {
+      if (!academicSession || !term) {
+        return res.status(400).json({ error: 'academicSession and term are required' })
+      }
+      let result
+      if (className) {
+        result = await sql`
+          UPDATE compiled_results
+          SET status = 'approved', compiled_at = NOW()
+          WHERE tenant_id = ${tenantId}
+            AND academic_session = ${academicSession}
+            AND term = ${term}
+            AND class = ${className}
+            AND status = 'published'
+          RETURNING id
+        `
+      } else {
+        result = await sql`
+          UPDATE compiled_results
+          SET status = 'approved', compiled_at = NOW()
+          WHERE tenant_id = ${tenantId}
+            AND academic_session = ${academicSession}
+            AND term = ${term}
+            AND status = 'published'
+          RETURNING id
+        `
+      }
+      return res.json({
+        success: true,
+        unpublished: result.rows.length,
+        message: `${result.rows.length} result(s) reverted to approved status.`,
+      })
     }
 
     return res.status(404).json({ success: false, error: 'Not found' })

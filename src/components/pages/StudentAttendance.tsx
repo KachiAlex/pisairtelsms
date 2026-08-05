@@ -94,6 +94,13 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState(initialTab || 'students')
 
+  // Sync tab when initialTab prop changes (sidebar navigation between sub-tabs)
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab)
+    }
+  }, [initialTab])
+
   // Filters
   const [classFilter, setClassFilter] = useState('')
   const [termFilter, setTermFilter] = useState('')

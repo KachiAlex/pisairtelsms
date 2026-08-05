@@ -174,11 +174,11 @@ export default function App() {
         return <StudentHealth />;
       case 'attendance':
       case 'student-attendance':
-        return <StudentAttendance initialTab="students" />;
+        return <StudentAttendance key="students" initialTab="students" />;
       case 'staff-attendance':
-        return <StudentAttendance initialTab="staff" />;
+        return <StudentAttendance key="staff" initialTab="staff" />;
       case 'attendance-reports':
-        return <StudentAttendance initialTab="reports" />;
+        return <StudentAttendance key="reports" initialTab="reports" />;
       case 'virtual-classroom':
       case 'virtual-classrooms':
         return <VirtualClassroom />;

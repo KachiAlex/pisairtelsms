@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { CheckCircle2, ShieldCheck, AlertTriangle, Stamp, Send, Loader2, RefreshCw, FileCheck, Users } from 'lucide-react'
+import { CheckCircle2, ShieldCheck, Send, Loader2, RefreshCw, FileCheck } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'

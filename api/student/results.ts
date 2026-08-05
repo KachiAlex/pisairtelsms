@@ -88,6 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE academic_session = ${academicSession as string}
           AND term = ${term as string}
           AND class = ${studentClass}
+          AND tenant_id = (SELECT tenant_id FROM students WHERE id = ${studentId} LIMIT 1)
       `;
       classAverage = Number(classAvgResult.rows[0]?.avg ?? 0);
     }

@@ -510,7 +510,7 @@ export async function compileResults(
     }
 
     const allResults: CompiledResult[] = []
-    let compiled = 0
+    let compiledCount = 0
 
     for (const cls of Object.keys(classGroups)) {
       const classRows = classGroups[cls]
@@ -593,8 +593,7 @@ export async function compileResults(
           principalComment: principalCommentFor(overallAverage),
         }
         allResults.push(compiled)
-
-        // Persist to compiled_results table
+        compiledCount++
         const id = `compiled_${tenantId}_${row.student_id}_${row.subject}_${academicSession}_${term}`.replace(/\s+/g, '_')
         await sql`
           INSERT INTO compiled_results (
@@ -630,20 +629,16 @@ export async function compileResults(
             status = 'compiled',
             compiled_at = NOW()
         `
-        compiled_count_increment()
       }
+
     }
 
-    return { compiled: getCompiledCount(), results: allResults }
+    return { compiled: compiledCount, results: allResults }
   } catch (error) {
     console.error('Error compiling results:', error)
     return { compiled: 0, results: [] }
   }
 }
-
-let _compiledCount = 0
-function compiled_count_increment() { _compiledCount++ }
-function getCompiledCount() { const c = _compiledCount; _compiledCount = 0; return c }
 
 // ─── Fetch Compiled Results ────────────────────────────────────────
 

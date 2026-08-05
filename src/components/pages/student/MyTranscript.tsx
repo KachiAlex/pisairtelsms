@@ -216,6 +216,7 @@ export function MyTranscript() {
                   Average: <span className="font-medium text-gray-700">{session.averageScore}%</span>
                   {' · '}
                   Position: <span className="font-medium text-gray-700">{session.classPosition} of {session.totalStudents}</span>
+
                 </p>
               </div>
             </div>

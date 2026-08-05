@@ -192,7 +192,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE total > ${totalScore}
       `;
       const classPosition = ordinalSuffix(Number(classPosRes.rows[0]?.position || 1));
-      const totalStudents = Number(classPosRes.rows[0]?.total_students || 0) + 1;
+      // total_students from the above query is count of students above, so we need a separate query for actual total
+      const totalStudentsRes = await sql`
+        SELECT COUNT(DISTINCT student_id) AS total
+        FROM student_scores
+        WHERE academic_session = ${group.academicSession}
+          AND term = ${group.term}
+          AND class = ${group.class}
+      `;
+      const totalStudents = Number(totalStudentsRes.rows[0]?.total || 0);
 
       // Attendance average
       const attRes = await sql`
@@ -210,7 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         subjects,
         totalScore,
         averageScore: avgScore,
-        classPosition: totalStudents > 0 ? `${classPosition} of ${totalStudents}` : '',
+        classPosition: totalStudents > 0 ? `${classPosition}` : '',
         totalStudents,
         attendancePercent,
         conduct: '',

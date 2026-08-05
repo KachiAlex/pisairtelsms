@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { getTenantCAConfig } from '../tenant/_lib/ca-config.js';
 
 interface SubjectResult {
   subject: string; teacher: string; caScore: number; examScore: number;
@@ -14,10 +15,18 @@ interface TermResult {
   attendancePercent: number; conduct: string; nextTermResumption: string; principalComment: string;
 }
 
+interface CAWeights {
+  tests: number;
+  assignments: number;
+  projects: number;
+  exams: number;
+}
+
 interface TranscriptResponse {
   student: { id: string; name: string; admissionNumber: string; class: string; arm: string; dateOfBirth: string; gender: string; passportPhoto?: string };
   sessions: TermResult[];
   cumulativeGPA: number; totalSubjectsTaken: number;
+  caWeights: CAWeights;
 }
 
 interface GradeBand {
@@ -134,6 +143,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Load grade bands from DB (or fallback to defaults)
     const bands = await getGradeBands(tenantId);
+
+    // Load CA weights for this student's class level
+    let caWeights: CAWeights = { tests: 20, assignments: 15, projects: 15, exams: 50 };
+    try {
+      const config = await getTenantCAConfig(tenantId);
+      const level = (s.class || '').toUpperCase().includes('SS') ? 'sss'
+        : (s.class || '').toUpperCase().includes('JSS') ? 'jss' : 'primary';
+      caWeights = config.published[level];
+    } catch { /* use defaults */ }
 
     // Fetch all scores for this student from student_scores (including teacher name)
     const resultsRes = await sql`
@@ -324,7 +342,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : 0;
     const totalSubjectsTaken = cumulativeSubjectCount;
 
-    return res.status(200).json({ student, sessions, cumulativeGPA, totalSubjectsTaken } as TranscriptResponse);
+    return res.status(200).json({ student, sessions, cumulativeGPA, totalSubjectsTaken, caWeights } as TranscriptResponse);
   } catch (error) {
     console.error('Error fetching transcript:', error);
     return res.status(500).json({ error: 'Failed to fetch transcript' });

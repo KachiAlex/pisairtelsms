@@ -46,11 +46,19 @@ interface Student {
   passportPhoto?: string
 }
 
+interface CAWeights {
+  tests: number
+  assignments: number
+  projects: number
+  exams: number
+}
+
 interface TranscriptData {
   student: Student
   sessions: TermResult[]
   cumulativeGPA: number
   totalSubjectsTaken: number
+  caWeights?: CAWeights
 }
 
 const gradeColors: Record<string, string> = {
@@ -261,10 +269,22 @@ export function MyTranscript() {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="text-left px-4 py-3 font-medium text-gray-700">Subject</th>
-                      <th className="text-center px-4 py-3 font-medium text-gray-700">Tests</th>
-                      <th className="text-center px-4 py-3 font-medium text-gray-700">Assignments</th>
-                      <th className="text-center px-4 py-3 font-medium text-gray-700">Projects</th>
-                      <th className="text-center px-4 py-3 font-medium text-gray-700">Exams</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">
+                        Tests
+                        {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.tests}%)</span>}
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">
+                        Assignments
+                        {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.assignments}%)</span>}
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">
+                        Projects
+                        {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.projects}%)</span>}
+                      </th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700">
+                        Exams
+                        {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.exams}%)</span>}
+                      </th>
                       <th className="text-center px-4 py-3 font-medium text-gray-700">Total</th>
                       <th className="text-center px-4 py-3 font-medium text-gray-700">Grade</th>
                       <th className="text-left px-4 py-3 font-medium text-gray-700 hidden sm:table-cell">Remark</th>
@@ -279,10 +299,22 @@ export function MyTranscript() {
                           <p className="font-medium text-gray-900">{sub.subject}</p>
                           <p className="text-xs text-gray-500">{sub.teacher}</p>
                         </td>
-                        <td className="text-center px-4 py-3 text-gray-700">{sub.testsScore ?? 0}</td>
-                        <td className="text-center px-4 py-3 text-gray-700">{sub.assignmentsScore ?? 0}</td>
-                        <td className="text-center px-4 py-3 text-gray-700">{sub.projectsScore ?? 0}</td>
-                        <td className="text-center px-4 py-3 text-gray-700">{sub.examsScore ?? 0}</td>
+                        <td className="text-center px-4 py-3 text-gray-700">
+                          {sub.testsScore ?? 0}
+                          {data.caWeights && <span className="block text-xs text-gray-400">{(sub.testsScore * data.caWeights.tests / 100).toFixed(1)}</span>}
+                        </td>
+                        <td className="text-center px-4 py-3 text-gray-700">
+                          {sub.assignmentsScore ?? 0}
+                          {data.caWeights && <span className="block text-xs text-gray-400">{(sub.assignmentsScore * data.caWeights.assignments / 100).toFixed(1)}</span>}
+                        </td>
+                        <td className="text-center px-4 py-3 text-gray-700">
+                          {sub.projectsScore ?? 0}
+                          {data.caWeights && <span className="block text-xs text-gray-400">{(sub.projectsScore * data.caWeights.projects / 100).toFixed(1)}</span>}
+                        </td>
+                        <td className="text-center px-4 py-3 text-gray-700">
+                          {sub.examsScore ?? 0}
+                          {data.caWeights && <span className="block text-xs text-gray-400">{(sub.examsScore * data.caWeights.exams / 100).toFixed(1)}</span>}
+                        </td>
                         <td className="text-center px-4 py-3">
                           <span className="font-semibold text-gray-900">{sub.totalScore}</span>
                         </td>

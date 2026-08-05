@@ -17,12 +17,20 @@ interface StudentResult {
   teacher: string;
 }
 
+interface CAWeights {
+  tests: number;
+  assignments: number;
+  projects: number;
+  exams: number;
+}
+
 interface ResultsData {
   results: StudentResult[];
   averageScore: number;
   classAverage: number;
   academicSession: string;
   term: string;
+  caWeights?: CAWeights;
 }
 
 export function MyResults() {
@@ -158,10 +166,22 @@ export function MyResults() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Subject</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Tests</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Assignments</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Projects</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Exams</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">
+                      Tests
+                      {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.tests}%)</span>}
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">
+                      Assignments
+                      {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.assignments}%)</span>}
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">
+                      Projects
+                      {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.projects}%)</span>}
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">
+                      Exams
+                      {data.caWeights && <span className="block text-xs font-normal text-gray-400">({data.caWeights.exams}%)</span>}
+                    </th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Total</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Attendance</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Grade</th>
@@ -175,10 +195,22 @@ export function MyResults() {
                         {r.subject}
                         {r.teacher && <p className="text-xs text-gray-500">{r.teacher}</p>}
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-700">{r.testsScore ?? 0}</td>
-                      <td className="px-4 py-3 text-center text-gray-700">{r.assignmentsScore ?? 0}</td>
-                      <td className="px-4 py-3 text-center text-gray-700">{r.projectsScore ?? 0}</td>
-                      <td className="px-4 py-3 text-center text-gray-700">{r.examsScore ?? 0}</td>
+                      <td className="px-4 py-3 text-center text-gray-700">
+                        {r.testsScore ?? 0}
+                        {data.caWeights && <span className="block text-xs text-gray-400">{(r.testsScore * data.caWeights.tests / 100).toFixed(1)}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700">
+                        {r.assignmentsScore ?? 0}
+                        {data.caWeights && <span className="block text-xs text-gray-400">{(r.assignmentsScore * data.caWeights.assignments / 100).toFixed(1)}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700">
+                        {r.projectsScore ?? 0}
+                        {data.caWeights && <span className="block text-xs text-gray-400">{(r.projectsScore * data.caWeights.projects / 100).toFixed(1)}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700">
+                        {r.examsScore ?? 0}
+                        {data.caWeights && <span className="block text-xs text-gray-400">{(r.examsScore * data.caWeights.exams / 100).toFixed(1)}</span>}
+                      </td>
                       <td className={`px-4 py-3 text-center font-semibold ${r.totalScore >= data.classAverage ? 'text-green-700' : 'text-red-700'}`}>
                         {r.totalScore}
                       </td>

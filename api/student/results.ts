@@ -1,6 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { requireRole } from '../_lib/auth-middleware.js';
+import { getTenantCAConfig } from '../tenant/_lib/ca-config.js';
+
+interface CAWeights {
+  tests: number;
+  assignments: number;
+  projects: number;
+  exams: number;
+}
 
 interface StudentResult {
   subject: string;
@@ -95,9 +103,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { academicSession = '2025/2026', term = 'First' } = req.query;
 
     // Get tenant_id for grading scale lookup
-    const tenantRes = await sql`SELECT tenant_id FROM students WHERE id = ${studentId} LIMIT 1`;
+    const tenantRes = await sql`SELECT tenant_id, class FROM students WHERE id = ${studentId} LIMIT 1`;
     const tenantId = tenantRes.rows[0]?.tenant_id || 'default-tenant';
+    const studentClass = tenantRes.rows[0]?.class || '';
     const bands = await getGradeBands(tenantId);
+
+    // Get CA weights for this student's class level
+    let caWeights: CAWeights = { tests: 20, assignments: 15, projects: 15, exams: 50 };
+    try {
+      const config = await getTenantCAConfig(tenantId);
+      const level = studentClass.toUpperCase().includes('SS') ? 'sss'
+        : studentClass.toUpperCase().includes('JSS') ? 'jss' : 'primary';
+      caWeights = config.published[level];
+    } catch { /* use defaults */ }
 
     const dbResult = await sql`
       SELECT subject, ca_score, exam_score, total_score,
@@ -151,7 +169,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       classAverage = Number(classAvgResult.rows[0]?.avg ?? 0);
     }
 
-    return res.status(200).json({ results, averageScore, classAverage, academicSession, term });
+    return res.status(200).json({ results, averageScore, classAverage, academicSession, term, caWeights });
   } catch (error) {
     console.error('Error fetching student results:', error);
     return res.status(500).json({ error: 'Failed to fetch results' });

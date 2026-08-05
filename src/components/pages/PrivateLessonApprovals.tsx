@@ -13,6 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '../ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '../ui/select'
 import { getAuthFromStorage } from '../../lib/auth'
 import { tenantApiGet, tenantApiPost, tenantApiPut } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'

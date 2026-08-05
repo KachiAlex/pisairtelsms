@@ -335,6 +335,14 @@ export default function App() {
         return <IntegrationsHub />;
       case 'tenant-settings':
         return <TenantSettings tenantId={auth?.tenantId || 'default'} tenantName={auth?.name || 'Default School'} />;
+      case 'virtual-classrooms':
+        return <VirtualClassroom />;
+      case 'private-lesson-request':
+        return <PrivateLessonRequest />;
+      case 'private-lesson-approvals':
+        return <PrivateLessonApprovals />;
+      case 'virtual-learning-settings':
+        return <VirtualLearningSettings />;
       default:
         return (
           <div className="flex items-center justify-center h-full">
@@ -360,6 +368,10 @@ export default function App() {
       'fee-structure': 'Finance & Fees',
       'academic-analytics': 'Analytics & Reports',
       'system-settings': 'System Settings',
+      'virtual-classrooms': 'Virtual Classrooms',
+      'private-lesson-request': 'Private Lesson Requests',
+      'private-lesson-approvals': 'Lesson Approvals',
+      'virtual-learning-settings': 'Virtual Learning Settings',
     };
     return pageTitles[activePage] || 'Pisairtel-Schools';
   };

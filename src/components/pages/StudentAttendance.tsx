@@ -11,13 +11,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Trophy,
+  Loader2,
+  FileText,
 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Alert, AlertDescription } from '../ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ClassArmSelect } from '../ui/class-arm-select'
 import {
   Table,
   TableBody,
@@ -26,6 +32,8 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table'
+import { useToast } from '../ui/use-toast'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
 // TypeScript interfaces
 
@@ -71,15 +79,6 @@ interface LeaderboardData {
 
 const AT_RISK_PAGE_SIZE = 10
 
-function getTenantHeaders(): Record<string, string> {
-  try {
-    const auth = localStorage.getItem('auth')
-    return { 'Content-Type': 'application/json' }
-  } catch {
-    return { 'Content-Type': 'application/json' }
-  }
-}
-
 function heatmapBgClass(color: HeatmapEntry['color']): string {
   if (color === 'green') return 'bg-emerald-500'
   if (color === 'yellow') return 'bg-amber-400'
@@ -87,11 +86,13 @@ function heatmapBgClass(color: HeatmapEntry['color']): string {
 }
 
 export function StudentAttendance() {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('students')
 
   // Filters
   const [classFilter, setClassFilter] = useState('')
   const [termFilter, setTermFilter] = useState('')
+  const [academicSession, setAcademicSession] = useState('')
   const [reasonFilter, setReasonFilter] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
@@ -118,15 +119,35 @@ export function StudentAttendance() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false)
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
 
+  // Notifications
+  const [sendingNotices, setSendingNotices] = useState(false)
+
+  // Reports
+  const [reportStartDate, setReportStartDate] = useState('')
+  const [reportEndDate, setReportEndDate] = useState('')
+  const [reportClass, setReportClass] = useState('')
+  const [reportFormat, setReportFormat] = useState<'csv' | 'pdf'>('csv')
+  const [generatingReport, setGeneratingReport] = useState(false)
+
+  // Staff attendance
+  const [staffAttendance, setStaffAttendance] = useState<any[]>([])
+  const [staffAttendanceLoading, setStaffAttendanceLoading] = useState(false)
+  const [staffAttendanceError, setStaffAttendanceError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const now = new Date()
+    const y = now.getFullYear()
+    setAcademicSession(`${y}/${y + 1}`)
+  }, [])
+
   const fetchDashboard = useCallback(async () => {
     setDashboardLoading(true)
     setDashboardError(null)
     try {
       const params = new URLSearchParams()
       if (termFilter) params.set('term', termFilter)
-      const res = await fetch(`/api/tenant/attendance/analytics/dashboard?${params}`, {
-        headers: getTenantHeaders(),
-      })
+      if (academicSession) params.set('academicSession', academicSession)
+      const res = await tenantApiGet(`/api/tenant/attendance/analytics/dashboard?${params}`)
       if (!res.ok) throw new Error('Failed to fetch dashboard stats')
       const json = await res.json()
       setDashboardStats(json.data)
@@ -135,7 +156,7 @@ export function StudentAttendance() {
     } finally {
       setDashboardLoading(false)
     }
-  }, [termFilter])
+  }, [termFilter, academicSession])
 
   const fetchHeatmap = useCallback(async () => {
     setHeatmapLoading(true)
@@ -143,9 +164,7 @@ export function StudentAttendance() {
     try {
       const params = new URLSearchParams({ weeks: '4' })
       if (classFilter) params.set('class', classFilter)
-      const res = await fetch(`/api/tenant/attendance/analytics/heatmap?${params}`, {
-        headers: getTenantHeaders(),
-      })
+      const res = await tenantApiGet(`/api/tenant/attendance/analytics/heatmap?${params}`)
       if (!res.ok) throw new Error('Failed to fetch heatmap data')
       const json = await res.json()
       setHeatmapData(json.data || [])
@@ -166,9 +185,7 @@ export function StudentAttendance() {
       })
       if (classFilter) params.set('class', classFilter)
       if (reasonFilter) params.set('reason', reasonFilter)
-      const res = await fetch(`/api/tenant/attendance/analytics/at-risk-students?${params}`, {
-        headers: getTenantHeaders(),
-      })
+      const res = await tenantApiGet(`/api/tenant/attendance/analytics/at-risk-students?${params}`)
       if (!res.ok) throw new Error('Failed to fetch at-risk students')
       const json = await res.json()
       setAtRiskStudents(json.data || [])
@@ -186,9 +203,7 @@ export function StudentAttendance() {
     try {
       const params = new URLSearchParams()
       if (termFilter) params.set('term', termFilter)
-      const res = await fetch(`/api/tenant/attendance/analytics/homeroom-leaderboard?${params}`, {
-        headers: getTenantHeaders(),
-      })
+      const res = await tenantApiGet(`/api/tenant/attendance/analytics/homeroom-leaderboard?${params}`)
       if (!res.ok) throw new Error('Failed to fetch leaderboard')
       const json = await res.json()
       setLeaderboard(json.data)
@@ -204,6 +219,81 @@ export function StudentAttendance() {
     await Promise.all([fetchDashboard(), fetchHeatmap(), fetchAtRisk(0), fetchLeaderboard()])
     setLastRefreshed(new Date())
   }, [fetchDashboard, fetchHeatmap, fetchAtRisk, fetchLeaderboard])
+
+  const handleSendNotices = async () => {
+    setSendingNotices(true)
+    try {
+      const body: Record<string, string> = {}
+      if (classFilter) body.class = classFilter
+      const res = await tenantApiPost('/api/tenant/attendance/notifications/bulk-send', body)
+      const data = await res.json()
+      if (res.ok && data.success) {
+        toast({
+          title: 'Notices sent',
+          description: data.data?.message || `${data.data?.notificationCount || 0} guardians notified.`,
+        })
+      } else {
+        toast({ title: 'Failed to send notices', description: data.error || 'Please try again.', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Network error', description: 'Could not reach the server.', variant: 'destructive' })
+    } finally {
+      setSendingNotices(false)
+    }
+  }
+
+  const handleGenerateReport = async () => {
+    if (!reportStartDate || !reportEndDate) {
+      toast({ title: 'Date range required', description: 'Please select start and end dates.', variant: 'destructive' })
+      return
+    }
+    setGeneratingReport(true)
+    try {
+      const body: Record<string, any> = {
+        format: reportFormat,
+        startDate: reportStartDate,
+        endDate: reportEndDate,
+      }
+      if (reportClass) body.class = reportClass
+      if (termFilter) body.term = termFilter
+
+      const res = await tenantApiPost('/api/tenant/attendance/reports', body)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'Failed to generate report')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const ext = reportFormat === 'csv' ? 'csv' : 'txt'
+      a.download = `attendance-report-${reportStartDate}-to-${reportEndDate}.${ext}`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({ title: 'Report generated', description: `Attendance report downloaded as ${ext.toUpperCase()}.` })
+    } catch (e) {
+      toast({ title: 'Report failed', description: e instanceof Error ? e.message : 'Please try again.', variant: 'destructive' })
+    } finally {
+      setGeneratingReport(false)
+    }
+  }
+
+  const fetchStaffAttendance = useCallback(async () => {
+    setStaffAttendanceLoading(true)
+    setStaffAttendanceError(null)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const params = new URLSearchParams({ date: today, limit: '100' })
+      const res = await tenantApiGet(`/api/tenant/attendance?${params}`)
+      if (!res.ok) throw new Error('Failed to fetch staff attendance')
+      const json = await res.json()
+      setStaffAttendance(json.data || [])
+    } catch (err) {
+      setStaffAttendanceError(err instanceof Error ? err.message : 'Failed to load staff attendance')
+    } finally {
+      setStaffAttendanceLoading(false)
+    }
+  }, [])
 
   // Initial load
   useEffect(() => {
@@ -226,6 +316,20 @@ export function StudentAttendance() {
     fetchDashboard()
     fetchLeaderboard()
   }, [termFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch when academic session changes
+  useEffect(() => {
+    if (academicSession) {
+      fetchDashboard()
+    }
+  }, [academicSession]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch staff attendance when staff tab is opened
+  useEffect(() => {
+    if (activeTab === 'staff') {
+      fetchStaffAttendance()
+    }
+  }, [activeTab, fetchStaffAttendance])
 
   // Re-fetch when reason filter changes
   useEffect(() => {
@@ -323,8 +427,12 @@ export function StudentAttendance() {
           <Button variant="outline" onClick={refreshAll} data-testid="refresh-button">
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh data
           </Button>
-          <Button>
-            <Bell className="h-4 w-4 mr-2" /> Send absence notices
+          <Button onClick={handleSendNotices} disabled={sendingNotices}>
+            {sendingNotices ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Bell className="h-4 w-4 mr-2" />
+            )} Send absence notices
           </Button>
         </div>
       </div>
@@ -368,7 +476,7 @@ export function StudentAttendance() {
           {/* Filters bar */}
           <Card>
             <CardContent className="p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
                 <div className="relative flex-1">
                   <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
@@ -379,42 +487,45 @@ export function StudentAttendance() {
                     data-testid="search-input"
                   />
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <select
-                    className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
-                    value={classFilter}
-                    onChange={(e) => setClassFilter(e.target.value)}
-                    data-testid="class-filter"
-                    aria-label="Filter by class"
-                  >
-                    <option value="">All classes</option>
-                    {['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'].map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
-                    value={termFilter}
-                    onChange={(e) => setTermFilter(e.target.value)}
-                    data-testid="term-filter"
-                    aria-label="Filter by term"
-                  >
-                    <option value="">All terms</option>
-                    {['1', '2', '3'].map((t) => (
-                      <option key={t} value={t}>Term {t}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
-                    value={reasonFilter}
-                    onChange={(e) => setReasonFilter(e.target.value)}
-                    data-testid="reason-filter"
-                    aria-label="Filter by reason"
-                  >
-                    <option value="">All reasons</option>
-                    <option value="absence">Absence</option>
-                    <option value="late">Late</option>
-                  </select>
+                <div className="flex flex-wrap gap-3 items-center">
+                  <div className="min-w-[180px]">
+                    <ClassArmSelect
+                      value={classFilter}
+                      onChange={setClassFilter}
+                      allowAll
+                      placeholder="All classes"
+                    />
+                  </div>
+                  <Select value={termFilter || '_all'} onValueChange={(v) => setTermFilter(v === '_all' ? '' : v)}>
+                    <SelectTrigger className="w-[150px]" data-testid="term-filter">
+                      <SelectValue placeholder="All terms" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_all">All terms</SelectItem>
+                      <SelectItem value="First Term">First Term</SelectItem>
+                      <SelectItem value="Second Term">Second Term</SelectItem>
+                      <SelectItem value="Third Term">Third Term</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={reasonFilter || '_all'} onValueChange={(v) => setReasonFilter(v === '_all' ? '' : v)}>
+                    <SelectTrigger className="w-[140px]" data-testid="reason-filter">
+                      <SelectValue placeholder="All reasons" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_all">All reasons</SelectItem>
+                      <SelectItem value="absence">Absence</SelectItem>
+                      <SelectItem value="late">Late</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="w-[160px]">
+                    <Input
+                      type="text"
+                      placeholder="2025/2026"
+                      value={academicSession}
+                      onChange={(e) => setAcademicSession(e.target.value)}
+                      data-testid="session-filter"
+                    />
+                  </div>
                   <Button
                     variant="outline"
                     onClick={exportAtRiskToCSV}
@@ -645,10 +756,67 @@ export function StudentAttendance() {
         {/* Staff Attendance Tab */}
         <TabsContent value="staff" className="space-y-4">
           <Card>
-            <CardContent className="p-12 text-center">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">Staff Attendance</p>
-              <p className="text-sm text-gray-500 mt-1">Staff attendance tracking coming soon</p>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Users className="h-4 w-4 text-blue-600" /> Today's Attendance Records
+                  </CardTitle>
+                  <CardDescription>All attendance records for today across all classes.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchStaffAttendance}>
+                  <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {staffAttendanceLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  <span className="ml-2 text-sm text-gray-500">Loading attendance records…</span>
+                </div>
+              ) : staffAttendanceError ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{staffAttendanceError}</AlertDescription>
+                </Alert>
+              ) : staffAttendance.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-sm text-gray-500">No attendance records found for today.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student ID</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Source</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {staffAttendance.map((rec) => (
+                      <TableRow key={rec.id}>
+                        <TableCell className="font-medium">{rec.studentId}</TableCell>
+                        <TableCell>{rec.class}</TableCell>
+                        <TableCell>{rec.date}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              rec.status === 'present' ? 'default' :
+                              rec.status === 'late' ? 'secondary' : 'destructive'
+                            }
+                          >
+                            {rec.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500">{rec.source || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -656,10 +824,74 @@ export function StudentAttendance() {
         {/* Reports Tab */}
         <TabsContent value="reports" className="space-y-4">
           <Card>
-            <CardContent className="p-12 text-center">
-              <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">Attendance Reports</p>
-              <p className="text-sm text-gray-500 mt-1">Detailed reports and analytics coming soon</p>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <FileText className="h-4 w-4 text-blue-600" /> Generate Attendance Report
+              </CardTitle>
+              <CardDescription>
+                Export attendance data as CSV or PDF for a specific date range, class, or term.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="report-start">Start date</Label>
+                  <Input
+                    id="report-start"
+                    type="date"
+                    value={reportStartDate}
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-end">End date</Label>
+                  <Input
+                    id="report-end"
+                    type="date"
+                    value={reportEndDate}
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Class (optional)</Label>
+                  <div className="min-w-[160px]">
+                    <ClassArmSelect
+                      value={reportClass}
+                      onChange={setReportClass}
+                      allowAll
+                      placeholder="All classes"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Format</Label>
+                  <Select value={reportFormat} onValueChange={(v) => setReportFormat(v as 'csv' | 'pdf')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="pdf">PDF</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Alert>
+                <BarChart3 className="h-4 w-4" />
+                <AlertDescription>
+                  Reports include all attendance records within the selected range. PDF format generates a text-based report.
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end">
+                <Button onClick={handleGenerateReport} disabled={generatingReport}>
+                  {generatingReport ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Generate & Download Report
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

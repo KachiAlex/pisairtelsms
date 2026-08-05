@@ -18,7 +18,7 @@ export interface ReportFilter {
   class?: string
   studentId?: string
   term?: string
-  format: 'csv' | 'pdf'
+  format: 'csv' | 'pdf' | 'json'
 }
 
 export interface ReportData {

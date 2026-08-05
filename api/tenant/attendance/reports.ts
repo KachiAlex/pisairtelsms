@@ -5,7 +5,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getReport, type ReportFilter } from '../_lib/report-generator.js'
+import { getReport, generateAttendanceReport, type ReportFilter } from '../_lib/report-generator.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 
@@ -45,10 +45,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { format, startDate, endDate, class: className, studentId, term } = body
 
       // Validate format
-      if (!format || !['csv', 'pdf'].includes(format)) {
+      if (!format || !['csv', 'pdf', 'json'].includes(format)) {
         return res.status(400).json({
           success: false,
-          error: 'format is required and must be either "csv" or "pdf"',
+          error: 'format is required and must be "csv", "pdf", or "json"',
         })
       }
 
@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Build report filter
       const reportFilter: ReportFilter = {
         tenantId,
-        format: format as 'csv' | 'pdf',
+        format: format as 'csv' | 'pdf' | 'json',
         startDate,
         endDate,
         class: className,
@@ -81,7 +81,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         term,
       }
 
-      // Generate report
+      // JSON format returns structured data for preview
+      if (format === 'json') {
+        const reportData = await generateAttendanceReport(reportFilter)
+        return res.status(200).json({
+          success: true,
+          data: {
+            summary: reportData.summary,
+            records: reportData.records.slice(0, 100), // Preview first 100 records
+            totalRecords: reportData.records.length,
+            generatedAt: reportData.generatedAt,
+            filters: reportData.filters,
+          },
+        })
+      }
+
+      // Generate report (CSV/PDF)
       const reportContent = await getReport(reportFilter)
 
       // Set appropriate headers based on format

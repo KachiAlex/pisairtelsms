@@ -132,7 +132,12 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   const [reportEndDate, setReportEndDate] = useState('')
   const [reportClass, setReportClass] = useState('')
   const [reportFormat, setReportFormat] = useState<'csv' | 'pdf'>('csv')
+  const [reportTerm, setReportTerm] = useState('')
+  const [reportStudentId, setReportStudentId] = useState('')
   const [generatingReport, setGeneratingReport] = useState(false)
+  const [reportPreview, setReportPreview] = useState<any>(null)
+  const [reportPreviewLoading, setReportPreviewLoading] = useState(false)
+  const [reportPreviewError, setReportPreviewError] = useState<string | null>(null)
 
   // Staff attendance (admin oversight)
   const [staffAttData, setStaffAttData] = useState<any>(null)
@@ -271,6 +276,38 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
     }
   }
 
+  const handleReportPreview = async () => {
+    if (!reportStartDate || !reportEndDate) {
+      toast({ title: 'Date range required', description: 'Please select start and end dates.', variant: 'destructive' })
+      return
+    }
+    setReportPreviewLoading(true)
+    setReportPreviewError(null)
+    setReportPreview(null)
+    try {
+      const body: Record<string, any> = {
+        format: 'json',
+        startDate: reportStartDate,
+        endDate: reportEndDate,
+      }
+      if (reportClass) body.class = reportClass
+      if (reportTerm) body.term = reportTerm
+      if (reportStudentId) body.studentId = reportStudentId
+
+      const res = await tenantApiPost('/api/tenant/attendance/reports', body)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'Failed to generate preview')
+      }
+      const json = await res.json()
+      setReportPreview(json.data)
+    } catch (e) {
+      setReportPreviewError(e instanceof Error ? e.message : 'Failed to generate preview')
+    } finally {
+      setReportPreviewLoading(false)
+    }
+  }
+
   const handleGenerateReport = async () => {
     if (!reportStartDate || !reportEndDate) {
       toast({ title: 'Date range required', description: 'Please select start and end dates.', variant: 'destructive' })
@@ -284,7 +321,8 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
         endDate: reportEndDate,
       }
       if (reportClass) body.class = reportClass
-      if (termFilter) body.term = termFilter
+      if (reportTerm) body.term = reportTerm
+      if (reportStudentId) body.studentId = reportStudentId
 
       const res = await tenantApiPost('/api/tenant/attendance/reports', body)
       if (!res.ok) {
@@ -305,6 +343,26 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
     } finally {
       setGeneratingReport(false)
     }
+  }
+
+  const applyDatePreset = (preset: 'today' | 'week' | 'month' | 'term') => {
+    const now = new Date()
+    const today = now.toISOString().split('T')[0]
+    let start = new Date()
+    if (preset === 'today') {
+      // already today
+    } else if (preset === 'week') {
+      const day = now.getDay() || 7 // Monday = 1
+      start = new Date(now)
+      start.setDate(now.getDate() - day + 1)
+    } else if (preset === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+    } else if (preset === 'term') {
+      start = new Date(now.getFullYear(), 0, 1) // Start of year as approximation
+    }
+    setReportStartDate(start.toISOString().split('T')[0])
+    setReportEndDate(today)
+    setReportPreview(null)
   }
 
   const fetchStaffAttendance = useCallback(async (date?: string) => {
@@ -1543,24 +1601,33 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
 
         {/* Reports Tab */}
         <TabsContent value="reports" className="space-y-4">
+          {/* Quick date presets */}
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => applyDatePreset('today')}>Today</Button>
+            <Button size="sm" variant="outline" onClick={() => applyDatePreset('week')}>This Week</Button>
+            <Button size="sm" variant="outline" onClick={() => applyDatePreset('month')}>This Month</Button>
+            <Button size="sm" variant="outline" onClick={() => applyDatePreset('term')}>This Term</Button>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
                 <FileText className="h-4 w-4 text-blue-600" /> Generate Attendance Report
               </CardTitle>
               <CardDescription>
-                Export attendance data as CSV or PDF for a specific date range, class, or term.
+                Preview summary statistics, then export as CSV or PDF for a specific date range, class, term, or student.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* Filters */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="report-start">Start date</Label>
                   <Input
                     id="report-start"
                     type="date"
                     value={reportStartDate}
-                    onChange={(e) => setReportStartDate(e.target.value)}
+                    onChange={(e) => { setReportStartDate(e.target.value); setReportPreview(null) }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1569,7 +1636,7 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                     id="report-end"
                     type="date"
                     value={reportEndDate}
-                    onChange={(e) => setReportEndDate(e.target.value)}
+                    onChange={(e) => { setReportEndDate(e.target.value); setReportPreview(null) }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1577,41 +1644,217 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                   <div className="min-w-[160px]">
                     <ClassArmSelect
                       value={reportClass}
-                      onChange={setReportClass}
+                      onChange={(v) => { setReportClass(v); setReportPreview(null) }}
                       allowAll
                       placeholder="All classes"
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Format</Label>
+                  <Label>Term (optional)</Label>
+                  <Select
+                    value={reportTerm}
+                    onValueChange={(v) => { setReportTerm(v); setReportPreview(null) }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All terms" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="First Term">First Term</SelectItem>
+                      <SelectItem value="Second Term">Second Term</SelectItem>
+                      <SelectItem value="Third Term">Third Term</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-student">Student ID (optional)</Label>
+                  <Input
+                    id="report-student"
+                    placeholder="e.g. ADM/2024/0001"
+                    value={reportStudentId}
+                    onChange={(e) => { setReportStudentId(e.target.value); setReportPreview(null) }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Export format</Label>
                   <Select value={reportFormat} onValueChange={(v) => setReportFormat(v as 'csv' | 'pdf')}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="csv">CSV</SelectItem>
-                      <SelectItem value="pdf">PDF</SelectItem>
+                      <SelectItem value="csv">CSV (Excel)</SelectItem>
+                      <SelectItem value="pdf">PDF (Text)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <Alert>
-                <BarChart3 className="h-4 w-4" />
-                <AlertDescription>
-                  Reports include all attendance records within the selected range. PDF format generates a text-based report.
-                </AlertDescription>
-              </Alert>
-              <div className="flex justify-end">
-                <Button onClick={handleGenerateReport} disabled={generatingReport}>
+
+              {/* Action buttons */}
+              <div className="flex justify-between gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleReportPreview}
+                  disabled={reportPreviewLoading || !reportStartDate || !reportEndDate}
+                >
+                  {reportPreviewLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                  )}
+                  Preview Summary
+                </Button>
+                <Button onClick={handleGenerateReport} disabled={generatingReport || !reportStartDate || !reportEndDate}>
                   {generatingReport ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Download className="h-4 w-4 mr-2" />
                   )}
-                  Generate & Download Report
+                  Download Report
                 </Button>
               </div>
+
+              {/* Preview error */}
+              {reportPreviewError && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{reportPreviewError}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* Preview results */}
+              {reportPreview && (
+                <div className="space-y-4">
+                  {/* Summary stats cards */}
+                  <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-gray-500">Total Records</p>
+                        <p className="text-2xl font-bold">{reportPreview.summary.totalRecords}</p>
+                        {reportPreview.totalRecords > reportPreview.records.length && (
+                          <p className="text-xs text-gray-400">Showing first {reportPreview.records.length} of {reportPreview.totalRecords}</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-gray-500">Present</p>
+                        <p className="text-2xl font-bold text-emerald-600">{reportPreview.summary.presentCount}</p>
+                        <p className="text-xs text-emerald-500">{reportPreview.summary.presentRate.toFixed(1)}%</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-gray-500">Absent</p>
+                        <p className="text-2xl font-bold text-rose-600">{reportPreview.summary.absentCount}</p>
+                        <p className="text-xs text-rose-500">{reportPreview.summary.absentRate.toFixed(1)}%</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-gray-500">Late</p>
+                        <p className="text-2xl font-bold text-amber-600">{reportPreview.summary.lateCount}</p>
+                        <p className="text-xs text-amber-500">{reportPreview.summary.lateRate.toFixed(1)}%</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Attendance rate progress bar */}
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Attendance Rate</span>
+                        <span className="text-sm font-bold">{reportPreview.summary.presentRate.toFixed(1)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden flex">
+                        <div
+                          className="bg-emerald-500 h-full"
+                          style={{ width: `${reportPreview.summary.presentRate}%` }}
+                        />
+                        <div
+                          className="bg-amber-400 h-full"
+                          style={{ width: `${reportPreview.summary.lateRate}%` }}
+                        />
+                        <div
+                          className="bg-rose-500 h-full"
+                          style={{ width: `${reportPreview.summary.absentRate}%` }}
+                        />
+                      </div>
+                      <div className="flex gap-4 mt-2 text-xs">
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Present</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Late</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /> Absent</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Records preview table */}
+                  {reportPreview.records.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-sm">Records Preview (first {reportPreview.records.length})</CardTitle>
+                      </CardHeader>
+                      <CardContent className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Student ID</TableHead>
+                              <TableHead>Class</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Source</TableHead>
+                              <TableHead>Term</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {reportPreview.records.map((rec: any) => (
+                              <TableRow key={rec.id}>
+                                <TableCell className="font-medium text-sm">{rec.studentId}</TableCell>
+                                <TableCell className="text-sm">{rec.class}</TableCell>
+                                <TableCell className="text-sm">{rec.date}</TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={
+                                      rec.status === 'present' ? 'default' :
+                                      rec.status === 'late' ? 'secondary' : 'destructive'
+                                    }
+                                  >
+                                    {rec.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-sm text-gray-500">{rec.source}</TableCell>
+                                <TableCell className="text-sm text-gray-500">{rec.term}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Applied filters summary */}
+                  <Alert>
+                    <BarChart3 className="h-4 w-4" />
+                    <AlertDescription>
+                      Report covers {reportPreview.summary.totalRecords} records
+                      {reportPreview.filters.class && ` for class ${reportPreview.filters.class}`}
+                      {reportPreview.filters.term && `, ${reportPreview.filters.term}`}
+                      {reportPreview.filters.studentId && `, student ${reportPreview.filters.studentId}`}
+                      {' '}from {reportPreview.filters.startDate} to {reportPreview.filters.endDate}.
+                      Ready to download as {reportFormat.toUpperCase()}.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+
+              {!reportPreview && !reportPreviewLoading && !reportPreviewError && (
+                <Alert>
+                  <BarChart3 className="h-4 w-4" />
+                  <AlertDescription>
+                    Select a date range and click "Preview Summary" to see statistics before downloading.
+                    Reports include all attendance records within the selected range.
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

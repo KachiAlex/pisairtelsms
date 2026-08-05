@@ -61,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           url = COALESCE(${url || null}, url),
           is_published = COALESCE(${isPublished === undefined ? null : isPublished}, is_published),
           updated_at = NOW()
-        WHERE id = ${id} AND tenant_id = ${tenantId}
+        WHERE id::text = ${id} AND tenant_id = ${tenantId}
         RETURNING *
       `
       if (!result.rows[0]) {
@@ -77,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'id query param is required' })
       }
       const result = await sql`
-        DELETE FROM course_materials WHERE id = ${id as string} AND tenant_id = ${tenantId}
+        DELETE FROM course_materials WHERE id::text = ${id as string} AND tenant_id = ${tenantId}
         RETURNING id
       `
       if (!result.rows[0]) {

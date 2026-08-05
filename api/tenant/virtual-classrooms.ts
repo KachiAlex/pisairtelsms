@@ -16,8 +16,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SELECT vc.*, s.name as subject_name, c.name as class_arm_name,
                st.name as teacher_name
         FROM virtual_classrooms vc
-        LEFT JOIN subjects s ON s.id = vc.subject_id
-        LEFT JOIN classes c ON c.id = vc.class_arm_id
+        LEFT JOIN subjects s ON s.id::text = vc.subject_id
+        LEFT JOIN classes c ON c.id::text = vc.class_arm_id
         LEFT JOIN staff st ON st.id = vc.teacher_id
         WHERE vc.tenant_id = ${tenantId}
         ORDER BY vc.created_at DESC

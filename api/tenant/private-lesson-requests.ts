@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             SELECT plr.*, t.name as teacher_name, s.name as subject_name
             FROM private_lesson_requests plr
             LEFT JOIN staff t ON t.id = plr.teacher_id
-            LEFT JOIN subjects s ON s.id = plr.subject_id
+            LEFT JOIN subjects s ON s.id::text = plr.subject_id
             WHERE plr.tenant_id = ${tenantId} AND plr.status = ${status as string}
             ORDER BY plr.created_at DESC
           `
@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             SELECT plr.*, t.name as teacher_name, s.name as subject_name
             FROM private_lesson_requests plr
             LEFT JOIN staff t ON t.id = plr.teacher_id
-            LEFT JOIN subjects s ON s.id = plr.subject_id
+            LEFT JOIN subjects s ON s.id::text = plr.subject_id
             WHERE plr.tenant_id = ${tenantId}
             ORDER BY plr.created_at DESC
           `
@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           SELECT plr.*, t.name as teacher_name, s.name as subject_name
           FROM private_lesson_requests plr
           LEFT JOIN staff t ON t.id = plr.teacher_id
-          LEFT JOIN subjects s ON s.id = plr.subject_id
+          LEFT JOIN subjects s ON s.id::text = plr.subject_id
           WHERE plr.tenant_id = ${tenantId} AND plr.teacher_id = ${userId}
           ORDER BY plr.created_at DESC
         `
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           SELECT plr.*, t.name as teacher_name, s.name as subject_name
           FROM private_lesson_requests plr
           LEFT JOIN staff t ON t.id = plr.teacher_id
-          LEFT JOIN subjects s ON s.id = plr.subject_id
+          LEFT JOIN subjects s ON s.id::text = plr.subject_id
           WHERE plr.tenant_id = ${tenantId}
             AND ${userId} = ANY(string_to_array(array_to_string(plr.student_ids, ','), ',')::text[])
           ORDER BY plr.created_at DESC
@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             SELECT plr.*, t.name as teacher_name, s.name as subject_name
             FROM private_lesson_requests plr
             LEFT JOIN staff t ON t.id = plr.teacher_id
-            LEFT JOIN subjects s ON s.id = plr.subject_id
+            LEFT JOIN subjects s ON s.id::text = plr.subject_id
             WHERE plr.tenant_id = ${tenantId} AND plr.parent_status = 'pending'
             ORDER BY plr.created_at DESC
           `

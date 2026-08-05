@@ -90,9 +90,9 @@ function heatmapBgClass(color: HeatmapEntry['color']): string {
   return 'bg-rose-500'
 }
 
-export function StudentAttendance() {
+export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState('students')
+  const [activeTab, setActiveTab] = useState(initialTab || 'students')
 
   // Filters
   const [classFilter, setClassFilter] = useState('')
@@ -134,10 +134,17 @@ export function StudentAttendance() {
   const [reportFormat, setReportFormat] = useState<'csv' | 'pdf'>('csv')
   const [generatingReport, setGeneratingReport] = useState(false)
 
-  // Staff attendance
-  const [staffAttendance, setStaffAttendance] = useState<any[]>([])
-  const [staffAttendanceLoading, setStaffAttendanceLoading] = useState(false)
-  const [staffAttendanceError, setStaffAttendanceError] = useState<string | null>(null)
+  // Staff attendance (admin oversight)
+  const [staffAttData, setStaffAttData] = useState<any>(null)
+  const [staffAttLoading, setStaffAttLoading] = useState(false)
+  const [staffAttError, setStaffAttError] = useState<string | null>(null)
+  const [staffAttDate, setStaffAttDate] = useState('')
+  const [overrideStaff, setOverrideStaff] = useState<any>(null)
+  const [overrideStatus, setOverrideStatus] = useState<'present' | 'absent' | 'late' | 'half_day'>('present')
+  const [overrideCheckIn, setOverrideCheckIn] = useState('')
+  const [overrideCheckOut, setOverrideCheckOut] = useState('')
+  const [overrideNotes, setOverrideNotes] = useState('')
+  const [overrideSubmitting, setOverrideSubmitting] = useState(false)
 
   // Mark Attendance tab
   const [markClass, setMarkClass] = useState('')
@@ -300,22 +307,55 @@ export function StudentAttendance() {
     }
   }
 
-  const fetchStaffAttendance = useCallback(async () => {
-    setStaffAttendanceLoading(true)
-    setStaffAttendanceError(null)
+  const fetchStaffAttendance = useCallback(async (date?: string) => {
+    setStaffAttLoading(true)
+    setStaffAttError(null)
     try {
-      const today = new Date().toISOString().split('T')[0]
-      const params = new URLSearchParams({ date: today, limit: '100' })
-      const res = await tenantApiGet(`/api/tenant/attendance?${params}`)
+      const targetDate = date || staffAttDate || new Date().toISOString().split('T')[0]
+      const params = new URLSearchParams({ date: targetDate })
+      const res = await tenantApiGet(`/api/tenant/staff-attendance?${params}`)
       if (!res.ok) throw new Error('Failed to fetch staff attendance')
       const json = await res.json()
-      setStaffAttendance(json.data || [])
+      setStaffAttData(json.data)
     } catch (err) {
-      setStaffAttendanceError(err instanceof Error ? err.message : 'Failed to load staff attendance')
+      setStaffAttError(err instanceof Error ? err.message : 'Failed to load staff attendance')
     } finally {
-      setStaffAttendanceLoading(false)
+      setStaffAttLoading(false)
     }
-  }, [])
+  }, [staffAttDate])
+
+  const handleOverrideSubmit = async () => {
+    if (!overrideStaff) return
+    setOverrideSubmitting(true)
+    try {
+      const body: Record<string, any> = {
+        staffId: overrideStaff.staffId,
+        date: staffAttDate || new Date().toISOString().split('T')[0],
+        status: overrideStatus,
+      }
+      if (overrideCheckIn) body.checkIn = overrideCheckIn
+      if (overrideCheckOut) body.checkOut = overrideCheckOut
+      if (overrideNotes) body.notes = overrideNotes
+
+      const res = await tenantApiPost('/api/tenant/staff-attendance', body)
+      const data = await res.json()
+      if (res.ok && data.success) {
+        toast({ title: 'Attendance overridden', description: data.message || 'Staff attendance updated successfully.' })
+        setOverrideStaff(null)
+        setOverrideStatus('present')
+        setOverrideCheckIn('')
+        setOverrideCheckOut('')
+        setOverrideNotes('')
+        fetchStaffAttendance(staffAttDate)
+      } else {
+        toast({ title: 'Override failed', description: data.error || 'Please try again.', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Network error', description: 'Could not reach the server.', variant: 'destructive' })
+    } finally {
+      setOverrideSubmitting(false)
+    }
+  }
 
   // Mark Attendance handlers
   const fetchStudentsForMarking = useCallback(async (selectedClass: string) => {
@@ -1077,63 +1117,190 @@ export function StudentAttendance() {
 
         {/* Staff Attendance Tab */}
         <TabsContent value="staff" className="space-y-4">
+          {/* Summary stats */}
+          {staffAttData?.summary && (
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-gray-500">Total Staff</p>
+                  <p className="text-2xl font-bold">{staffAttData.summary.total}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-gray-500">Present</p>
+                  <p className="text-2xl font-bold text-emerald-600">{staffAttData.summary.present}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-gray-500">Late</p>
+                  <p className="text-2xl font-bold text-amber-600">{staffAttData.summary.late}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-gray-500">Absent</p>
+                  <p className="text-2xl font-bold text-rose-600">{staffAttData.summary.absent}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-gray-500">Anomalies</p>
+                  <p className="text-2xl font-bold text-orange-600">{staffAttData.summary.withAnomalies}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Geofence / time window status banners */}
+          {staffAttData && (staffAttData.geofenceEnabled || staffAttData.timeWindowEnabled) && (
+            <div className="flex gap-2 flex-wrap">
+              {staffAttData.geofenceEnabled && (
+                <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
+                  <Check className="h-3 w-3 mr-1" /> Geofence enforced
+                </Badge>
+              )}
+              {staffAttData.timeWindowEnabled && (
+                <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
+                  <Clock className="h-3 w-3 mr-1" /> Time window enforced
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
+                <Check className="h-3 w-3 mr-1" /> {staffAttData.summary.geoVerified} geo-verified
+              </Badge>
+            </div>
+          )}
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-blue-600" /> Today's Attendance Records
+                    <Users className="h-4 w-4 text-blue-600" /> Staff Attendance Oversight
                   </CardTitle>
-                  <CardDescription>All attendance records for today across all classes.</CardDescription>
+                  <CardDescription>Real-time staff check-in/check-out with anomaly detection and admin override.</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchStaffAttendance}>
-                  <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={staffAttDate}
+                    onChange={(e) => {
+                      setStaffAttDate(e.target.value)
+                      fetchStaffAttendance(e.target.value)
+                    }}
+                    className="w-[160px]"
+                  />
+                  <Button variant="outline" size="sm" onClick={() => fetchStaffAttendance()}>
+                    <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              {staffAttendanceLoading ? (
+              {staffAttLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-                  <span className="ml-2 text-sm text-gray-500">Loading attendance records…</span>
+                  <span className="ml-2 text-sm text-gray-500">Loading staff attendance…</span>
                 </div>
-              ) : staffAttendanceError ? (
+              ) : staffAttError ? (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>{staffAttendanceError}</AlertDescription>
+                  <AlertDescription>{staffAttError}</AlertDescription>
                 </Alert>
-              ) : staffAttendance.length === 0 ? (
+              ) : !staffAttData?.records || staffAttData.records.length === 0 ? (
                 <div className="flex items-center justify-center py-8">
-                  <p className="text-sm text-gray-500">No attendance records found for today.</p>
+                  <p className="text-sm text-gray-500">No staff records found.</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Student ID</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Date</TableHead>
+                      <TableHead>Staff Name</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Check In</TableHead>
+                      <TableHead>Check Out</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Source</TableHead>
+                      <TableHead>Geo</TableHead>
+                      <TableHead>Anomalies</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {staffAttendance.map((rec) => (
-                      <TableRow key={rec.id}>
-                        <TableCell className="font-medium">{rec.studentId}</TableCell>
-                        <TableCell>{rec.class}</TableCell>
-                        <TableCell>{rec.date}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              rec.status === 'present' ? 'default' :
-                              rec.status === 'late' ? 'secondary' : 'destructive'
-                            }
-                          >
-                            {rec.status}
-                          </Badge>
+                    {staffAttData.records.map((rec: any) => (
+                      <TableRow key={rec.staffId}>
+                        <TableCell className="font-medium">{rec.staffName}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{rec.department || '—'}</TableCell>
+                        <TableCell className="text-sm">
+                          {rec.attendance?.checkIn ? (
+                            <span className="font-mono">{rec.attendance.checkIn}</span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-500">{rec.source || '—'}</TableCell>
+                        <TableCell className="text-sm">
+                          {rec.attendance?.checkOut ? (
+                            <span className="font-mono">{rec.attendance.checkOut}</span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {rec.attendance ? (
+                            <Badge
+                              variant={
+                                rec.attendance.status === 'present' ? 'default' :
+                                rec.attendance.status === 'late' ? 'secondary' :
+                                rec.attendance.status === 'half_day' ? 'outline' : 'destructive'
+                              }
+                            >
+                              {rec.attendance.status}
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive">absent</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {rec.attendance?.geoVerified ? (
+                            <span title="Location verified" className="inline-flex items-center">
+                              <Check className="h-4 w-4 text-emerald-600" />
+                            </span>
+                          ) : rec.attendance ? (
+                            <span title="Location not verified" className="inline-flex items-center">
+                              <X className="h-4 w-4 text-gray-400" />
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {rec.anomalies.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {rec.anomalies.map((anomaly: string, i: number) => (
+                                <span key={i} className="text-xs text-orange-600 flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" /> {anomaly}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setOverrideStaff(rec)
+                              setOverrideStatus(rec.attendance?.status || 'present')
+                              setOverrideCheckIn(rec.attendance?.checkIn || '')
+                              setOverrideCheckOut(rec.attendance?.checkOut || '')
+                              setOverrideNotes('')
+                            }}
+                          >
+                            Override
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1141,6 +1308,79 @@ export function StudentAttendance() {
               )}
             </CardContent>
           </Card>
+
+          {/* Override dialog */}
+          {overrideStaff && (
+            <Card className="border-blue-200">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <ClipboardCheck className="h-4 w-4 text-blue-600" />
+                    Override Attendance: {overrideStaff.staffName}
+                  </CardTitle>
+                  <Button size="sm" variant="ghost" onClick={() => setOverrideStaff(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={overrideStatus} onValueChange={(v) => setOverrideStatus(v as any)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="present">Present</SelectItem>
+                        <SelectItem value="late">Late</SelectItem>
+                        <SelectItem value="absent">Absent</SelectItem>
+                        <SelectItem value="half_day">Half Day</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="override-checkin">Check-in time</Label>
+                    <Input
+                      id="override-checkin"
+                      type="time"
+                      value={overrideCheckIn}
+                      onChange={(e) => setOverrideCheckIn(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="override-checkout">Check-out time</Label>
+                    <Input
+                      id="override-checkout"
+                      type="time"
+                      value={overrideCheckOut}
+                      onChange={(e) => setOverrideCheckOut(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="override-notes">Notes</Label>
+                    <Input
+                      id="override-notes"
+                      placeholder="Reason for override"
+                      value={overrideNotes}
+                      onChange={(e) => setOverrideNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setOverrideStaff(null)}>Cancel</Button>
+                  <Button onClick={handleOverrideSubmit} disabled={overrideSubmitting}>
+                    {overrideSubmitting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4 mr-2" />
+                    )}
+                    Save Override
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Batch Upload Tab */}

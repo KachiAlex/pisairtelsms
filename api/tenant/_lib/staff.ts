@@ -86,6 +86,10 @@ export interface Attendance {
   checkOut?: string
   status: 'present' | 'absent' | 'late' | 'half_day'
   notes?: string
+  latitude?: number | null
+  longitude?: number | null
+  geoVerified?: boolean
+  anomalyFlags?: string[]
   createdAt: string
 }
 
@@ -150,6 +154,9 @@ interface AttendanceRow {
   check_out: string | null
   status: string
   notes: string | null
+  latitude: number | null
+  longitude: number | null
+  geo_verified: boolean | null
   created_at: Date
 }
 
@@ -219,6 +226,9 @@ function rowToAttendance(row: AttendanceRow): Attendance {
     checkOut: row.check_out ?? undefined,
     status: row.status as Attendance['status'],
     notes: row.notes ?? undefined,
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
+    geoVerified: row.geo_verified ?? false,
     createdAt: row.created_at.toISOString(),
   }
 }
@@ -242,10 +252,68 @@ function rowToPayroll(row: PayrollRow): PayrollRecord {
 
 export async function ensureStaffTables(): Promise<void> {
   try {
-    // Backfill columns added after initial table creation
-    } catch (error) {
+    // Add geo columns to staff_attendance if they don't exist
+    try {
+      await sql`ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION`
+      await sql`ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`
+      await sql`ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS geo_verified BOOLEAN DEFAULT false`
+    } catch {
+      // columns may already exist
+    }
+  } catch (error) {
     console.error('Error ensuring staff tables:', error)
   }
+}
+
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ * Returns distance in meters
+ */
+export function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371000 // Earth's radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLon = ((lon2 - lon1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+/**
+ * Validate a staff member's location against the school's geofence
+ */
+export function validateGeofence(
+  staffLat: number,
+  staffLon: number,
+  schoolLat: number,
+  schoolLon: number,
+  radiusMeters: number
+): { withinFence: boolean; distance: number } {
+  const distance = calculateDistance(staffLat, staffLon, schoolLat, schoolLon)
+  return { withinFence: distance <= radiusMeters, distance }
+}
+
+/**
+ * Check if current time is within a configured time window
+ * @param currentTime HH:MM format
+ * @param windowStart HH:MM format
+ * @param windowEnd HH:MM format
+ */
+export function isWithinTimeWindow(
+  currentTime: string,
+  windowStart: string,
+  windowEnd: string
+): boolean {
+  return currentTime >= windowStart && currentTime <= windowEnd
 }
 
 // ── Staff CRUD ──────────────────────────────────────────────────────────────

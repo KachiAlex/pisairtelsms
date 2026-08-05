@@ -15,6 +15,15 @@ export interface TenantSettingsPayload {
   logoUrl?: string | null
   admissionNoFormat?: string
   admissionNoDigits?: number
+  schoolLatitude?: number | null
+  schoolLongitude?: number | null
+  geofenceRadius?: number
+  checkInWindowStart?: string
+  checkInWindowEnd?: string
+  checkOutWindowStart?: string
+  checkOutWindowEnd?: string
+  enforceGeofence?: boolean
+  enforceTimeWindow?: boolean
 }
 
 export interface TenantSettingsResponse extends TenantSettingsPayload {

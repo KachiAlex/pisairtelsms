@@ -6,6 +6,7 @@
     { "source": "/api/tenant/results", "destination": "/api/tenant/results.ts" },
     { "source": "/api/tenant/finance", "destination": "/api/tenant/finance.ts" },
     { "source": "/api/tenant/staff", "destination": "/api/tenant/staff.ts" },
+    { "source": "/api/tenant/staff-attendance", "destination": "/api/tenant/staff-attendance.ts" },
     { "source": "/api/tenant/attendance", "destination": "/api/tenant/attendance.ts" },
     { "source": "/api/tenant/attendance/analytics/dashboard", "destination": "/api/tenant/attendance/analytics/dashboard.ts" },
     { "source": "/api/tenant/attendance/analytics/heatmap", "destination": "/api/tenant/attendance/analytics/heatmap.ts" },

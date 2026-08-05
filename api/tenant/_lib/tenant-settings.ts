@@ -24,6 +24,15 @@ const fallbackSettings: TenantSettingsPayload = {
   logoUrl: null,
   admissionNoFormat: '{PREFIX}/{YEAR}/{SEQ}',
   admissionNoDigits: 4,
+  schoolLatitude: null,
+  schoolLongitude: null,
+  geofenceRadius: 200,
+  checkInWindowStart: '07:00',
+  checkInWindowEnd: '09:00',
+  checkOutWindowStart: '14:00',
+  checkOutWindowEnd: '18:00',
+  enforceGeofence: false,
+  enforceTimeWindow: false,
 };
 
 export async function ensureTenantSettingsTable(): Promise<void> {

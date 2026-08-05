@@ -13,6 +13,8 @@ interface StudentResult {
   examsScore: number;
   attendancePercent: number;
   grade: string;
+  remark: string;
+  teacher: string;
 }
 
 interface ResultsData {
@@ -163,12 +165,16 @@ export function MyResults() {
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Total</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Attendance</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Grade</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Remark</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {data.results.map((r) => (
                     <tr key={r.subject} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{r.subject}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        {r.subject}
+                        {r.teacher && <p className="text-xs text-gray-500">{r.teacher}</p>}
+                      </td>
                       <td className="px-4 py-3 text-center text-gray-700">{r.testsScore ?? 0}</td>
                       <td className="px-4 py-3 text-center text-gray-700">{r.assignmentsScore ?? 0}</td>
                       <td className="px-4 py-3 text-center text-gray-700">{r.projectsScore ?? 0}</td>
@@ -182,6 +188,7 @@ export function MyResults() {
                           {r.grade}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{r.remark}</td>
                     </tr>
                   ))}
                 </tbody>

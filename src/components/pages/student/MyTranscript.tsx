@@ -250,7 +250,7 @@ export function MyTranscript() {
                   <p className="text-sm text-gray-600">Attendance</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-purple-700">{session.conduct}</p>
+                  <p className="text-2xl font-bold text-purple-700">{session.conduct || '—'}</p>
                   <p className="text-sm text-gray-600">Conduct</p>
                 </div>
               </div>
@@ -268,6 +268,7 @@ export function MyTranscript() {
                       <th className="text-center px-4 py-3 font-medium text-gray-700">Total</th>
                       <th className="text-center px-4 py-3 font-medium text-gray-700">Grade</th>
                       <th className="text-left px-4 py-3 font-medium text-gray-700 hidden sm:table-cell">Remark</th>
+                      <th className="text-center px-4 py-3 font-medium text-gray-700 hidden md:table-cell">Class Avg</th>
                       <th className="text-center px-4 py-3 font-medium text-gray-700 hidden md:table-cell">Position</th>
                     </tr>
                   </thead>
@@ -291,6 +292,7 @@ export function MyTranscript() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{sub.remark}</td>
+                        <td className="text-center px-4 py-3 text-gray-600 hidden md:table-cell">{sub.classAverage}</td>
                         <td className="text-center px-4 py-3 text-gray-600 hidden md:table-cell">
                           {sub.position}{getOrdinalSuffix(sub.position)}
                         </td>
@@ -327,10 +329,12 @@ export function MyTranscript() {
               </div>
 
               {/* Next Term */}
-              <div className="p-4 border-t border-gray-200 flex items-center gap-2 text-sm text-gray-600">
-                <Calendar className="w-4 h-4" />
-                <span>Next term resumption: <strong>{formatDate(session.nextTermResumption)}</strong></span>
-              </div>
+              {session.nextTermResumption && (
+                <div className="p-4 border-t border-gray-200 flex items-center gap-2 text-sm text-gray-600">
+                  <Calendar className="w-4 h-4" />
+                  <span>Next term resumption: <strong>{formatDate(session.nextTermResumption)}</strong></span>
+                </div>
+              )}
             </div>
           )}
         </div>

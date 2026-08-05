@@ -407,25 +407,64 @@ interface CompiledResult {
   principalComment: string
 }
 
-function assignGrade(score: number): string {
-  if (score >= 80) return 'A1'
-  if (score >= 70) return 'B2'
-  if (score >= 65) return 'B3'
-  if (score >= 60) return 'C4'
-  if (score >= 55) return 'C5'
-  if (score >= 50) return 'C6'
-  if (score >= 45) return 'D7'
-  if (score >= 40) return 'E8'
-  return 'F9'
+interface GradeBand {
+  grade: string
+  minScore: number
+  maxScore: number
+  remark: string
 }
 
-function gradeRemark(grade: string): string {
-  const remarks: Record<string, string> = {
-    A1: 'Distinction', B2: 'Very Good', B3: 'Good',
-    C4: 'Credit', C5: 'Credit', C6: 'Satisfactory',
-    D7: 'Pass', E8: 'Marginal Pass', F9: 'Fail',
+const DEFAULT_BANDS: GradeBand[] = [
+  { grade: 'A1', minScore: 80, maxScore: 100, remark: 'Distinction' },
+  { grade: 'B2', minScore: 70, maxScore: 79, remark: 'Very Good' },
+  { grade: 'B3', minScore: 65, maxScore: 69, remark: 'Good' },
+  { grade: 'C4', minScore: 60, maxScore: 64, remark: 'Credit' },
+  { grade: 'C5', minScore: 55, maxScore: 59, remark: 'Credit' },
+  { grade: 'C6', minScore: 50, maxScore: 54, remark: 'Satisfactory' },
+  { grade: 'D7', minScore: 45, maxScore: 49, remark: 'Pass' },
+  { grade: 'E8', minScore: 40, maxScore: 44, remark: 'Marginal Pass' },
+  { grade: 'F9', minScore: 0, maxScore: 39, remark: 'Fail' },
+]
+
+async function getGradeBands(tenantId: string): Promise<GradeBand[]> {
+  try {
+    const scaleRes = await sql`
+      SELECT id FROM grading_scales
+      WHERE tenant_id = ${tenantId} AND status = 'live'
+      ORDER BY updated_at DESC LIMIT 1
+    `
+    if (!scaleRes.rows[0]) return DEFAULT_BANDS
+    const scaleId = scaleRes.rows[0].id
+    const bandsRes = await sql`
+      SELECT grade, min_score, max_score, remark
+      FROM grading_scale_bands
+      WHERE scale_id = ${scaleId}
+      ORDER BY min_score DESC
+    `
+    if (bandsRes.rows.length === 0) return DEFAULT_BANDS
+    return bandsRes.rows.map((r: any) => ({
+      grade: r.grade,
+      minScore: Number(r.min_score),
+      maxScore: Number(r.max_score),
+      remark: r.remark || '',
+    }))
+  } catch {
+    return DEFAULT_BANDS
   }
-  return remarks[grade] || ''
+}
+
+function assignGradeFromBands(score: number, bands: GradeBand[]): { grade: string; remark: string } {
+  for (const band of bands) {
+    if (score >= band.minScore && score <= band.maxScore) {
+      return { grade: band.grade, remark: band.remark }
+    }
+  }
+  for (const band of bands) {
+    if (score >= band.minScore) {
+      return { grade: band.grade, remark: band.remark }
+    }
+  }
+  return { grade: 'F9', remark: 'Fail' }
 }
 
 function principalCommentFor(avg: number): string {
@@ -476,6 +515,9 @@ export async function compileResults(
   await ensureCompiledResultsTable()
 
   try {
+    // Load grade bands from DB (or fallback to defaults)
+    const bands = await getGradeBands(tenantId)
+
     // Fetch all submitted/approved scores for the scope
     let scoresQuery
     if (className) {
@@ -556,8 +598,7 @@ export async function compileResults(
       // Build compiled results
       for (const row of classRows) {
         const totalScore = parseFloat(row.total_score)
-        const grade = assignGrade(totalScore)
-        const remark = gradeRemark(grade)
+        const { grade, remark } = assignGradeFromBands(totalScore, bands)
         const stats = subjectStats[row.subject] || { avg: 0, highest: 0, lowest: 0 }
 
         // Subject position

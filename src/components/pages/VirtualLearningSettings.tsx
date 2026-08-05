@@ -6,6 +6,8 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Switch } from '../ui/switch'
 import { getAuthFromStorage } from '../../lib/auth'
+import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
+import { useToast } from '../ui/use-toast'
 
 interface Settings {
   school_hours_start: string
@@ -20,31 +22,26 @@ interface Settings {
 }
 
 export function VirtualLearningSettings() {
+  const { toast } = useToast()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const auth = getAuthFromStorage()
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
-
   const fetchSettings = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/tenant/virtual-learning-settings', { headers })
+      const res = await tenantApiGet('/api/tenant/virtual-learning-settings')
       if (res.ok) {
         const data = await res.json()
         setSettings(data.data)
       }
     } catch (err) {
-      console.error('Failed to fetch settings:', err)
+      toast({ title: 'Failed to load settings', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     fetchSettings()
@@ -54,17 +51,17 @@ export function VirtualLearningSettings() {
     if (!settings) return
     setSaving(true)
     try {
-      const res = await fetch('/api/tenant/virtual-learning-settings', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(settings),
-      })
+      const res = await tenantApiPut('/api/tenant/virtual-learning-settings', settings)
       if (res.ok) {
         setSaved(true)
         setTimeout(() => setSaved(false), 3000)
+        toast({ title: 'Settings saved', description: 'Virtual learning settings updated successfully.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to save settings', description: err.error || 'Please try again.', variant: 'destructive' })
       }
     } catch (err) {
-      console.error('Failed to save settings:', err)
+      toast({ title: 'Failed to save settings', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     } finally {
       setSaving(false)
     }

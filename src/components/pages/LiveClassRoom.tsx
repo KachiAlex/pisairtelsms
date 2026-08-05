@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { getAuthFromStorage } from '../../lib/auth'
+import { tenantApiPost } from '../../lib/tenantApi'
 import { useLessonRecording } from '../../hooks/useLessonRecording'
 
 interface LiveClassRoomProps {
@@ -195,18 +196,11 @@ export function LiveClassRoom({ lesson, classroomName, onBack, onRecordingSaved 
     const auth = getAuthFromStorage()
     if (!auth?.token) return
     try {
-      await fetch('/api/tenant/virtual-attendance', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify({
-          lessonId: lesson.id,
-          participantId,
-          participantName: name,
-          action,
-        }),
+      await tenantApiPost('/api/tenant/virtual-attendance', {
+        lessonId: lesson.id,
+        participantId,
+        participantName: name,
+        action,
       })
     } catch {
       // Attendance tracking is non-critical

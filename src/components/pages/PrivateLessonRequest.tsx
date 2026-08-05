@@ -17,6 +17,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select'
 import { getAuthFromStorage } from '../../lib/auth'
+import { tenantApiGet, tenantApiPost, tenantApiPut } from '../../lib/tenantApi'
+import { useToast } from '../ui/use-toast'
 
 interface LessonRequest {
   id: string
@@ -51,31 +53,26 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 }
 
 export function PrivateLessonRequest() {
+  const { toast } = useToast()
   const [requests, setRequests] = useState<LessonRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
 
-  const auth = getAuthFromStorage()
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
-
   const fetchRequests = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/tenant/private-lesson-requests', { headers })
+      const res = await tenantApiGet('/api/tenant/private-lesson-requests')
       if (res.ok) {
         const data = await res.json()
         setRequests(data.data || [])
       }
     } catch (err) {
-      console.error('Failed to fetch requests:', err)
+      toast({ title: 'Failed to load requests', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     fetchRequests()
@@ -83,31 +80,32 @@ export function PrivateLessonRequest() {
 
   const handleCreate = async (data: any) => {
     try {
-      const res = await fetch('/api/tenant/private-lesson-requests', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(data),
-      })
+      const res = await tenantApiPost('/api/tenant/private-lesson-requests', data)
       if (res.ok) {
         setShowCreateDialog(false)
         fetchRequests()
+        toast({ title: 'Request submitted', description: 'Private lesson request submitted successfully.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to create request', description: err.error || 'Please try again.', variant: 'destructive' })
       }
     } catch (err) {
-      console.error('Failed to create request:', err)
+      toast({ title: 'Failed to create request', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
   const handleCancel = async (id: string) => {
     if (!confirm('Cancel this private lesson request?')) return
     try {
-      await fetch('/api/tenant/private-lesson-requests', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ id, action: 'cancel' }),
-      })
-      fetchRequests()
+      const res = await tenantApiPut('/api/tenant/private-lesson-requests', { id, action: 'cancel' })
+      if (res.ok) {
+        fetchRequests()
+        toast({ title: 'Request cancelled', description: 'Private lesson request cancelled.' })
+      } else {
+        toast({ title: 'Failed to cancel', variant: 'destructive' })
+      }
     } catch (err) {
-      console.error('Failed to cancel:', err)
+      toast({ title: 'Failed to cancel', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 

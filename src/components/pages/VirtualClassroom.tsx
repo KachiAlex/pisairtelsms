@@ -17,8 +17,9 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select'
-import { getAuthFromStorage } from '../../lib/auth'
 import { LiveClassRoom } from './LiveClassRoom'
+import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../lib/tenantApi'
+import { useToast } from '../ui/use-toast'
 
 interface Classroom {
   id: string
@@ -66,6 +67,7 @@ interface Material {
 }
 
 export function VirtualClassroom() {
+  const { toast } = useToast()
   const [classrooms, setClassrooms] = useState<Classroom[]>([])
   const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null)
   const [loading, setLoading] = useState(true)
@@ -80,33 +82,27 @@ export function VirtualClassroom() {
   const [showMaterialDialog, setShowMaterialDialog] = useState(false)
   const [liveLesson, setLiveLesson] = useState<Lesson | null>(null)
 
-  const auth = getAuthFromStorage()
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
-
   const fetchClassrooms = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/tenant/virtual-classrooms', { headers })
+      const res = await tenantApiGet('/api/tenant/virtual-classrooms')
       if (res.ok) {
         const data = await res.json()
         setClassrooms(data.data || [])
       }
     } catch (err) {
-      console.error('Failed to fetch classrooms:', err)
+      toast({ title: 'Failed to load classrooms', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   const fetchClassroomDetails = useCallback(async (classroom: Classroom) => {
     try {
       const [lessonsRes, assignmentsRes, materialsRes] = await Promise.all([
-        fetch(`/api/tenant/lessons?classroomId=${classroom.id}`, { headers }),
-        fetch(`/api/tenant/assignments?classroomId=${classroom.id}`, { headers }),
-        fetch(`/api/tenant/course-materials?classroomId=${classroom.id}`, { headers }),
+        tenantApiGet(`/api/tenant/lessons?classroomId=${classroom.id}`),
+        tenantApiGet(`/api/tenant/assignments?classroomId=${classroom.id}`),
+        tenantApiGet(`/api/tenant/course-materials?classroomId=${classroom.id}`),
       ])
       if (lessonsRes.ok) {
         const data = await lessonsRes.json()
@@ -121,9 +117,9 @@ export function VirtualClassroom() {
         setMaterials(data.data || [])
       }
     } catch (err) {
-      console.error('Failed to fetch classroom details:', err)
+      toast({ title: 'Failed to load classroom details', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     fetchClassrooms()
@@ -143,17 +139,17 @@ export function VirtualClassroom() {
 
   const handleCreateClassroom = async (data: any) => {
     try {
-      const res = await fetch('/api/tenant/virtual-classrooms', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(data),
-      })
+      const res = await tenantApiPost('/api/tenant/virtual-classrooms', data)
       if (res.ok) {
         setShowCreateDialog(false)
         fetchClassrooms()
+        toast({ title: 'Classroom created', description: 'Virtual classroom created successfully.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to create classroom', description: err.error || 'Please try again.', variant: 'destructive' })
       }
     } catch (err) {
-      console.error('Failed to create classroom:', err)
+      toast({ title: 'Failed to create classroom', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -165,64 +161,64 @@ export function VirtualClassroom() {
       meetingUrl = `https://meet.jit.si/pisairtel-${roomSlug}-${Date.now().toString(36)}`
     }
     try {
-      const res = await fetch('/api/tenant/lessons', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ...data, meetingUrl, classroomId: selectedClassroom?.id }),
-      })
+      const res = await tenantApiPost('/api/tenant/lessons', { ...data, meetingUrl, classroomId: selectedClassroom?.id })
       if (res.ok) {
         setShowLessonDialog(false)
         if (selectedClassroom) fetchClassroomDetails(selectedClassroom)
+        toast({ title: 'Lesson created', description: 'Lesson created successfully.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to create lesson', description: err.error || 'Please try again.', variant: 'destructive' })
       }
     } catch (err) {
-      console.error('Failed to create lesson:', err)
+      toast({ title: 'Failed to create lesson', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
   const handleCreateAssignment = async (data: any) => {
     try {
-      const res = await fetch('/api/tenant/assignments', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ...data, classroomId: selectedClassroom?.id }),
-      })
+      const res = await tenantApiPost('/api/tenant/assignments', { ...data, classroomId: selectedClassroom?.id })
       if (res.ok) {
         setShowAssignmentDialog(false)
         if (selectedClassroom) fetchClassroomDetails(selectedClassroom)
+        toast({ title: 'Assignment created', description: 'Assignment created successfully.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to create assignment', description: err.error || 'Please try again.', variant: 'destructive' })
       }
     } catch (err) {
-      console.error('Failed to create assignment:', err)
+      toast({ title: 'Failed to create assignment', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
   const handleCreateMaterial = async (data: any) => {
     try {
-      const res = await fetch('/api/tenant/course-materials', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ...data, classroomId: selectedClassroom?.id }),
-      })
+      const res = await tenantApiPost('/api/tenant/course-materials', { ...data, classroomId: selectedClassroom?.id })
       if (res.ok) {
         setShowMaterialDialog(false)
         if (selectedClassroom) fetchClassroomDetails(selectedClassroom)
+        toast({ title: 'Material added', description: 'Course material added successfully.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to add material', description: err.error || 'Please try again.', variant: 'destructive' })
       }
     } catch (err) {
-      console.error('Failed to create material:', err)
+      toast({ title: 'Failed to add material', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
   const handleDeleteClassroom = async (id: string) => {
     if (!confirm('Are you sure you want to delete this classroom? This will remove all lessons, materials, and assignments.')) return
     try {
-      const res = await fetch(`/api/tenant/virtual-classrooms?id=${id}`, {
-        method: 'DELETE',
-        headers,
-      })
+      const res = await tenantApiDelete(`/api/tenant/virtual-classrooms?id=${id}`)
       if (res.ok) {
         fetchClassrooms()
+        toast({ title: 'Classroom deleted', description: 'Virtual classroom deleted successfully.' })
+      } else {
+        toast({ title: 'Failed to delete classroom', variant: 'destructive' })
       }
     } catch (err) {
-      console.error('Failed to delete classroom:', err)
+      toast({ title: 'Failed to delete classroom', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 

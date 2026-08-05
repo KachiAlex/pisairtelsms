@@ -14,6 +14,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '../ui/dialog'
 import { getAuthFromStorage } from '../../lib/auth'
+import { tenantApiGet, tenantApiPost, tenantApiPut } from '../../lib/tenantApi'
+import { useToast } from '../ui/use-toast'
 
 interface LessonRequest {
   id: string
@@ -45,6 +47,7 @@ interface RateCard {
 }
 
 export function PrivateLessonApprovals() {
+  const { toast } = useToast()
   const [requests, setRequests] = useState<LessonRequest[]>([])
   const [rates, setRates] = useState<RateCard[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,38 +57,32 @@ export function PrivateLessonApprovals() {
   const [feeAmount, setFeeAmount] = useState('')
   const [adminNotes, setAdminNotes] = useState('')
 
-  const auth = getAuthFromStorage()
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
-
   const fetchRequests = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/tenant/private-lesson-requests', { headers })
+      const res = await tenantApiGet('/api/tenant/private-lesson-requests')
       if (res.ok) {
         const data = await res.json()
         setRequests(data.data || [])
       }
     } catch (err) {
-      console.error('Failed to fetch requests:', err)
+      toast({ title: 'Failed to load requests', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   const fetchRates = useCallback(async () => {
     try {
-      const res = await fetch('/api/tenant/private-lesson-rates', { headers })
+      const res = await tenantApiGet('/api/tenant/private-lesson-rates')
       if (res.ok) {
         const data = await res.json()
         setRates(data.data || [])
       }
     } catch (err) {
-      console.error('Failed to fetch rates:', err)
+      toast({ title: 'Failed to load rate cards', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     fetchRequests()
@@ -95,36 +92,39 @@ export function PrivateLessonApprovals() {
   const handleApprove = async () => {
     if (!approveDialog) return
     try {
-      await fetch('/api/tenant/private-lesson-requests', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          id: approveDialog.id,
-          action: 'admin_approve',
-          feeAmount: feeAmount ? Number(feeAmount) : undefined,
-          notes: adminNotes,
-        }),
+      const res = await tenantApiPut('/api/tenant/private-lesson-requests', {
+        id: approveDialog.id,
+        action: 'admin_approve',
+        feeAmount: feeAmount ? Number(feeAmount) : undefined,
+        notes: adminNotes,
       })
-      setApproveDialog(null)
-      setFeeAmount('')
-      setAdminNotes('')
-      fetchRequests()
+      if (res.ok) {
+        setApproveDialog(null)
+        setFeeAmount('')
+        setAdminNotes('')
+        fetchRequests()
+        toast({ title: 'Request approved', description: 'Parent has been notified for approval.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to approve', description: err.error || 'Please try again.', variant: 'destructive' })
+      }
     } catch (err) {
-      console.error('Failed to approve:', err)
+      toast({ title: 'Failed to approve', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
   const handleReject = async (id: string) => {
     const notes = prompt('Reason for rejection (optional):') || ''
     try {
-      await fetch('/api/tenant/private-lesson-requests', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ id, action: 'admin_reject', notes }),
-      })
-      fetchRequests()
+      const res = await tenantApiPut('/api/tenant/private-lesson-requests', { id, action: 'admin_reject', notes })
+      if (res.ok) {
+        fetchRequests()
+        toast({ title: 'Request rejected', description: 'Private lesson request rejected.' })
+      } else {
+        toast({ title: 'Failed to reject', variant: 'destructive' })
+      }
     } catch (err) {
-      console.error('Failed to reject:', err)
+      toast({ title: 'Failed to reject', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -310,14 +310,15 @@ export function PrivateLessonApprovals() {
       </Dialog>
 
       {/* Rate Card Dialog */}
-      <RateCardDialog open={showRateDialog} onClose={() => setShowRateDialog(false)} rates={rates} headers={headers} onRefresh={fetchRates} />
+      <RateCardDialog open={showRateDialog} onClose={() => setShowRateDialog(false)} rates={rates} onRefresh={fetchRates} />
     </div>
   )
 }
 
-function RateCardDialog({ open, onClose, rates, headers, onRefresh }: {
-  open: boolean; onClose: () => void; rates: RateCard[]; headers: Record<string, string>; onRefresh: () => void
+function RateCardDialog({ open, onClose, rates, onRefresh }: {
+  open: boolean; onClose: () => void; rates: RateCard[]; onRefresh: () => void
 }) {
+  const { toast } = useToast()
   const [rateType, setRateType] = useState('per_session')
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('NGN')
@@ -325,28 +326,30 @@ function RateCardDialog({ open, onClose, rates, headers, onRefresh }: {
 
   const handleCreate = async () => {
     try {
-      await fetch('/api/tenant/private-lesson-rates', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ rateType, amount: Number(amount), currency, paymentMode }),
-      })
-      setAmount('')
-      onRefresh()
+      const res = await tenantApiPost('/api/tenant/private-lesson-rates', { rateType, amount: Number(amount), currency, paymentMode })
+      if (res.ok) {
+        setAmount('')
+        onRefresh()
+        toast({ title: 'Rate card added', description: 'New rate card created successfully.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to create rate', description: err.error || 'Please try again.', variant: 'destructive' })
+      }
     } catch (err) {
-      console.error('Failed to create rate:', err)
+      toast({ title: 'Failed to create rate', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
   const handleToggle = async (id: string, isActive: boolean) => {
     try {
-      await fetch('/api/tenant/private-lesson-rates', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ id, isActive: !isActive }),
-      })
-      onRefresh()
+      const res = await tenantApiPut('/api/tenant/private-lesson-rates', { id, isActive: !isActive })
+      if (res.ok) {
+        onRefresh()
+      } else {
+        toast({ title: 'Failed to toggle rate', variant: 'destructive' })
+      }
     } catch (err) {
-      console.error('Failed to toggle rate:', err)
+      toast({ title: 'Failed to toggle rate', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 

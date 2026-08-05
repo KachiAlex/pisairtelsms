@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from 'react'
+import { getAuthFromStorage } from '../lib/auth'
 
 type RecordingState = 'idle' | 'recording' | 'stopped' | 'uploading' | 'done' | 'error'
 
@@ -77,9 +78,9 @@ export function useLessonRecording(opts: UseLessonRecordingOptions = {}): UseLes
             formData.append('file', blob, `recording-${Date.now()}.${ext}`)
             formData.append('duration', String(duration))
 
-            const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+            const auth = getAuthFromStorage()
             const headers: Record<string, string> = {}
-            if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+            if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
 
             const res = await fetch(opts.uploadEndpoint, {
               method: 'POST',

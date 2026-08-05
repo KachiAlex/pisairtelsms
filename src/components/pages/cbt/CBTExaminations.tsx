@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { QuestionBankTab } from './QuestionBankTab';
 import { ExamCreationTab } from './ExamCreationTab';
@@ -7,8 +7,14 @@ import { ExamResultsTab } from './ExamResultsTab';
 import { SecuritySettingsTab } from './SecuritySettingsTab';
 import { BookOpen, FileText, Activity, BarChart3, Shield } from 'lucide-react';
 
-export function CBTExaminations() {
-  const [activeTab, setActiveTab] = useState('question-bank');
+export function CBTExaminations({ initialTab }: { initialTab?: string }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'question-bank');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   return (
     <div className="space-y-6">

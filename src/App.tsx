@@ -189,12 +189,17 @@ export default function App() {
       case 'virtual-learning-settings':
         return <VirtualLearningSettings />;
       case 'cbt':
+        return <CBTExaminations key="cbt-default" initialTab="question-bank" />;
       case 'cbt-question-bank':
+        return <CBTExaminations key="cbt-question-bank" initialTab="question-bank" />;
       case 'cbt-exam-creation':
+        return <CBTExaminations key="cbt-exam-creation" initialTab="exam-creation" />;
       case 'cbt-live-monitoring':
+        return <CBTExaminations key="cbt-live-monitoring" initialTab="live-monitoring" />;
       case 'cbt-results':
+        return <CBTExaminations key="cbt-results" initialTab="results" />;
       case 'cbt-security':
-        return <CBTExaminations />;
+        return <CBTExaminations key="cbt-security" initialTab="security" />;
       case 'timetable':
       case 'timetable-configure':
       case 'timetable-class':

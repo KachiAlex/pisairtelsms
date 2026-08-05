@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import itemAnalysisApi from './item-analysis';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
 /**
  * Exam Item Analysis API Handler
@@ -7,7 +8,10 @@ import itemAnalysisApi from './item-analysis';
  *   GET  /api/tenant/exams/item-analysis?type=items|distractors|blueprint|anchors|performance|statistics&examId=...
  *   POST /api/tenant/exams/item-analysis  (action: create-item|create-distractor|create-blueprint|create-anchor|track-performance)
  */
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
+  if (!decoded) return;
+
   const tenantId = decoded.tenantId || 'default-tenant';
 
   const { examId } = req.query;

@@ -198,24 +198,18 @@ export function ExamCreationTab() {
       const diagRes = await tenantApiGet('/api/tenant/cbt/diagnostics');
       if (diagRes.ok) {
         const diagData = await diagRes.json();
-        console.log('Diagnostics:', diagData);
       }
 
       // Fetch subjects from admin-created subjects
       const subjectsRes = await tenantApiGet('/api/tenant/academics/subjects?namesOnly=true');
       if (subjectsRes.ok) {
         const subjectsData = await subjectsRes.json();
-        console.log('Subjects response:', subjectsData);
         const subjectsList = Array.isArray(subjectsData.data) ? subjectsData.data : [];
-        console.log('Subjects list:', subjectsList);
         setSubjects(subjectsList);
       } else {
-        const errorText = await subjectsRes.text();
-        console.error('Failed to fetch subjects:', subjectsRes.status, errorText);
         setSubjects([]);
       }
     } catch (error) {
-      console.error('Error fetching dropdown data:', error);
       setSubjects([]);
     } finally {
       setLoadingDropdowns(false);
@@ -317,15 +311,23 @@ export function ExamCreationTab() {
 
       // Schedule if requested
       if (schedule && form.scheduledDate && form.scheduledTime && examId) {
-        await tenantApiPost(`/api/tenant/cbt/exams/${examId}/schedule`, {
+        const schedRes = await tenantApiPost(`/api/tenant/cbt/exams/${examId}/schedule`, {
           scheduledDate: form.scheduledDate,
           scheduledTime: form.scheduledTime,
         });
+        if (!schedRes.ok) {
+          const schedErr = await schedRes.json().catch(() => ({}));
+          throw new Error(schedErr.error || 'Exam saved but scheduling failed');
+        }
       }
 
       // Publish if requested
       if (publish && examId) {
-        await tenantApiPost(`/api/tenant/cbt/exams/${examId}/publish`, {});
+        const pubRes = await tenantApiPost(`/api/tenant/cbt/exams/${examId}/publish`, {});
+        if (!pubRes.ok) {
+          const pubErr = await pubRes.json().catch(() => ({}));
+          throw new Error(pubErr.error || 'Exam saved but publishing failed');
+        }
       }
 
       setIsFormOpen(false);

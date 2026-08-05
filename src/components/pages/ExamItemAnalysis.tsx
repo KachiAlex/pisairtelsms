@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { BarChart3, Filter, RefreshCcw, AlertTriangle, Target, Layers, Atom, ClipboardCheck } from 'lucide-react'
 
+import { tenantApiGet } from '../../lib/tenantApi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -25,23 +26,44 @@ export function ExamItemAnalysis() {
   const [statistics, setStatistics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedExam, setSelectedExam] = useState('exam-001')
-
-  const tenantId = 'default-tenant'
+  const [exams, setExams] = useState<any[]>([])
+  const [selectedExam, setSelectedExam] = useState('')
 
   useEffect(() => {
-    fetchData()
+    fetchExams()
+  }, [])
+
+  useEffect(() => {
+    if (selectedExam) {
+      fetchData()
+    }
   }, [selectedExam])
+
+  const fetchExams = async () => {
+    try {
+      const res = await tenantApiGet('/api/tenant/cbt/exams?status=Completed&limit=50')
+      if (res.ok) {
+        const data = await res.json()
+        const examList = data.data || []
+        setExams(examList)
+        if (examList.length > 0 && !selectedExam) {
+          setSelectedExam(examList[0].id)
+        }
+      }
+    } catch {
+      // exams list is optional — user can still use the page if item-analysis backend is available
+    }
+  }
 
   const fetchData = async () => {
     try {
       setLoading(true)
       const [itemsRes, distractorsRes, blueprintsRes, anchorsRes, statsRes] = await Promise.all([
-        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=items`),
-        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=distractors`),
-        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=blueprints`),
-        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=anchors`),
-        fetch(`/api/tenant/exams/item-analysis?tenantId=${tenantId}&examId=${selectedExam}&type=statistics`),
+        tenantApiGet(`/api/tenant/exams/item-analysis?examId=${selectedExam}&type=items`),
+        tenantApiGet(`/api/tenant/exams/item-analysis?examId=${selectedExam}&type=distractors`),
+        tenantApiGet(`/api/tenant/exams/item-analysis?examId=${selectedExam}&type=blueprints`),
+        tenantApiGet(`/api/tenant/exams/item-analysis?examId=${selectedExam}&type=anchors`),
+        tenantApiGet(`/api/tenant/exams/item-analysis?examId=${selectedExam}&type=statistics`),
       ])
 
       if (!itemsRes.ok || !distractorsRes.ok || !blueprintsRes.ok || !anchorsRes.ok || !statsRes.ok) {
@@ -70,6 +92,21 @@ export function ExamItemAnalysis() {
     return <div className="p-6 text-center">Loading...</div>
   }
 
+  if (!selectedExam) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Advanced Features</p>
+          <h1 className="text-2xl font-bold text-gray-900">Exam item analysis</h1>
+          <p className="text-sm text-gray-600">Inspect item difficulty drift, distractor performance, and blueprint coverage before high-stakes sittings.</p>
+        </div>
+        <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-700">
+          No completed exams available for analysis. Complete an exam to see item-level analytics here.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -78,11 +115,22 @@ export function ExamItemAnalysis() {
           <h1 className="text-2xl font-bold text-gray-900">Exam item analysis</h1>
           <p className="text-sm text-gray-600">Inspect item difficulty drift, distractor performance, and blueprint coverage before high-stakes sittings.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={fetchData}>
+        <div className="flex flex-wrap gap-3 items-center">
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            value={selectedExam}
+            onChange={(e) => setSelectedExam(e.target.value)}
+            disabled={exams.length === 0}
+          >
+            {exams.length === 0 && <option value="">No completed exams</option>}
+            {exams.map((exam: any) => (
+              <option key={exam.id} value={exam.id}>{exam.title}</option>
+            ))}
+          </select>
+          <Button variant="outline" onClick={fetchData} disabled={!selectedExam}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Recompute indices
           </Button>
-          <Button>
+          <Button disabled={!selectedExam}>
             <Filter className="h-4 w-4 mr-2" /> Apply filters
           </Button>
         </div>

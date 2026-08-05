@@ -6,7 +6,7 @@ import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
-import { tenantApiGet } from '../../../lib/tenantApi';
+import { tenantApiGet, tenantApiFetch } from '../../../lib/tenantApi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,9 +139,23 @@ export function ExamResultsTab() {
 
   // ── Export ─────────────────────────────────────────────────────────────────
 
-  const handleExport = (format: 'csv' | 'pdf') => {
+  const handleExport = async (format: 'csv' | 'pdf') => {
     if (!selectedExamId) return;
-    window.open(`/api/tenant/cbt/results/export?examId=${selectedExamId}&format=${format}`, '_blank');
+    try {
+      const res = await tenantApiFetch(`/api/tenant/cbt/results/export?examId=${selectedExamId}&format=${format}`);
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `exam-results-${selectedExamId}.${format === 'csv' ? 'csv' : 'pdf'}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Export failed');
+    }
   };
 
   // ── Filtered results ───────────────────────────────────────────────────────

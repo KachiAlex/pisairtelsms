@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Laptop2, WifiOff, RefreshCcw, Activity, AlertTriangle, HardDriveDownload, Shield, Plug, Server } from 'lucide-react'
 
+import { tenantApiGet } from '../../lib/tenantApi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -26,8 +27,6 @@ export function OfflineCBTSync() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const tenantId = 'default-tenant' // In real app, get from context
-
   useEffect(() => {
     fetchData()
   }, [])
@@ -36,10 +35,10 @@ export function OfflineCBTSync() {
     try {
       setLoading(true)
       const [devicesRes, packagesRes, fallbacksRes, statsRes] = await Promise.all([
-        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=devices`),
-        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=packages`),
-        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=fallbacks`),
-        fetch(`/api/tenant/cbt/offline-sync?tenantId=${tenantId}&type=statistics`),
+        tenantApiGet('/api/tenant/cbt/offline-sync?type=devices'),
+        tenantApiGet('/api/tenant/cbt/offline-sync?type=packages'),
+        tenantApiGet('/api/tenant/cbt/offline-sync?type=fallbacks'),
+        tenantApiGet('/api/tenant/cbt/offline-sync?type=statistics'),
       ])
 
       if (!devicesRes.ok || !packagesRes.ok || !fallbacksRes.ok || !statsRes.ok) {

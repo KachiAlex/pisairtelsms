@@ -181,6 +181,7 @@ export default function App() {
         return <StudentAttendance key="reports" initialTab="reports" />;
       case 'virtual-classroom':
       case 'virtual-classrooms':
+      case 'digital-learning':
         return <VirtualClassroom />;
       case 'private-lesson-request':
         return <PrivateLessonRequest />;
@@ -335,14 +336,8 @@ export default function App() {
         return <IntegrationsHub />;
       case 'tenant-settings':
         return <TenantSettings tenantId={auth?.tenantId || 'default'} tenantName={auth?.name || 'Default School'} />;
-      case 'virtual-classrooms':
+      case 'digital-learning':
         return <VirtualClassroom />;
-      case 'private-lesson-request':
-        return <PrivateLessonRequest />;
-      case 'private-lesson-approvals':
-        return <PrivateLessonApprovals />;
-      case 'virtual-learning-settings':
-        return <VirtualLearningSettings />;
       default:
         return (
           <div className="flex items-center justify-center h-full">

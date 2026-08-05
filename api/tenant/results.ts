@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, publishCompiledResults, type ScorePayload } from './_lib/results.js'
+import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, publishCompiledResults, computeAttendanceBatch, type ScorePayload } from './_lib/results.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 function methodNotAllowed(res: VercelResponse) {
@@ -54,6 +54,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           className as string | undefined
         )
         return res.status(200).json({ data: compiled })
+      }
+
+      if (action === 'attendance-batch' && className && academicSession && term) {
+        const attendanceMap = await computeAttendanceBatch(
+          tenantId,
+          className as string,
+          academicSession as string,
+          term as string
+        )
+        return res.status(200).json({ data: attendanceMap })
       }
 
       const scores = await fetchScores(

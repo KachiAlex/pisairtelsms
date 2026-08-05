@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Save, Send, CheckCircle2, AlertCircle, RefreshCw, Users, Loader2 } from 'lucide-react'
+import { Save, Send, CheckCircle2, AlertCircle, RefreshCw, Users, Loader2, CalendarCheck } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -50,6 +50,8 @@ export function CAScoreEntry() {
   const [loadingScores, setLoadingScores] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loadingSubmissions, setLoadingSubmissions] = useState(false)
+  const [autoFillingAttendance, setAutoFillingAttendance] = useState(false)
+  const [autoFilledStudents, setAutoFilledStudents] = useState<Set<string>>(new Set())
 
   const currentYear = new Date().getFullYear()
   const defaultSession = `${currentYear}/${currentYear + 1}`
@@ -204,6 +206,45 @@ export function CAScoreEntry() {
     loadScores(); loadSubmissions()
   }
 
+  const handleAutoFillAttendance = async () => {
+    if (!selectedClass || !academicSession || !term) return
+    setAutoFillingAttendance(true)
+    try {
+      const res = await tenantApiGet(
+        `/api/tenant/results?action=attendance-batch&class=${encodeURIComponent(selectedClass)}&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}`
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const attendanceMap: Record<string, number> = data.data || {}
+        setScoreInputs(prev => {
+          const updated = { ...prev }
+          const filled = new Set<string>()
+          for (const [studentId, pct] of Object.entries(attendanceMap)) {
+            if (updated[studentId]) {
+              updated[studentId] = { ...updated[studentId], attendance: String(pct) }
+              filled.add(studentId)
+            }
+          }
+          setAutoFilledStudents(filled)
+          return updated
+        })
+        const count = Object.keys(attendanceMap).length
+        toast({
+          title: 'Attendance auto-filled',
+          description: count > 0
+            ? `${count} student(s) attendance populated from records. You can still edit individual values.`
+            : 'No attendance records found for this class/term. Values left unchanged.',
+        })
+      } else {
+        toast({ title: 'Error', description: 'Failed to fetch attendance data', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Network error. Please try again.', variant: 'destructive' })
+    } finally {
+      setAutoFillingAttendance(false)
+    }
+  }
+
   const submittedCount = teacherSubmissions.length
   const draftCount = teacherSubmissions.filter(s => s.status === 'draft').length
 
@@ -313,6 +354,10 @@ export function CAScoreEntry() {
                 </p>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={handleAddStudent}>Add student</Button>
+                  <Button variant="outline" size="sm" onClick={handleAutoFillAttendance} disabled={autoFillingAttendance || !selectedClass || !academicSession || !term}>
+                    {autoFillingAttendance ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CalendarCheck className="h-4 w-4 mr-2" />}
+                    Auto-fill Attendance
+                  </Button>
                   <Button size="sm" onClick={handleSaveAll} disabled={saving || Object.keys(scoreInputs).length === 0}>
                     {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save & Submit All
@@ -346,7 +391,14 @@ export function CAScoreEntry() {
                           <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.assignmentsScore} onChange={e => handleScoreChange(input.studentId, 'assignmentsScore', e.target.value)} /></TableCell>
                           <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.projectsScore} onChange={e => handleScoreChange(input.studentId, 'projectsScore', e.target.value)} /></TableCell>
                           <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.examsScore} onChange={e => handleScoreChange(input.studentId, 'examsScore', e.target.value)} /></TableCell>
-                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.attendance} onChange={e => handleScoreChange(input.studentId, 'attendance', e.target.value)} /></TableCell>
+                          <TableCell>
+                            <div className="relative">
+                              <Input type="number" min="0" max="100" className="w-16 h-8" value={input.attendance} onChange={e => handleScoreChange(input.studentId, 'attendance', e.target.value)} />
+                              {autoFilledStudents.has(input.studentId) && (
+                                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" title="Auto-filled from attendance records" />
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <div className="flex gap-1">
                               <Button variant="ghost" size="sm" onClick={() => handleSaveScore(input.studentId, 'draft')} disabled={saving} title="Save as draft"><Save className="h-3 w-3" /></Button>

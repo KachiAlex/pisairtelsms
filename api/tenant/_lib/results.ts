@@ -171,6 +171,84 @@ function getLevelForClass(className: string): 'primary' | 'jss' | 'sss' {
   return 'primary'
 }
 
+/**
+ * Compute attendance percentage from attendance_records for a student in a term.
+ * Late counts as 0.5 present.
+ * Returns 100 if no records exist (fallback to avoid penalizing when no data).
+ */
+export async function computeAttendancePercentage(
+  tenantId: string,
+  studentId: string,
+  academicSession: string,
+  term: string
+): Promise<number> {
+  try {
+    const result = await sql`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present,
+        SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late
+      FROM attendance_records
+      WHERE tenant_id = ${tenantId}
+        AND student_id = ${studentId}
+        AND academic_session = ${academicSession}
+        AND term = ${term}
+    `
+    const total = parseInt(result.rows[0]?.total || '0', 10)
+    const present = parseInt(result.rows[0]?.present || '0', 10)
+    const late = parseInt(result.rows[0]?.late || '0', 10)
+    if (total === 0) return 100
+    const pct = ((present + 0.5 * late) / total) * 100
+    return Math.round(pct * 100) / 100
+  } catch (error) {
+    console.error('Error computing attendance percentage:', error)
+    return 100
+  }
+}
+
+/**
+ * Batch compute attendance percentages for all students in a class/term.
+ * Returns a map of studentId -> attendance percentage.
+ */
+export async function computeAttendanceBatch(
+  tenantId: string,
+  className: string,
+  academicSession: string,
+  term: string
+): Promise<Record<string, number>> {
+  try {
+    const result = await sql`
+      SELECT
+        student_id,
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present,
+        SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late
+      FROM attendance_records
+      WHERE tenant_id = ${tenantId}
+        AND class = ${className}
+        AND academic_session = ${academicSession}
+        AND term = ${term}
+      GROUP BY student_id
+    `
+    const map: Record<string, number> = {}
+    for (const row of result.rows) {
+      const total = parseInt(row.total || '0', 10)
+      const present = parseInt(row.present || '0', 10)
+      const late = parseInt(row.late || '0', 10)
+      if (total === 0) {
+        map[row.student_id] = 100
+      } else {
+        const pct = ((present + 0.5 * late) / total) * 100
+        map[row.student_id] = Math.round(pct * 100) / 100
+      }
+    }
+    return map
+  } catch (error) {
+    console.error('Error computing batch attendance:', error)
+    return {}
+  }
+}
+
 export async function computeWeightedTotal(
   tenantId: string,
   className: string,
@@ -294,6 +372,14 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
   const submittedByName = payload.submittedByName ?? null
   const submissionStatus = payload.submissionStatus ?? 'submitted'
 
+  // Auto-compute attendance percentage from attendance_records if not explicitly provided
+  let attendancePercentage = payload.attendancePercentage
+  if (!attendancePercentage || attendancePercentage === 0) {
+    attendancePercentage = await computeAttendancePercentage(
+      tenantId, payload.studentId, payload.academicSession, payload.term
+    )
+  }
+
   const result = await sql<ScoreRow>`
     INSERT INTO student_scores
       (id, tenant_id, student_id, subject, academic_session, term,
@@ -302,7 +388,7 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
        submitted_by, submitted_by_name, submission_status)
     VALUES
       (${id}, ${tenantId}, ${payload.studentId}, ${payload.subject}, ${payload.academicSession}, ${payload.term},
-       ${caScore}, ${examScore}, ${totalScore}, ${payload.attendancePercentage}, ${payload.class},
+       ${caScore}, ${examScore}, ${totalScore}, ${attendancePercentage}, ${payload.class},
        ${testsScore}, ${assignmentsScore}, ${projectsScore}, ${examsScore},
        ${submittedBy}, ${submittedByName}, ${submissionStatus})
     ON CONFLICT (tenant_id, student_id, subject, academic_session, term)
@@ -363,11 +449,32 @@ export async function recomputeAllScores(
         examsScore: row.exams_score !== null ? parseFloat(row.exams_score) : 0,
       })
 
-      if (Math.abs(oldTotal - newTotal) > 0.01) {
-        await sql`
-          UPDATE student_scores SET total_score = ${newTotal}, updated_at = NOW()
-          WHERE id = ${row.id}
-        `
+      // Also recompute attendance from records
+      const newAttendance = await computeAttendancePercentage(
+        tenantId, row.student_id, row.academic_session, row.term
+      )
+      const oldAttendance = parseFloat(row.attendance_percentage)
+
+      const needsTotalUpdate = Math.abs(oldTotal - newTotal) > 0.01
+      const needsAttendanceUpdate = Math.abs(oldAttendance - newAttendance) > 0.01
+
+      if (needsTotalUpdate || needsAttendanceUpdate) {
+        if (needsTotalUpdate && needsAttendanceUpdate) {
+          await sql`
+            UPDATE student_scores SET total_score = ${newTotal}, attendance_percentage = ${newAttendance}, updated_at = NOW()
+            WHERE id = ${row.id}
+          `
+        } else if (needsTotalUpdate) {
+          await sql`
+            UPDATE student_scores SET total_score = ${newTotal}, updated_at = NOW()
+            WHERE id = ${row.id}
+          `
+        } else {
+          await sql`
+            UPDATE student_scores SET attendance_percentage = ${newAttendance}, updated_at = NOW()
+            WHERE id = ${row.id}
+          `
+        }
         recomputed++
         details.push({
           studentId: row.student_id,

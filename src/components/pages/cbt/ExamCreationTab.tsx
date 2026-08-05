@@ -8,6 +8,7 @@ import { Label } from '../../ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Progress } from '../../ui/progress';
 import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../../lib/tenantApi';
+import { ClassArmSelect } from '../../ui/class-arm-select';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,7 +127,6 @@ export function ExamCreationTab() {
 
   // Dynamic dropdowns
   const [subjects, setSubjects] = useState<string[]>([]);
-  const [classes, setClasses] = useState<Array<{ id: string; name: string; arm: string }>>([]);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -214,24 +214,9 @@ export function ExamCreationTab() {
         console.error('Failed to fetch subjects:', subjectsRes.status, errorText);
         setSubjects([]);
       }
-
-      // Fetch classes from tenant-scoped classes endpoint
-      const classesRes = await tenantApiGet('/api/tenant/cbt/classes');
-      if (classesRes.ok) {
-        const classesData = await classesRes.json();
-        console.log('Classes response:', classesData);
-        const classList = Array.isArray(classesData.data) ? classesData.data : [];
-        console.log('Classes list:', classList);
-        setClasses(classList);
-      } else {
-        const errorText = await classesRes.text();
-        console.error('Failed to fetch classes:', classesRes.status, errorText);
-        setClasses([]);
-      }
     } catch (error) {
       console.error('Error fetching dropdown data:', error);
       setSubjects([]);
-      setClasses([]);
     } finally {
       setLoadingDropdowns(false);
     }
@@ -247,12 +232,6 @@ export function ExamCreationTab() {
   }, [subjects]);
 
   useEffect(() => {
-    if (classes.length > 0) {
-      setForm((f) => f.class ? f : { ...f, class: `${classes[0].name} ${classes[0].arm}` });
-    }
-  }, [classes]);
-
-  useEffect(() => {
     if (isFormOpen) {
       fetchQuestions(questionSearch, questionTagFilter);
       fetchQuestionTags();
@@ -263,8 +242,7 @@ export function ExamCreationTab() {
 
   const openCreate = () => {
     setEditingExam(null);
-    const firstClass = classes.length > 0 ? `${classes[0].name} ${classes[0].arm}` : '';
-    setForm({ title: '', subject: subjects[0] || '', class: firstClass, duration: '', passMark: '', totalMarks: '', scheduledDate: '', scheduledTime: '', description: '' });
+    setForm({ title: '', subject: subjects[0] || '', class: '', duration: '', passMark: '', totalMarks: '', scheduledDate: '', scheduledTime: '', description: '' });
     setSelectedQuestions([]);
     setFormErrors({});
     setIsFormOpen(true);
@@ -462,17 +440,9 @@ export function ExamCreationTab() {
               </div>
               <div>
                 <Label htmlFor="e-class">Class *</Label>
-                <select id="e-class" className="w-full mt-1 border rounded-md px-3 py-2 text-sm" value={form.class} onChange={(e) => setForm((f) => ({ ...f, class: e.target.value }))}>
-                  {classes.length === 0 ? (
-                    <option value="">No classes found. Add classes in the Classes &amp; Arms tab.</option>
-                  ) : (
-                    classes.map((c) => (
-                      <option key={c.id} value={`${c.name} ${c.arm}`}>
-                        {c.name} {c.arm}
-                      </option>
-                    ))
-                  )}
-                </select>
+                <div className="mt-1">
+                  <ClassArmSelect value={form.class} onChange={(v) => setForm((f) => ({ ...f, class: v }))} />
+                </div>
                 {formErrors.class && <p className="text-red-600 text-xs mt-1">{formErrors.class}</p>}
               </div>
               <div>

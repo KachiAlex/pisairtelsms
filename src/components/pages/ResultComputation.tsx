@@ -9,6 +9,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ClassArmSelect } from '../ui/class-arm-select'
 import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
@@ -247,7 +248,7 @@ export function ResultComputation() {
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Class (optional - leave empty for all)</Label>
-              <Input value={selectedClass} onChange={e => setSelectedClass(e.target.value)} placeholder="e.g. JSS 2A" />
+              <ClassArmSelect value={selectedClass} onChange={setSelectedClass} allowAll allLabel="All Classes" />
             </div>
           </div>
 

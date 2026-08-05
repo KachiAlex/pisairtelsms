@@ -9,11 +9,11 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ClassArmSelect } from '../ui/class-arm-select'
 import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
-interface ClassItem { id: string; name: string }
 interface SubjectItem { id: string; name: string }
 interface StudentScore {
   id: string; studentId: string; subject: string; academicSession: string; term: string
@@ -37,7 +37,6 @@ export function CAScoreEntry() {
   const { tenant } = useTenant()
   const { toast } = useToast()
 
-  const [classes, setClasses] = useState<ClassItem[]>([])
   const [subjects, setSubjects] = useState<SubjectItem[]>([])
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSubject, setSelectedSubject] = useState('')
@@ -64,14 +63,7 @@ export function CAScoreEntry() {
   const loadMeta = useCallback(async () => {
     setLoadingMeta(true)
     try {
-      const [classRes, subjectRes] = await Promise.all([
-        tenantApiGet('/api/tenant/cbt/classes'),
-        tenantApiGet('/api/tenant/academics/subjects'),
-      ])
-      if (classRes.ok) {
-        const data = await classRes.json()
-        setClasses(data.data || data.classes || [])
-      }
+      const subjectRes = await tenantApiGet('/api/tenant/academics/subjects')
       if (subjectRes.ok) {
         const data = await subjectRes.json()
         setSubjects(data.data || data.subjects || [])
@@ -300,12 +292,7 @@ export function CAScoreEntry() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Class</Label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                <SelectContent>
-                  {classes.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <ClassArmSelect value={selectedClass} onChange={setSelectedClass} />
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Subject</Label>

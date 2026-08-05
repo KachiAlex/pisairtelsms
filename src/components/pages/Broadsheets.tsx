@@ -9,6 +9,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ClassArmSelect } from '../ui/class-arm-select'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet } from '../../lib/tenantApi'
 
@@ -53,7 +54,6 @@ export function Broadsheets() {
   const [academicSession, setAcademicSession] = useState('')
   const [term, setTerm] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
-  const [classes, setClasses] = useState<{ id: string; name: string; arm?: string }[]>([])
   const [data, setData] = useState<BroadsheetData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -65,18 +65,7 @@ export function Broadsheets() {
   useEffect(() => {
     setAcademicSession(defaultSession)
     setTerm('First Term')
-    loadClasses()
   }, [])
-
-  const loadClasses = async () => {
-    try {
-      const res = await tenantApiGet('/api/tenant/cbt/classes')
-      if (res.ok) {
-        const json = await res.json()
-        setClasses(json.data || json.classes || [])
-      }
-    } catch { /* silent */ }
-  }
 
   const loadBroadsheet = useCallback(async () => {
     if (!academicSession || !term || !selectedClass) return
@@ -193,16 +182,7 @@ export function Broadsheets() {
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Class</Label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                <SelectContent>
-                  {classes.map(c => (
-                    <SelectItem key={c.id} value={c.arm ? `${c.name} ${c.arm}` : c.name}>
-                      {c.arm ? `${c.name} ${c.arm}` : c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClassArmSelect value={selectedClass} onChange={setSelectedClass} />
             </div>
           </div>
         </CardContent>

@@ -7,10 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ClassArmSelect } from '../ui/class-arm-select'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet } from '../../lib/tenantApi'
 
-interface ClassItem { id: string; name: string; arm?: string }
 interface StudentItem { id: string; name: string; admissionNo?: string; class?: string }
 
 interface SubjectResult {
@@ -72,7 +72,6 @@ function getGradeColor(grade: string): string {
 export function Transcripts() {
   const { toast } = useToast()
 
-  const [classes, setClasses] = useState<ClassItem[]>([])
   const [students, setStudents] = useState<StudentItem[]>([])
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedStudent, setSelectedStudent] = useState('')
@@ -82,18 +81,7 @@ export function Transcripts() {
   const [expandedTerms, setExpandedTerms] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    loadClasses()
   }, [])
-
-  const loadClasses = async () => {
-    try {
-      const res = await tenantApiGet('/api/tenant/cbt/classes')
-      if (res.ok) {
-        const json = await res.json()
-        setClasses(json.data || json.classes || [])
-      }
-    } catch { /* silent */ }
-  }
 
   const loadStudents = useCallback(async () => {
     if (!selectedClass) return
@@ -182,8 +170,6 @@ export function Transcripts() {
     toast({ title: 'CSV exported', description: `${data.sessions.length} term(s) exported.` })
   }
 
-  const classDisplayName = (c: ClassItem) => c.arm ? `${c.name} ${c.arm}` : c.name
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between print:hidden">
@@ -212,14 +198,7 @@ export function Transcripts() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Class</Label>
-              <Select value={selectedClass} onValueChange={setSelectedClass}>
-                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                <SelectContent>
-                  {classes.map(c => (
-                    <SelectItem key={c.id} value={classDisplayName(c)}>{classDisplayName(c)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClassArmSelect value={selectedClass} onChange={setSelectedClass} />
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Student</Label>

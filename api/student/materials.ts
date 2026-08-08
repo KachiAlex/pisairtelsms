@@ -53,38 +53,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   try {
     const { subject, type, search, required } = req.query;
-    const studentRes = await sql`SELECT class FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1`;
-    const studentClass = studentRes.rows[0]?.class || '';
+    const studentRes = await sql`SELECT tenant_id, class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1`;
+    const tenantId = studentRes.rows[0]?.tenant_id || 'default-tenant';
 
-    let queryStr = `SELECT id::text, title, COALESCE(description, '') AS description, COALESCE(subject, '') AS subject,
-      COALESCE(teacher, '') AS teacher, COALESCE(type, 'document') AS type,
-      COALESCE(file_name, '') AS file_name, COALESCE(file_size, '') AS file_size,
-      COALESCE(file_type, '') AS file_type, COALESCE(url, '') AS url,
-      upload_date::text AS upload_date, COALESCE(academic_session, '') AS academic_session,
-      COALESCE(term, '') AS term, COALESCE(class_level, '') AS class_level,
-      COALESCE(tags, '[]'::jsonb) AS tags, is_required, view_count
-      FROM course_materials
-      WHERE class_level = ${studentClass} OR class_level IS NULL`;
-
-    const result = await sql`SELECT id::text, title, COALESCE(description, '') AS description, COALESCE(subject, '') AS subject,
-      COALESCE(teacher, '') AS teacher, COALESCE(type, 'document') AS type,
-      COALESCE(file_name, '') AS file_name, COALESCE(file_size, '') AS file_size,
-      COALESCE(file_type, '') AS file_type, COALESCE(url, '') AS url,
-      upload_date::text AS upload_date, COALESCE(academic_session, '') AS academic_session,
-      COALESCE(term, '') AS term, COALESCE(class_level, '') AS class_level,
-      COALESCE(tags, '[]'::jsonb) AS tags, is_required, view_count
-      FROM course_materials
-      WHERE class_level = ${studentClass} OR class_level IS NULL
-      ORDER BY upload_date DESC`;
+    const result = await sql`
+      SELECT cm.id::text, cm.title, COALESCE(cm.description, '') AS description,
+        COALESCE(cm.type, 'document') AS type, COALESCE(cm.url, '') AS url,
+        COALESCE(cm.file_name, '') AS file_name, COALESCE(cm.file_size::text, '') AS file_size,
+        cm.created_at::text AS created_at,
+        COALESCE(vc.name, '') AS classroom_name, COALESCE(s.name, '') AS subject_name,
+        COALESCE(st.name, '') AS teacher_name
+      FROM course_materials cm
+      LEFT JOIN virtual_classrooms vc ON vc.id = cm.classroom_id
+      LEFT JOIN subjects s ON s.id::text = vc.subject_id
+      LEFT JOIN staff st ON st.id = vc.teacher_id
+      WHERE cm.tenant_id = ${tenantId} AND cm.is_published = true
+      ORDER BY cm.created_at DESC
+    `;
 
     let materials: CourseMaterial[] = result.rows.map(r => ({
-      id: r.id, title: r.title, description: r.description, subject: r.subject,
-      teacher: r.teacher, type: r.type as CourseMaterial['type'], fileName: r.file_name,
-      fileSize: r.file_size, fileType: r.file_type, url: r.url,
-      uploadDate: r.upload_date || '', academicSession: r.academic_session,
-      term: r.term, classLevel: r.class_level,
-      tags: Array.isArray(r.tags) ? r.tags : [], isRequired: !!r.is_required,
-      viewCount: Number(r.view_count) || 0,
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      subject: r.subject_name,
+      teacher: r.teacher_name,
+      type: r.type as CourseMaterial['type'],
+      fileName: r.file_name,
+      fileSize: r.file_size,
+      fileType: '',
+      url: r.url,
+      uploadDate: r.created_at || '',
+      academicSession: '',
+      term: '',
+      classLevel: r.classroom_name,
+      tags: [],
+      isRequired: false,
+      viewCount: 0,
     }));
 
     if (subject) materials = materials.filter(m => m.subject.toLowerCase() === (subject as string).toLowerCase());
@@ -99,7 +103,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         m.tags.some(tag => tag.toLowerCase().includes(searchTerm))
       );
     }
-    materials.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
 
     const subjects = [...new Set(materials.map(m => m.subject))].sort();
     const types = [...new Set(materials.map(m => m.type))].sort();

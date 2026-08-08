@@ -8,6 +8,7 @@ import {
   CreditCard,
   MessageSquare,
   User,
+  Video,
   Menu,
   X,
   LogOut,
@@ -34,6 +35,7 @@ const MyAssignments = lazy(() => import('../pages/student/MyAssignments').then(m
 const MyMaterials = lazy(() => import('../pages/student/MyMaterials').then(m => ({ default: m.MyMaterials })))
 const MyExams = lazy(() => import('../pages/student/MyExams').then(m => ({ default: m.MyExams })))
 const MyTranscript = lazy(() => import('../pages/student/MyTranscript').then(m => ({ default: m.MyTranscript })))
+const StudentLiveClass = lazy(() => import('../pages/student/StudentLiveClass').then(m => ({ default: m.StudentLiveClass })))
 
 interface StudentLayoutProps {
   children?: React.ReactNode
@@ -46,6 +48,7 @@ const navItems = [
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
   { id: 'assignments', label: 'Assignments', icon: ClipboardList },
   { id: 'materials', label: 'Materials', icon: Library },
+  { id: 'live-class', label: 'Live Class', icon: Video },
   { id: 'exams', label: 'Exams', icon: ExamIcon },
   { id: 'timetable', label: 'Timetable', icon: Clock },
   { id: 'fees', label: 'Fees & Payments', icon: CreditCard },
@@ -94,6 +97,8 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         return <MyAssignments />
       case 'materials':
         return <MyMaterials />
+      case 'live-class':
+        return <StudentLiveClass />
       case 'communications':
         return <Communications />
       case 'messages':

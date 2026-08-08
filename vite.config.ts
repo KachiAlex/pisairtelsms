@@ -19,17 +19,5 @@ export default defineConfig({
 
   build: {
     chunkSizeWarningLimit: 900,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('StudentsList')) {
-            return 'students-list'
-          }
-          if (id.includes('node_modules')) {
-            return 'vendor'
-          }
-        },
-      },
-    },
   },
 })

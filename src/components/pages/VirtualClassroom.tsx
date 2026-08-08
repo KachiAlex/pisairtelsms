@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select'
 import { CloudflareLiveClassRoom as LiveClassRoom } from './CloudflareLiveClassRoom'
+import { VirtualClassroomSettings } from './VirtualClassroomSettings'
 import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
@@ -299,6 +300,7 @@ export function VirtualClassroom() {
             <TabsTrigger value="lessons">Lessons</TabsTrigger>
             <TabsTrigger value="materials">Materials</TabsTrigger>
             <TabsTrigger value="assignments">Assignments</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           {/* Lessons Tab */}
@@ -449,6 +451,11 @@ export function VirtualClassroom() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-4">
+            <VirtualClassroomSettings />
           </TabsContent>
         </Tabs>
 

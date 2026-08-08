@@ -15,6 +15,7 @@ import {
   ClipboardList,
   FileText,
   CalendarDays,
+  Shield,
 } from 'lucide-react'
 
 interface NavItem {
@@ -42,6 +43,7 @@ const navItems: NavItem[] = [
   { id: 'timetable', label: 'Timetable', icon: Clock },
   { id: 'events', label: 'School Events', icon: CalendarDays },
   { id: 'health', label: 'Health & Wellness', icon: Heart },
+  { id: 'virtual-learning-consents', label: 'Virtual Consents', icon: Shield },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'profile', label: 'Profile', icon: User },
 ]

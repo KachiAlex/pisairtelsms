@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Label } from '../ui/label'
-import { Switch } from '../ui/switch'
-import { Textarea } from '../ui/textarea'
-import { useParentContext } from '../../contexts/ParentContext'
-import { getAuthFromStorage } from '../../lib/auth'
-import { useToast } from '../ui/use-toast'
+import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card'
+import { Label } from '../../ui/label'
+import { Switch } from '../../ui/switch'
+import { Textarea } from '../../ui/textarea'
+import { useParentContext } from '../../../contexts/ParentContext'
+import { getAuthFromStorage } from '../../../lib/auth'
+import { useToast } from '../../ui/use-toast'
 import { Loader2 } from 'lucide-react'
 
 interface Consent {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { DollarSign, TrendingUp, AlertCircle, Download, Send, Search, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -63,7 +64,17 @@ export function FinanceManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromPath: Record<string, string> = {
+    '/tenant/finance': 'dashboard',
+    '/tenant/fee-structure': 'fee-config',
+    '/tenant/fee-collection': 'payments',
+    '/tenant/outstanding-fees': 'student-accounts',
+    '/tenant/invoices': 'reports',
+    '/tenant/financial-reports': 'reports',
+  };
+  const activeTab = searchParams.get('tab') || tabFromPath[location.pathname] || 'dashboard';
 
   useEffect(() => {
     fetchFeeRecords();
@@ -127,7 +138,7 @@ export function FinanceManagement() {
   const totalOutstanding = totalExpected - totalCollected;
 
   const handleRecordPayment = () => {
-    setActiveTab('payments');
+    setSearchParams({ tab: 'payments' });
   };
 
   const handleSendReminder = () => {
@@ -136,7 +147,7 @@ export function FinanceManagement() {
   };
 
   const handleViewDefaulters = () => {
-    setActiveTab('reports');
+    setSearchParams({ tab: 'reports' });
   };
 
   return (
@@ -186,7 +197,7 @@ export function FinanceManagement() {
       )}
 
       {/* Tab Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })} className="space-y-4">
         <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="fee-config">Fee Config</TabsTrigger>

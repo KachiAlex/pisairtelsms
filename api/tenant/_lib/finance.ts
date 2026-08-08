@@ -157,6 +157,61 @@ export async function recordPayment(tenantId: string, payload: PaymentPayload): 
   return rowToFeeRecord(result.rows[0])
 }
 
+export async function generateFeeRecordsFromAssignments(
+  tenantId: string,
+  feeStructureId?: string
+): Promise<{ generated: number }> {
+  const rows = await sql<{
+    assignment_id: string
+    student_id: string
+    student_name: string
+    admission_no: string
+    class: string
+    fee_type: string
+    amount: string
+    academic_session: string
+    term: string
+  }>`
+    SELECT
+      fa.id AS assignment_id,
+      s.id AS student_id,
+      s.name AS student_name,
+      s.admission_no,
+      s.class,
+      fs.name AS fee_type,
+      fa.total_amount AS amount,
+      fa.academic_session,
+      fa.term
+    FROM fee_assignments fa
+    JOIN fee_structures fs ON fs.id = fa.fee_structure_id AND fs.tenant_id = ${tenantId}
+    JOIN students s ON s.id = fa.student_id AND s.tenant_id = ${tenantId}
+    WHERE NOT EXISTS (
+      SELECT 1 FROM fee_records fr
+      WHERE fr.student_id = s.id
+        AND fr.academic_session = fa.academic_session
+        AND fr.term = fa.term
+        AND fr.fee_type = fs.name
+    )
+    ${feeStructureId ? `AND fa.fee_structure_id = ${feeStructureId}` : ''}
+  `
+
+  for (const row of rows.rows) {
+    const id = `fee_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    await sql`
+      INSERT INTO fee_records (
+        id, tenant_id, student_id, student_name, admission_no, class, fee_type,
+        amount, paid, balance, status, academic_session, term
+      ) VALUES (
+        ${id}, ${tenantId}, ${row.student_id}, ${row.student_name}, ${row.admission_no},
+        ${row.class}, ${row.fee_type}, ${row.amount}, 0, ${row.amount}, 'pending',
+        ${row.academic_session}, ${row.term}
+      )
+    `
+  }
+
+  return { generated: rows.rows.length }
+}
+
 export async function sendFeeReminders(tenantId: string): Promise<{ sent: number }> {
   const defaulters = await sql<FeeRow>`
     SELECT * FROM fee_records WHERE tenant_id = ${tenantId} AND balance > 0

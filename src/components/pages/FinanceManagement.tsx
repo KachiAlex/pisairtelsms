@@ -54,6 +54,7 @@ export function FinanceManagement() {
   const [revenueData, setRevenueData] = useState<{ month: string; revenue: number }[]>([]);
   const [todayCollection, setTodayCollection] = useState({ amount: 0, count: 0 });
   const [sendingReminder, setSendingReminder] = useState(false);
+  const [generatingBills, setGeneratingBills] = useState(false);
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromPath: Record<string, string> = {
@@ -157,6 +158,25 @@ export function FinanceManagement() {
     setSearchParams({ tab: 'payments' });
   };
 
+  const handleGenerateBills = async () => {
+    setGeneratingBills(true);
+    try {
+      const response = await financeApiPost('/api/tenant/finance?action=generate-bills', {});
+      if (!response.ok) throw new Error('Failed to generate bills');
+      const result = await response.json();
+      toast({ title: 'Bills generated', description: `${result.data?.generated || 0} fee bill(s) created.` });
+      await fetchFeeRecords();
+    } catch (err) {
+      toast({
+        title: 'Failed to generate bills',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setGeneratingBills(false);
+    }
+  };
+
   const handleSendReminder = async () => {
     setSendingReminder(true);
     try {
@@ -206,6 +226,10 @@ export function FinanceManagement() {
           <Button variant="outline" onClick={handleExportReport}>
             <Download className="w-4 h-4 mr-2" />
             Export Report
+          </Button>
+          <Button variant="outline" onClick={handleGenerateBills} disabled={generatingBills}>
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Generate Bills
           </Button>
           <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSendReminder} disabled={sendingReminder}>
             <Send className="w-4 h-4 mr-2" />

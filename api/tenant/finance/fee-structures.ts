@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { requireRole } from '../../_lib/auth-middleware.js'
+import { initializeDatabase, runMigrations } from '../../cbt/_lib/db.js'
 import {
   createFeeStructure,
   getFeeStructures,
@@ -9,6 +10,19 @@ import {
   copyFeeStructure,
   getFeeStructureHistory,
 } from './_lib/fee-structures.js'
+
+let migrationsInitialized = false
+
+async function ensureMigrations() {
+  if (migrationsInitialized) return
+  migrationsInitialized = true
+  try {
+    initializeDatabase()
+    await runMigrations()
+  } catch (err) {
+    console.error('Migration initialization error:', err)
+  }
+}
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
@@ -28,6 +42,8 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  await ensureMigrations()
+
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

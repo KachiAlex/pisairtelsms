@@ -1,4 +1,12 @@
 -- Fee structure and assignment tables for unified pg database
+
+-- Ensure tenant_id exists on pre-created tables before adding indexes
+ALTER TABLE IF EXISTS fee_structures ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS fee_items ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS fee_assignments ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS exemptions ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS student_payments ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+
 CREATE TABLE IF NOT EXISTS fee_structures (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,

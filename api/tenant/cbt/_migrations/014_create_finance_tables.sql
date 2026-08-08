@@ -1,4 +1,12 @@
 -- Finance tables for unified pg database
+
+-- Ensure tenant_id exists on pre-created tables before adding indexes
+ALTER TABLE IF EXISTS fee_records ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS payments ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS tenant_payment_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS payment_proofs ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+ALTER TABLE IF EXISTS admin_notifications ADD COLUMN IF NOT EXISTS tenant_id TEXT;
+
 CREATE TABLE IF NOT EXISTS fee_records (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,

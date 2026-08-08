@@ -558,10 +558,69 @@ export function VirtualClassroom() {
 
 // --- Dialogs ---
 
+interface StaffMember {
+  id: string
+  name: string
+  role: string
+  email?: string
+}
+
 function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (data: any) => void }) {
+  const { toast } = useToast()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [teacherId, setTeacherId] = useState('')
+  const [teachers, setTeachers] = useState<StaffMember[]>([])
+  const [teachersLoading, setTeachersLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    async function loadTeachers() {
+      setTeachersLoading(true)
+      try {
+        const res = await tenantApiGet('/api/tenant/staff?resource=directory&status=active')
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({} as any))
+          throw new Error(data.error || `Failed to load teachers (${res.status})`)
+        }
+        const data = await res.json()
+        const staff = (data.data || []) as StaffMember[]
+        const activeTeachers = staff.filter((s) =>
+          s.role?.toLowerCase().includes('teacher') ||
+          s.role?.toLowerCase().includes('instructor')
+        )
+        if (!cancelled) {
+          setTeachers(activeTeachers)
+          if (activeTeachers.length === 0) {
+            toast({ title: 'No teachers found', description: 'Add teaching staff before creating a classroom.', variant: 'destructive' })
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : 'Unable to load teachers'
+          toast({ title: 'Failed to load teachers', description: message, variant: 'destructive' })
+        }
+      } finally {
+        if (!cancelled) setTeachersLoading(false)
+      }
+    }
+    loadTeachers()
+    return () => { cancelled = true }
+  }, [open, toast])
+
+  const reset = () => {
+    setName('')
+    setDescription('')
+    setTeacherId('')
+  }
+
+  const handleCreate = () => {
+    onCreate({ name, description, teacherId })
+    reset()
+  }
+
+  const canSubmit = name.trim() && teacherId
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -580,13 +639,28 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
             <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description of the course..." />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="teacherId">Teacher ID *</Label>
-            <Input id="teacherId" value={teacherId} onChange={e => setTeacherId(e.target.value)} placeholder="Staff ID of the teacher" />
+            <Label htmlFor="teacherId">Teacher *</Label>
+            {teachersLoading ? (
+              <div className="h-10 w-full rounded-md border border-gray-200 bg-gray-50 animate-pulse" />
+            ) : (
+              <Select value={teacherId} onValueChange={setTeacherId}>
+                <SelectTrigger id="teacherId" className="w-full">
+                  <SelectValue placeholder="Select a teacher" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teachers.map((teacher) => (
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.name} <span className="text-gray-400 text-xs">({teacher.role})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => { onCreate({ name, description, teacherId }); setName(''); setDescription(''); setTeacherId('') }}>
+          <Button variant="outline" onClick={() => { onClose(); reset() }}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={!canSubmit}>
             Create Classroom
           </Button>
         </DialogFooter>

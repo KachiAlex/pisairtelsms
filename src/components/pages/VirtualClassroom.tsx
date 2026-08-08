@@ -19,6 +19,7 @@ import {
 } from '../ui/select'
 import { CloudflareLiveClassRoom as LiveClassRoom } from './CloudflareLiveClassRoom'
 import { VirtualClassroomSettings } from './VirtualClassroomSettings'
+import { VirtualClassroomDiscussions } from './VirtualClassroomDiscussions'
 import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
@@ -300,6 +301,7 @@ export function VirtualClassroom() {
             <TabsTrigger value="lessons">Lessons</TabsTrigger>
             <TabsTrigger value="materials">Materials</TabsTrigger>
             <TabsTrigger value="assignments">Assignments</TabsTrigger>
+            <TabsTrigger value="discussions">Discussions</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -451,6 +453,11 @@ export function VirtualClassroom() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Discussions Tab */}
+          <TabsContent value="discussions" className="space-y-4">
+            <VirtualClassroomDiscussions classroomId={selectedClassroom.id} />
           </TabsContent>
 
           {/* Settings Tab */}

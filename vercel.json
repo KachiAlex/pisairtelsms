@@ -233,6 +233,8 @@
     { "source": "/api/tenant/virtual-learning-settings", "destination": "/api/tenant/virtual-learning-settings.ts" },
     { "source": "/api/tenant/virtual-learning-consents", "destination": "/api/tenant/virtual-learning-consents.ts" },
     { "source": "/api/tenant/virtual-learning-notifications", "destination": "/api/tenant/virtual-learning-notifications.ts" },
+    { "source": "/api/tenant/discussions", "destination": "/api/tenant/discussions.ts" },
+    { "source": "/api/tenant/discussions/replies", "destination": "/api/tenant/discussions/replies.ts" },
     { "source": "/api/tenant/virtual-attendance", "destination": "/api/tenant/virtual-attendance.ts" },
     { "source": "/api/tenant/exams/item-analysis", "destination": "/api/tenant/exams/item-analysis-routes.ts" },
     { "source": "/api/tenant/students/risk-alerts", "destination": "/api/tenant/students/risk-alerts-routes.ts" },

@@ -13,6 +13,7 @@ import {
   TenantSettingsResponse,
   updateTenantSettings,
 } from '../../lib/tenantSettingsClient'
+import { tenantApiGet } from '../../lib/tenantApi'
 
 const fallbackSettings: TenantSettingsPayload = {
   schoolName: 'Excellence Academy',
@@ -37,16 +38,6 @@ function cloneFallback(): TenantSettingsPayload {
   return structuredClone(fallbackSettings)
 }
 
-function getCalendarHeaders() {
-  try {
-    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-    return {
-      'Content-Type': 'application/json',
-    }
-  } catch {
-    return { 'Content-Type': 'application/json' };
-  }
-}
 
 export function SystemSettings() {
   const { toast } = useToast()
@@ -61,11 +52,10 @@ export function SystemSettings() {
     let cancelled = false
     setIsLoading(true)
 
-    const headers = getCalendarHeaders()
     Promise.all([
       fetchTenantSettings(),
-      fetch('/api/tenant/timetable/calendar?resource=academic-years', { headers }).then(r => r.ok ? r.json() : { data: [] }),
-      fetch('/api/tenant/timetable/calendar?resource=terms', { headers }).then(r => r.ok ? r.json() : { data: [] }),
+      tenantApiGet('/api/tenant/timetable/calendar?resource=academic-years').then(r => r.ok ? r.json() : { data: [] }),
+      tenantApiGet('/api/tenant/timetable/calendar?resource=terms').then(r => r.ok ? r.json() : { data: [] }),
     ])
       .then(([remote, yearsJson, termsJson]) => {
         if (cancelled) return

@@ -22,9 +22,9 @@ export function initializeDatabase(): Pool {
     return pool;
   }
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL environment variable is not set');
+    throw new Error('DATABASE_URL or POSTGRES_URL environment variable is not set');
   }
 
   pool = new Pool({
@@ -124,10 +124,30 @@ export async function transaction<T>(
  */
 export async function runMigrations(): Promise<void> {
   const pool = getPool();
-  const moduleDirname = typeof __dirname !== 'undefined'
-    ? __dirname
-    : path.dirname(fileURLToPath(import.meta.url));
-  const migrationsDir = path.join(moduleDirname, '../_migrations');
+
+  const candidates = [
+    process.env.MIGRATIONS_DIR,
+    path.join(process.cwd(), 'api/tenant/cbt/_migrations'),
+    path.join(process.cwd(), 'api/_migrations'),
+    path.join(process.cwd(), '_migrations'),
+  ];
+
+  if (typeof __dirname !== 'undefined') {
+    candidates.push(path.join(__dirname, '../_migrations'));
+  }
+  if (typeof import.meta.url !== 'undefined') {
+    try {
+      candidates.push(path.join(path.dirname(fileURLToPath(import.meta.url)), '../_migrations'));
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const migrationsDir = candidates.find(d => d && fs.existsSync(d));
+  if (!migrationsDir) {
+    console.warn('No migrations directory found, skipping migrations. Paths tried:', candidates);
+    return;
+  }
 
   try {
     // Create migrations table if it doesn't exist

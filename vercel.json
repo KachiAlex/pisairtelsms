@@ -277,6 +277,11 @@
     { "source": "/api/cron/cleanup-violations", "destination": "/api/cron/cleanup-violations.ts" },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
+  "functions": {
+    "api/tenant/**/*.ts": {
+      "includeFiles": "api/tenant/cbt/_migrations/**"
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/cleanup-violations",

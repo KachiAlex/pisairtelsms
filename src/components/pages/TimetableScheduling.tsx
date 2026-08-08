@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   CalendarClock,
   AlertTriangle,
@@ -216,12 +217,8 @@ interface TimetableSchedulingProps {
 }
 
 export function TimetableScheduling({ initialView = 'class' }: TimetableSchedulingProps) {
-  const [activeView, setActiveView] = useState<TimetableView>(initialView)
-  const [selectedEntity, setSelectedEntity] = useState(() => {
-    const cfg = viewConfigs[initialView as Exclude<TimetableView, 'configure'>]
-    return cfg ? cfg.entities[0].id : ''
-  })
-  const [weekOffset, setWeekOffset] = useState(0)
+  const navigate = useNavigate()
+  const activeView = initialView
   const [liveConflicts, setLiveConflicts] = useState<ConflictItem[]>([])
   const [liveRequests, setLiveRequests] = useState<TimetableRequest[]>([])
   const [publishStatus, setPublishStatus] = useState<{
@@ -267,14 +264,8 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
   const requests = liveRequests.length > 0 ? liveRequests : (activeView !== 'configure' ? requestQueue[activeView as Exclude<TimetableView, 'configure'>] : [])
 
   const handleViewChange = (view: TimetableView) => {
-    setActiveView(view)
-    if (view !== 'configure') {
-      setSelectedEntity(viewConfigs[view as Exclude<TimetableView, 'configure'>].entities[0].id)
-    }
-    setWeekOffset(0)
+    navigate(`/tenant/timetable-${view}`)
   }
-
-  const weekLabel = weekOffset === 0 ? 'Current week' : weekOffset > 0 ? `Week +${weekOffset}` : `Week ${weekOffset}`
 
   return (
     <div className="space-y-6">

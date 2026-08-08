@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { sql } from '@vercel/postgres'
+import { sql } from './db.js'
 
 export interface ExamSchedule {
   id: string

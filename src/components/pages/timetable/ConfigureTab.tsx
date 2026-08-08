@@ -7,6 +7,7 @@ import { TermManager } from './TermManager'
 import { HolidayManager } from './HolidayManager'
 import { ExamPeriodManager } from './ExamPeriodManager'
 import { TimeSlotManager } from './TimeSlotManager'
+import { tenantApiGet } from '../../../lib/tenantApi'
 
 export interface Term {
   id: string
@@ -57,8 +58,8 @@ export function ConfigureTab() {
     setError(null)
     try {
       const [calRes, slotsRes] = await Promise.all([
-        fetch('/api/tenant/timetable/calendar'),
-        fetch('/api/tenant/timetable/time-slots'),
+        tenantApiGet('/api/tenant/timetable/calendar'),
+        tenantApiGet('/api/tenant/timetable/time-slots'),
       ])
       if (!calRes.ok || !slotsRes.ok) throw new Error('Failed to load configuration data')
       const calData = await calRes.json()

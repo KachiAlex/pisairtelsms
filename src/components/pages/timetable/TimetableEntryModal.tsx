@@ -4,7 +4,7 @@ import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
-import { tenantApiGet } from '../../../lib/tenantApi'
+import { tenantApiGet, tenantApiPost } from '../../../lib/tenantApi'
 
 const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
@@ -33,7 +33,7 @@ export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/tenant/staff')
+    tenantApiGet('/api/tenant/staff')
       .then(r => r.json())
       .then(d => {
         const members = d.data || []
@@ -65,18 +65,14 @@ export function TimetableEntryModal({ scheduleId, timeSlotId, dayOfWeek, classId
         sid = await ensureSchedule()
         if (!sid) { setError('Failed to create schedule. Please try again.'); setSaving(false); return }
       }
-      const res = await fetch(`/api/tenant/timetable/class-schedules?scheduleId=${sid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          timeSlotId,
-          dayOfWeek,
-          subjectId: form.subjectName.toLowerCase().replace(/\s+/g, '-'),
-          subjectName: form.subjectName,
-          teacherId: form.teacherId,
-          teacherName: form.teacherName,
-          roomId: form.roomId || undefined,
-        }),
+      const res = await tenantApiPost(`/api/tenant/timetable/class-schedules?scheduleId=${sid}`, {
+        timeSlotId,
+        dayOfWeek,
+        subjectId: form.subjectName.toLowerCase().replace(/\s+/g, '-'),
+        subjectName: form.subjectName,
+        teacherId: form.teacherId,
+        teacherName: form.teacherName,
+        roomId: form.roomId || undefined,
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to save entry'); return }

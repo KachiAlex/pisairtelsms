@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../../ui/badge'
 import { TimetableEntryModal } from './TimetableEntryModal'
 import { AutoScheduleDialog } from './AutoScheduleDialog'
+import { tenantApiGet, tenantApiPost } from '../../../lib/tenantApi'
 
 const DAY_HEADERS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const DAY_NUMS = [1, 2, 3, 4, 5]
@@ -42,12 +43,17 @@ interface Term {
   academicYear: string
 }
 
-const CLASSES = ['JSS 1A', 'JSS 1B', 'JSS 2A', 'JSS 2B', 'JSS 3A', 'SS 1A', 'SS 1B', 'SS 2A', 'SS 2B', 'SS 3A']
+interface ClassArm {
+  id: string
+  name: string
+  arm?: string
+}
 
 export function ClassTimetableTab() {
   const [terms, setTerms] = useState<Term[]>([])
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
-  const [selectedClass, setSelectedClass] = useState(CLASSES[0])
+  const [classes, setClasses] = useState<ClassArm[]>([])
+  const [selectedClass, setSelectedClass] = useState('')
   const [selectedTerm, setSelectedTerm] = useState('')
   const [schedule, setSchedule] = useState<ClassSchedule | null>(null)
   const [loading, setLoading] = useState(false)
@@ -59,16 +65,21 @@ export function ClassTimetableTab() {
   useEffect(() => {
     async function loadConfig() {
       try {
-        const [calRes, slotsRes] = await Promise.all([
-          fetch('/api/tenant/timetable/calendar'),
-          fetch('/api/tenant/timetable/time-slots'),
+        const [calRes, slotsRes, classesRes] = await Promise.all([
+          tenantApiGet('/api/tenant/timetable/calendar'),
+          tenantApiGet('/api/tenant/timetable/time-slots'),
+          tenantApiGet('/api/tenant/cbt/classes'),
         ])
         const calData = await calRes.json()
         const slotsData = await slotsRes.json()
+        const classesData = await classesRes.json()
         const fetchedTerms: Term[] = Array.isArray(calData.data?.terms) ? calData.data.terms : []
+        const fetchedClasses: ClassArm[] = Array.isArray(classesData.data) ? classesData.data : []
         setTerms(fetchedTerms)
         setTimeSlots(Array.isArray(slotsData.data) ? slotsData.data.filter((s: TimeSlot) => !s.isBreak) : [])
+        setClasses(fetchedClasses)
         if (fetchedTerms.length > 0) setSelectedTerm(fetchedTerms[0].id)
+        if (fetchedClasses.length > 0) setSelectedClass(fetchedClasses[0].id)
       } catch {
         setError('Failed to load configuration')
       }
@@ -85,11 +96,11 @@ export function ClassTimetableTab() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/tenant/timetable/class-schedules?classId=${encodeURIComponent(selectedClass)}&termId=${selectedTerm}`)
+      const res = await tenantApiGet(`/api/tenant/timetable/class-schedules?classId=${encodeURIComponent(selectedClass)}&termId=${selectedTerm}`)
       const data = await res.json()
       const schedules: ClassSchedule[] = data.data || []
       if (schedules.length > 0) {
-        const detailRes = await fetch(`/api/tenant/timetable/class-schedules?scheduleId=${schedules[0].id}`)
+        const detailRes = await tenantApiGet(`/api/tenant/timetable/class-schedules?scheduleId=${schedules[0].id}`)
         const detailData = await detailRes.json()
         setSchedule(detailData.data)
       } else {
@@ -105,11 +116,7 @@ export function ClassTimetableTab() {
   async function ensureScheduleExists(): Promise<string | null> {
     if (schedule) return schedule.id
     try {
-      const res = await fetch('/api/tenant/timetable/class-schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classId: selectedClass, termId: selectedTerm }),
-      })
+      const res = await tenantApiPost('/api/tenant/timetable/class-schedules', { classId: selectedClass, termId: selectedTerm })
       const data = await res.json()
       return data.data?.id || null
     } catch {
@@ -135,9 +142,9 @@ export function ClassTimetableTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
         <Select value={selectedClass} onValueChange={setSelectedClass}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue placeholder={classes.length === 0 ? 'No classes' : undefined} /></SelectTrigger>
           <SelectContent>
-            {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.arm ? ` ${c.arm}` : ''}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={selectedTerm} onValueChange={setSelectedTerm}>

@@ -7,6 +7,7 @@ import { Label } from '../../ui/label'
 import { Switch } from '../../ui/switch'
 import { Badge } from '../../ui/badge'
 import { Checkbox } from '../../ui/checkbox'
+import { tenantApiPost, tenantApiPut, tenantApiDelete } from '../../../lib/tenantApi'
 import type { TimeSlot } from './ConfigureTab'
 
 interface Props {
@@ -115,11 +116,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/tenant/timetable/time-slots', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
+      const res = await tenantApiPost('/api/tenant/timetable/time-slots', form)
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to save time slot'); return }
       cancelForm()
@@ -134,7 +131,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
   async function handleDelete(id: string) {
     if (!confirm('Delete this time slot?')) return
     try {
-      const res = await fetch(`/api/tenant/timetable/time-slots?id=${id}`, { method: 'DELETE' })
+      const res = await tenantApiDelete(`/api/tenant/timetable/time-slots?id=${id}`)
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete'); return }
       setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; })
       onRefresh()
@@ -147,7 +144,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
     if (selectedIds.size === 0) return
     if (!confirm(`Delete ${selectedIds.size} selected time slot(s)?`)) return
     try {
-      const res = await fetch(`/api/tenant/timetable/time-slots?ids=${Array.from(selectedIds).join(',')}`, { method: 'DELETE' })
+      const res = await tenantApiDelete(`/api/tenant/timetable/time-slots?ids=${Array.from(selectedIds).join(',')}`)
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete'); return }
       setSelectedIds(new Set())
       onRefresh()
@@ -183,11 +180,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
       return
     }
     try {
-      const res = await fetch(`/api/tenant/timetable/time-slots?id=${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      })
+      const res = await tenantApiPut(`/api/tenant/timetable/time-slots?id=${id}`, editForm)
       const data = await res.json()
       if (!res.ok) { alert(data.error || 'Failed to update'); return }
       cancelEdit()
@@ -204,11 +197,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
     setSaving(true)
     try {
       const slotsToCreate = COMMON_SLOTS.map((slot, i) => ({ ...slot, dayOfWeek: 0, sequence: i + 1 }))
-      const res = await fetch('/api/tenant/timetable/time-slots', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slots: slotsToCreate }),
-      })
+      const res = await tenantApiPost('/api/tenant/timetable/time-slots', { slots: slotsToCreate })
       const data = await res.json()
       if (!res.ok) { alert(data.error || 'Failed to auto-configure'); return }
       onRefresh()
@@ -238,7 +227,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
               <Button variant="ghost" size="sm" onClick={deselectAll} className="text-gray-500">
                 Deselect All
               </Button>
-              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              <Button variant="default" size="sm" onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white">
                 <Trash2 className="h-4 w-4 mr-1" /> Delete ({selectedIds.size})
               </Button>
             </>
@@ -303,7 +292,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
                   {editingId === slot.id ? (
                     <div className="flex-1 space-y-2">
                       <div className="grid grid-cols-3 gap-2">
-                        <Input size="sm" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                        <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                         <Input type="time" value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} />
                         <Input type="time" value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} />
                       </div>
@@ -351,7 +340,7 @@ export function TimeSlotManager({ timeSlots, onRefresh }: Props) {
                   {editingId === slot.id ? (
                     <div className="flex-1 space-y-2">
                       <div className="grid grid-cols-3 gap-2">
-                        <Input size="sm" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                        <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                         <Input type="time" value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} />
                         <Input type="time" value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} />
                       </div>

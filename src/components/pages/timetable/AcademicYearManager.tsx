@@ -5,6 +5,7 @@ import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Badge } from '../../ui/badge'
+import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../../lib/tenantApi'
 
 interface AcademicYear {
   id: string
@@ -32,7 +33,7 @@ export function AcademicYearManager({ onRefresh }: Props) {
 
   async function fetchAcademicYears() {
     try {
-      const res = await fetch('/api/tenant/timetable/calendar?resource=academic-years')
+      const res = await tenantApiGet('/api/tenant/timetable/calendar?resource=academic-years')
       const data = await res.json()
       setAcademicYears(Array.isArray(data.data) ? data.data : [])
     } catch {
@@ -72,11 +73,9 @@ export function AcademicYearManager({ onRefresh }: Props) {
         ? `/api/tenant/timetable/calendar?resource=academic-years&id=${editId}`
         : '/api/tenant/timetable/calendar?resource=academic-years'
       
-      const res = await fetch(url, {
-        method: editId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
+      const res = editId
+        ? await tenantApiPut(`/api/tenant/timetable/calendar?resource=academic-years&id=${editId}`, form)
+        : await tenantApiPost('/api/tenant/timetable/calendar?resource=academic-years', form)
       const data = await res.json()
       if (!res.ok) {
         throw new Error(data.error || 'Failed to save academic year')
@@ -95,7 +94,7 @@ export function AcademicYearManager({ onRefresh }: Props) {
   async function handleDelete(id: string) {
     if (!confirm('Delete this academic year? This will affect all associated terms.')) return
     try {
-      const res = await fetch(`/api/tenant/timetable/calendar?resource=academic-years&id=${id}`, { method: 'DELETE' })
+      const res = await tenantApiDelete(`/api/tenant/timetable/calendar?resource=academic-years&id=${id}`)
       if (!res.ok) {
         const d = await res.json()
         alert(d.error || 'Failed to delete')
@@ -110,11 +109,7 @@ export function AcademicYearManager({ onRefresh }: Props) {
 
   async function handleSetCurrent(id: string) {
     try {
-      const res = await fetch(`/api/tenant/timetable/calendar?resource=academic-years&id=${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isCurrent: true }),
-      })
+      const res = await tenantApiPut(`/api/tenant/timetable/calendar?resource=academic-years&id=${id}`, { isCurrent: true })
       if (res.ok) {
         await fetchAcademicYears()
       }

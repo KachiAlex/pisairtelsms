@@ -7,6 +7,7 @@ import { Badge } from '../../ui/badge'
 import { HallAssignmentPanel } from './HallAssignmentPanel'
 import { InvigilatorAssignmentPanel } from './InvigilatorAssignmentPanel'
 import { ExamEntryModal } from './ExamEntryModal'
+import { tenantApiGet, tenantApiPost } from '../../../lib/tenantApi'
 
 export interface ExamSchedule {
   id: string
@@ -46,7 +47,7 @@ export function ExamScheduleTab() {
   const [showAddModal, setShowAddModal] = useState(false)
 
   useEffect(() => {
-    fetch('/api/tenant/timetable/calendar?resource=exam-periods')
+    tenantApiGet('/api/tenant/timetable/calendar?resource=exam-periods')
       .then(r => r.json())
       .then(d => {
         const periods: ExamPeriod[] = d.data || []
@@ -65,12 +66,12 @@ export function ExamScheduleTab() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/tenant/timetable/exam-schedules?examPeriodId=${selectedPeriod}`)
+      const res = await tenantApiGet(`/api/tenant/timetable/exam-schedules?examPeriodId=${selectedPeriod}`)
       const data = await res.json()
       // Fetch full details for each exam
       const examIds: string[] = Array.isArray(data.data) ? data.data.map((e: ExamSchedule) => e.id) : []
       const details = await Promise.all(
-        examIds.map(id => fetch(`/api/tenant/timetable/exam-schedules?examId=${id}`).then(r => r.json()).then(d => d.data))
+        examIds.map(id => tenantApiGet(`/api/tenant/timetable/exam-schedules?examId=${id}`).then(r => r.json()).then(d => d.data))
       )
       setExams(details.filter(Boolean))
     } catch {
@@ -82,11 +83,7 @@ export function ExamScheduleTab() {
 
   const handleExamCreate = async (examData: any) => {
     try {
-      const res = await fetch('/api/tenant/timetable/exam-schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(examData),
-      })
+      const res = await tenantApiPost('/api/tenant/timetable/exam-schedules', examData)
       if (res.ok) {
         loadExams()
       }

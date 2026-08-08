@@ -6,6 +6,7 @@ import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { ExamPeriod, Term } from './ConfigureTab'
+import { tenantApiPost, tenantApiDelete } from '../../../lib/tenantApi'
 
 interface Props {
   examPeriods: ExamPeriod[]
@@ -37,11 +38,7 @@ export function ExamPeriodManager({ examPeriods, terms, onRefresh }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/tenant/timetable/calendar?resource=exam-periods', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
+      const res = await tenantApiPost('/api/tenant/timetable/calendar?resource=exam-periods', form)
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to save exam period'); return }
       cancelForm()
@@ -56,7 +53,7 @@ export function ExamPeriodManager({ examPeriods, terms, onRefresh }: Props) {
   async function handleDelete(id: string) {
     if (!confirm('Delete this exam period?')) return
     try {
-      const res = await fetch(`/api/tenant/timetable/calendar?resource=exam-periods&id=${id}`, { method: 'DELETE' })
+      const res = await tenantApiDelete(`/api/tenant/timetable/calendar?resource=exam-periods&id=${id}`)
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete'); return }
       onRefresh()
     } catch {

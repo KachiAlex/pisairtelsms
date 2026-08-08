@@ -6,6 +6,7 @@ import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Card, CardContent } from '../../ui/card'
 import { Badge } from '../../ui/badge'
+import { tenantApiGet, tenantApiPost } from '../../../lib/tenantApi'
 
 interface StaffMember {
   id: string
@@ -139,8 +140,8 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
     if (!open) return
     setLoading(true)
     Promise.all([
-      fetch('/api/tenant/staff').then(r => r.json()),
-      fetch('/api/tenant/academics/subjects', { headers: { 'Content-Type': 'application/json' } }).then(r => r.json()),
+      tenantApiGet('/api/tenant/staff').then(r => r.json()),
+      tenantApiGet('/api/tenant/academics/subjects').then(r => r.json()),
     ])
       .then(([staffData, subjectsData]) => {
         const members = Array.isArray(staffData.data) ? staffData.data : []
@@ -162,7 +163,7 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
     setResult(null)
   }
 
-  function updateSubject(id: string, field: keyof SubjectRow, value: string | number) {
+  function updateSubject(id: string, field: keyof SubjectRow, value: string | number | boolean) {
     setSubjects(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))
     setResult(null)
   }
@@ -186,20 +187,16 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
     setResult(null)
 
     try {
-      const res = await fetch('/api/tenant/timetable/auto-schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          classId,
-          termId,
-          clearExisting,
-          subjects: subjects.map(s => ({
-            subjectName: s.subjectName.trim(),
-            teacherId: s.teacherId,
-            teacherName: staff.find(t => t.id === s.teacherId)?.name || s.teacherId,
-            periodsPerWeek: Number(s.periodsPerWeek) || 1,
-          })),
-        }),
+      const res = await tenantApiPost('/api/tenant/timetable/auto-schedule', {
+        classId,
+        termId,
+        clearExisting,
+        subjects: subjects.map(s => ({
+          subjectName: s.subjectName.trim(),
+          teacherId: s.teacherId,
+          teacherName: staff.find(t => t.id === s.teacherId)?.name || s.teacherId,
+          periodsPerWeek: Number(s.periodsPerWeek) || 1,
+        })),
       })
       const data = await res.json()
       if (!res.ok) {

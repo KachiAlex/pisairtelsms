@@ -16,6 +16,7 @@ import {
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
+import { tenantApiGet } from '../../lib/tenantApi'
 import { Badge } from '../ui/badge'
 import { Progress } from '../ui/progress'
 import {
@@ -74,6 +75,7 @@ interface TimetableRequest {
 }
 
 const viewConfigs: Record<TimetableView, ViewConfig> = {
+  configure: { title: 'Timetable configuration', description: 'Set up calendars, time slots, and academic terms.', entityLabel: 'Configuration', entities: [], stats: [] },
   class: {
     title: 'Class timetable orchestration',
     description: 'Balance subjects across arms, detect clashes early, and push polished grids to homerooms.',
@@ -127,6 +129,7 @@ const viewConfigs: Record<TimetableView, ViewConfig> = {
 }
 
 const schedules: Record<TimetableView, ScheduleRow[]> = {
+  configure: [],
   class: [
     { slot: '08:00 - 08:45', Monday: 'Mathematics • CR2', Tuesday: 'English • CR2', Wednesday: 'Physics • Lab', Thursday: 'Civic • CR2', Friday: 'Mathematics • CR2' },
     { slot: '08:50 - 09:35', Monday: 'Chemistry • Lab', Tuesday: 'Biology • Lab', Wednesday: 'English • CR2', Thursday: 'Mathematics • CR2', Friday: 'Geography • CR2' },
@@ -151,6 +154,7 @@ const schedules: Record<TimetableView, ScheduleRow[]> = {
 }
 
 const conflictsByView: Record<TimetableView, ConflictItem[]> = {
+  configure: [],
   class: [
     { id: 'CF-104', type: 'Physics vs Chemistry overlap', owner: 'Science dept.', impact: 'Lab double booking - SS 2A', severity: 'high' },
     { id: 'CF-099', type: 'Advisor clash', owner: 'Guidance team', impact: 'Mrs. Ikpe double scheduled', severity: 'medium' },
@@ -167,6 +171,7 @@ const conflictsByView: Record<TimetableView, ConflictItem[]> = {
 }
 
 const requestQueue: Record<TimetableView, TimetableRequest[]> = {
+  configure: [],
   class: [
     { id: 'RQ-501', requester: 'Mrs. Bello', item: 'Swap Civic with History on Thursday', sla: 'Due in 6 hrs', status: 'queued' },
     { id: 'RQ-493', requester: 'Mr. Johnson', item: 'Add lab block for Biology Project', sla: 'Due tomorrow', status: 'in-review' },
@@ -235,9 +240,9 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
     async function fetchLiveData() {
       try {
         const [conflictsRes, requestsRes, publishRes] = await Promise.all([
-          fetch('/api/tenant/timetable/conflicts?status=open'),
-          fetch('/api/tenant/timetable/change-requests'),
-          fetch('/api/tenant/timetable/publish'),
+          tenantApiGet('/api/tenant/timetable/conflicts?status=open'),
+          tenantApiGet('/api/tenant/timetable/change-requests'),
+          tenantApiGet('/api/tenant/timetable/publish'),
         ])
         const conflictsData = await conflictsRes.json()
         const requestsData = await requestsRes.json()

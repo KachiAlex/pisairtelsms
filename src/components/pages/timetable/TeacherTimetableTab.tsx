@@ -5,6 +5,7 @@ import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Badge } from '../../ui/badge'
 import { Progress } from '../../ui/progress'
+import { tenantApiGet } from '../../../lib/tenantApi'
 
 interface StaffMember {
   id: string
@@ -43,7 +44,7 @@ export function TeacherTimetableTab() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/tenant/staff')
+    tenantApiGet('/api/tenant/staff')
       .then(r => r.json())
       .then(d => {
         const members: StaffMember[] = Array.isArray(d.data) ? d.data : []
@@ -62,11 +63,11 @@ export function TeacherTimetableTab() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/tenant/timetable/teacher-schedules?teacherId=${selectedTeacherId}`)
+      const res = await tenantApiGet(`/api/tenant/timetable/teacher-schedules?teacherId=${selectedTeacherId}`)
       const data = await res.json()
       const schedules: TeacherSchedule[] = data.data || []
       if (schedules.length > 0) {
-        const detailRes = await fetch(`/api/tenant/timetable/teacher-schedules?id=${schedules[0].id}`)
+        const detailRes = await tenantApiGet(`/api/tenant/timetable/teacher-schedules?id=${schedules[0].id}`)
         const detailData = await detailRes.json()
         setSchedule(detailData.data)
       } else {

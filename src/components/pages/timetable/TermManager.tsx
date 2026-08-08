@@ -6,6 +6,7 @@ import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { Term } from './ConfigureTab'
+import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../../lib/tenantApi'
 
 interface AcademicYear {
   id: string
@@ -43,7 +44,7 @@ export function TermManager({ terms, onRefresh }: Props) {
 
   async function fetchAcademicYears() {
     try {
-      const res = await fetch('/api/tenant/timetable/calendar?resource=academic-years')
+      const res = await tenantApiGet('/api/tenant/timetable/calendar?resource=academic-years')
       const data = await res.json()
       setAcademicYears(Array.isArray(data.data) ? data.data : [])
     } catch {
@@ -76,13 +77,9 @@ export function TermManager({ terms, onRefresh }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const url = '/api/tenant/timetable/calendar?resource=terms' + (editId ? `&id=${editId}` : '')
-      const method = editId ? 'PUT' : 'POST'
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
+      const res = editId
+        ? await tenantApiPut(`/api/tenant/timetable/calendar?resource=terms&id=${editId}`, form)
+        : await tenantApiPost('/api/tenant/timetable/calendar?resource=terms', form)
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to save term'); return }
       cancelForm()
@@ -97,7 +94,7 @@ export function TermManager({ terms, onRefresh }: Props) {
   async function handleDelete(id: string) {
     if (!confirm('Delete this term? This cannot be undone.')) return
     try {
-      const res = await fetch(`/api/tenant/timetable/calendar?resource=terms&id=${id}`, { method: 'DELETE' })
+      const res = await tenantApiDelete(`/api/tenant/timetable/calendar?resource=terms&id=${id}`)
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete'); return }
       onRefresh()
     } catch {

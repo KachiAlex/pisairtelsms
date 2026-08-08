@@ -6,6 +6,7 @@ import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { Holiday, Term } from './ConfigureTab'
+import { tenantApiPost, tenantApiDelete } from '../../../lib/tenantApi'
 
 interface Props {
   holidays: Holiday[]
@@ -37,11 +38,7 @@ export function HolidayManager({ holidays, terms, onRefresh }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/tenant/timetable/calendar?resource=holidays', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
+      const res = await tenantApiPost('/api/tenant/timetable/calendar?resource=holidays', form)
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to save holiday'); return }
       cancelForm()
@@ -56,7 +53,7 @@ export function HolidayManager({ holidays, terms, onRefresh }: Props) {
   async function handleDelete(id: string) {
     if (!confirm('Delete this holiday?')) return
     try {
-      const res = await fetch(`/api/tenant/timetable/calendar?resource=holidays&id=${id}`, { method: 'DELETE' })
+      const res = await tenantApiDelete(`/api/tenant/timetable/calendar?resource=holidays&id=${id}`)
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed to delete'); return }
       onRefresh()
     } catch {

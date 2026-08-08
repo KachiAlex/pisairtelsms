@@ -6,6 +6,7 @@ import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { ExamSchedule } from './ExamScheduleTab'
+import { tenantApiGet, tenantApiPost } from '../../../lib/tenantApi'
 
 interface ExamHall {
   id: string
@@ -26,7 +27,7 @@ export function HallAssignmentPanel({ exam, onRefresh }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/tenant/timetable/exam-schedules?halls=true')
+    tenantApiGet('/api/tenant/timetable/exam-schedules?halls=true')
       .then(r => r.json())
       .then(d => {
         const hallList = Array.isArray(d.data) ? d.data : []
@@ -43,11 +44,7 @@ export function HallAssignmentPanel({ exam, onRefresh }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/tenant/timetable/exam-schedules?examId=${exam.id}&action=hall-assignments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hallId: form.hallId, studentCount: count }),
-      })
+      const res = await tenantApiPost(`/api/tenant/timetable/exam-schedules?examId=${exam.id}&action=hall-assignments`, { hallId: form.hallId, studentCount: count })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to assign hall'); return }
       setShowForm(false)

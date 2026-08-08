@@ -5,6 +5,7 @@ import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Label } from '../../ui/label'
 import type { ExamSchedule } from './ExamScheduleTab'
+import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../../lib/tenantApi'
 
 interface StaffMember {
   id: string
@@ -33,8 +34,8 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/tenant/staff').then(r => r.json()),
-      fetch('/api/tenant/timetable/exam-schedules?halls=true').then(r => r.json()),
+      tenantApiGet('/api/tenant/staff').then(r => r.json()),
+      tenantApiGet('/api/tenant/timetable/exam-schedules?halls=true').then(r => r.json()),
     ]).then(([staffData, hallsData]) => {
       const members = Array.isArray(staffData.data) ? staffData.data : []
       const hallList = Array.isArray(hallsData.data) ? hallsData.data : []
@@ -53,11 +54,7 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
     setError(null)
     try {
       const member = staff.find(s => s.id === form.staffId)
-      const res = await fetch(`/api/tenant/timetable/exam-schedules?examId=${exam.id}&action=invigilators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId: form.staffId, staffName: member?.name || form.staffId, hallId: form.hallId }),
-      })
+      const res = await tenantApiPost(`/api/tenant/timetable/exam-schedules?examId=${exam.id}&action=invigilators`, { staffId: form.staffId, staffName: member?.name || form.staffId, hallId: form.hallId })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to assign invigilator'); return }
       setShowForm(false)
@@ -72,7 +69,7 @@ export function InvigilatorAssignmentPanel({ exam, onRefresh }: Props) {
 
   async function handleRemove(invigilatorId: string) {
     try {
-      await fetch(`/api/tenant/timetable/exam-schedules?examId=${exam.id}&action=invigilators&subId=${invigilatorId}`, { method: 'DELETE' })
+      await tenantApiDelete(`/api/tenant/timetable/exam-schedules?examId=${exam.id}&action=invigilators&subId=${invigilatorId}`)
       onRefresh()
     } catch {
       alert('Failed to remove invigilator')

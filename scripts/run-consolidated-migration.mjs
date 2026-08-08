@@ -1,13 +1,21 @@
 /**
- * Migration runner for consolidated schema migration
- * Runs api/_migrations/001_consolidated_schema.sql against the database
+ * Migration runner for all schema migrations
+ * Runs every *.sql file in api/_migrations in sorted order
  */
 import pg from 'pg';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) {
+  if (existsSync('.env.local')) {
+    process.loadEnvFile('.env.local');
+  } else if (existsSync('.env')) {
+    process.loadEnvFile('.env');
+  }
+}
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 if (!DATABASE_URL) {
@@ -23,41 +31,54 @@ const pool = new Pool({
 
 async function runMigration() {
   const client = await pool.connect();
-  
+
   try {
     console.log('Connected to database');
-    
-    // Read the migration SQL
-    const migrationPath = join(__dirname, '..', 'api', '_migrations', '001_consolidated_schema.sql');
-    const migrationSQL = readFileSync(migrationPath, 'utf8');
-    
-    console.log('Applying consolidated schema migration...');
-    
-    // Split by semicolon and execute each statement (skip empty and comments)
-    const statements = migrationSQL
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
-    
-    console.log(`Executing ${statements.length} statements...`);
-    
-    // Run each statement independently to handle partial migrations
-    let failed = 0;
-    for (let i = 0; i < statements.length; i++) {
-      const stmt = statements[i];
-      try {
-        console.log(`Executing statement ${i + 1}/${statements.length}...`);
-        await client.query(stmt);
-      } catch (err) {
-        console.log(`Statement ${i + 1} failed: ${err.message}`);
-        failed++;
+
+    const migrationsDir = join(__dirname, '..', 'api', '_migrations');
+    const files = readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .sort();
+
+    let totalStatements = 0;
+    let totalFailed = 0;
+
+    for (const file of files) {
+      const migrationPath = join(migrationsDir, file);
+      const migrationSQL = readFileSync(migrationPath, 'utf8');
+
+      console.log(`\n📄 Applying ${file}...`);
+
+      const statements = migrationSQL
+        .split(';')
+        .map(s => {
+          // strip line comments before checking if the statement is empty
+          return s
+            .replace(/--[^\n]*/g, '')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .trim()
+        })
+        .filter(s => s.length > 0);
+
+      console.log(`  ${statements.length} statements...`);
+
+      let failed = 0;
+      for (let i = 0; i < statements.length; i++) {
+        const stmt = statements[i];
+        try {
+          await client.query(stmt);
+        } catch (err) {
+          console.log(`  statement ${i + 1}/${statements.length} failed: ${err.message}`);
+          failed++;
+        }
       }
+
+      totalStatements += statements.length;
+      totalFailed += failed;
+      console.log(`  ✅ ${statements.length - failed}/${statements.length} succeeded`);
     }
-    
-    console.log(`\n✅ Migration complete! ${statements.length - failed}/${statements.length} statements succeeded, ${failed} failed (likely already exist)`);
-    
-    console.log('\n✅ Consolidated schema migration complete!');
-    
+
+    console.log(`\n✅ All migrations complete! ${totalStatements - totalFailed}/${totalStatements} statements succeeded, ${totalFailed} failed (likely already exist)`);
   } finally {
     client.release();
     await pool.end();

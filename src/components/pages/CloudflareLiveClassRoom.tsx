@@ -35,6 +35,7 @@ interface Lesson {
 export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecordingSaved }: CloudflareLiveClassRoomProps) {
   const [meeting, initMeeting] = useRealtimeKitClient()
   const [authToken, setAuthToken] = useState<string | null>(null)
+  const [participantId, setParticipantId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [elapsedSec, setElapsedSec] = useState(0)
@@ -66,6 +67,36 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [])
+
+  // Record virtual attendance join/leave
+  useEffect(() => {
+    if (!participantId || !lesson.id) return
+
+    const recordAttendance = async (action: 'joined' | 'left') => {
+      try {
+        await fetch('/api/tenant/virtual-attendance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${auth?.token}`,
+          },
+          body: JSON.stringify({
+            lessonId: lesson.id,
+            participantId,
+            participantName: displayName,
+            action,
+          }),
+        })
+      } catch (err) {
+        console.error('Failed to record attendance:', err)
+      }
+    }
+
+    recordAttendance('joined')
+    return () => {
+      recordAttendance('left')
+    }
+  }, [participantId, lesson.id, displayName, auth?.token])
 
   // Fetch Cloudflare Realtime auth token on mount
   useEffect(() => {
@@ -100,6 +131,7 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
         const data = await res.json()
         if (!cancelled) {
           setAuthToken(data.authToken)
+          setParticipantId(data.participantId || null)
         }
       } catch (err) {
         if (!cancelled) {

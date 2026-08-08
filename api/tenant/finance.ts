@@ -1,6 +1,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchFeeRecords, createFeeRecord, recordPayment, type FeeRecordPayload, type PaymentPayload } from './_lib/finance.js'
+import { fetchFeeRecords, createFeeRecord, recordPayment, sendFeeReminders, type FeeRecordPayload, type PaymentPayload } from './_lib/finance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
+
+let migrationsInitialized = false
+
+async function ensureMigrations() {
+  if (migrationsInitialized) return
+  migrationsInitialized = true
+  try {
+    initializeDatabase()
+    await runMigrations()
+  } catch (err) {
+    console.error('Migration initialization error:', err)
+  }
+}
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')
@@ -18,6 +32,8 @@ function parseBody(req: VercelRequest) {
 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  await ensureMigrations()
+
   // Require authentication - only staff or tenant_admin can access tenant finance
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
@@ -41,7 +57,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'POST') {
+    const { action } = req.query
     const body = parseBody(req)
+
+    if (action === 'send-reminders') {
+      try {
+        const result = await sendFeeReminders(tenantId)
+        return res.status(200).json({ data: result })
+      } catch (error) {
+        console.error('Error sending fee reminders:', error)
+        return res.status(500).json({ error: 'Failed to send fee reminders' })
+      }
+    }
+
     if (!body) return res.status(400).json({ error: 'Request body is required' })
 
     // Payment recording

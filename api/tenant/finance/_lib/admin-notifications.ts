@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { sql } from './db.js'
 
 export interface AdminNotification {
   id: string

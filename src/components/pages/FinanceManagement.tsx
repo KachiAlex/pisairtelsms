@@ -6,7 +6,8 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { financeApiGet } from '../../lib/financeApi';
+import { financeApiGet, financeApiPost } from '../../lib/financeApi';
+import { useToast } from '../ui/use-toast';
 import {
   Table,
   TableBody,
@@ -43,27 +44,16 @@ interface FeeRecord {
   updatedAt: string;
 }
 
-const revenueData = [
-  { month: 'Aug', revenue: 4200000 },
-  { month: 'Sep', revenue: 4800000 },
-  { month: 'Oct', revenue: 3900000 },
-  { month: 'Nov', revenue: 4500000 },
-  { month: 'Dec', revenue: 3800000 },
-  { month: 'Jan', revenue: 5200000 },
-];
-
-const recentTransactions = [
-  { id: 'TXN001', student: 'Adewale Johnson', amount: 50000, method: 'Bank Transfer', date: '2026-02-14', time: '09:30 AM' },
-  { id: 'TXN002', student: 'Chioma Okafor', amount: 25000, method: 'Cash', date: '2026-02-14', time: '10:15 AM' },
-  { id: 'TXN003', student: 'Fatima Abdullahi', amount: 120000, method: 'Online Payment', date: '2026-02-13', time: '03:45 PM' },
-  { id: 'TXN004', student: 'Emeka Onyeka', amount: 60000, method: 'Bank Transfer', date: '2026-02-13', time: '11:20 AM' },
-];
 
 export function FinanceManagement() {
+  const { toast } = useToast();
   const [feeRecords, setFeeRecords] = useState<FeeRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [revenueData, setRevenueData] = useState<{ month: string; revenue: number }[]>([]);
+  const [todayCollection, setTodayCollection] = useState({ amount: 0, count: 0 });
+  const [sendingReminder, setSendingReminder] = useState(false);
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromPath: Record<string, string> = {
@@ -78,6 +68,7 @@ export function FinanceManagement() {
 
   useEffect(() => {
     fetchFeeRecords();
+    fetchPayments();
   }, []);
 
   const fetchFeeRecords = async () => {
@@ -95,6 +86,31 @@ export function FinanceManagement() {
       setFeeRecords([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPayments = async () => {
+    try {
+      const response = await financeApiGet('/api/tenant/finance/payments?status=verified');
+      if (!response.ok) throw new Error('Failed to fetch payments');
+      const result = await response.json();
+      const payments: any[] = result.data || [];
+
+      const today = new Date().toISOString().split('T')[0];
+      const todays = payments.filter((p: any) => p.paymentDate === today);
+      setTodayCollection({
+        amount: todays.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0),
+        count: todays.length,
+      });
+
+      const byMonth: Record<string, number> = {};
+      payments.forEach((p: any) => {
+        const month = new Date(p.paymentDate).toLocaleString('default', { month: 'short' });
+        byMonth[month] = (byMonth[month] || 0) + (Number(p.amount) || 0);
+      });
+      setRevenueData(Object.entries(byMonth).map(([month, revenue]) => ({ month, revenue })));
+    } catch (err) {
+      console.error('Payments fetch error:', err);
     }
   };
 
@@ -141,13 +157,41 @@ export function FinanceManagement() {
     setSearchParams({ tab: 'payments' });
   };
 
-  const handleSendReminder = () => {
-    // This would open a reminder dialog
-    console.log('Send reminder clicked');
+  const handleSendReminder = async () => {
+    setSendingReminder(true);
+    try {
+      const response = await financeApiPost('/api/tenant/finance?action=send-reminders', {});
+      if (!response.ok) throw new Error('Failed to send reminders');
+      const result = await response.json();
+      toast({ title: 'Reminders sent', description: `${result.data?.sent || 0} reminder(s) queued for delivery.` });
+    } catch (err) {
+      toast({
+        title: 'Failed to send reminders',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingReminder(false);
+    }
   };
 
   const handleViewDefaulters = () => {
     setSearchParams({ tab: 'reports' });
+  };
+
+  const handleExportReport = () => {
+    const headers = ['Admission No,Student Name,Class,Fee Type,Amount,Paid,Balance,Status,Session,Term'];
+    const rows = feeRecords.map(r =>
+      [r.admissionNo, r.studentName, r.class, r.feeType, r.amount, r.paid, r.balance, r.status, r.academicSession, r.term].join(',')
+    );
+    const csv = [headers, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fee-report-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -159,11 +203,11 @@ export function FinanceManagement() {
           <p className="text-sm text-gray-600 mt-1">Track fee collection and financial transactions</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportReport}>
             <Download className="w-4 h-4 mr-2" />
             Export Report
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSendReminder} disabled={sendingReminder}>
             <Send className="w-4 h-4 mr-2" />
             Send Reminder
           </Button>
@@ -320,8 +364,8 @@ export function FinanceManagement() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Today's Collection</p>
-                      <p className="text-2xl font-bold text-purple-600 mt-1">₦75,000</p>
-                      <p className="text-sm text-purple-600 mt-1">2 payments</p>
+                      <p className="text-2xl font-bold text-purple-600 mt-1">{formatCurrency(todayCollection.amount)}</p>
+                      <p className="text-sm text-purple-600 mt-1">{todayCollection.count} payment{todayCollection.count === 1 ? '' : 's'}</p>
                     </div>
                     <div className="p-3 bg-purple-100 rounded-lg">
                       <DollarSign className="w-5 h-5 text-purple-600" />

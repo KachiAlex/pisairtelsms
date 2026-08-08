@@ -21,6 +21,20 @@ import {
   createAdminNotification,
   ensureAdminNotificationsTable,
 } from './_lib/admin-notifications.js'
+import { initializeDatabase, runMigrations } from '../../cbt/_lib/db.js'
+
+let migrationsInitialized = false
+
+async function ensureMigrations() {
+  if (migrationsInitialized) return
+  migrationsInitialized = true
+  try {
+    initializeDatabase()
+    await runMigrations()
+  } catch (err) {
+    console.error('Migration initialization error:', err)
+  }
+}
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT')
@@ -42,6 +56,8 @@ function parseBody(req: VercelRequest) {
 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  await ensureMigrations()
+
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

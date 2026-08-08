@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { sql } from '../finance/_lib/db.js'
 
 export interface FeeRecord {
   id: string
@@ -155,4 +155,31 @@ export async function recordPayment(tenantId: string, payload: PaymentPayload): 
     RETURNING *
   `
   return rowToFeeRecord(result.rows[0])
+}
+
+export async function sendFeeReminders(tenantId: string): Promise<{ sent: number }> {
+  const defaulters = await sql<FeeRow>`
+    SELECT * FROM fee_records WHERE tenant_id = ${tenantId} AND balance > 0
+  `
+
+  if (defaulters.rows.length === 0) {
+    return { sent: 0 }
+  }
+
+  const now = new Date().toISOString()
+  for (const row of defaulters.rows) {
+    const id = `fee_reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const balance = parseFloat(row.balance)
+    const message = `Reminder: outstanding fee of ₦${balance.toLocaleString()} for ${row.student_name || row.student_id}`
+    await sql`
+      INSERT INTO admin_notifications (
+        id, tenant_id, type, title, message, student_id, student_name, amount, read, created_at
+      ) VALUES (
+        ${id}, ${tenantId}, 'fee_reminder', 'Fee Payment Reminder', ${message},
+        ${row.student_id}, ${row.student_name || null}, ${balance}, false, ${now}
+      )
+    `
+  }
+
+  return { sent: defaulters.rows.length }
 }

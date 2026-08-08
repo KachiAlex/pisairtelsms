@@ -222,6 +222,7 @@
     { "source": "/api/tenant/virtual-classrooms", "destination": "/api/tenant/virtual-classrooms.ts" },
     { "source": "/api/tenant/lessons/recording", "destination": "/api/tenant/lessons/recording.ts" },
     { "source": "/api/tenant/lessons", "destination": "/api/tenant/lessons.ts" },
+    { "source": "/api/tenant/live-meetings/join", "destination": "/api/tenant/live-meetings.ts" },
     { "source": "/api/tenant/assignments", "destination": "/api/tenant/assignments.ts" },
     { "source": "/api/tenant/course-materials", "destination": "/api/tenant/course-materials.ts" },
     { "source": "/api/tenant/private-lesson-requests", "destination": "/api/tenant/private-lesson-requests.ts" },

@@ -17,7 +17,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select'
-import { LiveClassRoom } from './LiveClassRoom'
+import { CloudflareLiveClassRoom as LiveClassRoom } from './CloudflareLiveClassRoom'
 import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
@@ -160,14 +160,8 @@ export function VirtualClassroom() {
   }
 
   const handleCreateLesson = async (data: any) => {
-    // Auto-generate Jitsi meeting URL for live lessons
-    let meetingUrl = data.meetingUrl
-    if (data.type === 'live' && !meetingUrl) {
-      const roomSlug = data.title.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30)
-      meetingUrl = `https://meet.jit.si/pisairtel-${roomSlug}-${Date.now().toString(36)}`
-    }
     try {
-      const res = await tenantApiPost('/api/tenant/lessons', { ...data, meetingUrl, classroomId: selectedClassroom?.id })
+      const res = await tenantApiPost('/api/tenant/lessons', { ...data, classroomId: selectedClassroom?.id })
       if (res.ok) {
         setShowLessonDialog(false)
         if (selectedClassroom) fetchClassroomDetails(selectedClassroom)
@@ -675,8 +669,6 @@ function CreateLessonDialog({ open, onClose, onCreate }: { open: boolean; onClos
   const [type, setType] = useState('async')
   const [scheduledAt, setScheduledAt] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(60)
-  const [meetingUrl, setMeetingUrl] = useState('')
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
@@ -713,16 +705,10 @@ function CreateLessonDialog({ open, onClose, onCreate }: { open: boolean; onClos
             <Label htmlFor="scheduledAt">Scheduled At</Label>
             <Input id="scheduledAt" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
           </div>
-          {type === 'live' && (
-            <div className="space-y-2">
-              <Label htmlFor="meetingUrl">Meeting URL</Label>
-              <Input id="meetingUrl" value={meetingUrl} onChange={e => setMeetingUrl(e.target.value)} placeholder="https://meet.google.com/..." />
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => { onCreate({ title, description, type, scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null, durationMinutes, meetingUrl }); setTitle(''); setDescription(''); setMeetingUrl('') }}>
+          <Button onClick={() => { onCreate({ title, description, type, scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null, durationMinutes }); setTitle(''); setDescription('') }}>
             Create Lesson
           </Button>
         </DialogFooter>

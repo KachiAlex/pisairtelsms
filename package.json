@@ -13,6 +13,8 @@
     "migrate": "node scripts/run-consolidated-migration.mjs"
   },
   "dependencies": {
+    "@cloudflare/realtimekit-react": "2.0.1",
+    "@cloudflare/realtimekit-react-ui": "2.0.0",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
     "@esbuild/win32-x64": "0.27.0",

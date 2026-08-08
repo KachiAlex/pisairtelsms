@@ -21,7 +21,7 @@ import {
   createAdminNotification,
   ensureAdminNotificationsTable,
 } from './_lib/admin-notifications.js'
-import { initializeDatabase, runMigrations } from '../../cbt/_lib/db.js'
+import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 
 let migrationsInitialized = false
 

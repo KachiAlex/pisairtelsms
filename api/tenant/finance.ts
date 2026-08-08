@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchFeeRecords, createFeeRecord, recordPayment, sendFeeReminders, generateFeeRecordsFromAssignments, type FeeRecordPayload, type PaymentPayload } from './_lib/finance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
-import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
+import { initializeDatabase, runMigrations } from './cbt/_lib/db.js'
 
 let migrationsInitialized = false
 

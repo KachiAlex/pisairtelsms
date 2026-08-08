@@ -18,11 +18,16 @@ function getEnv() {
   return { accountId, appId, apiToken, hostPreset, participantPreset }
 }
 
-async function cloudflareFetch<T = any>(url: string, init: RequestInit): Promise<{ success: boolean; data: T; errors?: any[] }> {
+async function cloudflareFetch<T = any>(
+  url: string,
+  token: string,
+  init: { method?: string; body?: string }
+): Promise<{ success: boolean; data: T; errors?: any[] }> {
   const res = await fetch(url, {
-    ...init,
+    method: init.method || 'GET',
+    body: init.body,
     headers: {
-      Authorization: `Bearer ${init.headers?.Authorization as string}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   })
@@ -78,12 +83,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!meetingId) {
       const createRes = await cloudflareFetch<{ id: string }>(
         `${CF_BASE}/accounts/${env.accountId}/realtime/kit/${env.appId}/meetings`,
+        env.apiToken,
         {
           method: 'POST',
-          headers: { Authorization: env.apiToken } as any,
           body: JSON.stringify({
             title: lesson.title,
-            status: 'ACTIVE',
           }),
         }
       )
@@ -99,14 +103,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const userId = decoded.userId || decoded.staffId || decoded.studentId || decoded.sub
     const isHost = decoded.role === 'staff' || decoded.role === 'tenant_admin'
-    const participantName = displayName || decoded.email || decoded.name || userId || 'Participant'
+    const participantName = displayName || decoded.email || userId || 'Participant'
     const presetName = isHost ? env.hostPreset : env.participantPreset
 
     const addRes = await cloudflareFetch<{ id: string; token: string }>(
       `${CF_BASE}/accounts/${env.accountId}/realtime/kit/${env.appId}/meetings/${meetingId}/participants`,
+      env.apiToken,
       {
         method: 'POST',
-        headers: { Authorization: env.apiToken } as any,
         body: JSON.stringify({
           custom_participant_id: `${tenantId}-${userId}`,
           preset_name: presetName,

@@ -46,6 +46,8 @@ export function LeaveManagement() {
   const authParsed = auth ? JSON.parse(auth) : null
   const token = authParsed?.token ?? null
   const userId = authParsed?.userId ?? null
+  const authRole = authParsed?.role ?? null
+  const isAdminView = authRole === 'tenant_admin'
 
   // Fetch leave data
   useEffect(() => {
@@ -59,7 +61,11 @@ export function LeaveManagement() {
           return
         }
 
-        const response = await fetch('/api/staff/leave', {
+        const url = isAdminView
+          ? '/api/tenant/staff?resource=leave'
+          : '/api/staff/leave'
+
+        const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -67,11 +73,18 @@ export function LeaveManagement() {
         })
 
         if (!response.ok) {
-          throw new Error('Failed to fetch leave data')
+          const errorData = await response.json().catch(() => ({} as any))
+          throw new Error(errorData.error || `Failed to fetch leave data (${response.status})`)
         }
 
         const leaveData = await response.json()
-        setData(leaveData)
+        if (isAdminView) {
+          // Tenant API returns { data: LeaveRequest[] }
+          setData({ requests: leaveData.data || [], balance: [] })
+        } else {
+          // Staff API returns { requests, balance }
+          setData(leaveData)
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'An error occurred'
         setError(message)
@@ -82,7 +95,7 @@ export function LeaveManagement() {
     }
 
     fetchLeaveData()
-  }, [token])
+  }, [token, isAdminView])
 
   const validateForm = () => {
     const errors: Record<string, string> = {}
@@ -255,7 +268,7 @@ export function LeaveManagement() {
       )}
 
       {/* New Leave Request Form */}
-      {!showForm && (
+      {!isAdminView && !showForm && (
         <Button
           onClick={() => setShowForm(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white"

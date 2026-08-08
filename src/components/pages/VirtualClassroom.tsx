@@ -71,6 +71,7 @@ export function VirtualClassroom() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([])
   const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [lessons, setLessons] = useState<Lesson[]>([])
@@ -84,14 +85,19 @@ export function VirtualClassroom() {
 
   const fetchClassrooms = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const res = await tenantApiGet('/api/tenant/virtual-classrooms')
-      if (res.ok) {
-        const data = await res.json()
-        setClassrooms(data.data || [])
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as any))
+        throw new Error(data.error || `Failed to load classrooms (status ${res.status})`)
       }
+      const data = await res.json()
+      setClassrooms(data.data || [])
     } catch (err) {
-      toast({ title: 'Failed to load classrooms', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+      const message = err instanceof Error ? err.message : 'Please try again.'
+      setError(message)
+      toast({ title: 'Failed to load classrooms', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -488,7 +494,19 @@ export function VirtualClassroom() {
 
       {/* Classroom Grid */}
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-gray-500">Loading classrooms...</div>
+        <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+          <div className="w-8 h-8 border-2 border-gray-200 border-t-[#e31e24] rounded-full animate-spin mb-3" />
+          <p>Loading classrooms...</p>
+        </div>
+      ) : error ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to load classrooms</h3>
+            <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">{error}</p>
+            <Button onClick={fetchClassrooms} className="bg-[#e31e24] hover:bg-[#cf1a1f]">Try again</Button>
+          </CardContent>
+        </Card>
       ) : filteredClassrooms.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">

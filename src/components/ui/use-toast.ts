@@ -1,3 +1,5 @@
+import { useCallback } from 'react'
+
 type ToastVariant = 'default' | 'destructive'
 
 export interface ToastOptions {
@@ -23,7 +25,7 @@ function emitToast(options: ToastOptions) {
 }
 
 export function useToast() {
-  const toast = (options: ToastOptions) => emitToast(options)
+  const toast = useCallback((options: ToastOptions) => emitToast(options), [])
   return { toast }
 }
 

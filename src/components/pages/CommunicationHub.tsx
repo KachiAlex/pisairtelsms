@@ -78,16 +78,22 @@ interface AudienceSegment {
 }
 
 function tenantHeaders(): Record<string, string> {
-  const tenantId = (typeof window !== 'undefined' && localStorage.getItem('tenantId')) || 'default-tenant'
+  const auth = typeof window !== 'undefined' ? localStorage.getItem('auth') : null
+  const token = auth ? JSON.parse(auth).token : null
   return {
     'Content-Type': 'application/json',
-      }
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
 }
 
 const CHANNELS = ['email', 'sms', 'push', 'in-app']
 
-export function CommunicationHub() {
-  const [activeTab, setActiveTab] = useState('announcements')
+export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?: string }) {
+  const [activeTab, setActiveTab] = useState(initialTab)
+
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
 
   // Audience segments
   const [audienceSegments, setAudienceSegments] = useState<AudienceSegment[]>([])
@@ -167,17 +173,17 @@ export function CommunicationHub() {
         fetch('/api/tenant/parent-messages', { headers: tenantHeaders() }),
         fetch('/api/tenant/communication-logs', { headers: tenantHeaders() }),
       ])
-      if (annRes.status === 'fulfilled' && annRes.value.ok) {
-        const r = await annRes.value.json(); setAnnouncements(r.data || [])
+      if (annRes.status === 'fulfilled' && annRes.value?.ok) {
+        const r = await annRes.value.json(); setAnnouncements(Array.isArray(r.data) ? r.data : [])
       }
-      if (notifRes.status === 'fulfilled' && notifRes.value.ok) {
-        const r = await notifRes.value.json(); setBulkNotifications(r.data || [])
+      if (notifRes.status === 'fulfilled' && notifRes.value?.ok) {
+        const r = await notifRes.value.json(); setBulkNotifications(Array.isArray(r.data) ? r.data : [])
       }
-      if (msgRes.status === 'fulfilled' && msgRes.value.ok) {
-        const r = await msgRes.value.json(); setParentMessages(r.data || [])
+      if (msgRes.status === 'fulfilled' && msgRes.value?.ok) {
+        const r = await msgRes.value.json(); setParentMessages(Array.isArray(r.data) ? r.data : [])
       }
-      if (logRes.status === 'fulfilled' && logRes.value.ok) {
-        const r = await logRes.value.json(); setCommunicationLogs(r.data || [])
+      if (logRes.status === 'fulfilled' && logRes.value?.ok) {
+        const r = await logRes.value.json(); setCommunicationLogs(Array.isArray(r.data) ? r.data : [])
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -196,7 +202,7 @@ export function CommunicationHub() {
       if (logStartDate) params.set('startDate', logStartDate)
       if (logEndDate) params.set('endDate', logEndDate)
       const res = await fetch(`/api/tenant/communication-logs?${params}`, { headers: tenantHeaders() })
-      if (res.ok) { const r = await res.json(); setCommunicationLogs(r.data || []) }
+      if (res.ok) { const r = await res.json(); setCommunicationLogs(Array.isArray(r.data) ? r.data : []) }
     } catch { /* silent */ }
   }
 

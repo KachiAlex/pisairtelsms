@@ -105,10 +105,10 @@ export function ExamResultsTab() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ id: examId, action: 'summary' });
       if (startDate) params.set('startDate', startDate);
       if (endDate) params.set('endDate', endDate);
-      const res = await tenantApiGet(`/api/tenant/cbt/results/${examId}?${params}`);
+      const res = await tenantApiGet(`/api/tenant/cbt/results?${params}`);
       if (!res.ok) throw new Error('Failed to load results');
       const data = await res.json();
       setSummary(data.data);
@@ -122,11 +122,18 @@ export function ExamResultsTab() {
   const fetchDetailedResult = async (examId: string, studentId: string) => {
     setLoadingDetail(true);
     try {
-      const res = await tenantApiGet(`/api/tenant/cbt/results/${examId}/student/${studentId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDetailStudent(data.data);
-      }
+      const listParams = new URLSearchParams({ examId, studentId, limit: '1' });
+      const listRes = await tenantApiGet(`/api/tenant/cbt/results?${listParams}`);
+      if (!listRes.ok) throw new Error('Failed to load result');
+      const listData = await listRes.json();
+      const result = listData.data?.[0];
+      if (!result) throw new Error('Result not found');
+
+      const answersParams = new URLSearchParams({ id: result.id, action: 'answers' });
+      const answersRes = await tenantApiGet(`/api/tenant/cbt/results?${answersParams}`);
+      const answers = answersRes.ok ? (await answersRes.json()).data : [];
+
+      setDetailStudent({ ...result, answers });
     } catch {
       alert('Failed to load detailed result');
     } finally {
@@ -142,7 +149,7 @@ export function ExamResultsTab() {
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!selectedExamId) return;
     try {
-      const res = await tenantApiFetch(`/api/tenant/cbt/results/export?examId=${selectedExamId}&format=${format}`);
+      const res = await tenantApiFetch(`/api/tenant/cbt/results?action=export&examId=${selectedExamId}`);
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);

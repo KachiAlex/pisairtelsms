@@ -138,6 +138,21 @@ export async function fetchParentCount(tenantId: string): Promise<number> {
   }
 }
 
+export async function fetchParents(tenantId: string): Promise<Parent[]> {
+  try {
+    const rows = await queryAll<ParentRow>(
+      `SELECT id, email, name, phone, tenant_id, created_at, updated_at
+       FROM parents
+       WHERE tenant_id = $1`,
+      [tenantId]
+    );
+    return rows.map(rowToParent);
+  } catch (error) {
+    console.error('Error fetching parents:', error);
+    return [];
+  }
+}
+
 export async function fetchParentByEmail(email: string, tenantId: string): Promise<ParentWithHash | null> {
   const row = await queryOne<ParentRow & { student_id: string }>(
     `SELECT p.*, ps.student_id FROM parents p

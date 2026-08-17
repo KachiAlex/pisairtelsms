@@ -15,9 +15,58 @@ interface CommunicationLog {
   createdAt: string
 }
 
+function mapCommunicationLog(row: any): CommunicationLog {
+  return {
+    id: row.id,
+    type: row.type,
+    recipient: row.recipient,
+    channel: row.channel,
+    sentAt: row.sent_at,
+    deliveredAt: row.delivered_at,
+    readAt: row.read_at,
+    status: row.status,
+    errorMessage: row.error_message,
+    createdAt: row.created_at,
+  }
+}
+
 async function initializeTable() {
   try {
     initializeDatabase()
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS communication_logs (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+        type TEXT,
+        recipient TEXT,
+        channel TEXT,
+        sent_at TIMESTAMP,
+        delivered_at TIMESTAMP,
+        read_at TIMESTAMP,
+        status TEXT DEFAULT 'sent',
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `)
+
+    await query(`
+      ALTER TABLE IF EXISTS communication_logs
+        ADD COLUMN IF NOT EXISTS tenant_id TEXT,
+        ADD COLUMN IF NOT EXISTS type TEXT,
+        ADD COLUMN IF NOT EXISTS recipient TEXT,
+        ADD COLUMN IF NOT EXISTS channel TEXT,
+        ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS read_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS status TEXT,
+        ADD COLUMN IF NOT EXISTS error_message TEXT,
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP
+    `)
+
+    await query('CREATE INDEX IF NOT EXISTS idx_communication_logs_tenant_id ON communication_logs(tenant_id)')
   } catch (err) {
     console.error('communication_logs init error:', err)
   }
@@ -32,13 +81,15 @@ export default async function handler(
 
   await initializeTable()
 
+  const tenantId = decoded.tenantId || 'default-tenant'
+
   if (req.method === 'GET') {
     try {
       const { type, channel, status, recipient, startDate, endDate } = req.query
 
-      let sql = 'SELECT * FROM communication_logs WHERE 1=1'
-      const params: any[] = []
-      let p = 0
+      let sql = 'SELECT * FROM communication_logs WHERE tenant_id = $1'
+      const params: any[] = [tenantId]
+      let p = 1
 
       if (type) {
         p++; sql += ` AND type = $${p}`; params.push(type)
@@ -61,7 +112,7 @@ export default async function handler(
       sql += ' ORDER BY sent_at DESC LIMIT 100'
 
       const result = await query(sql, params)
-      res.status(200).json({ data: result.rows || [] })
+      res.status(200).json({ data: (result.rows || []).map(mapCommunicationLog) })
     } catch (err) {
       console.error('Error fetching communication logs:', err)
       res.status(500).json({ error: 'Failed to fetch communication logs' })
@@ -81,13 +132,13 @@ export default async function handler(
       const statusVal = status || 'sent'
 
       const result = await query(
-        `INSERT INTO communication_logs (id, type, recipient, channel, sent_at, delivered_at, read_at, status, error_message, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO communication_logs (id, tenant_id, type, recipient, channel, sent_at, delivered_at, read_at, status, error_message, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
-        [id, type, recipient, channel, now, deliveredAt, readAtVal, statusVal, errorMessage || null, now]
+        [id, tenantId, type, recipient, channel, now, deliveredAt, readAtVal, statusVal, errorMessage || null, now, now]
       )
 
-      res.status(201).json({ data: result.rows[0] })
+      res.status(201).json({ data: mapCommunicationLog(result.rows[0]) })
     } catch (err) {
       console.error('Error creating communication log:', err)
       res.status(500).json({ error: 'Failed to create communication log' })
@@ -118,9 +169,10 @@ export default async function handler(
       }
       p++; fields.push(`updated_at = $${p}`); values.push(new Date().toISOString())
       p++; values.push(id)
+      p++; values.push(tenantId)
 
       const result = await query(
-        `UPDATE communication_logs SET ${fields.join(', ')} WHERE id = $${p} RETURNING *`,
+        `UPDATE communication_logs SET ${fields.join(', ')} WHERE id = $${p} AND tenant_id = $${p + 1} RETURNING *`,
         values
       )
 
@@ -128,7 +180,7 @@ export default async function handler(
         return res.status(404).json({ error: 'Log not found' })
       }
 
-      res.status(200).json({ data: result.rows[0] })
+      res.status(200).json({ data: mapCommunicationLog(result.rows[0]) })
     } catch (err) {
       console.error('Error updating communication log:', err)
       res.status(500).json({ error: 'Failed to update communication log' })

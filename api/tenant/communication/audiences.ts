@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const [studentCount, parentCount, staffCount] = await Promise.all([
       fetchStudentCount(tenantId),
       fetchParentCount(tenantId),
-      fetchStaffCount(),
+      fetchStaffCount(tenantId),
     ])
 
     const allCount = studentCount + parentCount + staffCount

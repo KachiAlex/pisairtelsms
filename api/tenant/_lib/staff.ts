@@ -252,14 +252,152 @@ function rowToPayroll(row: PayrollRow): PayrollRecord {
 
 export async function ensureStaffTables(): Promise<void> {
   try {
-    // Add geo columns to staff_attendance if they don't exist
-    try {
-      await sql`ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION`
-      await sql`ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`
-      await sql`ALTER TABLE staff_attendance ADD COLUMN IF NOT EXISTS geo_verified BOOLEAN DEFAULT false`
-    } catch {
-      // columns may already exist
-    }
+    // Create core tables if they don't exist (fresh deployments)
+    await sql`CREATE TABLE IF NOT EXISTS staff (
+      id TEXT PRIMARY KEY,
+      staff_id TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      name TEXT NOT NULL DEFAULT '',
+      role TEXT,
+      department TEXT,
+      status TEXT DEFAULT 'active',
+      email TEXT,
+      phone TEXT,
+      hire_date DATE,
+      salary NUMERIC,
+      address TEXT,
+      qualification TEXT,
+      gender TEXT,
+      date_of_birth DATE,
+      emergency_contact TEXT,
+      emergency_phone TEXT,
+      password_hash TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`.catch((e: any) => console.error('staff create table failed:', e.message))
+
+    await sql`CREATE TABLE IF NOT EXISTS staff_leave (
+      id TEXT PRIMARY KEY,
+      staff_id TEXT NOT NULL,
+      staff_name TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      leave_type TEXT,
+      start_date DATE,
+      end_date DATE,
+      days NUMERIC,
+      reason TEXT,
+      status TEXT DEFAULT 'pending',
+      approved_by TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`.catch((e: any) => console.error('staff_leave create table failed:', e.message))
+
+    await sql`CREATE TABLE IF NOT EXISTS staff_attendance (
+      id TEXT PRIMARY KEY,
+      staff_id TEXT NOT NULL,
+      staff_name TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      date DATE,
+      check_in TEXT,
+      check_out TEXT,
+      status TEXT,
+      notes TEXT,
+      latitude DOUBLE PRECISION,
+      longitude DOUBLE PRECISION,
+      geo_verified BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`.catch((e: any) => console.error('staff_attendance create table failed:', e.message))
+
+    await sql`CREATE TABLE IF NOT EXISTS staff_payroll (
+      id TEXT PRIMARY KEY,
+      staff_id TEXT NOT NULL,
+      staff_name TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      month TEXT,
+      year NUMERIC,
+      basic_salary NUMERIC,
+      allowances NUMERIC,
+      deductions NUMERIC,
+      net_salary NUMERIC,
+      status TEXT DEFAULT 'pending',
+      payment_date DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`.catch((e: any) => console.error('staff_payroll create table failed:', e.message))
+
+    // Backfill missing columns on pre-existing tables
+    await sql`ALTER TABLE staff
+      ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      ADD COLUMN IF NOT EXISTS staff_id TEXT,
+      ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS role TEXT,
+      ADD COLUMN IF NOT EXISTS department TEXT,
+      ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active',
+      ADD COLUMN IF NOT EXISTS email TEXT,
+      ADD COLUMN IF NOT EXISTS phone TEXT,
+      ADD COLUMN IF NOT EXISTS hire_date DATE,
+      ADD COLUMN IF NOT EXISTS salary NUMERIC,
+      ADD COLUMN IF NOT EXISTS address TEXT,
+      ADD COLUMN IF NOT EXISTS qualification TEXT,
+      ADD COLUMN IF NOT EXISTS gender TEXT,
+      ADD COLUMN IF NOT EXISTS date_of_birth DATE,
+      ADD COLUMN IF NOT EXISTS emergency_contact TEXT,
+      ADD COLUMN IF NOT EXISTS emergency_phone TEXT,
+      ADD COLUMN IF NOT EXISTS password_hash TEXT,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`.catch((e: any) => console.error('staff alter failed:', e.message))
+
+    await sql`ALTER TABLE staff_leave
+      ADD COLUMN IF NOT EXISTS staff_id TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS staff_name TEXT,
+      ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      ADD COLUMN IF NOT EXISTS leave_type TEXT,
+      ADD COLUMN IF NOT EXISTS start_date DATE,
+      ADD COLUMN IF NOT EXISTS end_date DATE,
+      ADD COLUMN IF NOT EXISTS days NUMERIC,
+      ADD COLUMN IF NOT EXISTS reason TEXT,
+      ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS approved_by TEXT,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`.catch((e: any) => console.error('staff_leave alter failed:', e.message))
+
+    await sql`ALTER TABLE staff_attendance
+      ADD COLUMN IF NOT EXISTS staff_id TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS staff_name TEXT,
+      ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      ADD COLUMN IF NOT EXISTS date DATE,
+      ADD COLUMN IF NOT EXISTS check_in TEXT,
+      ADD COLUMN IF NOT EXISTS check_out TEXT,
+      ADD COLUMN IF NOT EXISTS status TEXT,
+      ADD COLUMN IF NOT EXISTS notes TEXT,
+      ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS geo_verified BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`.catch((e: any) => console.error('staff_attendance alter failed:', e.message))
+
+    await sql`ALTER TABLE staff_payroll
+      ADD COLUMN IF NOT EXISTS staff_id TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS staff_name TEXT,
+      ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      ADD COLUMN IF NOT EXISTS month TEXT,
+      ADD COLUMN IF NOT EXISTS year NUMERIC,
+      ADD COLUMN IF NOT EXISTS basic_salary NUMERIC,
+      ADD COLUMN IF NOT EXISTS allowances NUMERIC,
+      ADD COLUMN IF NOT EXISTS deductions NUMERIC,
+      ADD COLUMN IF NOT EXISTS net_salary NUMERIC,
+      ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS payment_date DATE,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`.catch((e: any) => console.error('staff_payroll alter failed:', e.message))
+
+    // Indexes & unique constraints needed by the app
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_attendance_unique ON staff_attendance(staff_id, date)`.catch((e: any) => console.error('attendance unique index failed:', e.message))
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_payroll_unique ON staff_payroll(staff_id, month, year)`.catch((e: any) => console.error('payroll unique index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_staff_tenant_id ON staff(tenant_id)`.catch((e: any) => console.error('staff tenant index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_staff_department ON staff(department)`.catch((e: any) => console.error('staff dept index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_staff_status ON staff(status)`.catch((e: any) => console.error('staff status index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email)`.catch((e: any) => console.error('staff email index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_leave_tenant_id ON staff_leave(tenant_id)`.catch((e: any) => console.error('leave tenant index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_attendance_tenant_id ON staff_attendance(tenant_id)`.catch((e: any) => console.error('attendance tenant index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_payroll_tenant_id ON staff_payroll(tenant_id)`.catch((e: any) => console.error('payroll tenant index failed:', e.message))
   } catch (error) {
     console.error('Error ensuring staff tables:', error)
   }
@@ -403,7 +541,7 @@ export async function createStaffMember(
   const staffId = payload.staffId || `STF${Date.now().toString().slice(-6)}`
   const rawPassword = payload.defaultPassword || `${payload.name.split(' ')[0].toLowerCase()}@${Date.now().toString().slice(-4)}`
   const passwordHash = await hashPassword(rawPassword)
-  const resolvedTenantId = tenantId || payload.department || 'default-tenant'
+  const resolvedTenantId = tenantId || 'default-tenant'
   const result = await sql<StaffRow>`
     INSERT INTO staff (id, staff_id, tenant_id, name, role, department, status, email, phone, hire_date,
                        salary, address, qualification, gender, date_of_birth, emergency_contact, emergency_phone, password_hash)
@@ -465,7 +603,7 @@ export async function updateStaffMember(
     const staff = result.rows[0] ? rowToStaff(result.rows[0]) : null
     if (staff) {
       try {
-        const resolvedTenantId = tenantId || staff.department || 'default-tenant'
+        const resolvedTenantId = tenantId || 'default-tenant'
         const userStatus = staff.status === 'active' ? 'active' : 'suspended'
         await sql`
           UPDATE tenant_users
@@ -515,20 +653,21 @@ export async function resetStaffPassword(id: string, newPassword: string): Promi
 
 // ── Leave ───────────────────────────────────────────────────────────────────
 
-export async function fetchLeaveRequests(staffId?: string, status?: string): Promise<LeaveRequest[]> {
+export async function fetchLeaveRequests(staffId?: string, status?: string, tenantId?: string): Promise<LeaveRequest[]> {
   await ensureStaffTables()
   try {
+    const resolvedTenantId = tenantId || 'default-tenant'
     if (staffId && status) {
-      const result = await sql<LeaveRow>`SELECT * FROM staff_leave WHERE staff_id = ${staffId} AND status = ${status} ORDER BY created_at DESC`
+      const result = await sql<LeaveRow>`SELECT * FROM staff_leave WHERE staff_id = ${staffId} AND status = ${status} AND tenant_id = ${resolvedTenantId} ORDER BY created_at DESC`
       return result.rows.map(rowToLeave)
     } else if (staffId) {
-      const result = await sql<LeaveRow>`SELECT * FROM staff_leave WHERE staff_id = ${staffId} ORDER BY created_at DESC`
+      const result = await sql<LeaveRow>`SELECT * FROM staff_leave WHERE staff_id = ${staffId} AND tenant_id = ${resolvedTenantId} ORDER BY created_at DESC`
       return result.rows.map(rowToLeave)
     } else if (status) {
-      const result = await sql<LeaveRow>`SELECT * FROM staff_leave WHERE status = ${status} ORDER BY created_at DESC`
+      const result = await sql<LeaveRow>`SELECT * FROM staff_leave WHERE status = ${status} AND tenant_id = ${resolvedTenantId} ORDER BY created_at DESC`
       return result.rows.map(rowToLeave)
     } else {
-      const result = await sql<LeaveRow>`SELECT * FROM staff_leave ORDER BY created_at DESC`
+      const result = await sql<LeaveRow>`SELECT * FROM staff_leave WHERE tenant_id = ${resolvedTenantId} ORDER BY created_at DESC`
       return result.rows.map(rowToLeave)
     }
   } catch (error) {
@@ -537,23 +676,28 @@ export async function fetchLeaveRequests(staffId?: string, status?: string): Pro
   }
 }
 
-export async function createLeaveRequest(payload: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<LeaveRequest> {
+export async function createLeaveRequest(
+  payload: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt'>,
+  tenantId?: string
+): Promise<LeaveRequest> {
   await ensureStaffTables()
   const id = `leave_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const resolvedTenantId = tenantId || 'default-tenant'
   const result = await sql<LeaveRow>`
-    INSERT INTO staff_leave (id, staff_id, staff_name, leave_type, start_date, end_date, days, reason, status)
-    VALUES (${id}, ${payload.staffId}, ${payload.staffName}, ${payload.leaveType},
+    INSERT INTO staff_leave (id, staff_id, staff_name, tenant_id, leave_type, start_date, end_date, days, reason, status)
+    VALUES (${id}, ${payload.staffId}, ${payload.staffName}, ${resolvedTenantId}, ${payload.leaveType},
             ${payload.startDate}, ${payload.endDate}, ${payload.days}, ${payload.reason}, ${payload.status || 'pending'})
     RETURNING *
   `
   return rowToLeave(result.rows[0])
 }
 
-export async function updateLeaveStatus(id: string, status: string, approvedBy?: string): Promise<LeaveRequest | null> {
+export async function updateLeaveStatus(id: string, status: string, approvedBy?: string, tenantId?: string): Promise<LeaveRequest | null> {
   try {
+    const resolvedTenantId = tenantId || 'default-tenant'
     const result = await sql<LeaveRow>`
       UPDATE staff_leave SET status = ${status}, approved_by = ${approvedBy ?? null}, updated_at = NOW()
-      WHERE id = ${id} RETURNING *
+      WHERE id = ${id} AND tenant_id = ${resolvedTenantId} RETURNING *
     `
     return result.rows[0] ? rowToLeave(result.rows[0]) : null
   } catch (error) {
@@ -564,21 +708,22 @@ export async function updateLeaveStatus(id: string, status: string, approvedBy?:
 
 // ── Attendance ──────────────────────────────────────────────────────────────
 
-export async function fetchAttendance(date?: string, staffId?: string): Promise<Attendance[]> {
+export async function fetchAttendance(date?: string, staffId?: string, tenantId?: string): Promise<Attendance[]> {
   await ensureStaffTables()
   try {
+    const resolvedTenantId = tenantId || 'default-tenant'
     if (date && staffId) {
-      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE date = ${date} AND staff_id = ${staffId}`
+      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE date = ${date} AND staff_id = ${staffId} AND tenant_id = ${resolvedTenantId}`
       return result.rows.map(rowToAttendance)
     } else if (date) {
-      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE date = ${date} ORDER BY staff_name ASC`
+      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE date = ${date} AND tenant_id = ${resolvedTenantId} ORDER BY staff_name ASC`
       return result.rows.map(rowToAttendance)
     } else if (staffId) {
-      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE staff_id = ${staffId} ORDER BY date DESC`
+      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE staff_id = ${staffId} AND tenant_id = ${resolvedTenantId} ORDER BY date DESC`
       return result.rows.map(rowToAttendance)
     } else {
       const today = new Date().toISOString().split('T')[0]
-      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE date = ${today} ORDER BY staff_name ASC`
+      const result = await sql<AttendanceRow>`SELECT * FROM staff_attendance WHERE date = ${today} AND tenant_id = ${resolvedTenantId} ORDER BY staff_name ASC`
       return result.rows.map(rowToAttendance)
     }
   } catch (error) {
@@ -587,12 +732,16 @@ export async function fetchAttendance(date?: string, staffId?: string): Promise<
   }
 }
 
-export async function markAttendance(payload: Omit<Attendance, 'id' | 'createdAt'>): Promise<Attendance> {
+export async function markAttendance(
+  payload: Omit<Attendance, 'id' | 'createdAt'>,
+  tenantId?: string
+): Promise<Attendance> {
   await ensureStaffTables()
   const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const resolvedTenantId = tenantId || 'default-tenant'
   const result = await sql<AttendanceRow>`
-    INSERT INTO staff_attendance (id, staff_id, staff_name, date, check_in, check_out, status, notes)
-    VALUES (${id}, ${payload.staffId}, ${payload.staffName}, ${payload.date},
+    INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, check_out, status, notes)
+    VALUES (${id}, ${payload.staffId}, ${payload.staffName}, ${resolvedTenantId}, ${payload.date},
             ${payload.checkIn ?? null}, ${payload.checkOut ?? null}, ${payload.status}, ${payload.notes ?? null})
     ON CONFLICT (staff_id, date) DO UPDATE SET
       check_in = COALESCE(EXCLUDED.check_in, staff_attendance.check_in),
@@ -606,13 +755,14 @@ export async function markAttendance(payload: Omit<Attendance, 'id' | 'createdAt
 
 // ── Payroll ─────────────────────────────────────────────────────────────────
 
-export async function fetchPayroll(month?: string, year?: number): Promise<PayrollRecord[]> {
+export async function fetchPayroll(month?: string, year?: number, tenantId?: string): Promise<PayrollRecord[]> {
   await ensureStaffTables()
   try {
     const currentYear = year || new Date().getFullYear()
     const currentMonth = month || new Date().toLocaleString('default', { month: 'long' })
+    const resolvedTenantId = tenantId || 'default-tenant'
     const result = await sql<PayrollRow>`
-      SELECT * FROM staff_payroll WHERE month = ${currentMonth} AND year = ${currentYear} ORDER BY staff_name ASC
+      SELECT * FROM staff_payroll WHERE month = ${currentMonth} AND year = ${currentYear} AND tenant_id = ${resolvedTenantId} ORDER BY staff_name ASC
     `
     return result.rows.map(rowToPayroll)
   } catch (error) {
@@ -621,13 +771,23 @@ export async function fetchPayroll(month?: string, year?: number): Promise<Payro
   }
 }
 
-export async function generatePayroll(staffId: string, staffName: string, month: string, year: number, basicSalary: number, allowances: number, deductions: number): Promise<PayrollRecord> {
+export async function generatePayroll(
+  staffId: string,
+  staffName: string,
+  month: string,
+  year: number,
+  basicSalary: number,
+  allowances: number,
+  deductions: number,
+  tenantId?: string
+): Promise<PayrollRecord> {
   await ensureStaffTables()
   const id = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const netSalary = basicSalary + allowances - deductions
+  const resolvedTenantId = tenantId || 'default-tenant'
   const result = await sql<PayrollRow>`
-    INSERT INTO staff_payroll (id, staff_id, staff_name, month, year, basic_salary, allowances, deductions, net_salary, status)
-    VALUES (${id}, ${staffId}, ${staffName}, ${month}, ${year}, ${basicSalary}, ${allowances}, ${deductions}, ${netSalary}, 'pending')
+    INSERT INTO staff_payroll (id, staff_id, staff_name, tenant_id, month, year, basic_salary, allowances, deductions, net_salary, status)
+    VALUES (${id}, ${staffId}, ${staffName}, ${resolvedTenantId}, ${month}, ${year}, ${basicSalary}, ${allowances}, ${deductions}, ${netSalary}, 'pending')
     ON CONFLICT (staff_id, month, year) DO UPDATE SET
       basic_salary = EXCLUDED.basic_salary,
       allowances = EXCLUDED.allowances,
@@ -638,10 +798,11 @@ export async function generatePayroll(staffId: string, staffName: string, month:
   return rowToPayroll(result.rows[0])
 }
 
-export async function updatePayrollStatus(id: string, status: string, paymentDate?: string): Promise<PayrollRecord | null> {
+export async function updatePayrollStatus(id: string, status: string, paymentDate?: string, tenantId?: string): Promise<PayrollRecord | null> {
   try {
+    const resolvedTenantId = tenantId || 'default-tenant'
     const result = await sql<PayrollRow>`
-      UPDATE staff_payroll SET status = ${status}, payment_date = ${paymentDate ?? null} WHERE id = ${id} RETURNING *
+      UPDATE staff_payroll SET status = ${status}, payment_date = ${paymentDate ?? null} WHERE id = ${id} AND tenant_id = ${resolvedTenantId} RETURNING *
     `
     return result.rows[0] ? rowToPayroll(result.rows[0]) : null
   } catch (error) {

@@ -4,19 +4,19 @@ import userEvent from '@testing-library/user-event';
 import { LiveMonitoringTab } from './LiveMonitoringTab';
 import * as tenantApi from '../../../lib/tenantApi';
 
-jest.mock('../../../lib/tenantApi');
+vi.mock('../../../lib/tenantApi');
 
-const mockTenantApiGet = tenantApi.tenantApiGet as jest.MockedFunction<typeof tenantApi.tenantApiGet>;
-const mockTenantApiPut = tenantApi.tenantApiPut as jest.MockedFunction<typeof tenantApi.tenantApiPut>;
+const mockTenantApiGet = tenantApi.tenantApiGet as ReturnType<typeof vi.fn>;
+const mockTenantApiPut = tenantApi.tenantApiPut as ReturnType<typeof vi.fn>;
 
 describe('LiveMonitoringTab', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('should display ongoing exams in selector', async () => {
@@ -336,7 +336,7 @@ describe('LiveMonitoringTab', () => {
 
     await waitFor(() => {
       expect(mockTenantApiPut).toHaveBeenCalledWith(
-        expect.stringContaining('/flag'),
+        expect.stringContaining('action=flag'),
         { reason: 'Tab switching detected' }
       );
     });

@@ -78,14 +78,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── Leave ────────────────────────────────────────────────────────────────
   if (resource === 'leave') {
     if (req.method === 'GET') {
-      const leaves = await fetchLeaveRequests(staffId as string | undefined, status as string | undefined)
+      const leaves = await fetchLeaveRequests(staffId as string | undefined, status as string | undefined, actualTenantId)
       return res.status(200).json({ data: leaves })
     }
 
     if (req.method === 'POST') {
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
-      const leave = await createLeaveRequest(body)
+      const leave = await createLeaveRequest(body, actualTenantId)
       return res.status(201).json({ data: leave })
     }
 
@@ -93,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!id) return res.status(400).json({ error: 'Leave ID is required' })
       const body = parseBody(req)
       if (!body?.status) return res.status(400).json({ error: 'Status is required' })
-      const leave = await updateLeaveStatus(id as string, body.status, body.approvedBy)
+      const leave = await updateLeaveStatus(id as string, body.status, body.approvedBy, actualTenantId)
       if (!leave) return res.status(404).json({ error: 'Leave request not found' })
       return res.status(200).json({ data: leave })
     }
@@ -104,14 +104,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── Attendance ───────────────────────────────────────────────────────────
   if (resource === 'attendance') {
     if (req.method === 'GET') {
-      const records = await fetchAttendance(date as string | undefined, staffId as string | undefined)
+      const records = await fetchAttendance(date as string | undefined, staffId as string | undefined, actualTenantId)
       return res.status(200).json({ data: records })
     }
 
     if (req.method === 'POST') {
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
-      const record = await markAttendance(body)
+      const record = await markAttendance(body, actualTenantId)
       return res.status(201).json({ data: record })
     }
 
@@ -121,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── Payroll ──────────────────────────────────────────────────────────────
   if (resource === 'payroll') {
     if (req.method === 'GET') {
-      const records = await fetchPayroll(month as string | undefined, year ? Number(year) : undefined)
+      const records = await fetchPayroll(month as string | undefined, year ? Number(year) : undefined, actualTenantId)
       return res.status(200).json({ data: records })
     }
 
@@ -130,7 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!body) return res.status(400).json({ error: 'Request body is required' })
       const { staffId: sid, staffName, month: m, year: y, basicSalary, allowances, deductions } = body
       if (!sid || !staffName || !m || !y) return res.status(400).json({ error: 'Missing required fields' })
-      const record = await generatePayroll(sid, staffName, m, y, basicSalary || 0, allowances || 0, deductions || 0)
+      const record = await generatePayroll(sid, staffName, m, y, basicSalary || 0, allowances || 0, deductions || 0, actualTenantId)
       return res.status(201).json({ data: record })
     }
 
@@ -138,7 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!id) return res.status(400).json({ error: 'Payroll ID is required' })
       const body = parseBody(req)
       if (!body?.status) return res.status(400).json({ error: 'Status is required' })
-      const record = await updatePayrollStatus(id as string, body.status, body.paymentDate)
+      const record = await updatePayrollStatus(id as string, body.status, body.paymentDate, actualTenantId)
       if (!record) return res.status(404).json({ error: 'Payroll record not found' })
       return res.status(200).json({ data: record })
     }

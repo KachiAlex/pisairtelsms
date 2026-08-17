@@ -26,8 +26,10 @@ const statusVariant: Record<string, 'default' | 'secondary'> = {
 }
 
 function getHeaders() {
-  const tenantId = localStorage.getItem('tenantId') || 'default-tenant'
-  return { 'Content-Type': 'application/json' }
+  const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (auth.token) headers.Authorization = `Bearer ${auth.token}`
+  return headers
 }
 
 const AUDIENCE_OPTIONS = ['parents', 'students', 'staff', 'management']
@@ -90,6 +92,29 @@ export function ReportTemplates() {
     }
   }
 
+  const handleExportList = () => {
+    const headers = ['Name', 'Audience', 'Format', 'Version', 'Status', 'Created At']
+    const rows = templates.map(t => [
+      `"${(t.name || '').replace(/"/g, '""')}"`,
+      t.audience || '',
+      t.format || '',
+      `v${t.version || 1}`,
+      t.status || '',
+      t.created_at || '',
+    ])
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `report-templates-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast({ title: 'Export ready', description: `${templates.length} templates exported as CSV.` })
+  }
+
   const handlePublish = async (templateId: string, templateName: string) => {
     try {
       const res = await fetch(`/api/tenant/report-templates?id=${templateId}&action=publish`, {
@@ -100,6 +125,33 @@ export function ReportTemplates() {
       toast({ title: 'Template published', description: `"${templateName}" is now live.` })
     } catch (err) {
       toast({ title: 'Publish failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    }
+  }
+
+  const handleDownloadTemplate = (template: any) => {
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const safeName = (template.name || 'template').replace(/[^a-z0-9]/gi, '-').toLowerCase()
+    link.download = `${safeName}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast({ title: 'Template exported', description: `"${template.name}" downloaded as JSON.` })
+  }
+
+  const handleDeleteTemplate = async (templateId: string, templateName: string) => {
+    try {
+      const res = await fetch(`/api/tenant/report-templates?id=${templateId}`, {
+        method: 'DELETE', headers: getHeaders(),
+      })
+      if (!res.ok) throw new Error('Failed to delete template')
+      setTemplates(prev => prev.filter(t => t.id !== templateId))
+      toast({ title: 'Template deleted', description: `"${templateName}" was removed.` })
+    } catch (err) {
+      toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -257,7 +309,7 @@ export function ReportTemplates() {
             <CardTitle>Template catalog</CardTitle>
             <CardDescription>Version history and audience coverage.</CardDescription>
           </div>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={handleExportList} disabled={templates.length === 0}>
             <Download className="h-4 w-4 mr-2" /> Export list
           </Button>
         </CardHeader>
@@ -286,11 +338,19 @@ export function ReportTemplates() {
                         <Badge variant={statusVariant[template.status] || 'secondary'}>{template.status}</Badge>
                       </TableCell>
                       <TableCell>
-                        {template.status === 'draft' && (
-                          <Button size="sm" variant="outline" onClick={() => handlePublish(template.id, template.name)}>
-                            <CheckCircle className="h-3 w-3 mr-1" /> Publish
+                        <div className="flex items-center gap-2">
+                          {template.status === 'draft' && (
+                            <Button size="sm" variant="outline" onClick={() => handlePublish(template.id, template.name)}>
+                              <CheckCircle className="h-3 w-3 mr-1" /> Publish
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => handleDownloadTemplate(template)}>
+                            <Download className="h-3 w-3 mr-1" /> Export
                           </Button>
-                        )}
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteTemplate(template.id, template.name)}>
+                            <X className="h-3 w-3 mr-1" /> Delete
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

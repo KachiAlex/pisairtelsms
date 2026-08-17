@@ -16,6 +16,7 @@ const StudentAttendance = lazy(() => import('./components/pages/StudentAttendanc
 const TimetableScheduling = lazy(() => import('./components/pages/TimetableScheduling'));
 const StaffHR = lazy(() => import('./components/pages/StaffHR'));
 const CommunicationHub = lazy(() => import('./components/pages/CommunicationHub'));
+const CommunicationsHub = lazy(() => import('./components/pages/CommunicationsHub'));
 
 const FinanceManagement = lazy(() => import('./components/pages/FinanceManagement'));
 const AnalyticsDashboard = lazy(() => import('./components/pages/AnalyticsDashboard'));
@@ -218,18 +219,25 @@ export default function App() {
           }
         />;
       case 'staff':
+        return <StaffHR initialTab="overview" />;
       case 'staff-list':
       case 'staff-roles':
+        return <StaffHR initialTab="directory" />;
       case 'payroll':
+        return <StaffHR initialTab="payroll" />;
       case 'leave-management':
+        return <StaffHR initialTab="leave" />;
       case 'performance':
-        return <StaffHR />;
+        return <StaffHR initialTab="overview" />;
       case 'communication':
       case 'announcements':
+        return <CommunicationHub initialTab="announcements" />;
       case 'bulk-notifications':
+        return <CommunicationHub initialTab="bulk-notifications" />;
       case 'parent-messaging':
+        return <CommunicationHub initialTab="parent-messaging" />;
       case 'communication-logs':
-        return <CommunicationHub />;
+        return <CommunicationHub initialTab="communication-logs" />;
       case 'finance':
       case 'fee-structure':
       case 'fee-collection':

@@ -4,6 +4,8 @@ import { Button } from '../../ui/button'
 
 interface LeaveRequest {
   id: string
+  staffId?: string
+  staffName?: string
   leaveType: string
   startDate: string
   endDate: string
@@ -169,6 +171,51 @@ export function LeaveManagement() {
       console.error('Error submitting leave request:', err)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleUpdateStatus = async (leaveId: string, newStatus: 'approved' | 'rejected') => {
+    try {
+      setError(null)
+      setSuccess(null)
+      if (!token) {
+        setError('Not authenticated')
+        return
+      }
+
+      const res = await fetch(`/api/tenant/staff?resource=leave&id=${leaveId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          approvedBy: authParsed?.name || authParsed?.userId || 'Admin',
+        }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({} as any))
+        throw new Error(errData.error || `Failed to ${newStatus} leave`)
+      }
+
+      const refreshRes = await fetch('/api/tenant/staff?resource=leave', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      if (refreshRes.ok) {
+        const refreshed = await refreshRes.json()
+        setData({ requests: refreshed.data || [], balance: [] })
+      }
+
+      setSuccess(`Leave request ${newStatus}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update leave'
+      setError(message)
+      console.error('Error updating leave status:', err)
     }
   }
 
@@ -411,11 +458,33 @@ export function LeaveManagement() {
                         {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                       </span>
                     </div>
+                    {isAdminView && request.staffName && (
+                      <p className="text-sm text-gray-700 mt-1">Staff: {request.staffName}</p>
+                    )}
                     <p className="text-sm text-gray-600 mt-1">
                       {request.startDate} to {request.endDate}
                     </p>
                     <p className="text-sm text-gray-600">Reason: {request.reason}</p>
+                    {request.approvedBy && (
+                      <p className="text-xs text-gray-500 mt-1">Approved by: {request.approvedBy}</p>
+                    )}
                     <p className="text-xs text-gray-500 mt-2">Submitted: {request.createdAt}</p>
+                    {isAdminView && request.status === 'pending' && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleUpdateStatus(request.id, 'approved')}
+                          className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStatus(request.id, 'rejected')}
+                          className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

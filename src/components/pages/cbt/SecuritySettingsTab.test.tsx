@@ -1,17 +1,17 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SecuritySettingsTab } from './SecuritySettingsTab';
 import * as tenantApi from '../../../lib/tenantApi';
 
-jest.mock('../../../lib/tenantApi');
+vi.mock('../../../lib/tenantApi');
 
-const mockTenantApiGet = tenantApi.tenantApiGet as jest.MockedFunction<typeof tenantApi.tenantApiGet>;
-const mockTenantApiPost = tenantApi.tenantApiPost as jest.MockedFunction<typeof tenantApi.tenantApiPost>;
+const mockTenantApiGet = tenantApi.tenantApiGet as ReturnType<typeof vi.fn>;
+const mockTenantApiPost = tenantApi.tenantApiPost as ReturnType<typeof vi.fn>;
 
 describe('SecuritySettingsTab', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should display exams in selector', async () => {
@@ -134,7 +134,9 @@ describe('SecuritySettingsTab', () => {
       expect(screen.getByText('Enable Proctoring')).toBeInTheDocument();
     });
 
-    const proctoringToggle = screen.getByRole('switch', { name: 'enableProctoring' });
+    const proctoringLabel = screen.getByText('Enable Proctoring');
+    const proctoringRow = proctoringLabel.closest('div[class*="flex"]') as HTMLElement;
+    const proctoringToggle = within(proctoringRow).getByRole('switch');
     fireEvent.click(proctoringToggle);
 
     expect(proctoringToggle).toHaveAttribute('aria-checked', 'true');
@@ -265,7 +267,9 @@ describe('SecuritySettingsTab', () => {
       expect(screen.getByText('Enable Proctoring')).toBeInTheDocument();
     });
 
-    const proctoringToggle = screen.getByRole('switch', { name: 'enableProctoring' });
+    const proctoringLabel = screen.getByText('Enable Proctoring');
+    const proctoringRow = proctoringLabel.closest('div[class*="flex"]') as HTMLElement;
+    const proctoringToggle = within(proctoringRow).getByRole('switch');
     fireEvent.click(proctoringToggle);
 
     const saveButton = screen.getByText('Save Settings');
@@ -273,7 +277,7 @@ describe('SecuritySettingsTab', () => {
 
     await waitFor(() => {
       expect(mockTenantApiPost).toHaveBeenCalledWith(
-        expect.stringContaining('/api/tenant/cbt/security/1'),
+        expect.stringContaining('/api/tenant/cbt/security?id=1'),
         expect.objectContaining({
           proctoringEnabled: true,
         })

@@ -97,7 +97,7 @@ export function LiveMonitoringTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await tenantApiGet(`/api/tenant/cbt/monitoring/${examId}`);
+      const res = await tenantApiGet(`/api/tenant/cbt/monitoring?id=${examId}`);
       if (!res.ok) throw new Error('Failed to load monitoring data');
       const data = await res.json();
       setMonitoring(data.data);
@@ -128,7 +128,7 @@ export function LiveMonitoringTab() {
     setFlagging(true);
     try {
       const res = await tenantApiPut(
-        `/api/tenant/cbt/monitoring/${selectedExamId}/student/${flagStudent.studentId}/flag`,
+        `/api/tenant/cbt/monitoring?id=${selectedExamId}&action=flag&studentId=${flagStudent.studentId}`,
         { reason: flagReason.trim() }
       );
       if (!res.ok) throw new Error('Failed to flag student');

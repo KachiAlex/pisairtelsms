@@ -5,16 +5,16 @@ import { QuestionBankTab } from './QuestionBankTab';
 import * as tenantApi from '../../../lib/tenantApi';
 
 // Mock the tenantApi module
-jest.mock('../../../lib/tenantApi');
+vi.mock('../../../lib/tenantApi');
 
-const mockTenantApiGet = tenantApi.tenantApiGet as jest.MockedFunction<typeof tenantApi.tenantApiGet>;
-const mockTenantApiPost = tenantApi.tenantApiPost as jest.MockedFunction<typeof tenantApi.tenantApiPost>;
-const mockTenantApiPut = tenantApi.tenantApiPut as jest.MockedFunction<typeof tenantApi.tenantApiPut>;
-const mockTenantApiFetch = tenantApi.tenantApiFetch as jest.MockedFunction<typeof tenantApi.tenantApiFetch>;
+const mockTenantApiGet = tenantApi.tenantApiGet as ReturnType<typeof vi.fn>;
+const mockTenantApiPost = tenantApi.tenantApiPost as ReturnType<typeof vi.fn>;
+const mockTenantApiPut = tenantApi.tenantApiPut as ReturnType<typeof vi.fn>;
+const mockTenantApiFetch = tenantApi.tenantApiFetch as ReturnType<typeof vi.fn>;
 
 describe('QuestionBankTab', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Question List Display', () => {
@@ -219,7 +219,7 @@ describe('QuestionBankTab', () => {
       });
 
       const deleteButton = screen.getByLabelText('Delete question');
-      window.confirm = jest.fn(() => true);
+      window.confirm = vi.fn(() => true);
       fireEvent.click(deleteButton);
 
       await waitFor(() => {
@@ -312,7 +312,7 @@ describe('QuestionBankTab', () => {
       render(<QuestionBankTab />);
 
       const exportButton = screen.getByText('Export CSV');
-      window.open = jest.fn();
+      window.open = vi.fn();
       fireEvent.click(exportButton);
 
       expect(window.open).toHaveBeenCalledWith(

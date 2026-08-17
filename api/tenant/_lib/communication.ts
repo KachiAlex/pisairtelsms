@@ -45,7 +45,36 @@ function rowToAnnouncement(row: AnnouncementRow): Announcement {
 
 export async function ensureCommunicationTable(): Promise<void> {
   try {
-    } catch (error) {
+    await sql`CREATE TABLE IF NOT EXISTS announcements (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      title TEXT NOT NULL DEFAULT '',
+      body TEXT,
+      audience TEXT DEFAULT 'all',
+      category TEXT DEFAULT 'general',
+      author TEXT DEFAULT 'Admin',
+      sent_by TEXT DEFAULT 'Admin',
+      sent_at TIMESTAMP,
+      status TEXT DEFAULT 'draft',
+      created_at TIMESTAMP DEFAULT NOW()
+    )`.catch((e: any) => console.error('announcements create table failed:', e.message))
+
+    await sql`ALTER TABLE IF EXISTS announcements
+      ADD COLUMN IF NOT EXISTS tenant_id TEXT,
+      ADD COLUMN IF NOT EXISTS title TEXT,
+      ADD COLUMN IF NOT EXISTS body TEXT,
+      ADD COLUMN IF NOT EXISTS audience TEXT,
+      ADD COLUMN IF NOT EXISTS category TEXT,
+      ADD COLUMN IF NOT EXISTS author TEXT,
+      ADD COLUMN IF NOT EXISTS sent_by TEXT,
+      ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS status TEXT,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP`.catch((e: any) => console.error('announcements alter failed:', e.message))
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcements_tenant_id ON announcements(tenant_id)`.catch((e: any) => console.error('announcements tenant index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status)`.catch((e: any) => console.error('announcements status index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcements_audience ON announcements(audience)`.catch((e: any) => console.error('announcements audience index failed:', e.message))
+  } catch (error) {
     console.error('Error ensuring announcements table:', error)
   }
 }
@@ -107,8 +136,27 @@ export interface AnnouncementRead {
 
 export async function ensureAnnouncementReadsTable(): Promise<void> {
   try {
-    // Prevent duplicate reads from the same reader
-    } catch (error) {
+    await sql`CREATE TABLE IF NOT EXISTS announcement_reads (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      announcement_id TEXT NOT NULL,
+      reader_id TEXT NOT NULL,
+      reader_type TEXT NOT NULL,
+      reader_name TEXT,
+      read_at TIMESTAMP DEFAULT NOW()
+    )`.catch((e: any) => console.error('announcement_reads create table failed:', e.message))
+
+    await sql`ALTER TABLE IF EXISTS announcement_reads
+      ADD COLUMN IF NOT EXISTS tenant_id TEXT,
+      ADD COLUMN IF NOT EXISTS announcement_id TEXT,
+      ADD COLUMN IF NOT EXISTS reader_id TEXT,
+      ADD COLUMN IF NOT EXISTS reader_type TEXT,
+      ADD COLUMN IF NOT EXISTS reader_name TEXT,
+      ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`.catch((e: any) => console.error('announcement_reads alter failed:', e.message))
+
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_announcement_reads_unique ON announcement_reads(announcement_id, reader_id, reader_type)`.catch((e: any) => console.error('announcement_reads unique index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_announcement_reads_tenant_id ON announcement_reads(tenant_id)`.catch((e: any) => console.error('announcement_reads tenant index failed:', e.message))
+  } catch (error) {
     console.error('Error ensuring announcement_reads table:', error)
   }
 }

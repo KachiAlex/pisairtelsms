@@ -4,14 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { ExamCreationTab } from './ExamCreationTab';
 import * as tenantApi from '../../../lib/tenantApi';
 
-jest.mock('../../../lib/tenantApi');
+vi.mock('../../../lib/tenantApi');
 
-const mockTenantApiGet = tenantApi.tenantApiGet as jest.MockedFunction<typeof tenantApi.tenantApiGet>;
-const mockTenantApiPost = tenantApi.tenantApiPost as jest.MockedFunction<typeof tenantApi.tenantApiPost>;
+const mockTenantApiGet = tenantApi.tenantApiGet as ReturnType<typeof vi.fn>;
+const mockTenantApiPost = tenantApi.tenantApiPost as ReturnType<typeof vi.fn>;
 
 describe('ExamCreationTab', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should display exams from the database', async () => {

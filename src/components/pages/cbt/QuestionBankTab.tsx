@@ -577,9 +577,9 @@ export function QuestionBankTab() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card><CardContent className="p-3 text-center"><p className="text-xs text-gray-500">Total</p><p className="text-xl font-bold text-blue-600">{stats.total}</p></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><p className="text-xs text-gray-500">Easy / Med / Hard</p><p className="text-sm font-semibold mt-1">{stats.byDifficulty.Easy} / {stats.byDifficulty.Medium} / {stats.byDifficulty.Hard}</p></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><p className="text-xs text-gray-500">Objective</p><p className="text-xl font-bold text-blue-600">{stats.byType.objective}</p></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><p className="text-xs text-gray-500">Essay</p><p className="text-xl font-bold text-orange-600">{stats.byType.essay}</p></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><p className="text-xs text-gray-500">Easy / Med / Hard</p><p className="text-sm font-semibold mt-1">{(stats.byDifficulty?.Easy ?? 0)} / {(stats.byDifficulty?.Medium ?? 0)} / {(stats.byDifficulty?.Hard ?? 0)}</p></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><p className="text-xs text-gray-500">Objective</p><p className="text-xl font-bold text-blue-600">{stats.byType?.objective ?? 0}</p></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><p className="text-xs text-gray-500">Essay</p><p className="text-xl font-bold text-orange-600">{stats.byType?.essay ?? 0}</p></CardContent></Card>
         </div>
       )}
 

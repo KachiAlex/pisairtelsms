@@ -109,7 +109,7 @@ export function SecuritySettingsTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await tenantApiGet(`/api/tenant/cbt/security/${examId}`);
+      const res = await tenantApiGet(`/api/tenant/cbt/security?id=${examId}`);
       if (res.ok) {
         const data = await res.json();
         if (data.data) {
@@ -134,7 +134,7 @@ export function SecuritySettingsTab() {
       if (logEventFilter) params.set('eventType', logEventFilter);
       if (logStartDate) params.set('startDate', logStartDate);
       if (logEndDate) params.set('endDate', logEndDate);
-      const res = await tenantApiGet(`/api/tenant/cbt/security/${examId}/logs?${params}`);
+      const res = await tenantApiGet(`/api/tenant/cbt/security?id=${examId}&action=logs&${params}`);
       if (res.ok) {
         const data = await res.json();
         setLogs(data.data || []);
@@ -187,7 +187,7 @@ export function SecuritySettingsTab() {
       };
       if (settings.examPassword) payload.examPassword = settings.examPassword;
 
-      const res = await tenantApiPost(`/api/tenant/cbt/security/${selectedExamId}`, payload);
+      const res = await tenantApiPost(`/api/tenant/cbt/security?id=${selectedExamId}`, payload);
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Save failed');

@@ -16,10 +16,10 @@ interface Staff {
   salary?: number
 }
 
-export function StaffHR() {
+export function StaffHR({ initialTab = 'overview' }: { initialTab?: string }) {
   const [staff, setStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(initialTab)
 
   useEffect(() => {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
@@ -32,6 +32,10 @@ export function StaffHR() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
 
   const totalStaff = staff.length
   const activeStaff = staff.filter(s => s.status === 'active').length

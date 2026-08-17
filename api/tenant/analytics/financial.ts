@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import { getFinancialAnalytics, type AnalyticsFilters } from '../_lib/analytics/engine.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 /**
@@ -7,7 +7,6 @@ import { requireRole } from '../../_lib/auth-middleware.js'
  * Returns financial analytics including revenue, collections, and payment methods
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant analytics
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
@@ -18,106 +17,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const tenantId = decoded.tenantId || 'default-tenant'
 
+  const filters: AnalyticsFilters = {
+    academicSession: req.query.academicSession as string | undefined,
+    term: req.query.term as string | undefined,
+    class: req.query.class as string | undefined,
+    startDate: req.query.startDate as string | undefined,
+    endDate: req.query.endDate as string | undefined,
+  }
+
   try {
-    // Get total revenue from fee_assignments
-    const revenueResult = await sql`
-      SELECT SUM(total_amount) as total FROM fee_assignments WHERE tenant_id = ${tenantId}
-    `
-    const totalRevenue = parseFloat(revenueResult.rows[0]?.total || '0')
-
-    // Get total collected from student_payments
-    const collectedResult = await sql`
-      SELECT SUM(amount) as total FROM student_payments WHERE tenant_id = ${tenantId}
-    `
-    const totalCollected = parseFloat(collectedResult.rows[0]?.total || '0')
-
-    // Calculate outstanding balance
-    const outstandingBalance = totalRevenue - totalCollected
-
-    // Calculate collection rate
-    const collectionRate = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0
-
-    // Get monthly revenue (group by month)
-    const monthlyRevenueResult = await sql`
-      SELECT 
-        TO_CHAR(paid_at, 'Mon') as month,
-        SUM(amount) as collected
-      FROM student_payments 
-      WHERE tenant_id = ${tenantId}
-      GROUP BY TO_CHAR(paid_at, 'Mon')
-      ORDER BY MIN(paid_at)
-      LIMIT 5
-    `
-    const monthlyRevenue = monthlyRevenueResult.rows.map(row => ({
-      month: row.month,
-      revenue: totalRevenue / 5, // Approximate monthly revenue
-      collected: parseFloat(row.collected || '0'),
-    }))
-
-    // Get fee structure breakdown
-    const feeBreakdownResult = await sql`
-      SELECT 
-        category,
-        SUM(amount) as total
-      FROM fee_structures 
-      WHERE tenant_id = ${tenantId}
-      GROUP BY category
-    `
-    const totalFees = feeBreakdownResult.rows.reduce((sum, row) => sum + parseFloat(row.total || '0'), 0)
-    const feeStructureBreakdown = feeBreakdownResult.rows.map(row => ({
-      category: row.category,
-      amount: parseFloat(row.total || '0'),
-      percentage: totalFees > 0 ? Math.round((parseFloat(row.total || '0') / totalFees) * 100) : 0,
-    }))
-
-    // Get payment methods breakdown from student_payments
-    const paymentMethodsResult = await sql`
-      SELECT 
-        payment_method as method,
-        SUM(amount) as total,
-        COUNT(*) as count
-      FROM student_payments 
-      WHERE tenant_id = ${tenantId}
-      GROUP BY payment_method
-    `
-    const paymentMethods = paymentMethodsResult.rows.map(row => ({
-      method: row.method,
-      amount: parseFloat(row.total || '0'),
-      count: parseInt(row.count || '0'),
-    }))
-
-    // Get outstanding by class
-    const classOutstandingResult = await sql`
-      SELECT 
-        c.name as class,
-        COALESCE(SUM(sp.amount), 0) as collected,
-        COALESCE(SUM(fa.total_amount), 0) - COALESCE(SUM(sp.amount), 0) as outstanding
-      FROM classes c
-      LEFT JOIN students s ON c.name = s.class AND c.tenant_id = s.tenant_id
-      LEFT JOIN fee_assignments fa ON s.id = fa.student_id AND c.tenant_id = fa.tenant_id
-      LEFT JOIN student_payments sp ON fa.id = sp.fee_structure_id AND c.tenant_id = sp.tenant_id
-      WHERE c.tenant_id = ${tenantId}
-      GROUP BY c.name
-      ORDER BY outstanding DESC
-      LIMIT 5
-    `
-    const classOutstanding = classOutstandingResult.rows.map(row => ({
-      class: row.class,
-      outstanding: parseFloat(row.outstanding || '0'),
-      collected: parseFloat(row.collected || '0'),
-    }))
-
-    const data = {
-      totalRevenue,
-      totalCollected,
-      outstandingBalance,
-      collectionRate,
-      monthlyRevenue,
-      feeStructureBreakdown,
-      paymentMethods,
-      classOutstanding,
-    }
-
+    const data = await getFinancialAnalytics(tenantId, filters)
     return res.status(200).json({ success: true, data })
   } catch (error) {
     console.error('Error fetching financial analytics:', error)

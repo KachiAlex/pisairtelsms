@@ -3,13 +3,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ExamResultsTab } from './ExamResultsTab';
 import * as tenantApi from '../../../lib/tenantApi';
 
-jest.mock('../../../lib/tenantApi');
+vi.mock('../../../lib/tenantApi');
 
-const mockTenantApiGet = tenantApi.tenantApiGet as jest.MockedFunction<typeof tenantApi.tenantApiGet>;
+const mockTenantApiGet = tenantApi.tenantApiGet as ReturnType<typeof vi.fn>;
+const mockTenantApiFetch = tenantApi.tenantApiFetch as ReturnType<typeof vi.fn>;
 
 describe('ExamResultsTab', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should display completed exams in selector', async () => {
@@ -322,13 +323,13 @@ describe('ExamResultsTab', () => {
     });
 
     const csvButton = screen.getByText('CSV');
-    window.open = jest.fn();
     fireEvent.click(csvButton);
 
-    expect(window.open).toHaveBeenCalledWith(
-      expect.stringContaining('/api/tenant/cbt/results/export'),
-      '_blank'
-    );
+    await waitFor(() => {
+      expect(mockTenantApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tenant/cbt/results?action=export')
+      );
+    });
   });
 
   it('should display empty state when no completed exams', async () => {

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { Communications } from './Communications'
-import { ParentContextProvider } from '../../contexts/ParentContext'
+import { ParentContextProvider } from '../../../contexts/ParentContext'
 
 const mockAnnouncements = {
   announcements: [
@@ -104,7 +104,7 @@ describe('Communications', () => {
     })
     await user.click(screen.getByText('School Closure'))
     await waitFor(() => {
-      expect(screen.getByText('School will be closed on Friday.')).toBeInTheDocument()
+      expect(screen.getByText('School will be closed on Friday.', { selector: 'p.text-gray-700' })).toBeInTheDocument()
     })
   })
 

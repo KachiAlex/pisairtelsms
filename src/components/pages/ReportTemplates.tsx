@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Palette, Loader2, AlertCircle, CheckCircle2, Plus, X, BarChart3, Clock, Layout, ExternalLink } from 'lucide-react'
+import { FileText, Download, Copy, PenSquare, Layers, Share2, Eye, Palette, Loader2, AlertCircle, CheckCircle2, Plus, X, BarChart3, Clock, Layout, ExternalLink, RefreshCcw } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'

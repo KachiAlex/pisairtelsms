@@ -189,6 +189,8 @@ const navItems: NavItem[] = [
     label: 'Notifications & Tasks',
     icon: <Bell className="w-5 h-5" />,
     children: [
+      { id: 'action-center', label: 'Command Center' },
+      { id: 'notifications', label: 'Notification Center' },
       { id: 'pending-approvals', label: 'Pending Approvals' },
       { id: 'system-alerts', label: 'System Alerts' },
       { id: 'task-management', label: 'Task Management' },

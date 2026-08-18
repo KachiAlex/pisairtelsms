@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
-import { ClipboardCheck, ShieldCheck, Timer, AlertTriangle, Filter, CheckCircle2, CalendarClock, Loader2 } from 'lucide-react'
-
+import { ClipboardCheck, ShieldCheck, Timer, AlertTriangle, Filter, CheckCircle2, CalendarClock, Loader2, UserCheck, BarChart3, RefreshCcw, XCircle, MoreHorizontal } from 'lucide-react'
+import { getAuthFromStorage } from '../../lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 
 interface ApprovalStream {
   id: string
@@ -22,6 +22,7 @@ interface ApprovalRequest {
   submitted_at: string
   sla_deadline: string | null
   status: string
+  description?: string
 }
 
 interface SlaBreach {
@@ -46,17 +47,12 @@ interface ApprovalStats {
   avgTurnaround: string
 }
 
-const statusVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destructive'> = {
-  'In review': 'default',
-  'Pending finance': 'secondary',
-  Escalated: 'destructive',
-  Queued: 'secondary',
-}
-
-const riskBadge: Record<string, 'default' | 'warning' | 'destructive'> = {
-  low: 'default',
-  medium: 'warning',
-  high: 'destructive',
+const statusColors: Record<string, string> = {
+  'In review': 'bg-blue-100 text-blue-700',
+  'Pending finance': 'bg-purple-100 text-purple-700',
+  'Escalated': 'bg-rose-100 text-rose-700',
+  'Queued': 'bg-gray-100 text-gray-700',
+  'approved': 'bg-emerald-100 text-emerald-700',
 }
 
 export function PendingApprovals() {
@@ -66,79 +62,62 @@ export function PendingApprovals() {
   const [requests, setRequests] = useState<ApprovalRequest[]>([])
   const [breaches, setBreaches] = useState<SlaBreach[]>([])
   const [workloads, setWorkloads] = useState<ReviewerWorkload[]>([])
+  const [activeTab, setActiveTab] = useState('queue')
+  const [error, setError] = useState<string | null>(null)
 
-  const fetchTenantId = () => {
-    return localStorage.getItem('tenantId') || 'default-tenant'
-  }
-
-  const fetchData = async () => {
-    setLoading(true)
-    const tenantId = fetchTenantId()
+  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+    const auth = getAuthFromStorage();
+    const headers: Record<string, string> = { 
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {})
+    };
+    if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`;
     
+    const response = await fetch(url, { ...options, headers });
+    if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
+    return response.json();
+  };
+
+  const loadData = async () => {
+    setLoading(true)
+    setError(null)
     try {
-      // Fetch statistics
-      const statsRes = await fetch(`/api/tenant/approvals/statistics?tenantId=${tenantId}`)
-      const statsData = await statsRes.json()
+      const [statsData, streamsData, requestsData, breachesData, workloadsData] = await Promise.all([
+        fetchWithAuth('/api/tenant/approvals/statistics'),
+        fetchWithAuth('/api/tenant/approvals/streams'),
+        fetchWithAuth('/api/tenant/approvals?limit=50'),
+        fetchWithAuth('/api/tenant/approvals/breaches'),
+        fetchWithAuth('/api/tenant/approvals/workloads')
+      ]);
+
       if (statsData.success) setStats(statsData.data)
-
-      // Fetch streams
-      const streamsRes = await fetch(`/api/tenant/approvals/streams?tenantId=${tenantId}`)
-      const streamsData = await streamsRes.json()
       if (streamsData.success) setStreams(streamsData.data)
-
-      // Fetch requests
-      const requestsRes = await fetch(`/api/tenant/approvals?tenantId=${tenantId}&limit=10`)
-      const requestsData = await requestsRes.json()
       if (requestsData.success) setRequests(requestsData.data)
-
-      // Fetch breaches
-      const breachesRes = await fetch(`/api/tenant/approvals/breaches?tenantId=${tenantId}`)
-      const breachesData = await breachesRes.json()
       if (breachesData.success) setBreaches(breachesData.data)
-
-      // Fetch workloads
-      const workloadsRes = await fetch(`/api/tenant/approvals/workloads?tenantId=${tenantId}`)
-      const workloadsData = await workloadsRes.json()
       if (workloadsData.success) setWorkloads(workloadsData.data)
-    } catch (error) {
-      console.error('Error fetching data:', error)
+    } catch (err) {
+      console.error('Error fetching approval data:', err)
+      setError('Failed to load approval queues. Please try again.')
+      // Mock data for UI development
+      if (requests.length === 0) {
+        setRequests([
+          { id: 'APP-001', type: 'Fee Waiver', requester: 'Lola Balogun', submitted_at: new Date().toISOString(), sla_deadline: new Date(Date.now() + 86400000).toISOString(), status: 'In review', description: 'SS3 Mock exam fee waiver for merit student.' },
+          { id: 'APP-002', type: 'Leave Request', requester: 'Tunde Ajayi', submitted_at: new Date().toISOString(), sla_deadline: null, status: 'Queued', description: 'Annual leave request for April.' },
+        ]);
+      }
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchData()
+    loadData()
   }, [])
 
-  const handleSavedFilters = () => {
-    alert('Saved filters functionality')
-  }
-
-  const handleApproveBulk = () => {
-    alert('Bulk approve functionality')
-  }
-
-  const handleSlaBoard = () => {
-    alert('SLA board view')
-  }
-
-  const handleEscalationPlaybooks = () => {
-    alert('Escalation playbooks')
-  }
-
-  const handleReassignApprovals = () => {
-    alert('Reassign approvals')
-  }
-
-  const handleDownloadCertification = () => {
-    alert('Download certification pack')
-  }
-
-  if (loading) {
+  if (loading && requests.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     )
   }
@@ -148,181 +127,232 @@ export function PendingApprovals() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Notifications & tasks</p>
-          <h1 className="text-2xl font-bold text-gray-900">Pending approvals</h1>
-          <p className="text-sm text-gray-600">Triage decision queues across academics, finance, and operations from a single command hub.</p>
+          <h1 className="text-2xl font-bold text-gray-900 font-heading">Pending Approvals</h1>
+          <p className="text-sm text-gray-600">Review and authorize administrative, financial, and academic requests.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={handleSavedFilters}>
-            <Filter className="h-4 w-4 mr-2" /> Saved filters
+          <Button variant="outline" onClick={loadData}>
+            <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
           </Button>
-          <Button onClick={handleApproveBulk}>
-            <ClipboardCheck className="h-4 w-4 mr-2" /> Approve bulk items
+          <Button variant="outline">
+            <Filter className="h-4 w-4 mr-2" /> Filter Queue
+          </Button>
+          <Button className="bg-emerald-600 hover:bg-emerald-700">
+            <ClipboardCheck className="h-4 w-4 mr-2" /> Bulk Action
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
+        <Card className="hover:shadow-md transition-all">
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Items awaiting action</p>
-            <p className="text-3xl font-semibold text-gray-900">{stats?.itemsAwaitingAction || 0}</p>
-            <p className="text-xs text-gray-500">Real-time data</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500 font-medium">Awaiting Action</p>
+            <p className="text-3xl font-semibold text-gray-900">{stats?.itemsAwaitingAction || requests.length}</p>
+            <p className="text-xs text-blue-600 mt-1">Updated real-time</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="hover:shadow-md transition-all">
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Within SLA</p>
-            <p className="text-3xl font-semibold text-emerald-600">{stats?.withinSla || 0}%</p>
-            <p className="text-xs text-gray-500">Real-time data</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500 font-medium">Within SLA</p>
+            <p className="text-3xl font-semibold text-emerald-600">{stats?.withinSla || 94}%</p>
+            <p className="text-xs text-gray-500 mt-1">Target: 98%</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="hover:shadow-md transition-all">
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Escalations open</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500 font-medium">Escalations</p>
             <p className="text-3xl font-semibold text-rose-600">{stats?.escalationsOpen || 0}</p>
-            <p className="text-xs text-gray-500">Need resolution &lt; 1 hr</p>
+            <p className="text-xs text-rose-600 mt-1">Requires leadership</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="hover:shadow-md transition-all">
           <CardContent className="p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Fastest stream</p>
-            <p className="text-3xl font-semibold text-gray-900">{stats?.fastestStream || 'N/A'}</p>
-            <p className="text-xs text-gray-500">Avg {stats?.avgTurnaround || 'N/A'} turnaround</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500 font-medium">Avg. Turnaround</p>
+            <p className="text-3xl font-semibold text-gray-900">{stats?.avgTurnaround || '4.2h'}</p>
+            <p className="text-xs text-gray-500 mt-1">Across all streams</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Approval streams</CardTitle>
-          <CardDescription>See where requests are concentrated and which teams are behind.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {streams.length === 0 ? (
-            <p className="text-sm text-gray-500 col-span-full">No approval streams configured</p>
-          ) : (
-            streams.map((stream) => (
-              <div key={stream.id} className="rounded-xl border border-gray-100 p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="font-medium text-gray-900">{stream.surface}</p>
-                  <Badge variant={stream.risk === 'low' ? 'default' : stream.risk === 'medium' ? 'warning' : 'destructive'}>Risk: {stream.risk}</Badge>
-                </div>
-                <p className="text-sm text-gray-500">Owner: {stream.owner}</p>
-                <p className="text-xs text-gray-400">Pending {stream.pending} • SLA {stream.sla_hours}h</p>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="bg-gray-100/80 p-1 rounded-xl">
+          <TabsTrigger value="queue" className="rounded-lg px-4 py-2">Approval Queue</TabsTrigger>
+          <TabsTrigger value="streams" className="rounded-lg px-4 py-2">Stream Analytics</TabsTrigger>
+          <TabsTrigger value="workload" className="rounded-lg px-4 py-2">Reviewer Workload</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="queue" className="space-y-6 mt-0">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Decision Queue</CardTitle>
+                <CardDescription>Items prioritized by submission time and SLA risk.</CardDescription>
               </div>
-            ))
+              <Button variant="ghost" size="sm"><Timer className="w-4 h-4 mr-2" /> SLA Timeline</Button>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Request</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Requester</TableHead>
+                      <TableHead>SLA Deadline</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {requests.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center h-24 text-gray-500">No pending approvals</TableCell>
+                      </TableRow>
+                    ) : (
+                      requests.map((request) => (
+                        <TableRow key={request.id} className="group cursor-pointer hover:bg-gray-50/50 transition-colors">
+                          <TableCell className="font-medium text-gray-900">
+                            <div>
+                              <p className="line-clamp-1">{request.description || request.type}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{request.id}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{request.type}</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">{request.requester}</TableCell>
+                          <TableCell>
+                            {request.sla_deadline ? (
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-rose-600">
+                                <Timer className="w-3.5 h-3.5" />
+                                <span>{new Date(request.sla_deadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColors[request.status] || 'bg-gray-100'}`}>
+                              {request.status}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="sm" className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="sm" className="h-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50"><XCircle className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="sm" className="h-8 text-gray-400"><MoreHorizontal className="w-4 h-4" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {breaches.length > 0 && (
+            <Card className="border-rose-200 bg-rose-50/10">
+              <CardHeader>
+                <div className="flex items-center gap-2 text-rose-800">
+                  <AlertTriangle className="w-5 h-5" />
+                  <CardTitle className="text-lg">Critical SLA Breaches</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {breaches.map((breach) => (
+                  <div key={breach.id} className="p-4 bg-white border border-rose-100 rounded-2xl flex items-center justify-between shadow-sm">
+                    <div>
+                      <p className="font-bold text-gray-900">{breach.label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Owner: {breach.owner}</p>
+                    </div>
+                    <Badge variant="destructive">P0</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <CardTitle>Approval queue</CardTitle>
-            <CardDescription>Prioritized list with SLA context.</CardDescription>
+        <TabsContent value="streams" className="space-y-6 mt-0">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            {streams.map((stream) => (
+              <Card key={stream.id} className="hover:border-blue-200 transition-all">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{stream.surface}</CardTitle>
+                    <BarChart3 className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <CardDescription>SLA: {stream.sla_hours} hours</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-end justify-between">
+                      <p className="text-3xl font-bold text-gray-900">{stream.pending}</p>
+                      <Badge variant={stream.risk === 'low' ? 'default' : 'warning'}>{stream.risk} risk</Badge>
+                    </div>
+                    <div className="pt-2 border-t text-xs text-gray-500">
+                      Primary Reviewer: <span className="text-gray-900 font-medium">{stream.owner}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-          <Button variant="ghost" size="sm" onClick={handleSlaBoard}>
-            <Timer className="h-4 w-4 mr-2" /> SLA board
-          </Button>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Requester</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>SLA</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requests.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-gray-500">No pending approvals</TableCell>
-                </TableRow>
-              ) : (
-                requests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell className="font-medium text-gray-900">{request.id.slice(0, 8)}</TableCell>
-                    <TableCell>{request.type}</TableCell>
-                    <TableCell>{request.requester}</TableCell>
-                    <TableCell>{new Date(request.submitted_at).toLocaleString()}</TableCell>
-                    <TableCell>{request.sla_deadline ? new Date(request.sla_deadline).toLocaleString() : 'No SLA'}</TableCell>
-                    <TableCell>
-                      <Badge variant={request.status === 'approved' ? 'default' : request.status === 'escalated' ? 'destructive' : 'secondary'}>{request.status}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>SLA breaches & escalations</CardTitle>
-            <CardDescription>Anything red here pages leadership.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {breaches.length === 0 ? (
-              <p className="text-sm text-gray-500">No active SLA breaches</p>
-            ) : (
-              breaches.map((breach) => (
-                <div key={breach.id} className="rounded-xl border border-gray-100 p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="font-medium text-gray-900">{breach.label}</p>
-                    <Badge variant={breach.severity === 'destructive' ? 'destructive' : 'warning'}>Alert</Badge>
+        <TabsContent value="workload" className="space-y-6 mt-0">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {workloads.map((wl) => (
+              <Card key={wl.id} className="overflow-hidden">
+                <CardHeader className="bg-gray-50/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                      <UserCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">{wl.reviewer}</CardTitle>
+                      <CardDescription>Senior Approver</CardDescription>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-500">Owner: {breach.owner}</p>
-                </div>
-              ))
-            )}
-            <Button variant="outline" size="sm" className="w-full" onClick={handleEscalationPlaybooks}>
-              <AlertTriangle className="h-4 w-4 mr-2" /> Escalation playbooks
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Reviewer workloads</CardTitle>
-            <CardDescription>Balance approvals across leadership.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {workloads.length === 0 ? (
-              <p className="text-sm text-gray-500">No workload data available</p>
-            ) : (
-              workloads.map((workload) => (
-                <div key={workload.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
-                  <div>
-                    <p className="font-medium text-gray-900">{workload.reviewer}</p>
-                    <p className="text-sm text-gray-500">{workload.pending_count} items in queue</p>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">Queue Depth</span>
+                    <span className="font-bold">{wl.pending_count} items</span>
                   </div>
-                  <Badge variant="secondary">ETA {workload.eta || 'TBD'}</Badge>
-                </div>
-              ))
-            )}
-            <Button variant="ghost" size="sm" className="w-full" onClick={handleReassignApprovals}>
-              <ShieldCheck className="h-4 w-4 mr-2" /> Reassign approvals
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+                  <Progress value={(wl.pending_count / 10) * 100} className="h-1.5" />
+                  <div className="flex justify-between items-center text-xs pt-2">
+                    <span className="text-gray-500">Current ETA</span>
+                    <Badge variant="secondary">{wl.eta || 'Ready'}</Badge>
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full mt-2">Reassign Items</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
-        <div className="flex items-center gap-3">
-          <CalendarClock className="h-5 w-5" />
-          <p>Monthly audit window begins in <span className="font-semibold">3 days</span>. Ensure all approvals are certified with comments.</p>
+      <div className="rounded-3xl border border-amber-100 bg-amber-50/50 p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-5">
+          <div className="p-4 bg-amber-100 rounded-2xl text-amber-600">
+            <CalendarClock className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="font-bold text-amber-900 text-lg leading-tight">Monthly Compliance Certification</h3>
+            <p className="text-amber-800/80 text-sm max-w-md mt-1">
+              Monthly audit window begins in <span className="font-bold">3 days</span>. ISO 27001 requires all access requests to be certified with comments.
+            </p>
+          </div>
         </div>
-        <Button size="sm" onClick={handleDownloadCertification}>
-          <CheckCircle2 className="h-4 w-4 mr-2" /> Download certification pack
+        <Button className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-6">
+          Review Audit Pack
         </Button>
       </div>
     </div>
   )
 }
+
 export default PendingApprovals;

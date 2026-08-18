@@ -68,6 +68,8 @@ const SuperAdminPortal = lazy(() => import('./components/pages/SuperAdminPortal'
 const TenantSettings = lazy(() => import('./components/pages/TenantSettings').then(m => ({ default: m.TenantSettings })));
 const PrivacyCenter = lazy(() => import('./components/pages/PrivacyCenter'));
 const IncidentManagement = lazy(() => import('./components/pages/IncidentManagement'));
+const NotificationsDashboard = lazy(() => import('./components/pages/NotificationsDashboard'));
+const UnifiedActionCenter = lazy(() => import('./components/pages/UnifiedActionCenter'));
 import { LoginRole } from './components/auth/LoginPanel';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
@@ -301,7 +303,10 @@ export default function App() {
         return <PrivacyCenter />;
       case 'incident-management':
         return <IncidentManagement />;
+      case 'action-center':
+        return <UnifiedActionCenter onNavigate={handleNavigate} />;
       case 'notifications':
+        return <NotificationsDashboard />;
       case 'pending-approvals':
         return <PendingApprovals />;
       case 'system-alerts':
@@ -393,7 +398,9 @@ export default function App() {
       'backup-restore': 'Backup & Restore',
       'privacy-center': 'Data Privacy Center',
       'incident-management': 'Incident Management',
-    };
+      'action-center': 'Command Center',
+      'notifications': 'Notification Center',
+      'pending-approvals': 'Pending Approvals',
     return pageTitles[activePage] || 'Pisairtel-Schools';
   };
 

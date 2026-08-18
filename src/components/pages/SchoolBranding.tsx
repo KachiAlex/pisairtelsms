@@ -1,34 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Loader, X, CheckCircle2 } from 'lucide-react'
-
+import { Paintbrush, Upload, ImageIcon, Palette, Layers, Wand2, AlertCircle, Loader2, X, CheckCircle2, Monitor, Smartphone, RefreshCcw, Save } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Input } from '../ui/input'
 import { useToast } from '../ui/use-toast'
 import { useBranding } from '../../contexts/BrandingContext'
+import { getAuthFromStorage } from '../../lib/auth'
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 const MAX_SIZE_MB = 2
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
 
-function getAuth() {
-  try {
-    const stored = localStorage.getItem('auth')
-    if (stored) {
-      const auth = JSON.parse(stored)
-      return {
-        tenantId: auth.tenantId || 'default-tenant',
-        userId: auth.userId || auth.email || 'system',
-      }
-    }
-  } catch { /* fall through */ }
-  return { tenantId: 'default-tenant', userId: 'system' }
-}
-
 export function SchoolBranding() {
   const { toast } = useToast()
-  const { refresh: refreshBranding } = useBranding()
+  const { refresh: refreshBranding, branding: currentBranding } = useBranding()
   const [branding, setBranding] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -43,24 +29,30 @@ export function SchoolBranding() {
     secondaryColor: '#10B981',
     accentColor: '#F59E0B',
   })
-
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    loadBranding()
-  }, [])
+  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+    const auth = getAuthFromStorage();
+    const headers: Record<string, string> = { 
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {})
+    };
+    if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`;
+    
+    const response = await fetch(url, { ...options, headers });
+    if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
+    return response.json();
+  };
 
   const loadBranding = async () => {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch('/api/tenant/branding')
-      if (!response.ok) throw new Error('Failed to load branding')
-      const result = await response.json()
+      const result = await fetchWithAuth('/api/tenant/branding')
       const config = result.data
       setBranding(config)
       setFormData({
@@ -74,30 +66,44 @@ export function SchoolBranding() {
         accentColor:    config.accent_color    || config.accentColor    || '#F59E0B',
       })
     } catch (err) {
+      console.error(err);
       setError(err instanceof Error ? err.message : 'Failed to load branding')
+      // Fallback to context branding if API fails
+      if (currentBranding) {
+        setFormData({
+          schoolName: currentBranding.schoolName || '',
+          schoolMotto: '',
+          schoolAddress: '',
+          schoolEmail: '',
+          schoolPhone: '',
+          primaryColor: currentBranding.primaryColor || '#1E3A8A',
+          secondaryColor: currentBranding.secondaryColor || '#10B981',
+          accentColor: '#F59E0B',
+        })
+      }
     } finally {
       setLoading(false)
     }
   }
 
+  useEffect(() => {
+    loadBranding()
+  }, [])
+
   const handleSave = async () => {
     try {
       setSaving(true)
       setError(null)
-      const response = await fetch('/api/tenant/branding', {
+      const result = await fetchWithAuth('/api/tenant/branding', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-                            },
         body: JSON.stringify(formData),
       })
-      if (!response.ok) throw new Error('Failed to save branding')
-      const result = await response.json()
       setBranding(result.data)
       await refreshBranding()
-      toast({ title: 'Branding saved', description: 'Your changes have been applied.' })
+      toast({ title: 'Branding saved', description: 'Your changes have been applied across the portal.' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save branding')
+      toast({ title: 'Save failed', description: 'Could not apply branding changes.', variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -115,6 +121,7 @@ export function SchoolBranding() {
         secondaryColor: branding.secondary_color || branding.secondaryColor || '#10B981',
         accentColor:    branding.accent_color    || branding.accentColor    || '#F59E0B',
       })
+      toast({ title: 'Changes reset', description: 'Form restored to last saved state.' })
     }
   }
 
@@ -160,15 +167,10 @@ export function SchoolBranding() {
     if (!logoFile || !logoPreview) return
     setUploadingLogo(true)
     try {
-      const res = await fetch('/api/tenant/branding/logo', {
+      const result = await fetchWithAuth('/api/tenant/branding/logo', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-                            },
         body: JSON.stringify({ logoUrl: logoPreview, fileName: logoFile.name }),
       })
-      if (!res.ok) throw new Error('Upload failed')
-      const result = await res.json()
       setBranding(result.data)
       setLogoPreview(null)
       setLogoFile(null)
@@ -185,22 +187,12 @@ export function SchoolBranding() {
     }
   }
 
-  const handleCancelPreview = () => {
-    setLogoPreview(null)
-    setLogoFile(null)
-  }
-
   const handleRemoveLogo = async () => {
     try {
-      const res = await fetch('/api/tenant/branding/logo', {
+      const result = await fetchWithAuth('/api/tenant/branding/logo', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-                            },
         body: JSON.stringify({ logoUrl: null, fileName: null }),
       })
-      if (!res.ok) throw new Error('Remove failed')
-      const result = await res.json()
       setBranding(result.data)
       await refreshBranding()
       toast({ title: 'Logo removed' })
@@ -212,15 +204,15 @@ export function SchoolBranding() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     )
   }
 
   const colorPalette = [
-    { label: 'Primary', hex: formData.primaryColor, usage: 'Buttons, links, active states' },
-    { label: 'Secondary', hex: formData.secondaryColor, usage: 'Success states, highlight cards' },
-    { label: 'Accent', hex: formData.accentColor, usage: 'Warnings, analytics badges' },
+    { label: 'Primary', key: 'primaryColor', hex: formData.primaryColor, usage: 'Buttons, links, active states' },
+    { label: 'Secondary', key: 'secondaryColor', hex: formData.secondaryColor, usage: 'Success states, highlight cards' },
+    { label: 'Accent', key: 'accentColor', hex: formData.accentColor, usage: 'Warnings, analytics badges' },
   ]
 
   return (
@@ -228,262 +220,243 @@ export function SchoolBranding() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Customization</p>
-          <h1 className="text-2xl font-bold text-gray-900">School branding</h1>
+          <h1 className="text-2xl font-bold text-gray-900 font-heading">School Branding</h1>
           <p className="text-sm text-gray-600">Control logos, colors, typography, and portal themes from one workspace.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={handleReset} disabled={saving}>
-            <Upload className="h-4 w-4 mr-2" /> Reset
+          <Button variant="outline" onClick={handleReset} disabled={saving} className="rounded-xl">
+            <RefreshCcw className="h-4 w-4 mr-2" /> Reset
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : <Paintbrush className="h-4 w-4 mr-2" />}
-            {saving ? 'Saving...' : 'Save changes'}
+          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            {saving ? 'Applying...' : 'Apply Changes'}
           </Button>
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-900 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" />
-          {error}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border-none ring-1 ring-gray-100 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">School Information</CardTitle>
+              <CardDescription>Update your school name, contact details and motto.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-sm font-bold text-gray-700 uppercase tracking-tighter">School Name</label>
+                  <Input
+                    value={formData.schoolName}
+                    onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
+                    placeholder="Enter school name"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-sm font-bold text-gray-700 uppercase tracking-tighter">Address</label>
+                  <Input
+                    value={formData.schoolAddress}
+                    onChange={(e) => setFormData({ ...formData, schoolAddress: e.target.value })}
+                    placeholder="e.g. 12 Education Road, Lagos, Nigeria"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700 uppercase tracking-tighter">Email</label>
+                  <Input
+                    type="email"
+                    value={formData.schoolEmail}
+                    onChange={(e) => setFormData({ ...formData, schoolEmail: e.target.value })}
+                    placeholder="info@yourschool.edu.ng"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700 uppercase tracking-tighter">Phone</label>
+                  <Input
+                    type="tel"
+                    value={formData.schoolPhone}
+                    onChange={(e) => setFormData({ ...formData, schoolPhone: e.target.value })}
+                    placeholder="+234-801-234-5678"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-sm font-bold text-gray-700 uppercase tracking-tighter">School Motto</label>
+                  <Input
+                    value={formData.schoolMotto}
+                    onChange={(e) => setFormData({ ...formData, schoolMotto: e.target.value })}
+                    placeholder="Enter school motto"
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none ring-1 ring-gray-100 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">Brand Colors</CardTitle>
+              <CardDescription>Adjust palette values to match your school identity.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6 md:grid-cols-3">
+              {colorPalette.map((color) => (
+                <div key={color.label} className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{color.label}</p>
+                    <Badge variant="outline" className="font-mono text-[10px]">{color.hex}</Badge>
+                  </div>
+                  <div className="relative group">
+                    <div 
+                      className="h-20 rounded-2xl shadow-inner border border-gray-100 transition-transform active:scale-95 cursor-pointer" 
+                      style={{ backgroundColor: color.hex }}
+                      onClick={() => document.getElementById(`picker-${color.key}`)?.click()}
+                    />
+                    <input
+                      id={`picker-${color.key}`}
+                      type="color"
+                      value={color.hex}
+                      onChange={(e) => setFormData({ ...formData, [color.key]: e.target.value })}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </div>
+                  <Input 
+                    value={color.hex} 
+                    onChange={(e) => setFormData({ ...formData, [color.key]: e.target.value })}
+                    className="h-8 text-xs font-mono rounded-lg text-center"
+                  />
+                  <p className="text-[10px] text-gray-400 leading-tight italic">{color.usage}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
-      )}
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="rounded-full bg-blue-50 text-blue-600 w-10 h-10 flex items-center justify-center">
-              <Palette className="h-5 w-5" />
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Active color palette</p>
-            <p className="text-3xl font-semibold text-gray-900">3 swatches</p>
-            <p className="text-xs text-gray-500">Updated {branding?.updated_at || branding?.updatedAt ? new Date(branding.updated_at || branding.updatedAt).toLocaleDateString() : 'Not yet saved'}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="rounded-full bg-emerald-50 text-emerald-600 w-10 h-10 flex items-center justify-center">
-              <Layers className="h-5 w-5" />
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Portal themes</p>
-            <p className="text-3xl font-semibold text-gray-900">3</p>
-            <p className="text-xs text-gray-500">Guardian • Staff • Student</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="rounded-full bg-amber-50 text-amber-600 w-10 h-10 flex items-center justify-center">
-              <ImageIcon className="h-5 w-5" />
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Version</p>
-            <p className="text-3xl font-semibold text-gray-900">v{branding?.version ?? 1}</p>
-            <p className="text-xs text-gray-500">Current active version</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="rounded-full bg-purple-50 text-purple-600 w-10 h-10 flex items-center justify-center">
-              <Wand2 className="h-5 w-5" />
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Status</p>
-            <p className="text-3xl font-semibold text-gray-900">{branding?.is_published || branding?.isActive ? 'Published' : 'Draft'}</p>
-            <p className="text-xs text-gray-500">Configuration status</p>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="space-y-6">
+          <Card className="border-none ring-1 ring-gray-100 shadow-sm overflow-hidden">
+            <CardHeader className="bg-gray-50/50 pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Monitor className="w-5 h-5 text-blue-600" />
+                Portal Preview
+              </CardTitle>
+              <CardDescription>Real-time look of your branding.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="p-4 space-y-6">
+                {/* Header Preview */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Desktop Header</p>
+                  <div className="h-14 bg-white border rounded-xl shadow-sm flex items-center justify-between px-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden border">
+                        {logoPreview || branding?.logo_url || branding?.logoUrl ? (
+                          <img src={logoPreview || branding?.logo_url || branding?.logoUrl} alt="Logo" className="object-contain" />
+                        ) : (
+                          <div className="bg-blue-600 w-full h-full flex items-center justify-center"><Layers className="w-4 h-4 text-white" /></div>
+                        )}
+                      </div>
+                      <span className="font-bold text-sm text-gray-900 truncate max-w-[100px]">{formData.schoolName || 'School Name'}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="w-6 h-6 rounded-full bg-gray-100" />
+                      <div className="w-6 h-6 rounded-full bg-gray-100" />
+                    </div>
+                  </div>
+                </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>School Information</CardTitle>
-          <CardDescription>Update your school name, contact details and motto.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">School Name</label>
-              <Input
-                value={formData.schoolName}
-                onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
-                placeholder="Enter school name"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <Input
-                value={formData.schoolAddress}
-                onChange={(e) => setFormData({ ...formData, schoolAddress: e.target.value })}
-                placeholder="e.g. 12 Education Road, Lagos, Nigeria"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <Input
-                type="email"
-                value={formData.schoolEmail}
-                onChange={(e) => setFormData({ ...formData, schoolEmail: e.target.value })}
-                placeholder="info@yourschool.edu.ng"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-              <Input
-                type="tel"
-                value={formData.schoolPhone}
-                onChange={(e) => setFormData({ ...formData, schoolPhone: e.target.value })}
-                placeholder="+234-801-234-5678"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">School Motto</label>
-              <Input
-                value={formData.schoolMotto}
-                onChange={(e) => setFormData({ ...formData, schoolMotto: e.target.value })}
-                placeholder="Enter school motto"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Brand colors</CardTitle>
-          <CardDescription>Adjust palette values and usage rules.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          {colorPalette.map((color) => (
-            <div key={color.label} className="rounded-2xl border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-medium text-gray-900">{color.label}</p>
-                <Badge variant="secondary">{color.hex}</Badge>
+                {/* Mobile Preview */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Mobile View</p>
+                  <div className="mx-auto w-48 aspect-[9/16] bg-gray-100 rounded-[2rem] border-4 border-gray-900 overflow-hidden relative p-2 shadow-2xl">
+                    <div className="w-12 h-1 bg-gray-800 rounded-full mx-auto mb-2" />
+                    <div className="bg-white h-full rounded-2xl p-2 space-y-3">
+                      <div className="h-8 flex items-center justify-between border-b pb-1">
+                         <div className="w-4 h-4 bg-gray-100 rounded" />
+                         <div className="w-5 h-5 rounded-lg overflow-hidden border">
+                           {(logoPreview || branding?.logo_url || branding?.logoUrl) && <img src={logoPreview || branding?.logo_url || branding?.logoUrl} alt="Logo" className="object-contain" />}
+                         </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="h-2 w-12 bg-gray-100 rounded" />
+                        <div className="h-3 w-20 rounded" style={{ backgroundColor: formData.primaryColor }} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[1, 2, 3, 4].map(i => (
+                          <div key={i} className="aspect-square bg-gray-50 rounded-lg border border-gray-100 p-1.5">
+                            <div className="w-full h-full rounded flex items-center justify-center" style={{ backgroundColor: `${formData.primaryColor}10` }}>
+                              <Wand2 className="w-3 h-3" style={{ color: formData.primaryColor }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="h-8 w-full rounded-lg shadow-sm flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: formData.primaryColor }}>
+                        Sign In
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-xl h-16 mb-3 flex items-center justify-center" style={{ backgroundColor: color.hex }}>
-                <input
-                  type="color"
-                  value={color.hex}
-                  onChange={(e) => {
-                    const newColor = e.target.value
-                    if (color.label === 'Primary') {
-                      setFormData({ ...formData, primaryColor: newColor })
-                    } else if (color.label === 'Secondary') {
-                      setFormData({ ...formData, secondaryColor: newColor })
-                    } else {
-                      setFormData({ ...formData, accentColor: newColor })
-                    }
-                  }}
-                  className="opacity-0 w-full h-full cursor-pointer"
-                />
-              </div>
-              <p className="text-xs text-gray-500">{color.usage}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Brand assets</CardTitle>
-          <CardDescription>PNG, JPG, WebP or SVG · max {MAX_SIZE_MB} MB · recommended 400×400 px</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-
-          {/* Current active logo */}
-          {(branding?.logo_url || branding?.logoUrl) && !logoPreview && (
-            <div className="rounded-2xl border border-gray-100 p-4 flex items-center gap-4">
-              <img
-                src={branding.logo_url || branding.logoUrl}
-                alt="Current logo"
-                className="h-16 w-16 rounded-lg object-contain border border-gray-100 bg-white p-1"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900">Primary logo</p>
-                <p className="text-sm text-gray-500 truncate">{branding.logo_file_name || branding.logoFileName || 'logo'}</p>
-                <p className="text-xs text-gray-400">
-                  {branding.updated_at || branding.updatedAt
-                    ? `Updated ${new Date(branding.updated_at || branding.updatedAt).toLocaleDateString()}`
-                    : ''}
-                </p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Badge variant="default" className="justify-center">Active</Badge>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 text-xs"
-                  onClick={handleRemoveLogo}
+          <Card className="border-none ring-1 ring-gray-100 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">School Logo</CardTitle>
+              <CardDescription>max {MAX_SIZE_MB}MB • PNG, JPG, WebP, SVG</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {logoPreview ? (
+                <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/20 p-4 space-y-4">
+                  <div className="flex items-center gap-4">
+                    <img src={logoPreview} className="h-16 w-16 rounded-xl object-contain bg-white border p-1" alt="Staged" />
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-gray-900 truncate">{logoFile?.name}</p>
+                      <p className="text-[10px] text-gray-500">Not yet uploaded</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="w-full bg-blue-600 text-white rounded-lg h-8" onClick={handleUploadConfirm} disabled={uploadingLogo}>
+                      {uploadingLogo ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
+                      Upload
+                    </Button>
+                    <Button size="sm" variant="ghost" className="w-full h-8" onClick={() => {setLogoPreview(null); setLogoFile(null)}} disabled={uploadingLogo}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
                 >
-                  <X className="h-3 w-3 mr-1" /> Remove
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Staged preview — shown after a file is selected, before confirm */}
-          {logoPreview && (
-            <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/40 p-4">
-              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">Preview — not yet saved</p>
-              <div className="flex items-center gap-4">
-                <img
-                  src={logoPreview}
-                  alt="Logo preview"
-                  className="h-20 w-20 rounded-xl object-contain border border-blue-100 bg-white p-1 shadow-sm"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">{logoFile?.name}</p>
-                  <p className="text-sm text-gray-500">{logoFile ? `${(logoFile.size / 1024).toFixed(0)} KB` : ''}</p>
+                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-gray-700">Drop logo here</p>
+                  <p className="text-[10px] text-gray-400 mt-1">or click to browse</p>
+                  <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES.join(',')} className="hidden" onChange={handleFileInputChange} />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Button
-                    size="sm"
-                    onClick={handleUploadConfirm}
-                    disabled={uploadingLogo}
-                    className="gap-1"
-                  >
-                    {uploadingLogo
-                      ? <Loader className="h-3.5 w-3.5 animate-spin" />
-                      : <CheckCircle2 className="h-3.5 w-3.5" />}
-                    {uploadingLogo ? 'Uploading…' : 'Confirm upload'}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={handleCancelPreview} disabled={uploadingLogo}>
-                    <X className="h-3.5 w-3.5 mr-1" /> Cancel
+              )}
+
+              {(branding?.logo_url || branding?.logoUrl) && !logoPreview && (
+                <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                  <div className="flex items-center gap-3">
+                    <img src={branding?.logo_url || branding?.logoUrl} className="w-10 h-10 rounded border bg-white p-1" alt="Active" />
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-900 uppercase">Active Logo</p>
+                      <p className="text-[10px] text-gray-500">v{branding?.version || 1.0}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-50" onClick={handleRemoveLogo}>
+                    <X className="w-4 h-4" />
                   </Button>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Drag-and-drop / click-to-upload zone */}
-          {!logoPreview && (
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
-                dragOver
-                  ? 'border-blue-400 bg-blue-50'
-                  : 'border-gray-300 hover:border-blue-300 hover:bg-gray-50'
-              }`}
-            >
-              <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-700">
-                {dragOver ? 'Drop to upload' : 'Drag & drop your logo here'}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">or click to browse · PNG, JPG, WebP, SVG · max {MAX_SIZE_MB} MB</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={ACCEPTED_TYPES.join(',')}
-                className="hidden"
-                onChange={handleFileInputChange}
-              />
-            </div>
-          )}
-
-        </CardContent>
-      </Card>
-
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

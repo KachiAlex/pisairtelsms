@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Lock, ShieldCheck, ServerCog, AlertTriangle, Key, RefreshCcw, Database, GlobeLock, ClipboardList, Loader2 } from 'lucide-react'
+import { getAuthFromStorage } from '../../lib/auth'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -49,11 +50,12 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
 export function DataEncryption() {
   const [data, setData] = useState<DataEncryptionData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchWithAuth = async (url: string) => {
-    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const auth = getAuthFromStorage()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+    if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
         const response = await fetch(url, { headers })
     if (!response.ok) throw new Error('Failed to fetch data')
     return response.json()
@@ -61,11 +63,12 @@ export function DataEncryption() {
 
   const loadData = async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const result = await fetchWithAuth('/api/tenant/security/data-encryption')
       setData(result.data)
     } catch (error) {
-      console.error('Error loading data encryption data:', error)
+      setLoadError(error instanceof Error ? error.message : 'Failed to load data encryption data.')
     } finally {
       setLoading(false)
     }
@@ -75,10 +78,23 @@ export function DataEncryption() {
     loadData()
   }, [])
 
-  if (loading && !data) {
+  if (loading && !data && !loadError) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  if (loadError && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <AlertTriangle className="h-10 w-10 text-red-400" />
+        <p className="text-gray-700 font-medium">Failed to load data encryption data</p>
+        <p className="text-sm text-gray-500">{loadError}</p>
+        <Button variant="outline" onClick={loadData}>
+          <RefreshCcw className="h-4 w-4 mr-2" /> Retry
+        </Button>
       </div>
     )
   }

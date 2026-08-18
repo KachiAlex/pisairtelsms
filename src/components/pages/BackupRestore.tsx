@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { CloudUpload, CloudDownload, History, Shield, RefreshCcw, HardDrive, AlertTriangle, Download, Upload, ArchiveRestore, Loader2 } from 'lucide-react'
+import { getAuthFromStorage } from '../../lib/auth'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -61,11 +62,12 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
 export function BackupRestore() {
   const [data, setData] = useState<BackupRestoreData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchWithAuth = async (url: string) => {
-    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const auth = getAuthFromStorage()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+    if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
         const response = await fetch(url, { headers })
     if (!response.ok) throw new Error('Failed to fetch data')
     return response.json()
@@ -73,11 +75,12 @@ export function BackupRestore() {
 
   const loadData = async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const result = await fetchWithAuth('/api/tenant/security/backup-restore')
       setData(result.data)
     } catch (error) {
-      console.error('Error loading backup restore data:', error)
+      setLoadError(error instanceof Error ? error.message : 'Failed to load backup restore data.')
     } finally {
       setLoading(false)
     }
@@ -87,10 +90,23 @@ export function BackupRestore() {
     loadData()
   }, [])
 
-  if (loading && !data) {
+  if (loading && !data && !loadError) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  if (loadError && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <AlertTriangle className="h-10 w-10 text-red-400" />
+        <p className="text-gray-700 font-medium">Failed to load backup restore data</p>
+        <p className="text-sm text-gray-500">{loadError}</p>
+        <Button variant="outline" onClick={loadData}>
+          <RefreshCcw className="h-4 w-4 mr-2" /> Retry
+        </Button>
       </div>
     )
   }
@@ -248,6 +264,45 @@ export function BackupRestore() {
           <Button variant="ghost" size="sm" className="w-full">
             <Shield className="h-4 w-4 mr-2" /> View BCP calendar
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-indigo-100 bg-indigo-50/10">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-indigo-900">Disaster Recovery (DR) Drills</CardTitle>
+              <CardDescription className="text-indigo-700/70">Validate Business Continuity Plans (BCP) with scheduled recovery simulations.</CardDescription>
+            </div>
+            <Badge variant="outline" className="bg-indigo-100 text-indigo-700 border-indigo-200">ISO 27001 A.17</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              { label: 'Last Drill', value: '2026-01-15', status: 'Success' },
+              { label: 'Recovery Time Obj (RTO)', value: '4h 12m', status: 'Optimal' },
+              { label: 'Recovery Point Obj (RPO)', value: '15m', status: 'Optimal' }
+            ].map((metric, idx) => (
+              <div key={idx} className="p-3 border rounded-xl bg-white/50">
+                <p className="text-xs text-gray-500 uppercase">{metric.label}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-lg font-bold text-gray-900">{metric.value}</p>
+                  <Badge variant="secondary" className="text-[10px]">{metric.status}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between p-4 border border-indigo-200 rounded-xl bg-white">
+            <div className="flex items-center gap-3">
+              <RefreshCcw className="w-5 h-5 text-indigo-600 animate-spin-slow" />
+              <div>
+                <p className="font-semibold text-sm">Next Automated Drill: Virtual Classroom Failover</p>
+                <p className="text-xs text-gray-500">Scheduled for March 1st, 2026 at 02:00 UTC</p>
+              </div>
+            </div>
+            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">Configure Drill</Button>
+          </div>
         </CardContent>
       </Card>
 

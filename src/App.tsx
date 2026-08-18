@@ -66,10 +66,12 @@ const HelpCenter = lazy(() => import('./components/pages/HelpCenter'));
 const SupportTickets = lazy(() => import('./components/pages/SupportTickets'));
 const SuperAdminPortal = lazy(() => import('./components/pages/SuperAdminPortal'));
 const TenantSettings = lazy(() => import('./components/pages/TenantSettings').then(m => ({ default: m.TenantSettings })));
+const PrivacyCenter = lazy(() => import('./components/pages/PrivacyCenter'));
+const IncidentManagement = lazy(() => import('./components/pages/IncidentManagement'));
 import { LoginRole } from './components/auth/LoginPanel';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import ErrorBoundary from './components/ErrorBoundary';
 import { StudentLayout } from './components/layouts/StudentLayout';
 import { StaffLayout } from './components/layouts/StaffLayout';
 import { ParentLayout } from './components/layouts/ParentLayout';
@@ -295,6 +297,10 @@ export default function App() {
         return <DataEncryption />;
       case 'backup-restore':
         return <BackupRestore />;
+      case 'privacy-center':
+        return <PrivacyCenter />;
+      case 'incident-management':
+        return <IncidentManagement />;
       case 'notifications':
       case 'pending-approvals':
         return <PendingApprovals />;
@@ -380,6 +386,13 @@ export default function App() {
       'private-lesson-request': 'Private Lesson Requests',
       'private-lesson-approvals': 'Lesson Approvals',
       'virtual-learning-settings': 'Virtual Learning Settings',
+      'security': 'Security & Compliance',
+      'access-control': 'Access Control',
+      'session-management': 'Session Management',
+      'data-encryption': 'Data Encryption',
+      'backup-restore': 'Backup & Restore',
+      'privacy-center': 'Data Privacy Center',
+      'incident-management': 'Incident Management',
     };
     return pageTitles[activePage] || 'Pisairtel-Schools';
   };

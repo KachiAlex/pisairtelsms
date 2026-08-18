@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getStudentNotificationHistory, getGuardianNotificationHistory } from '../../_lib/guardian-notifications.js'
-import { requireRole } from '../../../../_lib/auth-middleware.js'
+import { requireRole } from '../../../_lib/auth-middleware.js'
 
 
 

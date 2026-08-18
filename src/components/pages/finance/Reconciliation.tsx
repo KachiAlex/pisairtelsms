@@ -36,6 +36,7 @@ interface MatchedTransaction {
   bankReference: string;
   matchedAt: string;
   matchedBy: string;
+  status: 'all' | 'pending' | 'exception';
 }
 
 export function Reconciliation() {

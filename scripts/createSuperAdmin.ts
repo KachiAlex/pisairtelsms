@@ -1,4 +1,4 @@
-import { createOrUpdateSuperAdmin } from '../api/_lib/super-admin.ts'
+import { createOrUpdateSuperAdmin } from '../api/_lib/super-admin'
 
 async function main() {
   const result = await createOrUpdateSuperAdmin({

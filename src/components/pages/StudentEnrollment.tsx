@@ -375,17 +375,17 @@ export function StudentEnrollment() {
                       <Button
                         onClick={async () => {
                           try {
-                            const payloads = parsedData.map(d => ({
+                            const { createStudents } = await import('../../lib/studentsClient')
+                            const payloads = parsedData.map((d: any) => ({
                               name: d.name,
                               class: d.class,
                               arm: '',
                               gender: 'Male',
-                              status: 'Active',
+                              status: 'Active' as const,
                               guardian: '',
                               phone: '',
                               guardianEmail: d.email !== '—' ? d.email : undefined,
                             }))
-                            const { createStudents } = await import('../../lib/studentsClient')
                             await createStudents(payloads)
                             setBatchUploadOpen(false)
                             setUploadStep('upload')

@@ -93,7 +93,12 @@ export async function generateAgingAnalysis(tenantId: string): Promise<AgingAnal
     GROUP BY bucket
   `
 
-  const map = { current: 0, thirtyDays: 0, sixtyDays: 0, ninetyPlus: 0 } as Record<string, { count: number; amount: number }>
+  const map: Record<string, { count: number; amount: number }> = {
+    current: { count: 0, amount: 0 },
+    thirtyDays: { count: 0, amount: 0 },
+    sixtyDays: { count: 0, amount: 0 },
+    ninetyPlus: { count: 0, amount: 0 },
+  }
   for (const row of rows.rows) {
     map[row.bucket] = { count: Number(row.count), amount: parseFloat(row.amount) }
   }

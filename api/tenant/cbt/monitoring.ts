@@ -261,8 +261,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       broadcastToExam(id as string, {
         type: 'progress_update',
         data: {
-          studentId,
           ...updated,
+          studentId,
         },
         timestamp: new Date().toISOString(),
       })

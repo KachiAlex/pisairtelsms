@@ -241,7 +241,7 @@ export async function createCommunication(
     INSERT INTO communications
       (id, tenant_id, type, title, body, audience, channels, scheduled_for, sent_at, status, sent_by, metadata, created_at, updated_at)
     VALUES
-      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${JSON.stringify(payload.audience)}, ${payload.channels}, ${payload.scheduledFor}, ${payload.sentAt}, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}, ${now})
+      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${JSON.stringify(payload.audience)}, ${JSON.stringify(payload.channels)}, ${payload.scheduledFor}, ${payload.sentAt}, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}, ${now})
     RETURNING *
   `
   return mapCommunication(result.rows[0])
@@ -254,11 +254,13 @@ export async function getCommunications(
   await ensureCommunicationsTables()
   const limit = options?.limit ?? 100
   const offset = options?.offset ?? 0
-  let q = sql`SELECT * FROM communications WHERE tenant_id = ${tenantId}`
-  if (options?.type) q = sql`${q} AND type = ${options.type}`
-  if (options?.status) q = sql`${q} AND status = ${options.status}`
-  q = sql`${q} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
-  const result = await q
+  const conditions: string[] = [`tenant_id = $1`]
+  const values: any[] = [tenantId]
+  let paramIndex = 2
+  if (options?.type) { conditions.push(`type = $${paramIndex++}`); values.push(options.type) }
+  if (options?.status) { conditions.push(`status = $${paramIndex++}`); values.push(options.status) }
+  values.push(limit, offset)
+  const result = await sql.query(`SELECT * FROM communications WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`, values)
   return (result.rows || []).map(mapCommunication)
 }
 
@@ -285,8 +287,7 @@ export async function updateCommunicationStatus(
     p++; fields.push(`scheduled_for = $${p}`); values.splice(-2, 0, extra.scheduledFor)
   }
   const setClause = [`status = $1`, ...fields.slice(1)].join(', ')
-  await sql`UPDATE communications SET ${sql.unsafe(setClause)}, updated_at = NOW() WHERE id = $${p} AND tenant_id = $${p + 1}`
-    .bind(...values)
+  await sql.query(`UPDATE communications SET ${setClause}, updated_at = NOW() WHERE id = $${p} AND tenant_id = $${p + 1}`, values)
 }
 
 export async function createRecipients(
@@ -320,10 +321,11 @@ export async function getRecipientsByCommunication(
   status?: RecipientStatus
 ): Promise<CommunicationRecipient[]> {
   await ensureCommunicationsTables()
-  let q = sql`SELECT * FROM communication_recipients WHERE communication_id = ${communicationId} AND tenant_id = ${tenantId}`
-  if (status) q = sql`${q} AND status = ${status}`
-  q = sql`${q} ORDER BY created_at ASC`
-  const result = await q
+  let queryText = `SELECT * FROM communication_recipients WHERE communication_id = $1 AND tenant_id = $2`
+  const values: any[] = [communicationId, tenantId]
+  if (status) { queryText += ` AND status = $3`; values.push(status) }
+  queryText += ` ORDER BY created_at ASC`
+  const result = await sql.query(queryText, values)
   return (result.rows || []).map(mapRecipient)
 }
 
@@ -360,7 +362,7 @@ export async function updateRecipientStatus(
   if (fields.length === 0) return
   p++; fields.push(`updated_at = $${p}`); values.push(new Date().toISOString())
   p++; values.push(recipientId)
-  await sql.unsafe(`UPDATE communication_recipients SET ${fields.join(', ')} WHERE id = $${p}`).bind(...values)
+  await sql.query(`UPDATE communication_recipients SET ${fields.join(', ')} WHERE id = $${p}`, values)
 }
 
 export async function markRecipientRead(
@@ -402,11 +404,14 @@ export async function getCommunicationLogs(
   options?: { communicationId?: string; status?: string; limit?: number }
 ): Promise<CommunicationRecipient[]> {
   await ensureCommunicationsTables()
-  let q = sql`SELECT * FROM communication_recipients WHERE tenant_id = ${tenantId}`
-  if (options?.communicationId) q = sql`${q} AND communication_id = ${options.communicationId}`
-  if (options?.status) q = sql`${q} AND status = ${options.status}`
-  q = sql`${q} ORDER BY updated_at DESC LIMIT ${options?.limit ?? 100}`
-  const result = await q
+  const conditions: string[] = [`tenant_id = $1`]
+  const values: any[] = [tenantId]
+  let paramIndex = 2
+  if (options?.communicationId) { conditions.push(`communication_id = $${paramIndex++}`); values.push(options.communicationId) }
+  if (options?.status) { conditions.push(`status = $${paramIndex++}`); values.push(options.status) }
+  const limit = options?.limit ?? 100
+  values.push(limit)
+  const result = await sql.query(`SELECT * FROM communication_recipients WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC LIMIT $${paramIndex}`, values)
   return (result.rows || []).map(mapRecipient)
 }
 
@@ -421,7 +426,7 @@ export async function createTemplate(
     INSERT INTO communication_templates
       (id, tenant_id, name, type, title, body, channels, variables, created_at, updated_at)
     VALUES
-      (${id}, ${tenantId}, ${payload.name}, ${payload.type}, ${payload.title}, ${payload.body}, ${payload.channels}, ${payload.variables}, ${now}, ${now})
+      (${id}, ${tenantId}, ${payload.name}, ${payload.type}, ${payload.title}, ${payload.body}, ${JSON.stringify(payload.channels)}, ${JSON.stringify(payload.variables)}, ${now}, ${now})
     RETURNING *
   `
   return mapTemplate(result.rows[0])

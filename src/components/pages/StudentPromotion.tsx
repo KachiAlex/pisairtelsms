@@ -176,7 +176,7 @@ export function StudentPromotion() {
         setPromotionRecords(records)
 
         // Load promotion rules
-        const rules = await fetchPromotionRules(tenantId)
+        const rules = await fetchPromotionRules(tenantId || 'default-tenant')
         setPromotionRules(rules)
 
       } catch (err) {
@@ -259,8 +259,7 @@ export function StudentPromotion() {
     if (!selectedStudent) return
 
     try {
-      const nextClass = getNextClass(selectedStudent.class, action)
-
+      const nextClass = action === 'hold' ? selectedStudent.class : getNextClass(selectedStudent.class, action as 'promote' | 'repeat' | 'demote')
       const payload: PromotionPayload = {
         studentId: selectedStudent.id,
         studentName: selectedStudent.name,
@@ -269,9 +268,9 @@ export function StudentPromotion() {
         action,
         academicSession,
         term,
-        averageScore: selectedStudent.averageScore,
-        attendance: selectedStudent.attendance,
-        teacherRecommendation: selectedStudent.teacherRecommendation,
+        averageScore: selectedStudent.averageScore ?? undefined,
+        attendance: selectedStudent.attendance ?? undefined,
+        teacherRecommendation: (selectedStudent as any).teacherRecommendation,
         reason,
       }
 
@@ -340,9 +339,9 @@ export function StudentPromotion() {
                 student.recommendedAction === 'repeat' ? 'repeat' : 'demote',
         academicSession,
         term,
-        averageScore: student.averageScore,
-        attendance: student.attendance,
-        teacherRecommendation: student.teacherRecommendation,
+        averageScore: student.averageScore ?? undefined,
+        attendance: student.attendance ?? undefined,
+        teacherRecommendation: (student as any).teacherRecommendation,
       }))
 
       await createBulkPromotionRecords(promotionPayloads)

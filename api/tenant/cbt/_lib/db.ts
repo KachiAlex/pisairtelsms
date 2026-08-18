@@ -3,7 +3,7 @@
  * Handles database initialization, migrations, and query execution
  */
 
-import { Pool, QueryResult } from 'pg';
+import { Pool, QueryResult, QueryResultRow } from 'pg';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -34,7 +34,7 @@ export function initializeDatabase(): Pool {
     connectionTimeoutMillis: 2000,
   });
 
-  pool.on('error', (err) => {
+  pool.on('error', (err: Error) => {
     console.error('Unexpected error on idle client', err);
   });
 
@@ -62,7 +62,7 @@ export function getPool(): Pool {
 /**
  * Execute a query
  */
-export async function query<T = any>(
+export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   values?: any[]
 ): Promise<QueryResult<T>> {
@@ -78,7 +78,7 @@ export async function query<T = any>(
 /**
  * Execute a query and return single row
  */
-export async function queryOne<T = any>(
+export async function queryOne<T extends QueryResultRow = QueryResultRow>(
   text: string,
   values?: any[]
 ): Promise<T | null> {
@@ -89,7 +89,7 @@ export async function queryOne<T = any>(
 /**
  * Execute a query and return all rows
  */
-export async function queryAll<T = any>(
+export async function queryAll<T extends QueryResultRow = QueryResultRow>(
   text: string,
   values?: any[]
 ): Promise<T[]> {

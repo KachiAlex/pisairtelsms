@@ -29,10 +29,11 @@ export function ParentVirtualLearningConsents() {
 
   useEffect(() => {
     if (!selectedChild) return
+    const childId = selectedChild.id
     async function load() {
       setLoading(true)
       try {
-        const res = await fetch(`/api/tenant/virtual-learning-consents?studentId=${selectedChild.id}`, {
+        const res = await fetch(`/api/tenant/virtual-learning-consents?studentId=${childId}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = await res.json()

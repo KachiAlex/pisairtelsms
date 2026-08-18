@@ -228,8 +228,8 @@ export function QuestionBankTab() {
       setCatalogTags(tags);
 
       const uniqueTagNames = Array.from(
-        new Set(tags.map((t: Tag) => t.name).filter(Boolean))
-      );
+        new Set(tags.map((t: Tag) => t.name).filter((n: any): n is string => Boolean(n)))
+      ) as string[];
       setAvailableTags(uniqueTagNames);
       
       // Build subject tag hints from catalog
@@ -800,8 +800,8 @@ export function QuestionBankTab() {
                           )}
                           {q.type === 'objective' && Array.isArray(q.options) && q.options.length > 0 && (
                             <div className="grid grid-cols-2 gap-1 text-sm">
-                              {q.options.map((opt, i) => {
-                                const optionText = typeof opt === 'string' ? opt : (opt?.text || '');
+                              {q.options.map((opt: string, i: number) => {
+                                const optionText = opt;
                                 return (
                                   <div key={i} className={`px-2 py-1 rounded text-xs ${String.fromCharCode(65 + i) === q.correctAnswer ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-50 text-gray-600'}`}>
                                     {String.fromCharCode(65 + i)}. {optionText}

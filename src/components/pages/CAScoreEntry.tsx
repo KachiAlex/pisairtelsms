@@ -34,7 +34,7 @@ interface ScoreInput {
 }
 
 export function CAScoreEntry() {
-  const { tenant } = useTenant()
+  const { tenantId } = useTenant()
   const { toast } = useToast()
 
   const [subjects, setSubjects] = useState<SubjectItem[]>([])
@@ -273,7 +273,7 @@ export function CAScoreEntry() {
         </CardContent></Card>
         <Card><CardContent className="p-4 space-y-1">
           <p className="text-xs uppercase tracking-wide text-gray-500">Classes available</p>
-          <p className="text-3xl font-semibold text-gray-900">{classes.length}</p>
+          <p className="text-3xl font-semibold text-gray-900">{subjects.length}</p>
           <p className="text-xs text-gray-500">{subjects.length} subjects</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 space-y-1">

@@ -20,6 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { method } = req
   const { className } = req.query
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   if (method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -31,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Fetch students for this class
-    const allStudents = await fetchStudents()
+    const allStudents = await fetchStudents(tenantId)
     const classStudents = allStudents.filter((student: any) =>
       student.class === className || student.class.startsWith(className.split(' ')[0])
     )

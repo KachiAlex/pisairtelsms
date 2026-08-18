@@ -1,4 +1,5 @@
-import { AlertTriangle, BellRing, Shield, Radar, RefreshCcw, Activity, Server, PhoneCall, Loader2, Gauge, History, Settings2, CheckCircle2 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { AlertTriangle, BellRing, Shield, Radar, RefreshCcw, Activity, Server, PhoneCall, Loader2, Gauge, History, Settings2, CheckCircle2, Plus } from 'lucide-react'
 import { getAuthFromStorage } from '../../lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'

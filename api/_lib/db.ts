@@ -5,6 +5,15 @@
 
 import { sql } from '@vercel/postgres'
 
+// Legacy db stub for backward compatibility with old Express router files
+export const db = {
+  prepare: (queryText: string) => ({
+    all: (...params: any[]) => { throw new Error('Legacy db.prepare().all() not supported in Vercel environment') },
+    get: (...params: any[]) => { throw new Error('Legacy db.prepare().get() not supported in Vercel environment') },
+    run: (...params: any[]) => { throw new Error('Legacy db.prepare().run() not supported in Vercel environment') },
+  })
+}
+
 /**
  * Execute a raw SQL query
  */

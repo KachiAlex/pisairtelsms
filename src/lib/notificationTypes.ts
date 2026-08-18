@@ -4,6 +4,7 @@ interface GuardianContact {
   name: string
   email: string
   phone: string
+  relationship?: string
   preferredLanguage: 'en' | 'fr' | 'yo' | 'ha'
   notificationPreferences: {
     email: boolean

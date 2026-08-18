@@ -48,8 +48,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ORDER BY action_type
     `
     const approvalMatrix = policiesResult.rows.map(row => ({
-      action: row.action_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      policy: row.policy_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      action: row.action_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+      policy: row.policy_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
       owners: Array.isArray(row.approvers) ? row.approvers.join(', ') : 'Security Team',
       sla: row.sla_hours ? `${row.sla_hours} hrs` : 'n/a',
     }))

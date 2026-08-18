@@ -75,7 +75,7 @@ export default function StudentsList() {
     guardianName: '',
     guardianPhone: '',
     guardianEmail: '',
-    status: 'Active' as const,
+    status: 'Active' as 'Active' | 'Suspended' | 'Graduated',
   })
 
   // Load students from database on component mount

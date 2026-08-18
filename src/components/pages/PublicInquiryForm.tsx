@@ -4,7 +4,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { CheckCircle } from 'lucide-react'
-import { Lead } from '../types'
+import { Lead } from '../../types'
 import { createLead } from '../../lib/leadClient'
 
 export function PublicInquiryForm() {

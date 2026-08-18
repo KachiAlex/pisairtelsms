@@ -38,8 +38,9 @@ export function OutstandingFees() {
     setLoading(true);
     setError(null);
     try {
-      const data = await financeApiGet('/api/tenant/finance/fee-assignments?status=outstanding');
-      setFees(data.data || []);
+      const res = await financeApiGet('/api/tenant/finance/fee-assignments?status=outstanding');
+      const json = await res.json();
+      setFees(json.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch outstanding fees');
       setFees([]);

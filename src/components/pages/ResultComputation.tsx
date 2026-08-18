@@ -54,7 +54,7 @@ interface ScoreSummary {
 }
 
 export function ResultComputation() {
-  const { tenant } = useTenant()
+  const { tenantId } = useTenant()
   const { toast } = useToast()
 
   const [academicSession, setAcademicSession] = useState('')

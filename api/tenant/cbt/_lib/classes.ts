@@ -36,7 +36,7 @@ export async function getClasses(tenantId: string): Promise<Class[]> {
     [tenantId]
   )
 
-  return result.rows
+  return result.rows as Class[]
 }
 
 /**
@@ -58,7 +58,7 @@ export async function getClassById(tenantId: string, classId: string): Promise<C
     [tenantId, classId]
   )
 
-  return result.rows[0] || null
+  return result.rows[0] as Class || null
 }
 
 /**
@@ -85,7 +85,7 @@ export async function createClass(
     [tenantId, name, arm, level]
   )
 
-  return result.rows[0]
+  return result.rows[0] as Class
 }
 
 /**
@@ -136,7 +136,7 @@ export async function updateClass(
     throw new Error('Class not found')
   }
 
-  return result.rows[0]
+  return result.rows[0] as Class
 }
 
 /**

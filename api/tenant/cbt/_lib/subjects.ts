@@ -144,11 +144,11 @@ export async function getSubjectById(tenantId: string, subjectId: string): Promi
     return null
   }
 
-  const row = result.rows[0]
+  const row = result.rows[0] as any
   return {
     ...row,
     levels: normalizeLevels(row.levels)
-  }
+  } as Subject
 }
 
 /**
@@ -211,11 +211,11 @@ export async function createSubject(tenantId: string, userId: string, input: Cre
     ]
   )
 
-  const row = result.rows[0]
+  const row = result.rows[0] as any
   return {
     ...row,
     levels: normalizeLevels(row.levels)
-  }
+  } as Subject
 }
 
 /**
@@ -306,11 +306,11 @@ export async function updateSubject(tenantId: string, subjectId: string, input: 
     throw new Error('Subject not found')
   }
 
-  const row = result.rows[0]
+  const row = result.rows[0] as any
   return {
     ...row,
     levels: normalizeLevels(row.levels)
-  }
+  } as Subject
 }
 
 /**

@@ -36,6 +36,27 @@ import { Textarea } from '../ui/textarea'
 import { DocumentPreview } from './DocumentPreview'
 import { ApprovalWorkflowEngine, type StudentInfo, type UserInfo, type DocumentInfo } from '../../lib/approvalWorkflowEngine'
 import { StudentDocumentTrackingService } from '../../lib/studentDocumentTrackingService'
+import type { GuardianContact } from '../../lib/guardianNotificationEngine'
+
+interface DocumentClassification {
+  category: string
+  confidence: number
+  documentType: string
+}
+
+const DocumentClassifier = {
+  async classifyDocument(file: File | string, type?: string, text?: string, size?: number): Promise<DocumentClassification> {
+    return { category: 'general', confidence: 0.5, documentType: 'unknown' }
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const mockStudents: Array<{ id: string; name: string; class: string }> = []
 
 interface UploadedFile {
   id: string
@@ -407,6 +428,7 @@ export function DocumentUploadDialog({
         // Create guardian contact info
         const guardian: GuardianContact = {
           id: `guardian_${student.id}`,
+          relationship: 'Parent', // Default for workflow
           studentId: student.id,
           name: `Guardian of ${student.name}`,
           email: `guardian_${student.id}@example.com`,

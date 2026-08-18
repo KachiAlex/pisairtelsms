@@ -50,8 +50,8 @@ export function extractParentInfoFromJWT(token: string): ParentJWTPayload | null
  * @returns true if relationship is valid, false otherwise
  */
 export function verifyParentChildRelationship(
-  parentId: string,
-  childId: string,
+  parentId: string | undefined,
+  childId: string | undefined,
   childrenIds: string[]
 ): boolean {
   if (!parentId || !childId || !childrenIds) {

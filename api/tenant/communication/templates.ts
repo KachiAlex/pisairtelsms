@@ -6,11 +6,12 @@ const router = Router();
 // GET all templates for tenant
 router.get('/', async (req, res) => {
   try {
+    const decoded = (req as any).user || { tenantId: 'default-tenant' };
     const tenantId = decoded.tenantId || 'default-tenant';
 
-    const templates = db
+    const templates = (db
       .prepare('SELECT * FROM communication_templates WHERE tenantId = ? ORDER BY createdAt DESC')
-      .all(tenantId);
+      .all(tenantId) as any);
 
     res.json({ data: templates });
   } catch (error) {
@@ -22,11 +23,12 @@ router.get('/', async (req, res) => {
 // GET single template
 router.get('/:id', async (req, res) => {
   try {
+    const decoded = (req as any).user || { tenantId: 'default-tenant' };
     const tenantId = decoded.tenantId || 'default-tenant';
 
-    const template = db
+    const template = (db
       .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId);
+      .get(req.params.id, tenantId) as any);
 
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
@@ -42,6 +44,7 @@ router.get('/:id', async (req, res) => {
 // POST create template
 router.post('/', async (req, res) => {
   try {
+    const decoded = (req as any).user || { tenantId: 'default-tenant' };
     const tenantId = decoded.tenantId || 'default-tenant';
 
     const { name, category, subject, body, channels, variables } = req.body;
@@ -83,13 +86,14 @@ router.post('/', async (req, res) => {
 // PUT update template
 router.put('/:id', async (req, res) => {
   try {
+    const decoded = (req as any).user || { tenantId: 'default-tenant' };
     const tenantId = decoded.tenantId || 'default-tenant';
 
     const { name, category, subject, body, channels, variables } = req.body;
 
-    const template = db
+    const template = (db
       .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId);
+      .get(req.params.id, tenantId) as any);
 
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
@@ -127,11 +131,12 @@ router.put('/:id', async (req, res) => {
 // DELETE template
 router.delete('/:id', async (req, res) => {
   try {
+    const decoded = (req as any).user || { tenantId: 'default-tenant' };
     const tenantId = decoded.tenantId || 'default-tenant';
 
-    const template = db
+    const template = (db
       .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId);
+      .get(req.params.id, tenantId) as any);
 
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });

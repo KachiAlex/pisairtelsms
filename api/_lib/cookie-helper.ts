@@ -44,7 +44,7 @@ export function setCookie(
     if (Array.isArray(existingSetCookie)) {
       res.setHeader('Set-Cookie', [...existingSetCookie, cookieString])
     } else {
-      res.setHeader('Set-Cookie', [existingSetCookie, cookieString])
+      res.setHeader('Set-Cookie', [String(existingSetCookie), cookieString])
     }
   } else {
     res.setHeader('Set-Cookie', cookieString)
@@ -63,7 +63,7 @@ export function clearCookie(res: VercelResponse, name: string, options: CookieOp
     if (Array.isArray(existingSetCookie)) {
       res.setHeader('Set-Cookie', [...existingSetCookie, cookieString])
     } else {
-      res.setHeader('Set-Cookie', [existingSetCookie, cookieString])
+      res.setHeader('Set-Cookie', [String(existingSetCookie), cookieString])
     }
   } else {
     res.setHeader('Set-Cookie', cookieString)

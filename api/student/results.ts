@@ -155,15 +155,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : 0;
 
     // Class average from student_scores
-    const studentClass = dbResult.rows[0]?.class;
+    const studentClassFromResult = dbResult.rows[0]?.class;
     let classAverage = 0;
-    if (studentClass) {
+    if (studentClassFromResult) {
       const classAvgResult = await sql`
         SELECT ROUND(AVG(total_score)) AS avg
         FROM student_scores
         WHERE academic_session = ${academicSession as string}
           AND term = ${term as string}
-          AND class = ${studentClass}
+          AND class = ${studentClassFromResult}
           AND tenant_id = ${tenantId}
       `;
       classAverage = Number(classAvgResult.rows[0]?.avg ?? 0);

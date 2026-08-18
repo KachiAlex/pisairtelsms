@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       GROUP BY s.class
       ORDER BY s.class
     `
-    return r.rows.map((row: { class_name: string; student_count: number; avg_score: string }) => ({
+    return r.rows.map((row: any) => ({
       className: row.class_name,
       studentCount: row.student_count,
       avgScore: parseFloat(row.avg_score),
@@ -165,7 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       GROUP BY DATE_TRUNC('month', created_at)
       ORDER BY DATE_TRUNC('month', created_at) ASC
     `
-    return r.rows.map((row: { month: string; amount: string }) => ({
+    return r.rows.map((row: any) => ({
       month: row.month,
       amount: parseFloat(row.amount),
     }))

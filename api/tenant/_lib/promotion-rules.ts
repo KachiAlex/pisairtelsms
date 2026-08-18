@@ -120,9 +120,9 @@ export async function updatePromotionRule(
         updated_at
     `
 
-    const result = await sql<PromotionRule>(query, values)
+    const result = await sql.query(query, values)
 
-    return result.rows.length > 0 ? result.rows[0] : null
+    return result.rows.length > 0 ? result.rows[0] as PromotionRule : null
   } catch (error) {
     console.error('Error updating promotion rule:', error)
     throw new Error('Failed to update promotion rule')

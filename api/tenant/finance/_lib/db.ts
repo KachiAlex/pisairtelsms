@@ -15,5 +15,5 @@ export function sql<T = any>(strings: TemplateStringsArray, ...values: any[]): P
       params.push(values[i])
     }
   }
-  return query(text, params) as Promise<SqlResult<T>>
+  return query(text, params) as unknown as Promise<SqlResult<T>>
 }

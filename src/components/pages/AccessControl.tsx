@@ -1,3 +1,5 @@
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ShieldCheck, Lock, KeyRound, AlertTriangle, Activity, UserCheck, BadgeCheck, RefreshCcw, Loader2, Settings, ShieldAlert, Fingerprint } from 'lucide-react'
 import { getAuthFromStorage } from '../../lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -41,6 +43,7 @@ const securityPolicies = [
 ];
 
 export function AccessControl() {
+  const navigate = useNavigate()
   const [data, setData] = useState<AccessControlData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)

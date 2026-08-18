@@ -364,7 +364,7 @@ class GuardianNotificationEngine {
   /**
    * Renders template with data
    */
-  private renderTemplate(template: NotificationTemplate, data: NotificationContext): string {
+  private renderTemplate(template: NotificationTemplate, data: Record<string, any>): string {
     let content = template.body
 
     // Replace variables
@@ -465,4 +465,4 @@ class GuardianNotificationEngine {
 
 // Export the notification engine
 export { GuardianNotificationEngine }
-export type { NotificationContext }
+export type { NotificationContext, GuardianContact }

@@ -96,6 +96,13 @@ class ApprovalWorkflowEngine {
   }
 
   /**
+   * Send initial notifications for a workflow
+   */
+  private async sendInitialNotifications(workflow: ApprovalWorkflow): Promise<void> {
+    // TODO: implement notification sending
+  }
+
+  /**
    * Finds the most appropriate approval rule for a document
    */
   private findApplicableRule(document: DocumentInfo, student: StudentInfo): ApprovalRule | null {

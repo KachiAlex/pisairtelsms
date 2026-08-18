@@ -2,6 +2,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { requireRole } from '../_lib/auth-middleware.js';
 
+interface AttendanceRecord {
+  date: string;
+  subject: string;
+  status: 'present' | 'absent' | 'late' | 'excused';
+  reason?: string;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');

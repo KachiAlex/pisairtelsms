@@ -195,8 +195,8 @@ export const gradingScalesApi = {
 
     const policyRule: PolicyRule = {
       id: uuidv4(),
-      scaleId,
       ...rule,
+      scaleId,
     };
 
     policyRules.push(policyRule);

@@ -31,9 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // GET /publish/status
     if (method === 'GET') {
-      const openConflicts = getOpenConflictCount(tenantId)
-      const classSchedules = getClassSchedules(tenantId)
-      const examSchedules = getExamSchedules(tenantId)
+      const openConflicts = await getOpenConflictCount(tenantId)
+      const classSchedules = await getClassSchedules(tenantId)
+      const examSchedules = await getExamSchedules(tenantId)
       const readinessPct = openConflicts === 0 ? 95 : Math.max(10, 80 - openConflicts * 10)
       return res.status(200).json({
         data: {
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
 
-      const openConflicts = getOpenConflictCount(tenantId)
+      const openConflicts = await getOpenConflictCount(tenantId)
       if (openConflicts > 0) {
         return res.status(400).json({
           error: `Cannot publish: ${openConflicts} unresolved conflict(s) must be resolved first`,

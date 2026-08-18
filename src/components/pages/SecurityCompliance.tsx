@@ -1,3 +1,5 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Shield, ShieldCheck, Lock, Activity, AlertTriangle, RefreshCcw, Loader2, CheckCircle2, Circle, Clock } from 'lucide-react';
 import { getAuthFromStorage } from '../../lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';

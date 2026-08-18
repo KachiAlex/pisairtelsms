@@ -4,7 +4,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { CheckCircle, Upload, AlertCircle } from 'lucide-react'
-import { Application } from '../types'
+import { Application } from '../../types'
 import { createApplication, type ApplicationPayload } from '../../lib/applicationsClient'
 
 export function PublicApplicationForm() {

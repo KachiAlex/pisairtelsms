@@ -1,8 +1,10 @@
+import React, { useState, useEffect } from 'react'
 import { ClipboardCheck, ShieldCheck, Timer, AlertTriangle, Filter, CheckCircle2, CalendarClock, Loader2, UserCheck, BarChart3, RefreshCcw, XCircle, MoreHorizontal } from 'lucide-react'
 import { getAuthFromStorage } from '../../lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
+import { Progress } from '../ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 

@@ -10,7 +10,7 @@
  * Response: Schema verification results
  */
 
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifySchema, generateVerificationReport } from './_lib/schema-verify';
 
 interface VerificationResponse {
@@ -21,8 +21,8 @@ interface VerificationResponse {
 }
 
 export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<VerificationResponse>
+  req: VercelRequest,
+  res: VercelResponse
 ) {
   // Only allow GET requests
   if (req.method !== 'GET') {

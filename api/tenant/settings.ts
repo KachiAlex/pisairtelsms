@@ -49,7 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      const settings = await fetchTenantSettings()
+      const settings = await fetchTenantSettings(decoded.tenantId || 'default-tenant')
       return res.status(200).json({ settings })
     } catch (error) {
       console.error('Error fetching tenant settings:', error)
@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const updated = await updateTenantSettings(body as TenantSettingsPayload)
+      const updated = await updateTenantSettings(decoded.tenantId || 'default-tenant', body as TenantSettingsPayload)
       return res.status(200).json({ settings: updated })
     } catch (error) {
       console.error('Error updating tenant settings:', error)

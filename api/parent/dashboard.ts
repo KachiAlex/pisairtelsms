@@ -60,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!decoded) return
 
     // Ensure dependent tables exist
-    const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
+    const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role, email: decoded.email }
 
     // Get childId from query
     const childId = req.query.childId as string

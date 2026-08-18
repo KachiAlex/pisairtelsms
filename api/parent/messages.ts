@@ -8,7 +8,7 @@ const VIOLATION_ALERT_THRESHOLD = 5
 async function ensureParentChildViolationTable() {
   }
 
-async function logParentChildViolation(parentId: string, childId: string, context: string, tenantId?: string) {
+async function logParentChildViolation(parentId: string | undefined, childId: string | null, context: string, tenantId?: string) {
   await ensureParentChildViolationTable()
   const result = await sql`
     INSERT INTO parent_child_violations (parent_id, child_id, context, attempts)
@@ -27,8 +27,8 @@ async function logParentChildViolation(parentId: string, childId: string, contex
 }
 
 async function sendViolationAlert(
-  parentId: string,
-  childId: string,
+  parentId: string | undefined,
+  childId: string | null,
   context: string,
   attempts: number,
   message: string,

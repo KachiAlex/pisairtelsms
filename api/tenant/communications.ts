@@ -90,7 +90,7 @@ export default async function handler(
         scheduledFor: scheduledFor || null,
         sentAt: null,
         status,
-        sentBy: decoded.name || decoded.email || 'Staff',
+        sentBy: decoded.email || 'Staff',
         metadata: {},
       } as Communication)
 

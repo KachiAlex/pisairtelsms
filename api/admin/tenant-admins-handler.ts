@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               phone,
               created_at AS "createdAt"
             FROM staff
-            WHERE role = ANY(${ADMIN_ROLES})
+            WHERE role = ANY(${ADMIN_ROLES.join(',')})
               AND department = ${tenantId as string}
             ORDER BY name ASC
           `
@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               phone,
               created_at AS "createdAt"
             FROM staff
-            WHERE role = ANY(${ADMIN_ROLES})
+            WHERE role = ANY(${ADMIN_ROLES.join(',')})
             ORDER BY department ASC, name ASC
           `
       return res.json({ success: true, data: r.rows })
@@ -156,15 +156,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const r = await sql`
         UPDATE staff SET password_hash = ${passwordHash}
-        WHERE id = ${id} AND role = ANY(${ADMIN_ROLES})
+        WHERE id = ${id} AND role = ANY(${ADMIN_ROLES.join(',')})
         RETURNING
           id, staff_id AS "staffId", name, email, role,
           department AS "tenantId", status, phone, created_at AS "createdAt"
       `
       if (r.rows.length === 0) {
-        return res.status(404).json({ success: false, error: 'Tenant admin not found' })
+        return res.status(404).json({ success: false, error: 'Admin not found' })
       }
-      return res.json({ success: true, data: r.rows[0], generatedPassword: newPassword })
+      return res.json({ success: true, data: r.rows[0] })
     } catch (error) {
       console.error('tenant-admins PUT error:', error)
       return res.status(500).json({ success: false, error: 'Internal server error' })
@@ -187,7 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const r = await sql`
         UPDATE staff SET status = ${status}
-        WHERE id = ${id} AND role = ANY(${ADMIN_ROLES})
+        WHERE id = ${id} AND role = ANY(${ADMIN_ROLES.join(',')})
         RETURNING
           id, staff_id AS "staffId", name, email, role,
           department AS "tenantId", status, phone, created_at AS "createdAt"

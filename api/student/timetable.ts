@@ -2,6 +2,24 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { requireRole } from '../_lib/auth-middleware.js';
 
+interface TimeSlot {
+  day: string;
+  startTime: string;
+  endTime: string;
+  subject: string;
+  teacher: string;
+  room: string;
+}
+
+interface ExamSchedule {
+  subject: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  room: string;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');

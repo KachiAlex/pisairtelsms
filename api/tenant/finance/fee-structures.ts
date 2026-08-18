@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const { id, action } = req.query
+  const { id, action } = req.query as Record<string, string | undefined>
   const tenantId = decoded.tenantId || 'default-tenant'
   console.log('Fee structures request:', { method: req.method, id, action, tenantId })
 
@@ -57,13 +57,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // GET /api/tenant/finance/fee-structures
   if (req.method === 'GET' && !id) {
-    const { academicSession, term, status } = req.query
+    const { academicSession, term, status } = req.query as Record<string, string | undefined>
     try {
       const structures = await getFeeStructures(
         tenantId,
-        academicSession as string | undefined,
-        term as string | undefined,
-        status as string | undefined
+        academicSession,
+        term,
+        status
       )
       return res.status(200).json({ data: structures })
     } catch (error) {
@@ -75,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/finance/fee-structures/:id
   if (req.method === 'GET' && id && !action) {
     try {
-      const structure = await getFeeStructureWithItems(id as string)
+      const structure = await getFeeStructureWithItems(id)
       if (!structure) {
         return res.status(404).json({ error: 'Fee structure not found' })
       }
@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/finance/fee-structures/:id/history
   if (req.method === 'GET' && id && action === 'history') {
     try {
-      const history = await getFeeStructureHistory(id as string)
+      const history = await getFeeStructureHistory(id)
       return res.status(200).json({ data: history })
     } catch (error) {
       console.error('Error fetching fee structure history:', error)
@@ -207,15 +207,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'DELETE' && id && !action) {
     try {
       const { sql } = await import('@vercel/postgres')
+      const idStr = id as string
       
       // Delete fee items first (due to foreign key)
-      await sql`DELETE FROM fee_items WHERE fee_structure_id = ${id}`
+      await sql`DELETE FROM fee_items WHERE fee_structure_id = ${idStr}`
       
       // Delete fee assignments
-      await sql`DELETE FROM fee_assignments WHERE fee_structure_id = ${id}`
+      await sql`DELETE FROM fee_assignments WHERE fee_structure_id = ${idStr}`
       
       // Delete the fee structure
-      const result = await sql`DELETE FROM fee_structures WHERE id = ${id} RETURNING id`
+      const result = await sql`DELETE FROM fee_structures WHERE id = ${idStr} RETURNING id`
       
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Fee structure not found' })

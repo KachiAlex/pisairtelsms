@@ -2,6 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { fetchAttendance, upsertAttendanceBatch, type AttendancePayload, type AttendanceFilter } from './_lib/attendance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
+function getUserId(req: VercelRequest): string | undefined {
+  return (req.headers['x-user-id'] as string) || (req.query.userId as string) || undefined
+}
+
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')
   return res.status(405).json({ success: false, error: 'Method not allowed' })

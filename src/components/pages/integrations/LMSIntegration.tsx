@@ -1,10 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Link, CheckCircle, AlertCircle, Loader } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { RefreshCcw, Link, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Badge } from '../../ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
+import { useToast } from '../../ui/use-toast';
+import { getAuthFromStorage } from '../../../lib/auth';
 
 interface LMSConfig {
   id: string;
@@ -27,20 +36,20 @@ interface SyncRecord {
 }
 
 function getHeaders() {
-  return {
-    'Content-Type': 'application/json',
-          };
+  const auth = getAuthFromStorage();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (auth?.token) headers.Authorization = `Bearer ${auth.token}`;
+  return headers;
 }
 
 export function LMSIntegration() {
+  const { toast } = useToast();
   const [config, setConfig] = useState<LMSConfig | null>(null);
   const [syncHistory, setSyncHistory] = useState<SyncRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     provider: 'moodle' as 'moodle' | 'canvas',
     baseUrl: '',
@@ -63,7 +72,6 @@ export function LMSIntegration() {
   const fetchConfig = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
       const response = await fetch('/api/tenant/integrations/lms/config', {
         headers: getHeaders(),
       });
@@ -88,8 +96,6 @@ export function LMSIntegration() {
   const handleSaveConfig = async () => {
     try {
       setSaving(true);
-      setError(null);
-      setSuccess(null);
       const response = await fetch('/api/tenant/integrations/lms/config', {
         method: 'PUT',
         headers: getHeaders(),
@@ -98,9 +104,9 @@ export function LMSIntegration() {
       if (!response.ok) throw new Error('Failed to save LMS config');
       const data = await response.json();
       setConfig(data.data);
-      setSuccess('LMS configuration saved successfully');
+      toast({ title: 'Configuration saved', description: 'LMS configuration saved successfully.' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save config');
+      toast({ title: 'Save failed', description: err instanceof Error ? err.message : 'Failed to save config', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -110,8 +116,6 @@ export function LMSIntegration() {
     if (!config) return;
     try {
       setTesting(true);
-      setError(null);
-      setSuccess(null);
       const response = await fetch(`/api/tenant/integrations/lms/${config.id}/test`, {
         method: 'POST',
         headers: getHeaders(),
@@ -119,12 +123,12 @@ export function LMSIntegration() {
       if (!response.ok) throw new Error('Connection test failed');
       const data = await response.json();
       if (data.success) {
-        setSuccess('Connection test initiated. Check your LMS for connectivity.');
+        toast({ title: 'Connection test passed', description: 'Check your LMS for connectivity.' });
       } else {
-        setError('Connection test failed. Check your credentials.');
+        toast({ title: 'Connection test failed', description: 'Check your credentials.', variant: 'destructive' });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection test failed');
+      toast({ title: 'Connection test failed', description: err instanceof Error ? err.message : 'Connection test failed', variant: 'destructive' });
     } finally {
       setTesting(false);
     }
@@ -134,8 +138,6 @@ export function LMSIntegration() {
     if (!config) return;
     try {
       setSyncing(true);
-      setError(null);
-      setSuccess(null);
       const h = getHeaders();
       const startRes = await fetch(`/api/tenant/integrations/lms/${config.id}/sync/${type}`, {
         method: 'POST',
@@ -148,11 +150,11 @@ export function LMSIntegration() {
         headers: h,
         body: JSON.stringify({ recordsProcessed: 0, recordsFailed: 0 }),
       });
-      setSuccess(`${type === 'students' ? 'Student' : 'Grade'} sync completed`);
+      toast({ title: 'Sync completed', description: `${type === 'students' ? 'Student' : 'Grade'} sync completed.` });
       fetchSyncHistory(config.id);
       fetchConfig();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sync failed');
+      toast({ title: 'Sync failed', description: err instanceof Error ? err.message : 'Sync failed', variant: 'destructive' });
     } finally {
       setSyncing(false);
     }
@@ -172,46 +174,32 @@ export function LMSIntegration() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-      {success && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-green-700">{success}</p>
-        </div>
-      )}
-
       {/* Configuration */}
-      <Card>
+      <Card className="border-none ring-1 ring-gray-100 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Link className="w-5 h-5" />
             LMS Connection
           </CardTitle>
+          <CardDescription>Connect to Moodle or Canvas LMS for student and grade synchronization.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="provider">LMS Provider</Label>
-            <select
-              id="provider"
-              value={formData.provider}
-              onChange={e => setFormData({ ...formData, provider: e.target.value as 'moodle' | 'canvas' })}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="moodle">Moodle</option>
-              <option value="canvas">Canvas</option>
-            </select>
+            <Select value={formData.provider} onValueChange={v => setFormData({ ...formData, provider: v as 'moodle' | 'canvas' })}>
+              <SelectTrigger id="provider" className="rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="moodle">Moodle</SelectItem>
+                <SelectItem value="canvas">Canvas</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label htmlFor="baseUrl">Base URL</Label>
@@ -235,12 +223,12 @@ export function LMSIntegration() {
             />
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleSaveConfig} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
-              {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Configuration'}
+            <Button onClick={handleSaveConfig} disabled={saving} className="bg-blue-600 hover:bg-blue-700 rounded-xl">
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Configuration'}
             </Button>
             {config && (
-              <Button variant="outline" onClick={handleTestConnection} disabled={testing}>
-                {testing ? <><Loader className="w-4 h-4 mr-2 animate-spin" />Testing...</> : 'Test Connection'}
+              <Button variant="outline" onClick={handleTestConnection} disabled={testing} className="rounded-xl">
+                {testing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Testing...</> : 'Test Connection'}
               </Button>
             )}
           </div>
@@ -249,7 +237,7 @@ export function LMSIntegration() {
 
       {/* Sync Status */}
       {config && (
-        <Card>
+        <Card className="border-none ring-1 ring-gray-100 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Sync Status</CardTitle>
             <div className="flex gap-2">
@@ -258,8 +246,9 @@ export function LMSIntegration() {
                 size="sm"
                 onClick={() => handleSync('students')}
                 disabled={syncing}
+                className="rounded-xl"
               >
-                {syncing ? <Loader className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
                 Sync Students
               </Button>
               <Button
@@ -267,8 +256,9 @@ export function LMSIntegration() {
                 size="sm"
                 onClick={() => handleSync('grades')}
                 disabled={syncing}
+                className="rounded-xl"
               >
-                {syncing ? <Loader className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
                 Sync Grades
               </Button>
             </div>

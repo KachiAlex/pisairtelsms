@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Loader, CreditCard, AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Plus } from 'lucide-react';
+import { Loader2, CreditCard, AlertCircle, CheckCircle2, Clock, RefreshCcw, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +23,7 @@ import {
   DialogClose,
 } from '../../ui/dialog';
 import { useToast } from '../../ui/use-toast';
+import { getAuthFromStorage } from '../../../lib/auth';
 
 interface GatewayConfig {
   id: string;
@@ -56,9 +64,10 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 function getHeaders() {
-  return {
-    'Content-Type': 'application/json',
-          };
+  const auth = getAuthFromStorage();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (auth?.token) headers.Authorization = `Bearer ${auth.token}`;
+  return headers;
 }
 
 export default function PaymentGateway() {
@@ -151,7 +160,7 @@ export default function PaymentGateway() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
   }
@@ -167,7 +176,7 @@ export default function PaymentGateway() {
         </div>
         <div className="flex gap-3">
           <Button variant="outline" size="sm" onClick={loadData}>
-            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+            <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
           </Button>
           <Button onClick={() => setDialogOpen(true)}>
             <Settings className="h-4 w-4 mr-2" />
@@ -329,29 +338,25 @@ export default function PaymentGateway() {
 
           <div className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="pg-provider">Provider</Label>
-                <select
-                  id="pg-provider"
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={form.provider}
-                  onChange={e => setForm(f => ({ ...f, provider: e.target.value }))}
-                >
-                  <option value="paystack">Paystack</option>
-                  <option value="stripe">Stripe</option>
-                </select>
+                <Select value={form.provider} onValueChange={v => setForm(f => ({ ...f, provider: v }))}>
+                  <SelectTrigger id="pg-provider" className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paystack">Paystack</SelectItem>
+                    <SelectItem value="stripe">Stripe</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="pg-mode">Mode</Label>
-                <select
-                  id="pg-mode"
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={form.mode}
-                  onChange={e => setForm(f => ({ ...f, mode: e.target.value }))}
-                >
-                  <option value="test">Test</option>
-                  <option value="live">Live</option>
-                </select>
+                <Select value={form.mode} onValueChange={v => setForm(f => ({ ...f, mode: v }))}>
+                  <SelectTrigger id="pg-mode" className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="test">Test</SelectItem>
+                    <SelectItem value="live">Live</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -410,7 +415,7 @@ export default function PaymentGateway() {
               <Button variant="outline" disabled={saving}>Cancel</Button>
             </DialogClose>
             <Button onClick={handleSaveConfig} disabled={saving || !form.apiKey || !form.secretKey}>
-              {saving ? <Loader className="h-4 w-4 animate-spin mr-2" /> : <Settings className="h-4 w-4 mr-2" />}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Settings className="h-4 w-4 mr-2" />}
               Save configuration
             </Button>
           </DialogFooter>

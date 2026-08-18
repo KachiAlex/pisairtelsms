@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { KeyRound, RefreshCcw, Loader, ShieldCheck, XCircle, Plus, Eye, EyeOff } from 'lucide-react'
+import { KeyRound, RefreshCcw, Loader2, ShieldCheck, XCircle, Plus, Eye, EyeOff } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -10,6 +10,7 @@ import {
   DialogDescription, DialogFooter, DialogClose,
 } from '../ui/dialog'
 import { useToast } from '../ui/use-toast'
+import { getAuthFromStorage } from '../../lib/auth'
 
 interface APIKey {
   id: string;
@@ -32,15 +33,10 @@ interface Stats {
 }
 
 function getHeaders() {
-  try {
-    const auth = JSON.parse(localStorage.getItem('auth') || '{}');
-    return {
-      'Content-Type': 'application/json',
-      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-    };
-  } catch {
-    return { 'Content-Type': 'application/json' };
-  }
+  const auth = getAuthFromStorage();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (auth?.token) headers.Authorization = `Bearer ${auth.token}`;
+  return headers;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -121,7 +117,7 @@ export function APIManagement() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-96">
-      <Loader className="h-8 w-8 animate-spin text-blue-600" />
+      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
     </div>
   );
 
@@ -217,7 +213,7 @@ export function APIManagement() {
                           disabled={revoking === k.id}
                           onClick={() => handleRevoke(k.id, k.name)}
                         >
-                          {revoking === k.id ? <Loader className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+                          {revoking === k.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
                         </Button>
                       )}
                     </TableCell>
@@ -293,7 +289,7 @@ export function APIManagement() {
           <DialogFooter className="mt-6">
             <DialogClose asChild><Button variant="outline" disabled={issuing}>Cancel</Button></DialogClose>
             <Button onClick={handleIssue} disabled={issuing || !form.name.trim()}>
-              {issuing ? <Loader className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              {issuing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
               Issue key
             </Button>
           </DialogFooter>

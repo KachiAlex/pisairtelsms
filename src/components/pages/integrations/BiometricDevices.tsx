@@ -1,15 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader, Cpu, RefreshCw, Plus, Wifi, WifiOff, AlertTriangle, CheckCircle2, RotateCcw, ScanSearch, Download, XCircle, Network } from 'lucide-react';
+import { Loader2, Cpu, RefreshCcw, Plus, Wifi, WifiOff, AlertTriangle, CheckCircle2, RotateCcw, ScanSearch, Download, XCircle, Network } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogClose,
 } from '../../ui/dialog';
 import { useToast } from '../../ui/use-toast';
+import { getAuthFromStorage } from '../../../lib/auth';
 
 interface Device {
   id: string;
@@ -53,15 +61,10 @@ const BIOMETRIC_PORTS: { port: number; deviceType: string; label: string }[] = [
 ];
 
 function getHeaders() {
-  try {
-    const auth = JSON.parse(localStorage.getItem('auth') || '{}');
-    return {
-      'Content-Type': 'application/json',
-      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-    };
-  } catch {
-    return { 'Content-Type': 'application/json' };
-  }
+  const auth = getAuthFromStorage();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (auth?.token) headers.Authorization = `Bearer ${auth.token}`;
+  return headers;
 }
 
 /** Probe a single IP:port with a short-lived fetch (image trick for cross-origin TCP check) */
@@ -242,7 +245,7 @@ export function BiometricDevices() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-96">
-      <Loader className="h-8 w-8 animate-spin text-blue-600" />
+      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
     </div>
   );
 
@@ -257,7 +260,7 @@ export function BiometricDevices() {
         </div>
         <div className="flex gap-3 flex-wrap">
           <Button variant="outline" size="sm" onClick={load}>
-            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+            <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
           </Button>
           <Button variant="outline" size="sm" onClick={() => setScanOpen(o => !o)}>
             <ScanSearch className="h-4 w-4 mr-2" />
@@ -337,7 +340,7 @@ export function BiometricDevices() {
                   <ScanSearch className="h-4 w-4 mr-2" /> Start scan
                 </Button>
               ) : (
-                <Button variant="destructive" className="shrink-0" onClick={() => { scanAbortRef.current = true; }}>
+                <Button variant="default" className="shrink-0" onClick={() => { scanAbortRef.current = true; }}>
                   <XCircle className="h-4 w-4 mr-2" /> Stop
                 </Button>
               )}
@@ -403,7 +406,7 @@ export function BiometricDevices() {
                                 onClick={() => handleInstallDiscovered(d)}
                               >
                                 {installing === key
-                                  ? <Loader className="h-3.5 w-3.5 animate-spin mr-1" />
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                                   : <Download className="h-3.5 w-3.5 mr-1" />}
                                 Install
                               </Button>
@@ -480,7 +483,7 @@ export function BiometricDevices() {
                           onClick={() => handleSync(d)}
                         >
                           {syncing === d.id
-                            ? <Loader className="h-3.5 w-3.5 animate-spin" />
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             : <RotateCcw className="h-3.5 w-3.5" />}
                         </Button>
                       </TableCell>
@@ -518,19 +521,17 @@ export function BiometricDevices() {
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="dev-type">Device type</Label>
-                <select
-                  id="dev-type"
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={form.deviceType}
-                  onChange={e => setForm(f => ({ ...f, deviceType: e.target.value }))}
-                >
-                  <option value="fingerprint">Fingerprint</option>
-                  <option value="face">Face recognition</option>
-                  <option value="card">Smart card</option>
-                  <option value="iris">Iris scan</option>
-                </select>
+                <Select value={form.deviceType} onValueChange={v => setForm(f => ({ ...f, deviceType: v }))}>
+                  <SelectTrigger id="dev-type" className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fingerprint">Fingerprint</SelectItem>
+                    <SelectItem value="face">Face recognition</SelectItem>
+                    <SelectItem value="card">Smart card</SelectItem>
+                    <SelectItem value="iris">Iris scan</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="dev-location">Location</Label>
@@ -566,7 +567,7 @@ export function BiometricDevices() {
           <DialogFooter className="mt-6">
             <DialogClose asChild><Button variant="outline" disabled={adding}>Cancel</Button></DialogClose>
             <Button onClick={handleRegister} disabled={adding || !form.name.trim()}>
-              {adding ? <Loader className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              {adding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
               Register device
             </Button>
           </DialogFooter>

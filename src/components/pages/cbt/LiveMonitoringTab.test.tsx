@@ -12,11 +12,6 @@ const mockTenantApiPut = tenantApi.tenantApiPut as ReturnType<typeof vi.fn>;
 describe('LiveMonitoringTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('should display ongoing exams in selector', async () => {
@@ -33,11 +28,16 @@ describe('LiveMonitoringTab', () => {
       ok: true,
       json: async () => ({ data: mockExams }),
     } as Response);
+    // Auto-selection triggers a monitoring fetch; provide a benign response
+    mockTenantApiGet.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { examId: '1', examTitle: 'Math Exam', totalStudents: 0, activeStudents: 0, completedStudents: 0, averageProgress: 0, students: [] } }),
+    } as Response);
 
     render(<LiveMonitoringTab />);
 
     await waitFor(() => {
-      expect(screen.getByText('Math Exam (Mathematics · JSS 3)')).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /Math Exam \(Mathematics \u00b7 JSS 3\)/ })).toBeInTheDocument();
     });
   });
 
@@ -86,7 +86,7 @@ describe('LiveMonitoringTab', () => {
 
     render(<LiveMonitoringTab />);
 
-    const examSelect = await screen.findByDisplayValue('Math Exam (Mathematics · JSS 3)');
+    const examSelect = await screen.findByLabelText(/Select Ongoing Exam/i);
     fireEvent.change(examSelect, { target: { value: '1' } });
 
     await waitFor(() => {
@@ -126,7 +126,7 @@ describe('LiveMonitoringTab', () => {
 
     render(<LiveMonitoringTab />);
 
-    const examSelect = await screen.findByDisplayValue('Math Exam (Mathematics · JSS 3)');
+    const examSelect = await screen.findByLabelText(/Select Ongoing Exam/i);
     fireEvent.change(examSelect, { target: { value: '1' } });
 
     await waitFor(() => {
@@ -193,7 +193,7 @@ describe('LiveMonitoringTab', () => {
 
     render(<LiveMonitoringTab />);
 
-    const examSelect = await screen.findByDisplayValue('Math Exam (Mathematics · JSS 3)');
+    const examSelect = await screen.findByLabelText(/Select Ongoing Exam/i);
     fireEvent.change(examSelect, { target: { value: '1' } });
 
     await waitFor(() => {
@@ -201,8 +201,9 @@ describe('LiveMonitoringTab', () => {
       expect(screen.getByText('Jane Smith')).toBeInTheDocument();
     });
 
-    const completedFilter = screen.getByText('Completed');
-    fireEvent.click(completedFilter);
+    const completedFilters = screen.getAllByText('Completed');
+    const completedFilterBtn = completedFilters.find((el) => el.tagName === 'BUTTON') || completedFilters[completedFilters.length - 1];
+    fireEvent.click(completedFilterBtn);
 
     await waitFor(() => {
       expect(screen.getByText('Jane Smith')).toBeInTheDocument();
@@ -255,7 +256,7 @@ describe('LiveMonitoringTab', () => {
 
     render(<LiveMonitoringTab />);
 
-    const examSelect = await screen.findByDisplayValue('Math Exam (Mathematics · JSS 3)');
+    const examSelect = await screen.findByLabelText(/Select Ongoing Exam/i);
     fireEvent.change(examSelect, { target: { value: '1' } });
 
     await waitFor(() => {
@@ -265,7 +266,8 @@ describe('LiveMonitoringTab', () => {
     const flagButton = screen.getByText('Flag');
     fireEvent.click(flagButton);
 
-    expect(screen.getByText('Flag Student')).toBeInTheDocument();
+    // Prefer dialog title role to avoid matching the action button with the same text
+    expect(screen.getByRole('heading', { name: 'Flag Student' })).toBeInTheDocument();
   });
 
   it('should flag a student with reason', async () => {
@@ -318,7 +320,7 @@ describe('LiveMonitoringTab', () => {
 
     render(<LiveMonitoringTab />);
 
-    const examSelect = await screen.findByDisplayValue('Math Exam (Mathematics · JSS 3)');
+    const examSelect = await screen.findByLabelText(/Select Ongoing Exam/i);
     fireEvent.change(examSelect, { target: { value: '1' } });
 
     await waitFor(() => {
@@ -331,7 +333,7 @@ describe('LiveMonitoringTab', () => {
     const reasonInput = screen.getByPlaceholderText('Describe the suspicious activity...');
     await userEvent.type(reasonInput, 'Tab switching detected');
 
-    const flagStudentButton = screen.getByText('Flag Student');
+    const flagStudentButton = screen.getByRole('button', { name: 'Flag Student' });
     fireEvent.click(flagStudentButton);
 
     await waitFor(() => {

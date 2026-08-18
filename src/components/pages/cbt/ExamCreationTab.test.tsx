@@ -76,7 +76,10 @@ describe('ExamCreationTab', () => {
     const createButton = await screen.findByText('Create Exam');
     fireEvent.click(createButton);
 
-    expect(screen.getByText('Create Exam')).toBeInTheDocument();
+    // Dialog-specific content (not the trigger button text)
+    await waitFor(() => {
+      expect(screen.getByText('Save as Draft')).toBeInTheDocument();
+    });
   });
 
   it('should validate required fields before saving', async () => {

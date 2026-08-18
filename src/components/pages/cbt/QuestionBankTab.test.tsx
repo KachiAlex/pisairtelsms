@@ -14,7 +14,7 @@ const mockTenantApiFetch = tenantApi.tenantApiFetch as ReturnType<typeof vi.fn>;
 
 describe('QuestionBankTab', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   describe('Question List Display', () => {
@@ -33,46 +33,64 @@ describe('QuestionBankTab', () => {
         },
       ];
 
-      mockTenantApiGet.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: mockQuestions, pagination: { pages: 1 } }),
-      } as Response);
-
-      mockTenantApiGet.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: {
-            total: 1,
-            byDifficulty: { Easy: 1, Medium: 0, Hard: 0 },
-            byType: { objective: 1, truefalse: 0, essay: 0 },
-          },
-        }),
-      } as Response);
+      // mount: subjects, tags, initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
+
+      const tag = await screen.findByText('#math');
+      // effect re-runs on viewMode/filterTag change and calls subjects, tags, then questions
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: mockQuestions, pagination: { pages: 1 } }) } as Response);
+      // stats after questions load
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 1, byDifficulty: { Easy: 1, Medium: 0, Hard: 0 }, byType: { objective: 1, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tag);
 
       await waitFor(() => {
         expect(screen.getByText('What is 2+2?')).toBeInTheDocument();
       });
     });
 
-    it('should display loading state while fetching questions', () => {
-      mockTenantApiGet.mockImplementationOnce(
-        () => new Promise(() => {}) // Never resolves
-      );
+    it('should display loading state while fetching questions', async () => {
+      // subjects + tags (with a tag to click) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
+
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      // effect will call subjects, tags, then questions (pending)
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockImplementationOnce(() => new Promise(() => {}));
+      fireEvent.click(tagCard);
 
       expect(screen.getByText('Loading questions...')).toBeInTheDocument();
     });
 
     it('should display error message on fetch failure', async () => {
+      // subjects + tags (with a tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+
+      render(<QuestionBankTab />);
+
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      // effect: subjects, tags, then questions (fails)
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
       mockTenantApiGet.mockResolvedValueOnce({
         ok: false,
         json: async () => ({ error: 'Failed to load questions' }),
       } as Response);
-
-      render(<QuestionBankTab />);
+      fireEvent.click(tagCard);
 
       await waitFor(() => {
         expect(screen.getByText(/Failed to load questions/)).toBeInTheDocument();
@@ -80,23 +98,24 @@ describe('QuestionBankTab', () => {
     });
 
     it('should display empty state when no questions exist', async () => {
+      // subjects + tags (with a tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+
+      render(<QuestionBankTab />);
+
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      // effect: subjects, tags, questions (empty), stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
       mockTenantApiGet.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ data: [], pagination: { pages: 1 } }),
       } as Response);
-
-      mockTenantApiGet.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: {
-            total: 0,
-            byDifficulty: { Easy: 0, Medium: 0, Hard: 0 },
-            byType: { objective: 0, truefalse: 0, essay: 0 },
-          },
-        }),
-      } as Response);
-
-      render(<QuestionBankTab />);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tagCard);
 
       await waitFor(() => {
         expect(screen.getByText(/No questions found/)).toBeInTheDocument();
@@ -106,31 +125,34 @@ describe('QuestionBankTab', () => {
 
   describe('Question Creation', () => {
     it('should open add question dialog when clicking Add Question button', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+      // subjects + tags (mount) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: ['Mathematics'] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
 
       const addButton = await screen.findByText('Add Question');
       fireEvent.click(addButton);
 
-      expect(screen.getByText('Add Question')).toBeInTheDocument();
+      // dialog title or the save action should appear
+      await waitFor(() => {
+        expect(screen.getByText('Save Question')).toBeInTheDocument();
+      });
     });
 
     it('should validate required fields before saving', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+      // subjects + tags (mount) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: ['Mathematics'] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
 
       const addButton = await screen.findByText('Add Question');
       fireEvent.click(addButton);
 
-      const saveButton = screen.getByText('Save Question');
+      const saveButton = await screen.findByText('Save Question');
       fireEvent.click(saveButton);
 
       await waitFor(() => {
@@ -139,10 +161,10 @@ describe('QuestionBankTab', () => {
     });
 
     it('should save a new question to the database', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+      // subjects + tags (mount) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: ['Mathematics'] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       mockTenantApiPost.mockResolvedValueOnce({
         ok: true,
@@ -154,7 +176,7 @@ describe('QuestionBankTab', () => {
             options: ['A', 'B', 'C', 'D'],
             correctAnswer: 'A',
             difficulty: 'Medium',
-            subject: 'Math',
+            subject: 'Mathematics',
             tags: [],
           },
         }),
@@ -168,8 +190,15 @@ describe('QuestionBankTab', () => {
       const textArea = screen.getByPlaceholderText('Enter question text...');
       await userEvent.type(textArea, 'Test Question');
 
-      const subjectInput = screen.getByPlaceholderText('e.g. Mathematics');
-      await userEvent.type(subjectInput, 'Math');
+      // subject is a select; choose the available option
+      const subjectSelect = screen.getByLabelText('Subject *') as HTMLSelectElement;
+      await userEvent.selectOptions(subjectSelect, 'Mathematics');
+
+      // Fill objective options (4) so validation passes
+      const optionInputs = screen.getAllByPlaceholderText(/Option [A-D]/);
+      for (let i = 0; i < optionInputs.length && i < 4; i++) {
+        await userEvent.type(optionInputs[i], String.fromCharCode(65 + i));
+      }
 
       const saveButton = screen.getByText('Save Question');
       fireEvent.click(saveButton);
@@ -179,7 +208,7 @@ describe('QuestionBankTab', () => {
           '/api/tenant/cbt/questions',
           expect.objectContaining({
             text: 'Test Question',
-            subject: 'Math',
+            subject: 'Mathematics',
           })
         );
       });
@@ -202,7 +231,19 @@ describe('QuestionBankTab', () => {
         },
       ];
 
-      mockTenantApiGet.mockResolvedValue({
+      // subjects + tags (mount) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Math' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+
+      render(<QuestionBankTab />);
+
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      // effect: subjects, tags, questions, stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ data: mockQuestions, pagination: { pages: 1 } }),
       } as Response);
@@ -212,7 +253,7 @@ describe('QuestionBankTab', () => {
         json: async () => ({ success: true }),
       } as Response);
 
-      render(<QuestionBankTab />);
+      fireEvent.click(tagCard);
 
       await waitFor(() => {
         expect(screen.getByText('Test Question')).toBeInTheDocument();
@@ -232,33 +273,49 @@ describe('QuestionBankTab', () => {
   });
 
   describe('Search and Filter', () => {
-    it('should filter questions by subject', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+    it('should filter questions by type', async () => {
+      // subjects + tags (with one tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
 
-      const subjectSelect = screen.getByDisplayValue('All Subjects');
-      await userEvent.selectOptions(subjectSelect, 'Mathematics');
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [], pagination: { pages: 1 } }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tagCard);
+
+      const typeSelect = await screen.findByDisplayValue('All Types');
+      await userEvent.selectOptions(typeSelect, 'essay');
 
       await waitFor(() => {
         expect(mockTenantApiGet).toHaveBeenCalledWith(
-          expect.stringContaining('subject=Mathematics')
+          expect.stringContaining('type=essay')
         );
       });
     });
 
     it('should filter questions by difficulty', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+      // subjects + tags (with one tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
 
-      const difficultySelect = screen.getByDisplayValue('All Difficulties');
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [], pagination: { pages: 1 } }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tagCard);
+
+      const difficultySelect = await screen.findByDisplayValue('All Difficulties');
       await userEvent.selectOptions(difficultySelect, 'Hard');
 
       await waitFor(() => {
@@ -269,14 +326,22 @@ describe('QuestionBankTab', () => {
     });
 
     it('should search questions by text', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+      // subjects + tags (with one tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
 
-      const searchInput = screen.getByPlaceholderText('Search questions...');
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [], pagination: { pages: 1 } }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tagCard);
+
+      const searchInput = await screen.findByPlaceholderText('Search questions...');
       await userEvent.type(searchInput, 'algebra');
 
       await waitFor(() => {
@@ -288,30 +353,51 @@ describe('QuestionBankTab', () => {
   });
 
   describe('CSV Import/Export', () => {
-    it('should trigger file input when clicking Import CSV', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+    it('should open import dialog and show file input', async () => {
+      // subjects + tags (with one tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
 
-      const importButton = screen.getByText('Import CSV');
-      fireEvent.click(importButton);
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [], pagination: { pages: 1 } }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tagCard);
 
-      const fileInput = screen.getByDisplayValue('');
-      expect(fileInput).toHaveAttribute('type', 'file');
+      const addBtn = await screen.findByText('Add Question');
+      fireEvent.click(addBtn);
+
+      const importTab = await screen.findByText('Import from CSV/Excel');
+      fireEvent.click(importTab);
+
+      // file input is rendered inside the import tab
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(fileInput).toBeTruthy();
+      expect(fileInput.getAttribute('type')).toBe('file');
     });
 
     it('should export questions to CSV', async () => {
-      mockTenantApiGet.mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
+      // subjects + tags (with one tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
 
       render(<QuestionBankTab />);
 
-      const exportButton = screen.getByText('Export CSV');
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [], pagination: { pages: 1 } }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tagCard);
+
+      const exportButton = await screen.findByText('Export CSV');
       window.open = vi.fn();
       fireEvent.click(exportButton);
 
@@ -324,15 +410,29 @@ describe('QuestionBankTab', () => {
 
   describe('Pagination', () => {
     it('should navigate between pages', async () => {
-      mockTenantApiGet.mockResolvedValue({
+      // subjects + tags (with one tag) + initial stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 't1', name: 'math', usageCount: 1, subject: 'Mathematics' }] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 0, byDifficulty: { Easy: 0, Medium: 0, Hard: 0 }, byType: { objective: 0, truefalse: 0, essay: 0 } } }) } as Response);
+
+      render(<QuestionBankTab />);
+
+      const tagEl = await screen.findByText('#math');
+      const tagCard = (tagEl.closest('div[class*="cursor-pointer"]') || tagEl.closest('div')) as HTMLElement;
+      // effect: subjects, tags, questions (paged), stats
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      mockTenantApiGet.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          data: [],
+          data: [
+            { id: 'q1', text: 'Q1?', type: 'objective', options: ['A','B','C','D'], correctAnswer: 'A', difficulty: 'Easy', subject: 'Mathematics', tags: [], createdAt: '2024-01-01' },
+          ],
           pagination: { pages: 3, page: 1 },
         }),
       } as Response);
-
-      render(<QuestionBankTab />);
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { total: 1, byDifficulty: { Easy: 1, Medium: 0, Hard: 0 }, byType: { objective: 1, truefalse: 0, essay: 0 } } }) } as Response);
+      fireEvent.click(tagCard);
 
       await waitFor(() => {
         expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument();
@@ -351,11 +451,11 @@ describe('QuestionBankTab', () => {
 
   describe('Statistics Display', () => {
     it('should display question statistics', async () => {
-      mockTenantApiGet.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: [], pagination: { pages: 1 } }),
-      } as Response);
-
+      // subjects
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      // tags
+      mockTenantApiGet.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) } as Response);
+      // stats (shown in tags view immediately)
       mockTenantApiGet.mockResolvedValueOnce({
         ok: true,
         json: async () => ({

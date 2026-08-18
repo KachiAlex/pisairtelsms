@@ -271,8 +271,10 @@ describe('ExamResultsTab', () => {
       expect(screen.getByText('Jane Smith')).toBeInTheDocument();
     });
 
-    const failedFilter = screen.getByText('Failed');
-    fireEvent.click(failedFilter);
+    // Click the 'Failed' filter button among the filter chips
+    const failedFilters = screen.getAllByText('Failed');
+    const failedFilterBtn = failedFilters.find((el) => el.tagName === 'BUTTON') || failedFilters[failedFilters.length - 1];
+    fireEvent.click(failedFilterBtn);
 
     await waitFor(() => {
       expect(screen.getByText('Jane Smith')).toBeInTheDocument();
@@ -319,7 +321,8 @@ describe('ExamResultsTab', () => {
     fireEvent.change(examSelect, { target: { value: '1' } });
 
     await waitFor(() => {
-      expect(screen.getByText('85%')).toBeInTheDocument();
+      // UI renders averageScore.toFixed(1) => '85.0%'
+      expect(screen.getByText(/85(\.0)?%/)).toBeInTheDocument();
     });
 
     const csvButton = screen.getByText('CSV');

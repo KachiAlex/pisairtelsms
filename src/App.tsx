@@ -246,12 +246,17 @@ export default function App() {
       case 'financial-reports':
         return <FinanceManagement />;
       case 'analytics':
+        return <AnalyticsDashboard key="analytics-overview" initialTab="overview" />;
       case 'academic-analytics':
+        return <AnalyticsDashboard key="analytics-academic" initialTab="academic" />;
       case 'student-progress':
+        return <AnalyticsDashboard key="analytics-student-progress" initialTab="student-progress" />;
       case 'teacher-performance':
+        return <AnalyticsDashboard key="analytics-teacher-performance" initialTab="teacher-performance" />;
       case 'attendance-analytics':
+        return <AnalyticsDashboard key="analytics-attendance" initialTab="attendance" />;
       case 'financial-analytics':
-        return <AnalyticsDashboard />;
+        return <AnalyticsDashboard key="analytics-financial" initialTab="financial" />;
       case 'academic':
       case 'academic-structure':
         return <AcademicStructureOverview />;

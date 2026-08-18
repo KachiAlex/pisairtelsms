@@ -11,8 +11,15 @@ import { TeacherPerformanceTab } from './analytics/tabs/TeacherPerformanceTab';
 import { AttendanceTab } from './analytics/tabs/AttendanceTab';
 import { FinancialTab } from './analytics/tabs/FinancialTab';
 
-export function AnalyticsDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+export function AnalyticsDashboard({ initialTab }: { initialTab?: string }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'overview');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [filters, setFilters] = useState<AnalyticsFilters>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

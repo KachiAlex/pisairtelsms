@@ -4,6 +4,29 @@ import { Menu, User, Bell, Search } from 'lucide-react';
 import { HomePage } from './components/HomePage';
 import { Sidebar } from './components/Sidebar';
 import { TenantProvider } from './contexts/TenantContext';
+import { LoginRole } from './components/auth/LoginPanel';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { StudentLayout } from './components/layouts/StudentLayout';
+import { StaffLayout } from './components/layouts/StaffLayout';
+import { ParentLayout } from './components/layouts/ParentLayout';
+import { ParentContextProvider } from './contexts/ParentContext'
+import { BrandingProvider } from './contexts/BrandingContext';
+import { ParentLoginPage } from './components/auth/ParentLoginPage';
+import { clearAuthFromStorage, getAuthFromStorage } from './lib/auth';
+import { AccessPortalPage } from './components/pages/AccessPortalPage';
+import { UnauthorizedPage } from './components/pages/UnauthorizedPage';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu';
 const Dashboard = lazy(() => import('./components/pages/Dashboard'));
 const StudentsList = lazy(() => import('./components/pages/StudentsList'));
 const StudentEnrollment = lazy(() => import('./components/pages/StudentEnrollment'));
@@ -70,29 +93,7 @@ const PrivacyCenter = lazy(() => import('./components/pages/PrivacyCenter'));
 const IncidentManagement = lazy(() => import('./components/pages/IncidentManagement'));
 const NotificationsDashboard = lazy(() => import('./components/pages/NotificationsDashboard'));
 const UnifiedActionCenter = lazy(() => import('./components/pages/UnifiedActionCenter'));
-import { LoginRole } from './components/auth/LoginPanel';
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
-import ErrorBoundary from './components/ErrorBoundary';
-import { StudentLayout } from './components/layouts/StudentLayout';
-import { StaffLayout } from './components/layouts/StaffLayout';
-import { ParentLayout } from './components/layouts/ParentLayout';
-import { ParentContextProvider } from './contexts/ParentContext'
-import { BrandingProvider } from './contexts/BrandingContext';
-import { ParentLoginPage } from './components/auth/ParentLoginPage';
-import { clearAuthFromStorage, getAuthFromStorage } from './lib/auth';
-import { AccessPortalPage } from './components/pages/AccessPortalPage';
-import { UnauthorizedPage } from './components/pages/UnauthorizedPage';
-import { Button } from './components/ui/button';
-import { Input } from './components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './components/ui/dropdown-menu';
+
 
 export default function App() {
   const navigate = useNavigate();
@@ -401,6 +402,7 @@ export default function App() {
       'action-center': 'Command Center',
       'notifications': 'Notification Center',
       'pending-approvals': 'Pending Approvals',
+    };
     return pageTitles[activePage] || 'Pisairtel-Schools';
   };
 

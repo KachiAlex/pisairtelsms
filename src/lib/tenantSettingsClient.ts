@@ -24,6 +24,16 @@ export interface TenantSettingsPayload {
   checkOutWindowEnd?: string
   enforceGeofence?: boolean
   enforceTimeWindow?: boolean
+  // SMS Configuration
+  smsProvider?: string
+  smsSenderId?: string
+  smsApiKey?: string
+  // Password Policy
+  passwordMinLength?: number
+  passwordRequireUppercase?: boolean
+  passwordRequireLowercase?: boolean
+  passwordRequireNumbers?: boolean
+  passwordRequireSpecial?: boolean
 }
 
 export interface TenantSettingsResponse extends TenantSettingsPayload {

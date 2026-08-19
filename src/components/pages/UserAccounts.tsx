@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Users, Plus, Search, Filter, ShieldCheck, Mail, Loader, RefreshCw, AlertCircle } from 'lucide-react'
-
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Users, Plus, Search, Filter, ShieldCheck, Mail, Loader, RefreshCw, AlertCircle, Edit, Trash2, Send } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Label } from '../ui/label'
 import { Switch } from '../ui/switch'
 import { useToast } from '../ui/use-toast'
@@ -118,6 +117,66 @@ function InviteUserDialog({ onInvited }: { onInvited: () => void }) {
   )
 }
 
+function EditUserDialog({ user, onUpdated }: { user: UserAccount; onUpdated: () => void }) {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: user.name, role: user.role })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setSubmitting(true)
+      const res = await fetch('/api/tenant/users', {
+        method: 'PUT',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ id: user.id, ...form }),
+      })
+      if (!res.ok) throw new Error('Failed to update user')
+      toast({ title: 'User updated', description: 'Changes have been saved successfully.' })
+      setOpen(false)
+      onUpdated()
+    } catch (err) {
+      toast({ title: 'Update failed', description: 'Please try again.', variant: 'destructive' })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-blue-600"><Edit className="h-3 w-3 mr-1" />Edit</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit User</DialogTitle>
+          <DialogDescription>Update name or change the role for {user.email}.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div>
+            <Label>Full name</Label>
+            <Input required className="mt-1" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div>
+            <Label>Role</Label>
+            <select className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              {ROLES.map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? <Loader className="h-3 w-3 animate-spin mr-1" /> : null}
+              Save changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function UserAccounts() {
   const { toast } = useToast()
   const [users, setUsers] = useState<UserAccount[]>([])
@@ -159,6 +218,41 @@ export function UserAccounts() {
       toast({ title: `User ${next === 'suspended' ? 'suspended' : 'reactivated'}`, description: `${user.name} is now ${next}.` })
     } catch (err) {
       toast({ title: 'Update failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const handleResendInvite = async (user: UserAccount) => {
+    try {
+      setTogglingId(user.id)
+      const res = await fetch('/api/tenant/users', {
+        method: 'PATCH',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ id: user.id, status: 'invited' }),
+      })
+      if (!res.ok) throw new Error('Failed to resend invite')
+      toast({ title: 'Invite resent', description: `A new invitation has been sent to ${user.email}.` })
+    } catch (err) {
+      toast({ title: 'Action failed', description: 'Could not resend invite.', variant: 'destructive' })
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return
+    try {
+      setTogglingId(id)
+      const res = await fetch(`/api/tenant/users?id=${id}`, {
+        method: 'DELETE',
+        headers: getApiHeaders(),
+      })
+      if (!res.ok) throw new Error('Failed to delete user')
+      setUsers(prev => prev.filter(u => u.id !== id))
+      toast({ title: 'User deleted', description: 'The account has been removed.' })
+    } catch (err) {
+      toast({ title: 'Delete failed', description: 'Could not remove user.', variant: 'destructive' })
     } finally {
       setTogglingId(null)
     }
@@ -260,16 +354,36 @@ export function UserAccounts() {
                         {user.last_active ? new Date(user.last_active).toLocaleString() : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        {user.status !== 'invited' && (
+                        <div className="flex justify-end gap-1">
+                          <EditUserDialog user={user} onUpdated={loadUsers} />
+                          {user.status === 'invited' ? (
+                            <Button
+                              size="sm" variant="ghost"
+                              className="text-amber-600"
+                              disabled={togglingId === user.id}
+                              onClick={() => handleResendInvite(user)}
+                            >
+                              {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : <><Send className="h-3 w-3 mr-1" />Resend</>}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm" variant="ghost"
+                              className={user.status === 'suspended' ? 'text-emerald-600' : 'text-rose-600'}
+                              disabled={togglingId === user.id}
+                              onClick={() => handleToggleStatus(user)}
+                            >
+                              {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                            </Button>
+                          )}
                           <Button
                             size="sm" variant="ghost"
-                            className={user.status === 'suspended' ? 'text-emerald-600' : 'text-rose-600'}
+                            className="text-gray-400 hover:text-rose-600"
                             disabled={togglingId === user.id}
-                            onClick={() => handleToggleStatus(user)}
+                            onClick={() => handleDeleteUser(user.id)}
                           >
-                            {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                            <Trash2 className="h-3 w-3" />
                           </Button>
-                        )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -23,6 +23,7 @@
     { "source": "/api/tenant/bulk-notifications", "destination": "/api/tenant/bulk-notifications.ts" },
     { "source": "/api/tenant/parent-messages", "destination": "/api/tenant/parent-messages.ts" },
     { "source": "/api/tenant/communication-logs", "destination": "/api/tenant/communication-logs.ts" },
+    { "source": "/api/tenant/audit-logs", "destination": "/api/tenant/audit-logs.ts" },
     { "source": "/api/tenant/promotion-rules", "destination": "/api/tenant/promotion-rules.ts" },
     { "source": "/api/tenant/ca-config", "destination": "/api/tenant/ca-config.ts" },
     { "source": "/api/tenant/lead", "destination": "/api/tenant/lead.ts" },

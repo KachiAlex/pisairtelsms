@@ -71,6 +71,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      if (status === 'invited') {
+        const result = await sql`
+          UPDATE tenant_users 
+          SET invited_at = CURRENT_TIMESTAMP
+          WHERE id = ${id} AND tenant_id = ${tenantId}
+          RETURNING *
+        `
+        if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' })
+        return res.status(200).json({ data: result.rows[0], message: 'Invitation resent' })
+      }
+
       const result = await sql`
         UPDATE tenant_users SET status = ${status}
         WHERE id = ${id} AND tenant_id = ${tenantId}
@@ -86,6 +97,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  res.setHeader('Allow', 'GET,POST,PATCH')
+  if (req.method === 'PUT') {
+    const body = req.body || {}
+    const { id, name, role } = typeof body === 'string' ? JSON.parse(body) : body
+
+    if (!id || !name || !role) {
+      return res.status(400).json({ error: 'id, name, and role are required' })
+    }
+
+    try {
+      const result = await sql`
+        UPDATE tenant_users 
+        SET name = ${name}, role = ${role}
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+        RETURNING *
+      `
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' })
+      }
+      return res.status(200).json({ data: result.rows[0] })
+    } catch (error) {
+      console.error('Error updating user:', error)
+      return res.status(500).json({ error: 'Failed to update user' })
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    const { id } = req.query
+    if (!id) return res.status(400).json({ error: 'id is required' })
+
+    try {
+      const result = await sql`
+        DELETE FROM tenant_users 
+        WHERE id = ${id as string} AND tenant_id = ${tenantId}
+        RETURNING id
+      `
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' })
+      }
+      return res.status(200).json({ success: true })
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      return res.status(500).json({ error: 'Failed to delete user' })
+    }
+  }
+
+  res.setHeader('Allow', 'GET,POST,PATCH,PUT,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }

@@ -151,7 +151,7 @@ export function SystemSettings() {
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
                     value={settings.currentSession}
-                    onChange={(e) => setSettings({ ...settings, currentSession: e.target.value })}
+                    onChange={(e) => updateSetting('currentSession', e.target.value)}
                   >
                     {/* Always include the saved value so it stays selected even if calendar API is empty */}
                     {[settings.currentSession, ...academicYears.map(y => y.name).filter(n => n !== settings.currentSession)]
@@ -170,7 +170,7 @@ export function SystemSettings() {
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
                     value={settings.currentTerm}
-                    onChange={(e) => setSettings({ ...settings, currentTerm: e.target.value })}
+                    onChange={(e) => updateSetting('currentTerm', e.target.value)}
                   >
                     {/* Always include the saved value so it stays selected */}
                     {[settings.currentTerm, ...terms.map(t => t.name).filter(n => n !== settings.currentTerm)]
@@ -270,7 +270,7 @@ export function SystemSettings() {
                 </div>
                 <Switch
                   checked={settings.enableSMS}
-                  onCheckedChange={(checked) => setSettings({ ...settings, enableSMS: checked })}
+                  onCheckedChange={(checked) => updateSetting('enableSMS', checked)}
                 />
               </div>
 
@@ -281,7 +281,7 @@ export function SystemSettings() {
                 </div>
                 <Switch
                   checked={settings.enableEmail}
-                  onCheckedChange={(checked) => setSettings({ ...settings, enableEmail: checked })}
+                  onCheckedChange={(checked) => updateSetting('enableEmail', checked)}
                 />
               </div>
             </CardContent>
@@ -296,8 +296,8 @@ export function SystemSettings() {
                 <Label>SMS Provider</Label>
                 <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
-                  value={(settings as any).smsProvider || 'Termii'}
-                  onChange={(e) => updateSetting('smsProvider' as any, e.target.value)}
+                  value={settings.smsProvider || 'Termii'}
+                  onChange={(e) => updateSetting('smsProvider', e.target.value)}
                 >
                   <option>Termii</option>
                   <option>SMS Portal NG</option>
@@ -308,8 +308,8 @@ export function SystemSettings() {
                 <Label>Sender ID</Label>
                 <Input
                   placeholder="Pisairtel-Schools"
-                  value={(settings as any).smsSenderId || ''}
-                  onChange={(e) => updateSetting('smsSenderId' as any, e.target.value)}
+                  value={settings.smsSenderId || ''}
+                  onChange={(e) => updateSetting('smsSenderId', e.target.value)}
                 />
               </div>
               <div>
@@ -317,8 +317,8 @@ export function SystemSettings() {
                 <Input
                   type="password"
                   placeholder="Enter API key"
-                  value={(settings as any).smsApiKey || ''}
-                  onChange={(e) => updateSetting('smsApiKey' as any, e.target.value)}
+                  value={settings.smsApiKey || ''}
+                  onChange={(e) => updateSetting('smsApiKey', e.target.value)}
                 />
               </div>
             </CardContent>
@@ -342,7 +342,7 @@ export function SystemSettings() {
                 </div>
                 <Switch
                   checked={settings.twoFactorAuth}
-                  onCheckedChange={(checked) => setSettings({ ...settings, twoFactorAuth: checked })}
+                  onCheckedChange={(checked) => updateSetting('twoFactorAuth', checked)}
                 />
               </div>
 
@@ -353,7 +353,7 @@ export function SystemSettings() {
                 </div>
                 <Switch
                   checked={settings.autoBackup}
-                  onCheckedChange={(checked) => setSettings({ ...settings, autoBackup: checked })}
+                  onCheckedChange={(checked) => updateSetting('autoBackup', checked)}
                 />
               </div>
 
@@ -364,7 +364,7 @@ export function SystemSettings() {
                 </div>
                 <Switch
                   checked={settings.maintenanceMode}
-                  onCheckedChange={(checked) => setSettings({ ...settings, maintenanceMode: checked })}
+                  onCheckedChange={(checked) => updateSetting('maintenanceMode', checked)}
                 />
               </div>
             </CardContent>
@@ -379,8 +379,8 @@ export function SystemSettings() {
                 <Label>Minimum Password Length</Label>
                 <Input
                   type="number"
-                  value={(settings as any).passwordMinLength ?? 8}
-                  onChange={(e) => updateSetting('passwordMinLength' as any, Number(e.target.value))}
+                  value={settings.passwordMinLength ?? 8}
+                  onChange={(e) => updateSetting('passwordMinLength', Number(e.target.value))}
                   className="mt-1"
                 />
               </div>
@@ -398,7 +398,7 @@ export function SystemSettings() {
                         type="checkbox"
                         className="rounded"
                         checked={(settings as any)[key] ?? defaultVal}
-                        onChange={(e) => updateSetting(key as any, e.target.checked)}
+                        onChange={(e) => updateSetting(key as keyof TenantSettingsPayload, e.target.checked)}
                       />
                       <span className="text-sm text-gray-700">{label}</span>
                     </div>

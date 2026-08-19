@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Activity, HeartPulse, RefreshCcw, Server, ShieldCheck, HardDrive, Database, Cpu, AlertTriangle, CloudLightning, Wifi } from 'lucide-react'
+import { Activity, HeartPulse, RefreshCcw, Server, ShieldCheck, HardDrive, Database, Cpu, AlertTriangle, CloudLightning, Wifi, Loader2 } from 'lucide-react'
+import { useToast } from '../ui/use-toast'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -30,13 +31,49 @@ function getAuthHeaders(): Record<string, string> {
   }
 }
 
+interface ServiceHealth {
+  id: string
+  surface: string
+  status: 'operational' | 'watch' | 'degraded'
+  latency: string
+  uptime: number
+  owners: string
+}
+
+interface InfrastructureVital {
+  label: string
+  value: number
+  unit: string
+  status: 'stable' | 'warning' | 'critical'
+}
+
+interface IncidentRecord {
+  id: string
+  title: string
+  start: string
+  duration: string
+  state: 'Operational' | 'Watch' | 'Degraded' | 'Mitigated' | 'Resolved'
+}
+
+interface VendorDependency {
+  id: string
+  name: string
+  coverage: string
+  status: 'operational' | 'watch' | 'degraded'
+}
+
 export function SystemHealth() {
+  const { toast } = useToast()
   const [stats, setStats] = useState({ overallStatus: 'Green', incidents24h: 0, slaConverage: '99.4%', upcomingMaintenance: 2 })
-  const [services, setServices] = useState<any[]>([])
-  const [vitals, setVitals] = useState<any[]>([])
-  const [incidents, setIncidents] = useState<any[]>([])
-  const [dependencies, setDependencies] = useState<any[]>([])
-  const [resourceMetrics, setResourceMetrics] = useState<any>(null)
+  const [services, setServices] = useState<ServiceHealth[]>([])
+  const [vitals, setVitals] = useState<InfrastructureVital[]>([])
+  const [incidents, setIncidents] = useState<IncidentRecord[]>([])
+  const [dependencies, setDependencies] = useState<VendorDependency[]>([])
+  const [resourceMetrics, setResourceMetrics] = useState<{
+    cpu: { current: number; average: number; peak: number }
+    memory: { current: number; average: number; peak: number }
+    disk: { current: number; average: number; peak: number }
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,31 +92,25 @@ export function SystemHealth() {
         fetch('/api/tenant/system-health?type=dependencies', { headers }),
       ])
 
-      if (statsRes.ok) {
-        const statsData = await statsRes.json()
-        setStats(statsData)
-      }
-      if (servicesRes.ok) {
-        const servicesData = await servicesRes.json()
-        setServices(servicesData.data || [])
-      }
-      if (vitalsRes.ok) {
-        const vitalsData = await vitalsRes.json()
-        setVitals(vitalsData.data || [])
-      }
-      if (incidentsRes.ok) {
-        const incidentsData = await incidentsRes.json()
-        setIncidents(incidentsData.data || [])
-      }
-      if (depsRes.ok) {
-        const depsData = await depsRes.json()
-        setDependencies(depsData.data || [])
-      }
+      const statsData = statsRes.ok ? await statsRes.json() : stats
+      const servicesData = servicesRes.ok ? await servicesRes.json() : { data: [] }
+      const vitalsData = vitalsRes.ok ? await vitalsRes.json() : { data: [] }
+      const incidentsData = incidentsRes.ok ? await incidentsRes.json() : { data: [] }
+      const depsData = depsRes.ok ? await depsRes.json() : { data: [] }
+
+      const fetchedVitals = vitalsData.data || []
+      const fetchedServices = servicesData.data || []
+
+      setStats(statsData)
+      setServices(fetchedServices)
+      setVitals(fetchedVitals)
+      setIncidents(incidentsData.data || [])
+      setDependencies(depsData.data || [])
 
       // Calculate resource metrics from vitals
-      const cpuVital = vitals.find((v: any) => v.label?.toLowerCase().includes('cpu'))
-      const memoryVital = vitals.find((v: any) => v.label?.toLowerCase().includes('memory'))
-      const diskVital = vitals.find((v: any) => v.label?.toLowerCase().includes('disk'))
+      const cpuVital = fetchedVitals.find((v: any) => v.label?.toLowerCase().includes('cpu'))
+      const memoryVital = fetchedVitals.find((v: any) => v.label?.toLowerCase().includes('memory'))
+      const diskVital = fetchedVitals.find((v: any) => v.label?.toLowerCase().includes('disk'))
 
       setResourceMetrics({
         cpu: { current: cpuVital?.value || 0, average: cpuVital?.value || 0, peak: cpuVital?.value || 0 },
@@ -88,10 +119,11 @@ export function SystemHealth() {
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load health data')
+      toast({ title: 'Telemetry Error', description: 'Could not fetch system health metrics.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast, stats])
 
   useEffect(() => {
     loadHealthData()
@@ -103,10 +135,9 @@ export function SystemHealth() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading system health data...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="text-gray-500 font-medium">Loading system health data...</p>
       </div>
     )
   }

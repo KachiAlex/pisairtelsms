@@ -1,10 +1,14 @@
-import React from 'react'
-import { Search, BookOpen, MessageSquare, ExternalLink, HelpCircle, FileText, Video, AlertOctagon, Sparkles } from 'lucide-react'
+import React, { useState } from 'react'
+import { Search, BookOpen, MessageSquare, ExternalLink, HelpCircle, FileText, Video, AlertOctagon, Sparkles, Send, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Input } from '../ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
+import { Label } from '../ui/label'
+import { Textarea } from '../ui/textarea'
+import { useToast } from '../ui/use-toast'
 
 const featuredGuides = [
   { title: 'How to onboard a new school term', duration: '6 min read', category: 'Tenant setup' },
@@ -30,6 +34,91 @@ const quickLinks = [
   { label: 'Feature ideas', icon: Sparkles },
 ]
 
+function ContactSupportDialog() {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ topic: '', message: '' })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setSubmitting(true)
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+      const res = await fetch('/api/tenant/support-tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+        },
+        body: JSON.stringify({
+          action: 'create-ticket',
+          payload: {
+            requester: auth.email || 'Anonymous',
+            topic: form.topic,
+            description: form.message,
+            priority: 'medium',
+            channel: 'web',
+          },
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to submit request')
+      toast({ title: 'Request Sent', description: 'Our team will review your message and respond shortly.' })
+      setOpen(false)
+      setForm({ topic: '', message: '' })
+    } catch (err) {
+      toast({ title: 'Submission Failed', description: 'Could not deliver your request. Please try again.', variant: 'destructive' })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <HelpCircle className="h-4 w-4 mr-2" /> Contact support
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Contact Support</DialogTitle>
+          <DialogDescription>Describe your issue or question and we'll get back to you within 1 business day.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label>Topic</Label>
+            <Input
+              placeholder="e.g. Question about CBT sync"
+              required
+              value={form.topic}
+              onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Message</Label>
+            <Textarea
+              placeholder="Provide as much detail as possible..."
+              className="min-h-[120px]"
+              required
+              value={form.message}
+              onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              Submit request
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function HelpCenter() {
   return (
     <div className="space-y-6">
@@ -44,9 +133,7 @@ export function HelpCenter() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input placeholder="Search guides, topics, or FAQs" className="pl-9" />
           </div>
-          <Button>
-            <HelpCircle className="h-4 w-4 mr-2" /> Contact support
-          </Button>
+          <ContactSupportDialog />
         </div>
       </div>
 
@@ -143,9 +230,7 @@ export function HelpCenter() {
           <HelpCircle className="h-5 w-5 text-slate-500" />
           <p>Still stuck? Share context and a teammate will respond within 1 business day.</p>
         </div>
-        <Button variant="outline" size="sm">
-          <MessageSquare className="h-4 w-4 mr-2" /> Submit request
-        </Button>
+        <ContactSupportDialog />
       </div>
     </div>
   )

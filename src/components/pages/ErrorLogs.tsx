@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { AlertTriangle, Download, Filter, Search, TrendingUp, Zap } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { AlertTriangle, Download, Filter, Search, TrendingUp, Zap, Loader2, RefreshCcw } from 'lucide-react'
+import { useToast } from '../ui/use-toast'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -7,8 +8,27 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
 
-// Import API functions
-const errorLogsApi = require('../../../api/tenant/error-logs').default
+interface ErrorLogEntry {
+  id: string
+  signature: string
+  service: string
+  severity: 'high' | 'medium' | 'low'
+  hits: number
+  lastSeen: string
+}
+
+interface EnvCoverage {
+  id: string
+  name: string
+  status: 'stable' | 'warning' | 'muted'
+  coverage: number
+}
+
+interface TrendEntry {
+  id: string
+  window: string
+  value: number
+}
 
 const severityVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destructive'> = {
   high: 'destructive',
@@ -22,64 +42,74 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   muted: 'secondary',
 }
 
+function getAuthHeaders(): Record<string, string> {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return {
+      'Content-Type': 'application/json',
+      ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    }
+  } catch {
+    return { 'Content-Type': 'application/json' }
+  }
+}
+
 export function ErrorLogs() {
+  const { toast } = useToast()
   const [stats, setStats] = useState({ eventsPerMin: '0', alertsFiring: 0, suppressedNoise: '0%', totalErrors: 0 })
-  const [logs, setLogs] = useState<any[]>([])
-  const [environments, setEnvironments] = useState<any[]>([])
-  const [heatmap, setHeatmap] = useState<any[]>([])
+  const [logs, setLogs] = useState<ErrorLogEntry[]>([])
+  const [environments, setEnvironments] = useState<EnvCoverage[]>([])
+  const [heatmap, setHeatmap] = useState<TrendEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
   const [serviceFilter, setServiceFilter] = useState<string | null>(null)
 
-  const tenantId = 'current-tenant' // In real app, get from context
-
-  useEffect(() => {
-    loadErrorData()
-  }, [])
-
-  const loadErrorData = async () => {
+  const loadErrorData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+      const headers = getAuthHeaders()
 
-      // Load statistics
-      const statsData = errorLogsApi.getStatistics(tenantId)
-      setStats(statsData)
+      const [statsRes, logsRes, envsRes, heatmapRes] = await Promise.all([
+        fetch('/api/tenant/error-logs?type=statistics', { headers }),
+        fetch(`/api/tenant/error-logs?type=logs${severityFilter ? `&severity=${severityFilter}` : ''}${serviceFilter ? `&service=${serviceFilter}` : ''}&limit=100`, { headers }),
+        fetch('/api/tenant/error-logs?type=environments', { headers }),
+        fetch('/api/tenant/error-logs?type=heatmap', { headers }),
+      ])
 
-      // Load error logs
-      const logsData = errorLogsApi.listLogs(tenantId, {
-        severity: severityFilter,
-        service: serviceFilter,
-        limit: 100,
-      })
-      setLogs(logsData.data)
-
-      // Load environments
-      const envsData = errorLogsApi.listEnvironments(tenantId)
-      setEnvironments(envsData)
-
-      // Load heatmap
-      const heatmapData = errorLogsApi.listHeatmap(tenantId)
-      setHeatmap(heatmapData)
+      if (statsRes.ok) setStats(await statsRes.json())
+      if (logsRes.ok) {
+        const logsData = await logsRes.json()
+        setLogs(logsData.data || [])
+      }
+      if (envsRes.ok) {
+        const envsData = await envsRes.json()
+        setEnvironments(envsData.data || [])
+      }
+      if (heatmapRes.ok) {
+        const heatmapData = await heatmapRes.json()
+        setHeatmap(heatmapData.data || [])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load error logs')
+      toast({ title: 'Monitoring Error', description: 'Could not fetch real-time error telemetry.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }
+  }, [severityFilter, serviceFilter, toast])
 
-  const handleExport = () => {
+  useEffect(() => {
+    loadErrorData()
+  }, [loadErrorData])
+
+  const handleExport = async () => {
     try {
-      const exportData = errorLogsApi.exportLogs(tenantId, {
-        severity: severityFilter,
-        service: serviceFilter,
-      })
-      // In real app, trigger download
-      console.log('Export data:', exportData)
+      toast({ title: 'Export started', description: 'Preparing error logs for download...' })
+      // In real app, trigger CSV/JSON generation
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to export logs')
+      toast({ title: 'Export failed', description: 'Could not generate report.', variant: 'destructive' })
     }
   }
 
@@ -91,10 +121,9 @@ export function ErrorLogs() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading error logs...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="text-gray-500 font-medium">Monitoring error streams...</p>
       </div>
     )
   }
@@ -108,6 +137,9 @@ export function ErrorLogs() {
           <p className="text-sm text-gray-600">Monitor and analyze application errors in real-time.</p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Button variant="outline" onClick={loadErrorData}>
+            <RefreshCcw className="h-4 w-4 mr-2" /> Refresh feed
+          </Button>
           <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" /> Export logs
           </Button>
@@ -204,7 +236,7 @@ export function ErrorLogs() {
               </TableHeader>
               <TableBody>
                 {filteredLogs.length > 0 ? (
-                  filteredLogs.map((log: any) => (
+                  filteredLogs.map((log: ErrorLogEntry) => (
                     <TableRow key={log.id}>
                       <TableCell className="font-medium text-gray-900 max-w-xs truncate">{log.signature}</TableCell>
                       <TableCell>{log.service}</TableCell>
@@ -235,7 +267,7 @@ export function ErrorLogs() {
             <CardDescription>Error detection coverage by environment.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            {environments.map((env: any) => (
+            {environments.map((env: EnvCoverage) => (
               <div key={env.id} className="rounded-2xl border border-gray-100 p-4">
                 <p className="font-medium text-gray-900">{env.name}</p>
                 <p className="text-sm text-gray-500 mt-1">Coverage {env.coverage}%</p>
@@ -256,7 +288,7 @@ export function ErrorLogs() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {heatmap.slice(0, 8).map((entry: any) => (
+              {heatmap.slice(0, 8).map((entry: TrendEntry) => (
                 <div key={entry.id} className="flex items-center gap-3">
                   <span className="text-sm text-gray-600 w-20">{entry.window}</span>
                   <div className="flex-1 bg-gray-100 rounded-full h-2">

@@ -265,6 +265,7 @@
     { "source": "/api/tenant/users", "destination": "/api/tenant/users.ts" },
     { "source": "/api/tenant/roles", "destination": "/api/tenant/roles.ts" },
     { "source": "/api/tenant/system-health", "destination": "/api/tenant/system-health-handler.ts" },
+    { "source": "/api/tenant/error-logs", "destination": "/api/tenant/error-logs-handler.ts" },
     { "source": "/api/tenant/support-tickets", "destination": "/api/tenant/support-tickets-handler.ts" },
     { "source": "/api/tenant/virtual-classrooms", "destination": "/api/tenant/virtual-classrooms.ts" },
     { "source": "/api/tenant/lessons", "destination": "/api/tenant/lessons.ts" },

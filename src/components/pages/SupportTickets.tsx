@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { MessageSquare, Plus, Search, Send } from 'lucide-react'
+import { MessageSquare, Plus, Search, Send, Loader2, RefreshCcw } from 'lucide-react'
+import { useToast } from '../ui/use-toast'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -32,17 +33,52 @@ function getAuthHeaders(): Record<string, string> {
   }
 }
 
+interface TicketComment {
+  id: string
+  text: string
+  userId: string
+  createdAt: string
+}
+
+interface SupportTicket {
+  id: string
+  ticketId: string
+  topic: string
+  requester: string
+  priority: 'high' | 'medium' | 'low'
+  status: 'open' | 'in_progress' | 'resolved' | 'closed'
+  sla: string
+  channel: string
+  comments?: TicketComment[]
+}
+
+interface SupportAgent {
+  id: string
+  name: string
+  queue: number
+  load: number
+  status: 'online' | 'offline'
+}
+
+interface AutomationRule {
+  id: string
+  name: string
+  coverage: string
+  state: 'active' | 'inactive'
+}
+
 export function SupportTickets() {
+  const { toast } = useToast()
   const [stats, setStats] = useState({ openTickets: 0, withinSLA: '0', breachesToday: 0, avgHandleTime: '0m' })
-  const [tickets, setTickets] = useState<any[]>([])
-  const [agents, setAgents] = useState<any[]>([])
-  const [rules, setRules] = useState<any[]>([])
+  const [tickets, setTickets] = useState<SupportTicket[]>([])
+  const [agents, setAgents] = useState<SupportAgent[]>([])
+  const [rules, setRules] = useState<AutomationRule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null)
-  const [selectedTicket, setSelectedTicket] = useState<any>(null)
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null)
   const [commentText, setCommentText] = useState('')
   const [showNewTicketForm, setShowNewTicketForm] = useState(false)
   const [newTicketData, setNewTicketData] = useState({
@@ -66,10 +102,7 @@ export function SupportTickets() {
         fetch('/api/tenant/support-tickets?type=rules', { headers }),
       ])
 
-      if (statsRes.ok) {
-        const statsData = await statsRes.json()
-        setStats(statsData)
-      }
+      if (statsRes.ok) setStats(await statsRes.json())
       if (ticketsRes.ok) {
         const ticketsData = await ticketsRes.json()
         setTickets(ticketsData.data || [])
@@ -84,19 +117,25 @@ export function SupportTickets() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load support tickets')
+      toast({ title: 'System Error', description: 'Could not fetch support tickets.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     loadTicketData()
   }, [loadTicketData])
 
+  const handleRefresh = () => {
+    loadTicketData()
+    toast({ title: 'Synced', description: 'Ticket queue is now up to date.' })
+  }
+
   const handleCreateTicket = async () => {
     try {
       if (!newTicketData.requester || !newTicketData.topic) {
-        setError('Please fill in all required fields')
+        toast({ title: 'Validation Error', description: 'Please fill in all required fields.', variant: 'destructive' })
         return
       }
 
@@ -108,13 +147,14 @@ export function SupportTickets() {
       })
 
       if (!res.ok) throw new Error('Failed to create ticket')
-      const ticket = await res.json()
+      const json = await res.json()
+      const ticket = json.data || json
       setTickets([ticket, ...tickets])
       setNewTicketData({ requester: '', topic: '', priority: 'medium', channel: 'email' })
       setShowNewTicketForm(false)
-      setError(null)
+      toast({ title: 'Ticket Created', description: `Ticket ${ticket.ticketId} has been opened.` })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create ticket')
+      toast({ title: 'Error', description: 'Could not create support ticket.', variant: 'destructive' })
     }
   }
 
@@ -134,14 +174,16 @@ export function SupportTickets() {
       })
 
       if (!res.ok) throw new Error('Failed to add comment')
-      const comment = await res.json()
+      const json = await res.json()
+      const comment = json.data || json
       setSelectedTicket({
         ...selectedTicket,
         comments: [comment, ...(selectedTicket.comments || [])],
       })
       setCommentText('')
+      toast({ title: 'Comment Added', description: 'Your message has been sent.' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add comment')
+      toast({ title: 'Error', description: 'Could not post comment.', variant: 'destructive' })
     }
   }
 
@@ -159,13 +201,15 @@ export function SupportTickets() {
       })
 
       if (!res.ok) throw new Error('Failed to update ticket')
-      const updated = await res.json()
+      const json = await res.json()
+      const updated = json.data || json
       setTickets(tickets.map(t => t.id === ticketId ? updated : t))
       if (selectedTicket?.id === ticketId) {
         setSelectedTicket(updated)
       }
+      toast({ title: 'Status Updated', description: `Ticket is now marked as ${newStatus}.` })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update ticket')
+      toast({ title: 'Error', description: 'Could not update ticket status.', variant: 'destructive' })
     }
   }
 
@@ -174,8 +218,8 @@ export function SupportTickets() {
       const headers = getAuthHeaders()
       const res = await fetch(`/api/tenant/support-tickets?type=ticket&id=${ticketId}`, { headers })
       if (res.ok) {
-        const ticket = await res.json()
-        setSelectedTicket(ticket)
+        const json = await res.json()
+        setSelectedTicket(json.data || json)
       }
     } catch (err) {
       console.error('Failed to load ticket details:', err)
@@ -186,15 +230,16 @@ export function SupportTickets() {
     const matchesSearch = ticket.ticketId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ticket.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ticket.requester.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesSearch
+    const matchesStatus = !statusFilter || ticket.status === statusFilter
+    const matchesPriority = !priorityFilter || ticket.priority === priorityFilter
+    return matchesSearch && matchesStatus && matchesPriority
   })
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading support tickets...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="text-gray-500 font-medium">Loading support ecosystem...</p>
       </div>
     )
   }
@@ -207,9 +252,14 @@ export function SupportTickets() {
           <h1 className="text-2xl font-bold text-gray-900">Support tickets</h1>
           <p className="text-sm text-gray-600">Manage customer support requests and track resolution.</p>
         </div>
-        <Button onClick={() => setShowNewTicketForm(true)}>
-          <Plus className="h-4 w-4 mr-2" /> New ticket
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCcw className="h-4 w-4 mr-2" /> Sync queue
+          </Button>
+          <Button onClick={() => setShowNewTicketForm(true)}>
+            <Plus className="h-4 w-4 mr-2" /> New ticket
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -360,7 +410,7 @@ export function SupportTickets() {
               </TableHeader>
               <TableBody>
                 {filteredTickets.length > 0 ? (
-                  filteredTickets.map((ticket: any) => (
+                  filteredTickets.map((ticket: SupportTicket) => (
                     <TableRow
                       key={ticket.id}
                       className="cursor-pointer hover:bg-gray-50"
@@ -435,7 +485,7 @@ export function SupportTickets() {
               <h3 className="font-medium mb-3">Comments</h3>
               <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
                 {selectedTicket.comments && selectedTicket.comments.length > 0 ? (
-                  selectedTicket.comments.map((comment: any) => (
+                  selectedTicket.comments.map((comment: TicketComment) => (
                     <div key={comment.id} className="rounded-lg bg-gray-50 p-3">
                       <p className="text-sm font-medium text-gray-900">{comment.userId}</p>
                       <p className="text-sm text-gray-600 mt-1">{comment.text}</p>
@@ -470,7 +520,7 @@ export function SupportTickets() {
             <CardDescription>Current agent status and workload.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            {agents.map((agent: any) => (
+            {agents.map((agent: SupportAgent) => (
               <div key={agent.id} className="rounded-2xl border border-gray-100 p-4">
                 <p className="font-medium text-gray-900">{agent.name}</p>
                 <p className="text-sm text-gray-500 mt-1">Queue: {agent.queue}</p>
@@ -491,7 +541,7 @@ export function SupportTickets() {
             <CardDescription>Active automation rules for ticket routing and resolution.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            {rules.map((rule: any) => (
+            {rules.map((rule: AutomationRule) => (
               <div key={rule.id} className="rounded-2xl border border-gray-100 p-4">
                 <p className="font-medium text-gray-900">{rule.name}</p>
                 <p className="text-sm text-gray-500 mt-1">Coverage: {rule.coverage}</p>

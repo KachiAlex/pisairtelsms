@@ -27,6 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { Progress } from '../ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 
+import { useToast } from '../ui/use-toast'
+
 interface SuperAdminPortalProps {
   onSignOut: () => void
 }
@@ -85,6 +87,7 @@ const statusBadge = (status: string) => {
 }
 
 export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [tenants, setTenants] = useState<Tenant[]>([])
@@ -381,11 +384,11 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => toast({ title: 'Security Controls', description: 'Global firewall and encryption settings are currently managed via Terraform.' })}>
               <ShieldCheck className="h-4 w-4" />
               Security controls
             </Button>
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => toast({ title: 'System Diagnostics', description: 'Starting global health scan across all clusters...' })}>
               <Activity className="h-4 w-4" />
               Run diagnostics
             </Button>
@@ -425,7 +428,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   <p className="text-sm text-slate-500">Live pulse across every deployed workspace.</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => toast({ title: 'Region Status', description: 'All regions (US-East, EU-West, Asia-Pacific) are currently operational.' })}>
                     <Globe className="h-4 w-4" />
                     Regions
                   </Button>

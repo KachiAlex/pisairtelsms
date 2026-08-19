@@ -20,11 +20,17 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant leads
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
-  if (!decoded) return
+  const { method } = req
 
-  if (req.method === 'GET') {
+  // POST method is public (for public inquiry form)
+  // GET requires staff or tenant_admin role
+  let decoded: any = null
+  if (method !== 'POST') {
+    decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+    if (!decoded) return
+  }
+
+  if (method === 'GET') {
     try {
       const leads = await fetchLeads()
       return res.status(200).json({ data: leads })

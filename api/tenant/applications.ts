@@ -21,9 +21,15 @@ function parseBody(req: VercelRequest) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant applications
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
-  if (!decoded) return
+  const { method } = req
+
+  // POST method is public (for public application form)
+  // GET and PUT require staff or tenant_admin role
+  let decoded: any = null
+  if (method !== 'POST') {
+    decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+    if (!decoded) return
+  }
 
   try {
     initializeDatabase()
@@ -33,7 +39,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Database initialization failed' })
   }
 
-  const { method } = req
 
   if (method === 'GET') {
     try {

@@ -26,7 +26,7 @@ if (!DATABASE_URL) {
 const { Pool } = pg;
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: DATABASE_URL.includes('localhost') || DATABASE_URL.includes('postgres') ? false : { rejectUnauthorized: false },
 });
 
 async function runMigration() {

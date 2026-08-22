@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { poolQuery } from '../_lib/pg-pool.js'
 import { getTenantCAConfig, type CAConfig } from './ca-config.js'
 
 export interface StudentScore {
@@ -89,13 +89,13 @@ function rowToScore(row: ScoreRow): StudentScore {
 
 export async function ensureResultsTable(): Promise<void> {
   try {
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS tests_score NUMERIC DEFAULT 0`
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS assignments_score NUMERIC DEFAULT 0`
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS projects_score NUMERIC DEFAULT 0`
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS exams_score NUMERIC DEFAULT 0`
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by TEXT`
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by_name TEXT`
-    await sql`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submission_status TEXT DEFAULT 'submitted'`
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS tests_score NUMERIC DEFAULT 0`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS assignments_score NUMERIC DEFAULT 0`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS projects_score NUMERIC DEFAULT 0`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS exams_score NUMERIC DEFAULT 0`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by TEXT`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by_name TEXT`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submission_status TEXT DEFAULT 'submitted'`, [])
   } catch (error) {
     console.error('Error ensuring student_scores table:', error)
   }
@@ -110,52 +110,57 @@ export async function fetchScores(
 ): Promise<StudentScore[]> {
   await ensureResultsTable()
   try {
-    // Build dynamic query using conditional logic
     if (studentId && academicSession && term) {
-      const result = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId} AND student_id = ${studentId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-        ORDER BY created_at DESC
-      `
+      const result = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1 AND student_id = $2
+          AND academic_session = $3
+          AND term = $4
+        ORDER BY created_at DESC`,
+        [tenantId, studentId, academicSession, term]
+      )
       return result.rows.map(rowToScore)
     } else if (studentId && academicSession) {
-      const result = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId} AND student_id = ${studentId}
-          AND academic_session = ${academicSession}
-        ORDER BY created_at DESC
-      `
+      const result = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1 AND student_id = $2
+          AND academic_session = $3
+        ORDER BY created_at DESC`,
+        [tenantId, studentId, academicSession]
+      )
       return result.rows.map(rowToScore)
     } else if (studentId) {
-      const result = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId} AND student_id = ${studentId}
-        ORDER BY created_at DESC
-      `
+      const result = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1 AND student_id = $2
+        ORDER BY created_at DESC`,
+        [tenantId, studentId]
+      )
       return result.rows.map(rowToScore)
     } else if (academicSession && term && className) {
-      const result = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession}
-          AND term = ${term}
-          AND class = ${className}
-        ORDER BY created_at DESC
-      `
+      const result = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1 AND academic_session = $2
+          AND term = $3
+          AND class = $4
+        ORDER BY created_at DESC`,
+        [tenantId, academicSession, term, className]
+      )
       return result.rows.map(rowToScore)
     } else if (academicSession && term) {
-      const result = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession}
-          AND term = ${term}
-        ORDER BY created_at DESC
-      `
+      const result = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1 AND academic_session = $2
+          AND term = $3
+        ORDER BY created_at DESC`,
+        [tenantId, academicSession, term]
+      )
       return result.rows.map(rowToScore)
     } else {
-      const result = await sql<ScoreRow>`
-        SELECT * FROM student_scores WHERE tenant_id = ${tenantId} ORDER BY created_at DESC
-      `
+      const result = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId]
+      )
       return result.rows.map(rowToScore)
     }
   } catch (error) {
@@ -183,17 +188,18 @@ export async function computeAttendancePercentage(
   term: string
 ): Promise<number> {
   try {
-    const result = await sql`
-      SELECT
+    const result = await poolQuery(
+      `SELECT
         COUNT(*) AS total,
         SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present,
         SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late
       FROM attendance_records
-      WHERE tenant_id = ${tenantId}
-        AND student_id = ${studentId}
-        AND academic_session = ${academicSession}
-        AND term = ${term}
-    `
+      WHERE tenant_id = $1
+        AND student_id = $2
+        AND academic_session = $3
+        AND term = $4`,
+      [tenantId, studentId, academicSession, term]
+    )
     const total = parseInt(result.rows[0]?.total || '0', 10)
     const present = parseInt(result.rows[0]?.present || '0', 10)
     const late = parseInt(result.rows[0]?.late || '0', 10)
@@ -217,19 +223,20 @@ export async function computeAttendanceBatch(
   term: string
 ): Promise<Record<string, number>> {
   try {
-    const result = await sql`
-      SELECT
+    const result = await poolQuery(
+      `SELECT
         student_id,
         COUNT(*) AS total,
         SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present,
         SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late
       FROM attendance_records
-      WHERE tenant_id = ${tenantId}
-        AND class = ${className}
-        AND academic_session = ${academicSession}
-        AND term = ${term}
-      GROUP BY student_id
-    `
+      WHERE tenant_id = $1
+        AND class = $2
+        AND academic_session = $3
+        AND term = $4
+      GROUP BY student_id`,
+      [tenantId, className, academicSession, term]
+    )
     const map: Record<string, number> = {}
     for (const row of result.rows) {
       const total = parseInt(row.total || '0', 10)
@@ -281,15 +288,16 @@ export async function fetchScoresByClassAndSubject(
 ): Promise<StudentScore[]> {
   await ensureResultsTable()
   try {
-    const result = await sql<ScoreRow>`
-      SELECT * FROM student_scores
-      WHERE tenant_id = ${tenantId}
-        AND class = ${className}
-        AND subject = ${subject}
-        AND academic_session = ${academicSession}
-        AND term = ${term}
-      ORDER BY student_id ASC
-    `
+    const result = await poolQuery<ScoreRow>(
+      `SELECT * FROM student_scores
+      WHERE tenant_id = $1
+        AND class = $2
+        AND subject = $3
+        AND academic_session = $4
+        AND term = $5
+      ORDER BY student_id ASC`,
+      [tenantId, className, subject, academicSession, term]
+    )
     return result.rows.map(rowToScore)
   } catch (error) {
     console.error('Error fetching scores by class/subject:', error)
@@ -306,16 +314,17 @@ export async function fetchTeacherSubmissions(
   await ensureResultsTable()
   try {
     if (className) {
-      const result = await sql`
-        SELECT DISTINCT submitted_by, submitted_by_name, subject, class, submission_status, updated_at
+      const result = await poolQuery(
+        `SELECT DISTINCT submitted_by, submitted_by_name, subject, class, submission_status, updated_at
         FROM student_scores
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-          AND class = ${className}
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
+          AND class = $4
           AND submitted_by IS NOT NULL
-        ORDER BY updated_at DESC
-      `
+        ORDER BY updated_at DESC`,
+        [tenantId, academicSession, term, className]
+      )
       return result.rows.map((r: any) => ({
         submittedBy: r.submitted_by,
         submittedByName: r.submitted_by_name,
@@ -325,15 +334,16 @@ export async function fetchTeacherSubmissions(
         updatedAt: r.updated_at.toISOString(),
       }))
     } else {
-      const result = await sql`
-        SELECT DISTINCT submitted_by, submitted_by_name, subject, class, submission_status, updated_at
+      const result = await poolQuery(
+        `SELECT DISTINCT submitted_by, submitted_by_name, subject, class, submission_status, updated_at
         FROM student_scores
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
           AND submitted_by IS NOT NULL
-        ORDER BY updated_at DESC
-      `
+        ORDER BY updated_at DESC`,
+        [tenantId, academicSession, term]
+      )
       return result.rows.map((r: any) => ({
         submittedBy: r.submitted_by,
         submittedByName: r.submitted_by_name,
@@ -380,17 +390,17 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
     )
   }
 
-  const result = await sql<ScoreRow>`
-    INSERT INTO student_scores
+  const result = await poolQuery<ScoreRow>(
+    `INSERT INTO student_scores
       (id, tenant_id, student_id, subject, academic_session, term,
        ca_score, exam_score, total_score, attendance_percentage, class,
        tests_score, assignments_score, projects_score, exams_score,
        submitted_by, submitted_by_name, submission_status)
     VALUES
-      (${id}, ${tenantId}, ${payload.studentId}, ${payload.subject}, ${payload.academicSession}, ${payload.term},
-       ${caScore}, ${examScore}, ${totalScore}, ${attendancePercentage}, ${payload.class},
-       ${testsScore}, ${assignmentsScore}, ${projectsScore}, ${examsScore},
-       ${submittedBy}, ${submittedByName}, ${submissionStatus})
+      ($1, $2, $3, $4, $5, $6,
+       $7, $8, $9, $10, $11,
+       $12, $13, $14, $15,
+       $16, $17, $18)
     ON CONFLICT (tenant_id, student_id, subject, academic_session, term)
     DO UPDATE SET
       ca_score = EXCLUDED.ca_score,
@@ -405,8 +415,12 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
       submitted_by_name = EXCLUDED.submitted_by_name,
       submission_status = EXCLUDED.submission_status,
       updated_at = NOW()
-    RETURNING *
-  `
+    RETURNING *`,
+    [id, tenantId, payload.studentId, payload.subject, payload.academicSession, payload.term,
+     caScore, examScore, totalScore, attendancePercentage, payload.class,
+     testsScore, assignmentsScore, projectsScore, examsScore,
+     submittedBy, submittedByName, submissionStatus]
+  )
   return rowToScore(result.rows[0])
 }
 
@@ -420,21 +434,24 @@ export async function recomputeAllScores(
   try {
     let query
     if (className && academicSession && term) {
-      query = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId} AND class = ${className}
-          AND academic_session = ${academicSession} AND term = ${term}
-      `
+      query = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1 AND class = $2
+          AND academic_session = $3 AND term = $4`,
+        [tenantId, className, academicSession, term]
+      )
     } else if (academicSession && term) {
-      query = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession} AND term = ${term}
-      `
+      query = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1
+          AND academic_session = $2 AND term = $3`,
+        [tenantId, academicSession, term]
+      )
     } else {
-      query = await sql<ScoreRow>`
-        SELECT * FROM student_scores WHERE tenant_id = ${tenantId}
-      `
+      query = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores WHERE tenant_id = $1`,
+        [tenantId]
+      )
     }
 
     const details: { studentId: string; subject: string; class: string; oldTotal: number; newTotal: number }[] = []
@@ -460,20 +477,23 @@ export async function recomputeAllScores(
 
       if (needsTotalUpdate || needsAttendanceUpdate) {
         if (needsTotalUpdate && needsAttendanceUpdate) {
-          await sql`
-            UPDATE student_scores SET total_score = ${newTotal}, attendance_percentage = ${newAttendance}, updated_at = NOW()
-            WHERE id = ${row.id}
-          `
+          await poolQuery(
+            `UPDATE student_scores SET total_score = $1, attendance_percentage = $2, updated_at = NOW()
+            WHERE id = $3`,
+            [newTotal, newAttendance, row.id]
+          )
         } else if (needsTotalUpdate) {
-          await sql`
-            UPDATE student_scores SET total_score = ${newTotal}, updated_at = NOW()
-            WHERE id = ${row.id}
-          `
+          await poolQuery(
+            `UPDATE student_scores SET total_score = $1, updated_at = NOW()
+            WHERE id = $2`,
+            [newTotal, row.id]
+          )
         } else {
-          await sql`
-            UPDATE student_scores SET attendance_percentage = ${newAttendance}, updated_at = NOW()
-            WHERE id = ${row.id}
-          `
+          await poolQuery(
+            `UPDATE student_scores SET attendance_percentage = $1, updated_at = NOW()
+            WHERE id = $2`,
+            [newAttendance, row.id]
+          )
         }
         recomputed++
         details.push({
@@ -535,19 +555,21 @@ const DEFAULT_BANDS: GradeBand[] = [
 
 async function getGradeBands(tenantId: string): Promise<GradeBand[]> {
   try {
-    const scaleRes = await sql`
-      SELECT id FROM grading_scales
-      WHERE tenant_id = ${tenantId} AND status = 'live'
-      ORDER BY updated_at DESC LIMIT 1
-    `
+    const scaleRes = await poolQuery(
+      `SELECT id FROM grading_scales
+      WHERE tenant_id = $1 AND status = 'live'
+      ORDER BY updated_at DESC LIMIT 1`,
+      [tenantId]
+    )
     if (!scaleRes.rows[0]) return DEFAULT_BANDS
     const scaleId = scaleRes.rows[0].id
-    const bandsRes = await sql`
-      SELECT grade, min_score, max_score, remark
+    const bandsRes = await poolQuery(
+      `SELECT grade, min_score, max_score, remark
       FROM grading_scale_bands
-      WHERE scale_id = ${scaleId}
-      ORDER BY min_score DESC
-    `
+      WHERE scale_id = $1
+      ORDER BY min_score DESC`,
+      [scaleId]
+    )
     if (bandsRes.rows.length === 0) return DEFAULT_BANDS
     return bandsRes.rows.map((r: any) => ({
       grade: r.grade,
@@ -583,8 +605,8 @@ function principalCommentFor(avg: number): string {
 }
 
 async function ensureCompiledResultsTable() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS compiled_results (
+  await poolQuery(
+    `CREATE TABLE IF NOT EXISTS compiled_results (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
       student_id TEXT NOT NULL,
@@ -608,8 +630,9 @@ async function ensureCompiledResultsTable() {
       status TEXT DEFAULT 'compiled',
       compiled_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(tenant_id, student_id, subject, academic_session, term)
-    )
-  `
+    )`,
+    []
+  )
 }
 
 export async function compileResults(
@@ -628,22 +651,24 @@ export async function compileResults(
     // Fetch all submitted/approved scores for the scope
     let scoresQuery
     if (className) {
-      scoresQuery = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-          AND class = ${className}
-          AND submission_status IN ('submitted', 'approved')
-      `
+      scoresQuery = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
+          AND class = $4
+          AND submission_status IN ('submitted', 'approved')`,
+        [tenantId, academicSession, term, className]
+      )
     } else {
-      scoresQuery = await sql<ScoreRow>`
-        SELECT * FROM student_scores
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-          AND submission_status IN ('submitted', 'approved')
-      `
+      scoresQuery = await poolQuery<ScoreRow>(
+        `SELECT * FROM student_scores
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
+          AND submission_status IN ('submitted', 'approved')`,
+        [tenantId, academicSession, term]
+      )
     }
 
     if (scoresQuery.rows.length === 0) {
@@ -743,21 +768,17 @@ export async function compileResults(
         allResults.push(compiled)
         compiledCount++
         const id = `compiled_${tenantId}_${row.student_id}_${row.subject}_${academicSession}_${term}`.replace(/\s+/g, '_')
-        await sql`
-          INSERT INTO compiled_results (
+        await poolQuery(
+          `INSERT INTO compiled_results (
             id, tenant_id, student_id, subject, class, academic_session, term,
             total_score, grade, remark, class_average, highest_score, lowest_score,
             subject_position, overall_total, overall_average, class_position,
             total_students, attendance_percent, principal_comment, status, compiled_at
           ) VALUES (
-            ${id}, ${tenantId}, ${row.student_id}, ${row.subject}, ${row.class},
-            ${academicSession}, ${term},
-            ${totalScore}, ${grade}, ${remark},
-            ${Math.round(stats.avg * 100) / 100}, ${stats.highest}, ${stats.lowest},
-            ${subjectPosition}, ${Math.round(overallTotal * 100) / 100},
-            ${Math.round(overallAverage * 100) / 100}, ${classPositionMap[row.student_id]},
-            ${totalStudents}, ${Math.round(attendancePercent * 100) / 100},
-            ${principalCommentFor(overallAverage)}, 'compiled', NOW()
+            $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11, $12, $13,
+            $14, $15, $16, $17,
+            $18, $19, $20, 'compiled', NOW()
           )
           ON CONFLICT (tenant_id, student_id, subject, academic_session, term)
           DO UPDATE SET
@@ -775,8 +796,16 @@ export async function compileResults(
             attendance_percent = EXCLUDED.attendance_percent,
             principal_comment = EXCLUDED.principal_comment,
             status = 'compiled',
-            compiled_at = NOW()
-        `
+            compiled_at = NOW()`,
+          [id, tenantId, row.student_id, row.subject, row.class,
+            academicSession, term,
+            totalScore, grade, remark,
+            Math.round(stats.avg * 100) / 100, stats.highest, stats.lowest,
+            subjectPosition, Math.round(overallTotal * 100) / 100,
+            Math.round(overallAverage * 100) / 100, classPositionMap[row.student_id],
+            totalStudents, Math.round(attendancePercent * 100) / 100,
+            principalCommentFor(overallAverage)]
+        )
       }
 
     }
@@ -800,22 +829,24 @@ export async function fetchCompiledResults(
   try {
     let result
     if (className) {
-      result = await sql`
-        SELECT * FROM compiled_results
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-          AND class = ${className}
-        ORDER BY class, class_position, subject
-      `
+      result = await poolQuery(
+        `SELECT * FROM compiled_results
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
+          AND class = $4
+        ORDER BY class, class_position, subject`,
+        [tenantId, academicSession, term, className]
+      )
     } else {
-      result = await sql`
-        SELECT * FROM compiled_results
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-        ORDER BY class, class_position, subject
-      `
+      result = await poolQuery(
+        `SELECT * FROM compiled_results
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
+        ORDER BY class, class_position, subject`,
+        [tenantId, academicSession, term]
+      )
     }
     return result.rows
   } catch (error) {
@@ -836,26 +867,28 @@ export async function approveCompiledResults(
   try {
     let result
     if (className) {
-      result = await sql`
-        UPDATE compiled_results
+      result = await poolQuery(
+        `UPDATE compiled_results
         SET status = 'approved', compiled_at = NOW()
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-          AND class = ${className}
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
+          AND class = $4
           AND status = 'compiled'
-        RETURNING id
-      `
+        RETURNING id`,
+        [tenantId, academicSession, term, className]
+      )
     } else {
-      result = await sql`
-        UPDATE compiled_results
+      result = await poolQuery(
+        `UPDATE compiled_results
         SET status = 'approved', compiled_at = NOW()
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
           AND status = 'compiled'
-        RETURNING id
-      `
+        RETURNING id`,
+        [tenantId, academicSession, term]
+      )
     }
     return result.rows.length
   } catch (error) {
@@ -895,19 +928,20 @@ export async function fetchBroadsheet(
   await ensureCompiledResultsTable()
   try {
     // Fetch compiled results joined with student names
-    const result = await sql`
-      SELECT cr.student_id, cr.subject, cr.class, cr.total_score, cr.grade,
+    const result = await poolQuery(
+      `SELECT cr.student_id, cr.subject, cr.class, cr.total_score, cr.grade,
              cr.remark, cr.subject_position, cr.overall_total, cr.overall_average,
              cr.class_position, cr.total_students, cr.attendance_percent, cr.status,
              s.name AS student_name
       FROM compiled_results cr
       LEFT JOIN students s ON s.id = cr.student_id
-      WHERE cr.tenant_id = ${tenantId}
-        AND cr.academic_session = ${academicSession}
-        AND cr.term = ${term}
-        AND cr.class = ${className}
-      ORDER BY cr.class_position, cr.student_id, cr.subject
-    `
+      WHERE cr.tenant_id = $1
+        AND cr.academic_session = $2
+        AND cr.term = $3
+        AND cr.class = $4
+      ORDER BY cr.class_position, cr.student_id, cr.subject`,
+      [tenantId, academicSession, term, className]
+    )
 
     if (result.rows.length === 0) return null
 
@@ -973,26 +1007,28 @@ export async function publishCompiledResults(
   try {
     let result
     if (className) {
-      result = await sql`
-        UPDATE compiled_results
+      result = await poolQuery(
+        `UPDATE compiled_results
         SET status = 'published', compiled_at = NOW()
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
-          AND class = ${className}
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
+          AND class = $4
           AND status = 'approved'
-        RETURNING id
-      `
+        RETURNING id`,
+        [tenantId, academicSession, term, className]
+      )
     } else {
-      result = await sql`
-        UPDATE compiled_results
+      result = await poolQuery(
+        `UPDATE compiled_results
         SET status = 'published', compiled_at = NOW()
-        WHERE tenant_id = ${tenantId}
-          AND academic_session = ${academicSession}
-          AND term = ${term}
+        WHERE tenant_id = $1
+          AND academic_session = $2
+          AND term = $3
           AND status = 'approved'
-        RETURNING id
-      `
+        RETURNING id`,
+        [tenantId, academicSession, term]
+      )
     }
     return result.rows.length
   } catch (error) {

@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { poolQuery } from '../_lib/pg-pool.js'
 
 export interface CAConfig {
   primary: {
@@ -58,21 +58,24 @@ const defaultCAConfig: CAConfig = {
   sss: { tests: 20, assignments: 15, projects: 15, exams: 50 },
 };
 
+const defaultConfigJson = JSON.stringify(defaultCAConfig)
+
 export async function ensureCAConfigTable(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS ca_config (
+    await poolQuery(
+      `CREATE TABLE IF NOT EXISTS ca_config (
         id SERIAL PRIMARY KEY,
         tenant_id TEXT UNIQUE NOT NULL,
-        published_config JSONB NOT NULL DEFAULT '${JSON.stringify(defaultCAConfig)}',
+        published_config JSONB NOT NULL DEFAULT $1,
         draft_config JSONB,
         status TEXT NOT NULL DEFAULT 'published',
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         published_at TIMESTAMPTZ
-      )
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS ca_config_audit (
+      )`,
+      [defaultConfigJson]
+    )
+    await poolQuery(
+      `CREATE TABLE IF NOT EXISTS ca_config_audit (
         id SERIAL PRIMARY KEY,
         tenant_id TEXT NOT NULL,
         action TEXT NOT NULL,
@@ -81,10 +84,11 @@ export async function ensureCAConfigTable(): Promise<void> {
         actor_name TEXT,
         summary TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS ca_config_overrides (
+      )`,
+      []
+    )
+    await poolQuery(
+      `CREATE TABLE IF NOT EXISTS ca_config_overrides (
         id SERIAL PRIMARY KEY,
         tenant_id TEXT NOT NULL,
         class_name TEXT NOT NULL,
@@ -93,8 +97,9 @@ export async function ensureCAConfigTable(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(tenant_id, class_name, subject_name)
-      )
-    `;
+      )`,
+      []
+    )
   } catch (error) {
     console.error('Error ensuring CA config tables:', error);
   }
@@ -110,10 +115,11 @@ export async function getTenantCAConfig(tenantId: string): Promise<{
   try {
     await ensureCAConfigTable();
 
-    const result = await sql`
-      SELECT published_config, draft_config, status, updated_at, published_at
-      FROM ca_config WHERE tenant_id = ${tenantId}
-    `;
+    const result = await poolQuery(
+      `SELECT published_config, draft_config, status, updated_at, published_at
+       FROM ca_config WHERE tenant_id = $1`,
+      [tenantId]
+    )
 
     if (result.rows.length > 0) {
       const row = result.rows[0];
@@ -125,10 +131,11 @@ export async function getTenantCAConfig(tenantId: string): Promise<{
         published_at: row.published_at as string | null,
       };
     } else {
-      await sql`
-        INSERT INTO ca_config (tenant_id, published_config, status, published_at)
-        VALUES (${tenantId}, ${JSON.stringify(defaultCAConfig)}, 'published', NOW())
-      `;
+      await poolQuery(
+        `INSERT INTO ca_config (tenant_id, published_config, status, published_at)
+         VALUES ($1, $2, 'published', NOW())`,
+        [tenantId, defaultConfigJson]
+      );
       return {
         published: defaultCAConfig,
         draft: null,
@@ -158,17 +165,20 @@ export async function saveDraftCAConfig(
   try {
     await ensureCAConfigTable();
 
-    await sql`
-      INSERT INTO ca_config (tenant_id, published_config, draft_config, status, updated_at)
-      VALUES (${tenantId}, ${JSON.stringify(config)}, ${JSON.stringify(config)}, 'has_draft', NOW())
-      ON CONFLICT (tenant_id)
-      DO UPDATE SET draft_config = EXCLUDED.draft_config, status = 'has_draft', updated_at = NOW()
-    `;
+    const configJson = JSON.stringify(config)
+    await poolQuery(
+      `INSERT INTO ca_config (tenant_id, published_config, draft_config, status, updated_at)
+       VALUES ($1, $2, $3, 'has_draft', NOW())
+       ON CONFLICT (tenant_id)
+       DO UPDATE SET draft_config = EXCLUDED.draft_config, status = 'has_draft', updated_at = NOW()`,
+      [tenantId, configJson, configJson]
+    )
 
-    await sql`
-      INSERT INTO ca_config_audit (tenant_id, action, config, actor_id, actor_name, summary)
-      VALUES (${tenantId}, 'save', ${JSON.stringify(config)}, ${actorId}, ${actorName}, 'Draft saved')
-    `;
+    await poolQuery(
+      `INSERT INTO ca_config_audit (tenant_id, action, config, actor_id, actor_name, summary)
+       VALUES ($1, 'save', $2, $3, $4, 'Draft saved')`,
+      [tenantId, configJson, actorId, actorName]
+    )
 
     return config;
   } catch (error) {
@@ -185,23 +195,25 @@ export async function publishCAConfig(
   try {
     await ensureCAConfigTable();
 
-    const result = await sql`
-      UPDATE ca_config
-      SET published_config = COALESCE(draft_config, published_config),
-          draft_config = NULL,
-          status = 'published',
-          updated_at = NOW(),
-          published_at = NOW()
-      WHERE tenant_id = ${tenantId}
-      RETURNING published_config
-    `;
+    const result = await poolQuery(
+      `UPDATE ca_config
+       SET published_config = COALESCE(draft_config, published_config),
+           draft_config = NULL,
+           status = 'published',
+           updated_at = NOW(),
+           published_at = NOW()
+       WHERE tenant_id = $1
+       RETURNING published_config`,
+      [tenantId]
+    )
 
     const publishedConfig = (result.rows[0]?.published_config as CAConfig) || defaultCAConfig;
 
-    await sql`
-      INSERT INTO ca_config_audit (tenant_id, action, config, actor_id, actor_name, summary)
-      VALUES (${tenantId}, 'publish', ${JSON.stringify(publishedConfig)}, ${actorId}, ${actorName}, 'Configuration published to all classes')
-    `;
+    await poolQuery(
+      `INSERT INTO ca_config_audit (tenant_id, action, config, actor_id, actor_name, summary)
+       VALUES ($1, 'publish', $2, $3, $4, 'Configuration published to all classes')`,
+      [tenantId, JSON.stringify(publishedConfig), actorId, actorName]
+    )
 
     return publishedConfig;
   } catch (error) {
@@ -214,13 +226,14 @@ export async function getCAConfigAuditLog(tenantId: string, limit: number = 20):
   try {
     await ensureCAConfigTable();
 
-    const result = await sql`
-      SELECT id, tenant_id, action, config, actor_id, actor_name, summary, created_at
-      FROM ca_config_audit
-      WHERE tenant_id = ${tenantId}
-      ORDER BY created_at DESC
-      LIMIT ${limit}
-    `;
+    const result = await poolQuery(
+      `SELECT id, tenant_id, action, config, actor_id, actor_name, summary, created_at
+       FROM ca_config_audit
+       WHERE tenant_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [tenantId, limit]
+    )
 
     return result.rows as CAAuditEntry[];
   } catch (error) {
@@ -233,12 +246,13 @@ export async function getCAConfigOverrides(tenantId: string): Promise<CAOverride
   try {
     await ensureCAConfigTable();
 
-    const result = await sql`
-      SELECT id, tenant_id, class_name, subject_name, config, created_at, updated_at
-      FROM ca_config_overrides
-      WHERE tenant_id = ${tenantId}
-      ORDER BY updated_at DESC
-    `;
+    const result = await poolQuery(
+      `SELECT id, tenant_id, class_name, subject_name, config, created_at, updated_at
+       FROM ca_config_overrides
+       WHERE tenant_id = $1
+       ORDER BY updated_at DESC`,
+      [tenantId]
+    )
 
     return result.rows as CAOverride[];
   } catch (error) {
@@ -258,19 +272,21 @@ export async function saveCAConfigOverride(
   try {
     await ensureCAConfigTable();
 
-    const result = await sql`
-      INSERT INTO ca_config_overrides (tenant_id, class_name, subject_name, config, updated_at)
-      VALUES (${tenantId}, ${className}, ${subjectName}, ${JSON.stringify(config)}, NOW())
-      ON CONFLICT (tenant_id, class_name, subject_name)
-      DO UPDATE SET config = EXCLUDED.config, updated_at = NOW()
-      RETURNING *
-    `;
+    const configJson = JSON.stringify(config)
+    const result = await poolQuery(
+      `INSERT INTO ca_config_overrides (tenant_id, class_name, subject_name, config, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (tenant_id, class_name, subject_name)
+       DO UPDATE SET config = EXCLUDED.config, updated_at = NOW()
+       RETURNING *`,
+      [tenantId, className, subjectName, configJson]
+    )
 
-    await sql`
-      INSERT INTO ca_config_audit (tenant_id, action, config, actor_id, actor_name, summary)
-      VALUES (${tenantId}, 'override', ${JSON.stringify(config)}, ${actorId}, ${actorName},
-        ${'Override saved for ' + className + (subjectName ? ' / ' + subjectName : '')})
-    `;
+    await poolQuery(
+      `INSERT INTO ca_config_audit (tenant_id, action, config, actor_id, actor_name, summary)
+       VALUES ($1, 'override', $2, $3, $4, $5)`,
+      [tenantId, configJson, actorId, actorName, 'Override saved for ' + className + (subjectName ? ' / ' + subjectName : '')]
+    )
 
     return result.rows[0] as CAOverride;
   } catch (error) {
@@ -286,10 +302,11 @@ export async function deleteCAConfigOverride(
   try {
     await ensureCAConfigTable();
 
-    await sql`
-      DELETE FROM ca_config_overrides
-      WHERE id = ${overrideId} AND tenant_id = ${tenantId}
-    `;
+    await poolQuery(
+      `DELETE FROM ca_config_overrides
+       WHERE id = $1 AND tenant_id = $2`,
+      [overrideId, tenantId]
+    )
   } catch (error) {
     console.error('Error deleting CA config override:', error);
     throw error;

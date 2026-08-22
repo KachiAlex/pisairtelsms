@@ -15,6 +15,7 @@ import { ParentContextProvider } from './contexts/ParentContext'
 import { BrandingProvider } from './contexts/BrandingContext';
 import { ParentLoginPage } from './components/auth/ParentLoginPage';
 import { clearAuthFromStorage, getAuthFromStorage } from './lib/auth';
+import { useDocumentMeta } from './hooks/useDocumentMeta';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
 import { UnauthorizedPage } from './components/pages/UnauthorizedPage';
 import { Button } from './components/ui/button';
@@ -99,6 +100,8 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useDocumentMeta();
 
   // Derive active page from URL path under /tenant
   const tenantPath = location.pathname.replace(/^\/tenant\/?/, '') || 'dashboard';

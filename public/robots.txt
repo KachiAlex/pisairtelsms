@@ -1,0 +1,23 @@
+# Robots.txt for Pisairtel SMS (https://pisairtelsms.com)
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /apply
+Allow: /inquiry
+Allow: /parent/login
+Allow: /pisairtel-logo.svg
+
+# Disallow authenticated/portal and private routes
+Disallow: /api/
+Disallow: /tenant/
+Disallow: /super-admin/
+Disallow: /student/
+Disallow: /staff/
+Disallow: /parent/dashboard
+Disallow: /parent/grades
+Disallow: /parent/attendance
+Disallow: /parent/finance
+Disallow: /unauthorized
+
+# Sitemap
+Sitemap: https://pisairtelsms.com/sitemap.xml

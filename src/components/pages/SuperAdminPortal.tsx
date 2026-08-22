@@ -128,6 +128,9 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [resetPasswordResult, setResetPasswordResult] = useState<{ name: string; password: string } | null>(null)
   const [tenantActionLoading, setTenantActionLoading] = useState(false)
+  const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null)
+  const [resetPasswordInput, setResetPasswordInput] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
 
   useEffect(() => {
     const authRaw = localStorage.getItem('auth')
@@ -312,7 +315,8 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
     }
   }
 
-  async function resetAdminPassword(adminId: string, adminName: string) {
+  async function resetAdminPassword(adminId: string, adminName: string, password?: string) {
+    setResetLoading(true)
     try {
       const authRaw = localStorage.getItem('auth')
       const token = authRaw ? JSON.parse(authRaw).token : null
@@ -322,14 +326,18 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ id: adminId }),
+        body: JSON.stringify({ id: adminId, password: password || undefined }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || 'Failed to reset password')
       setResetPasswordResult({ name: adminName, password: data.generatedPassword })
       setAdminError(null)
+      setResetTarget(null)
+      setResetPasswordInput('')
     } catch (err: any) {
       setAdminError(err.message || 'Failed to reset password')
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -942,7 +950,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                             size="sm"
                             variant="ghost"
                             className="text-[#9b9a94] hover:text-[#e31e24] rounded-lg"
-                            onClick={() => resetAdminPassword(admin.id, admin.name)}
+                            onClick={() => { setResetTarget({ id: admin.id, name: admin.name }); setResetPasswordInput(''); setAdminError(null) }}
                             title="Reset password"
                           >
                             <KeyRound className="h-3.5 w-3.5" />
@@ -962,6 +970,69 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetTarget} onOpenChange={(open) => { if (!open) { setResetTarget(null); setResetPasswordInput('') } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#15161a]">
+              <div className="h-7 w-7 rounded-lg bg-[#15161a] flex items-center justify-center">
+                <KeyRound className="h-4 w-4 text-[#e31e24]" />
+              </div>
+              Reset Password
+            </DialogTitle>
+            <DialogDescription className="text-[#5b5c63]">
+              {resetTarget ? `Set a new password for ${resetTarget.name}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[#15161a] mb-1">
+                New Password <span className="text-[#9b9a94] font-normal">(leave blank to auto-generate)</span>
+              </label>
+              <input
+                type="text"
+                value={resetPasswordInput}
+                onChange={(e) => setResetPasswordInput(e.target.value)}
+                placeholder="Enter new password (min 6 chars)"
+                className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
+                minLength={6}
+              />
+            </div>
+            {adminError && (
+              <div className="rounded-lg border border-[#e31e24]/20 bg-[#e31e24]/5 p-3">
+                <p className="text-sm text-[#e31e24]">{adminError}</p>
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-[#d5cfc0] text-[#5b5c63] rounded-lg"
+                onClick={() => { setResetTarget(null); setResetPasswordInput(''); setAdminError(null) }}
+                disabled={resetLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-[#e31e24] hover:bg-[#cf1a1f] text-white rounded-lg gap-2"
+                disabled={resetLoading}
+                onClick={() => {
+                  if (resetTarget) {
+                    resetAdminPassword(resetTarget.id, resetTarget.name, resetPasswordInput || undefined)
+                  }
+                }}
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                {resetLoading ? 'Resetting...' : 'Reset Password'}
+              </Button>
             </div>
           </div>
         </DialogContent>

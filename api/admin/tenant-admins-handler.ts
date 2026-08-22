@@ -125,14 +125,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── PUT: reset tenant admin password ──────────────────────────────────────
   if (req.method === 'PUT') {
     const body = req.body || {}
-    const { id } = typeof body === 'string' ? JSON.parse(body) : body
+    const { id, password } = typeof body === 'string' ? JSON.parse(body) : body
 
     if (!id) {
       return res.status(400).json({ success: false, error: 'id is required' })
     }
 
+    if (password !== undefined && (typeof password !== 'string' || password.trim().length < 6)) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' })
+    }
+
     try {
-      const newPassword = `reset_${Math.random().toString(36).slice(2, 8)}`
+      const newPassword = password && password.trim().length >= 6
+        ? password.trim()
+        : `reset_${Math.random().toString(36).slice(2, 10)}`
       const passwordHash = await hashPassword(newPassword)
 
       const r = await poolQuery(
@@ -145,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (r.rows.length === 0) {
         return res.status(404).json({ success: false, error: 'Admin not found' })
       }
-      return res.json({ success: true, data: r.rows[0] })
+      return res.json({ success: true, data: r.rows[0], generatedPassword: newPassword })
     } catch (error) {
       console.error('tenant-admins PUT error:', error)
       return res.status(500).json({ success: false, error: 'Internal server error' })

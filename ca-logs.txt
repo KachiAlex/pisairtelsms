@@ -1,0 +1,30 @@
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '1733',
+  routine: 'exec_bind_message'
+}
+Error fetching CA config audit log: error: relation "ca_config_audit" does not exist
+    at /app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async getCAConfigAuditLog (/app/api/tenant/_lib/ca-config.ts:229:20)
+    at async handler (/app/api/tenant/ca-config.ts:62:26)
+    at async <anonymous> (/app/server.mjs:118:7) {
+  length: 114,
+  severity: 'ERROR',
+  code: '42P01',
+  detail: undefined,
+  hint: undefined,
+  position: '93',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '1449',
+  routine: 'parserOpenTable'
+}

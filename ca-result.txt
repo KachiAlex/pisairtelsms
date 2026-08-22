@@ -13,7 +13,7 @@ PASS: Tenant admin login OK
 
 === 2. GET CA CONFIG ===
 PASS: CA config returned
-INFO: {"data":{"published":{"primary":{"tests":30,"assignments":20,"projects":10,"exams":40},"jss":{"tests":25,"assignments":15,"projects":10,"exams":50},"sss":{"tests":20,"assignments":15,"projects":15,"exams":50}},"draft":null,"status":"published","updated_at":"2026-08-22T23:12:12.966Z","published_at":"
+INFO: {"data":{"published":{"primary":{"tests":30,"assignments":20,"projects":10,"exams":40},"jss":{"tests":25,"assignments":15,"projects":10,"exams":50},"sss":{"tests":20,"assignments":15,"projects":15,"exams":50}},"draft":null,"status":"published","updated_at":"2026-08-22T23:24:08.156Z","published_at":"
 
 === 3. SAVE DRAFT CA CONFIG ===
 PASS: Draft CA config saved

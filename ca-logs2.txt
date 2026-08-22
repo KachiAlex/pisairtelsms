@@ -1,0 +1,10 @@
+Error fetching CA config: error: column "published_config" does not exist
+Error fetching CA config: error: column "published_config" does not exist
+Error fetching CA config: error: column "published_config" does not exist
+Error fetching CA config: error: column "published_config" does not exist
+Error fetching CA config: error: column "published_config" does not exist
+Error fetching CA config: error: column "published_config" does not exist
+Error fetching CA config: error: column "published_config" does not exist
+Error fetching broadsheet: error: operator does not exist: uuid = text
+    at async fetchBroadsheet (/app/api/tenant/_lib/results.ts:948:20)
+Error fetching CA config audit log: error: relation "ca_config_audit" does not exist

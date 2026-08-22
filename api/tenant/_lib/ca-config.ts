@@ -74,6 +74,12 @@ export async function ensureCAConfigTable(): Promise<void> {
       )`,
       []
     )
+    // Add columns if table already existed with old schema
+    await poolQuery(`ALTER TABLE ca_config ADD COLUMN IF NOT EXISTS published_config JSONB`, [])
+    await poolQuery(`ALTER TABLE ca_config ADD COLUMN IF NOT EXISTS draft_config JSONB`, [])
+    await poolQuery(`ALTER TABLE ca_config ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'`, [])
+    await poolQuery(`ALTER TABLE ca_config ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ`, [])
+    await poolQuery(`ALTER TABLE ca_config ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`, [])
     await poolQuery(
       `CREATE TABLE IF NOT EXISTS ca_config_audit (
         id SERIAL PRIMARY KEY,

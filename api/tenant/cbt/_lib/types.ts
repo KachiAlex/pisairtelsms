@@ -146,6 +146,7 @@ export interface ExamResult {
   id: string;
   examId: string;
   studentId: string;
+  studentName?: string;
   score: number;
   totalMarks: number;
   percentage: number;
@@ -159,6 +160,7 @@ export interface StudentAnswer {
   id: string;
   resultId: string;
   questionId: string;
+  questionText?: string;
   studentAnswer?: string;
   correctAnswer?: string;
   isCorrect: boolean;
@@ -176,6 +178,8 @@ export interface ExamResultsSummary {
   passRate: number;
   highestScore: number;
   lowestScore: number;
+  completionRate: number;
+  results: ExamResult[];
 }
 
 // ============================================================================

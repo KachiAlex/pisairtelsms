@@ -224,6 +224,7 @@
     { "source": "/api/tenant/cbt/results/export", "destination": "/api/tenant/cbt/results.ts?action=export" },
     { "source": "/api/tenant/cbt/results/:examId/student/:studentId", "destination": "/api/tenant/cbt/results.ts?examId=:examId&studentId=:studentId" },
     { "source": "/api/tenant/cbt/results/:examId", "destination": "/api/tenant/cbt/results.ts?examId=:examId" },
+    { "source": "/api/tenant/cbt/results", "destination": "/api/tenant/cbt/results.ts" },
     { "source": "/api/tenant/cbt/security/:examId/logs", "destination": "/api/tenant/cbt/security.ts?examId=:examId&action=logs" },
     { "source": "/api/tenant/cbt/security/:examId", "destination": "/api/tenant/cbt/security.ts?examId=:examId" },
     { "source": "/api/tenant/cbt/offline-sync", "destination": "/api/tenant/cbt/offline-sync-routes.ts" },

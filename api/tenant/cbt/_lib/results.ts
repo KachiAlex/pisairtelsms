@@ -67,15 +67,46 @@ export async function getResults(
   );
   const total = parseInt(countResult?.count || '0');
 
-  // Get paginated results
-  const results = await queryAll<ExamResult>(
-    `SELECT * FROM exam_results er ${whereClause} ORDER BY er.submitted_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+  // Get paginated results with student names
+  const rawResults = await queryAll<{
+    id: string;
+    exam_id: string;
+    student_id: string;
+    score: string;
+    total_marks: string;
+    percentage: string;
+    status: string;
+    time_spent: string;
+    submitted_at: string;
+    created_at: string;
+    student_name: string;
+  }>(
+    `SELECT er.*, COALESCE(s.name, u.name, 'Unknown Student') as student_name
+     FROM exam_results er ${whereClause}
+     LEFT JOIN students s ON s.id::text = er.student_id
+     LEFT JOIN users u ON u.id::text = er.student_id
+     ORDER BY er.submitted_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
     [...params, limit, offset]
   );
 
+  // Map to camelCase
+  const data: ExamResult[] = rawResults.map(r => ({
+    id: r.id,
+    examId: r.exam_id,
+    studentId: r.student_id,
+    studentName: r.student_name,
+    score: parseFloat(r.score),
+    totalMarks: parseFloat(r.total_marks),
+    percentage: parseFloat(r.percentage),
+    status: r.status as any,
+    timeSpent: parseInt(r.time_spent),
+    submittedAt: new Date(r.submitted_at),
+    createdAt: new Date(r.created_at),
+  }));
+
   return {
     success: true,
-    data: results,
+    data,
     pagination: {
       page,
       limit,
@@ -92,12 +123,41 @@ export async function getResult(
   tenantId: string,
   resultId: string
 ): Promise<ExamResult | null> {
-  return queryOne<ExamResult>(
-    `SELECT er.* FROM exam_results er
+  const r = await queryOne<{
+    id: string;
+    exam_id: string;
+    student_id: string;
+    score: string;
+    total_marks: string;
+    percentage: string;
+    status: string;
+    time_spent: string;
+    submitted_at: string;
+    created_at: string;
+    student_name: string;
+  }>(
+    `SELECT er.*, COALESCE(s.name, u.name, 'Unknown Student') as student_name
+     FROM exam_results er
      JOIN exams e ON er.exam_id = e.id
+     LEFT JOIN students s ON s.id::text = er.student_id
+     LEFT JOIN users u ON u.id::text = er.student_id
      WHERE er.id = $1 AND e.tenant_id = $2`,
     [resultId, tenantId]
   );
+  if (!r) return null;
+  return {
+    id: r.id,
+    examId: r.exam_id,
+    studentId: r.student_id,
+    studentName: r.student_name,
+    score: parseFloat(r.score),
+    totalMarks: parseFloat(r.total_marks),
+    percentage: parseFloat(r.percentage),
+    status: r.status as any,
+    timeSpent: parseInt(r.time_spent),
+    submittedAt: new Date(r.submitted_at),
+    createdAt: new Date(r.created_at),
+  };
 }
 
 /**
@@ -131,8 +191,8 @@ export async function getExamResultsSummary(
   examId: string
 ): Promise<ExamResultsSummary | null> {
   // Verify exam belongs to tenant
-  const exam = await queryOne<{ id: string; title: string }>(
-    'SELECT id, title FROM exams WHERE id = $1 AND tenant_id = $2',
+  const exam = await queryOne<{ id: string; title: string; pass_mark: number; total_marks: number }>(
+    'SELECT id, title, pass_mark, total_marks FROM exams WHERE id = $1 AND tenant_id = $2',
     [examId, tenantId]
   );
 
@@ -140,12 +200,26 @@ export async function getExamResultsSummary(
     return null;
   }
 
+  // Get results with student names
   const results = await queryAll<{
+    id: string;
+    student_id: string;
     score: string;
     total_marks: string;
+    percentage: string;
     status: string;
+    time_spent: string;
+    submitted_at: string;
+    student_name: string;
   }>(
-    'SELECT score, total_marks, status FROM exam_results WHERE exam_id = $1',
+    `SELECT er.id, er.student_id, er.score, er.total_marks, er.percentage,
+       er.status, er.time_spent, er.submitted_at,
+       COALESCE(s.name, u.name, 'Unknown Student') as student_name
+     FROM exam_results er
+     LEFT JOIN students s ON s.id::text = er.student_id
+     LEFT JOIN users u ON u.id::text = er.student_id
+     WHERE er.exam_id = $1
+     ORDER BY er.score DESC`,
     [examId]
   );
 
@@ -159,11 +233,28 @@ export async function getExamResultsSummary(
       passRate: 0,
       highestScore: 0,
       lowestScore: 0,
+      completionRate: 0,
+      results: [],
     };
   }
 
   const scores = results.map(r => parseFloat(r.score));
   const passedCount = results.filter(r => r.status === 'Passed').length;
+
+  // Map to frontend-expected format
+  const mappedResults: ExamResult[] = results.map(r => ({
+    id: r.id,
+    examId: examId,
+    studentId: r.student_id,
+    studentName: r.student_name,
+    score: parseFloat(r.score),
+    totalMarks: parseFloat(r.total_marks),
+    percentage: parseFloat(r.percentage),
+    status: r.status as any,
+    timeSpent: parseInt(r.time_spent),
+    submittedAt: new Date(r.submitted_at),
+    createdAt: new Date(r.submitted_at),
+  }));
 
   return {
     examId,
@@ -174,6 +265,8 @@ export async function getExamResultsSummary(
     passRate: (passedCount / results.length) * 100,
     highestScore: Math.max(...scores),
     lowestScore: Math.min(...scores),
+    completionRate: 100,
+    results: mappedResults,
   };
 }
 
@@ -246,10 +339,38 @@ export async function getStudentAnswers(
     throw new Error('Result not found');
   }
 
-  return queryAll<StudentAnswer>(
-    'SELECT * FROM student_answers WHERE result_id = $1 ORDER BY created_at ASC',
+  const rawAnswers = await queryAll<{
+    id: string;
+    result_id: string;
+    question_id: string;
+    student_answer: string;
+    correct_answer: string;
+    is_correct: boolean;
+    marks_obtained: string;
+    total_marks: string;
+    created_at: string;
+    question_text: string;
+  }>(
+    `SELECT sa.*, qb.text as question_text
+     FROM student_answers sa
+     LEFT JOIN questions_bank qb ON qb.id = sa.question_id
+     WHERE sa.result_id = $1
+     ORDER BY sa.created_at ASC`,
     [resultId]
   );
+
+  return rawAnswers.map(a => ({
+    id: a.id,
+    resultId: a.result_id,
+    questionId: a.question_id,
+    questionText: a.question_text,
+    studentAnswer: a.student_answer,
+    correctAnswer: a.correct_answer,
+    isCorrect: a.is_correct,
+    marksObtained: parseFloat(a.marks_obtained),
+    totalMarks: parseFloat(a.total_marks),
+    createdAt: new Date(a.created_at),
+  }));
 }
 
 /**

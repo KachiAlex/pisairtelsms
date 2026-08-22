@@ -17,9 +17,10 @@ import {
   Copy,
   KeyRound,
   Ban,
+  Server,
+  Zap,
 } from 'lucide-react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
@@ -76,11 +77,14 @@ interface AdminStats {
 const statusBadge = (status: string) => {
   switch (status) {
     case 'Healthy':
-      return <Badge className="bg-emerald-100 text-emerald-700">Healthy</Badge>
+    case 'active':
+      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Active</Badge>
     case 'Degraded':
-      return <Badge className="bg-amber-100 text-amber-700">Degraded</Badge>
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Degraded</Badge>
     case 'Provisioning':
-      return <Badge className="bg-blue-100 text-blue-700">Provisioning</Badge>
+      return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Provisioning</Badge>
+    case 'suspended':
+      return <Badge className="bg-red-100 text-red-700 border-red-200">Suspended</Badge>
     default:
       return <Badge>{status}</Badge>
   }
@@ -355,110 +359,127 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
     }
   }
 
-  const tenantsNeedingAttention = tenants.filter((tenant) => tenant.alerts > 0)
-
-  const tenantStats = [
-    { label: 'Active Tenants', value: stats?.activeTenants?.toString() ?? '—', delta: 'live count', color: 'text-blue-600', bg: 'bg-blue-50', icon: Building2 },
-    { label: 'Pending Provisioning', value: stats?.pendingProvisioning?.toString() ?? '—', delta: 'in queue', color: 'text-purple-600', bg: 'bg-purple-50', icon: RefreshCcw },
-    { label: 'Compliance Alerts', value: stats?.complianceAlerts?.toString() ?? '—', delta: 'open', color: 'text-orange-600', bg: 'bg-orange-50', icon: AlertTriangle },
-    { label: 'Overall Health', value: stats?.overallHealth ?? '—', delta: 'uptime', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: ShieldCheck },
-  ]
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-sm">Loading portal data...</div>
+      <div className="flex items-center justify-center min-h-screen bg-[#f3f1ea]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-[#d5cfc0] border-t-[#e31e24] rounded-full animate-spin" />
+          <p className="text-sm text-[#5b5c63]">Loading command center...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-wide text-slate-500">Pisairtel-Schools Super Admin</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Tenant orchestration command center</h1>
-            <p className="text-sm text-slate-500">
-              Monitor health, compliance, and provisioning across every subscribed school network.
-            </p>
+    <div className="min-h-screen bg-[#f3f1ea]">
+      <header className="border-b border-[#e6e2d8] bg-white sticky top-0 z-30">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-[42px] w-[42px] rounded-[12px] bg-[#15161a] flex items-center justify-center flex-shrink-0">
+              <ShieldCheck className="h-5 w-5 text-[#e31e24]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-[#9b9a94]">Pisairtel Schools</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#e31e24] bg-[#e31e24]/10 px-2 py-0.5 rounded-full">Super Admin</span>
+              </div>
+              <h1 className="text-xl font-semibold text-[#15161a]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 560 }}>
+                Command Center
+              </h1>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => toast({ title: 'Security Controls', description: 'Global firewall and encryption settings are currently managed via Terraform.' })}>
+            <Button variant="outline" className="gap-2 border-[#d5cfc0] text-[#5b5c63] hover:bg-[#f3f1ea] hover:text-[#15161a]" onClick={() => toast({ title: 'Security Controls', description: 'Global firewall and encryption settings are currently managed via Terraform.' })}>
               <ShieldCheck className="h-4 w-4" />
-              Security controls
+              Security
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => toast({ title: 'System Diagnostics', description: 'Starting global health scan across all clusters...' })}>
+            <Button variant="outline" className="gap-2 border-[#d5cfc0] text-[#5b5c63] hover:bg-[#f3f1ea] hover:text-[#15161a]" onClick={() => toast({ title: 'System Diagnostics', description: 'Starting global health scan across all clusters...' })}>
               <Activity className="h-4 w-4" />
-              Run diagnostics
+              Diagnostics
             </Button>
-            <Button onClick={onSignOut} className="bg-slate-900 hover:bg-slate-800">
+            <Button onClick={onSignOut} className="bg-[#15161a] hover:bg-[#15161a]/90 text-white gap-2 rounded-lg">
+              <Power className="h-4 w-4" />
               Sign out
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-8 px-6 py-8">
+      <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">
         {/* Stats overview */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {tenantStats.map((stat) => (
-            <Card key={stat.label} className="border border-slate-100">
-              <CardContent className="flex items-center justify-between p-5">
+          {tenantStats.map((stat, idx) => (
+            <div
+              key={stat.label}
+              className="rounded-2xl border border-[#e6e2d8] bg-white p-5 transition-all hover:shadow-md hover:border-[#d5cfc0]"
+            >
+              <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-slate-500">{stat.label}</p>
-                  <p className="text-3xl font-semibold text-slate-900">{stat.value}</p>
-                  <p className={`text-xs font-medium ${stat.color}`}>{stat.delta}</p>
+                  <p className="text-[12px] font-medium text-[#9b9a94] uppercase tracking-wide">{stat.label}</p>
+                  <p className="text-3xl font-semibold text-[#15161a] mt-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 560 }}>{stat.value}</p>
+                  <p className="text-xs text-[#5b5c63] mt-0.5">{stat.delta}</p>
                 </div>
-                <div className={`rounded-2xl ${stat.bg} p-3 text-slate-700`}>
-                  <stat.icon className="h-5 w-5" />
+                <div className={`rounded-xl p-2.5 ${
+                  idx === 0 ? 'bg-[#e31e24]/10' :
+                  idx === 1 ? 'bg-[#F7931E]/10' :
+                  idx === 2 ? 'bg-[#F7C93C]/10' :
+                  'bg-emerald-50'
+                }`}>
+                  <stat.icon className={`h-5 w-5 ${
+                    idx === 0 ? 'text-[#e31e24]' :
+                    idx === 1 ? 'text-[#F7931E]' :
+                    idx === 2 ? 'text-[#F7C93C]' :
+                    'text-emerald-600'
+                  }`} />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
 
         {/* Tenants + Provisioning */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader className="space-y-4">
+          <div className="lg:col-span-2 rounded-2xl border border-[#e6e2d8] bg-white overflow-hidden">
+            <div className="p-6 space-y-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <CardTitle>Connected tenants</CardTitle>
-                  <p className="text-sm text-slate-500">Live pulse across every deployed workspace.</p>
+                  <h2 className="text-lg font-semibold text-[#15161a]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 560 }}>
+                    Connected Tenants
+                  </h2>
+                  <p className="text-sm text-[#5b5c63]">Live pulse across every deployed workspace.</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="gap-2" onClick={() => toast({ title: 'Region Status', description: 'All regions (US-East, EU-West, Asia-Pacific) are currently operational.' })}>
+                  <Button variant="outline" size="sm" className="gap-2 border-[#d5cfc0] text-[#5b5c63] hover:bg-[#f3f1ea]" onClick={() => toast({ title: 'Region Status', description: 'All regions (US-East, EU-West, Asia-Pacific) are currently operational.' })}>
                     <Globe className="h-4 w-4" />
                     Regions
                   </Button>
-                  <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={() => { setShowProvisionForm((s) => !s); setProvisionError(null) }}>
+                  <Button size="sm" className="gap-2 bg-[#e31e24] hover:bg-[#cf1a1f] text-white rounded-lg" onClick={() => { setShowProvisionForm((s) => !s); setProvisionError(null) }}>
                     {showProvisionForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                    {showProvisionForm ? 'Cancel' : 'Provision tenant'}
+                    {showProvisionForm ? 'Cancel' : 'Provision'}
                   </Button>
                 </div>
               </div>
               {showProvisionForm && (
-                <form onSubmit={handleProvisionSubmit} className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+                <form onSubmit={handleProvisionSubmit} className="rounded-xl border border-[#e6e2d8] bg-[#f3f1ea] p-4 space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Tenant name</label>
+                    <label className="block text-sm font-medium text-[#15161a] mb-1">Tenant name</label>
                     <input
                       type="text"
                       value={provisionName}
                       onChange={(e) => setProvisionName(e.target.value)}
                       placeholder="e.g. Lincoln High School"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                       required
                       minLength={2}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Plan</label>
+                      <label className="block text-sm font-medium text-[#15161a] mb-1">Plan</label>
                       <select
                         value={provisionPlan}
                         onChange={(e) => setProvisionPlan(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                       >
                         <option value="basic">Basic</option>
                         <option value="standard">Standard</option>
@@ -466,11 +487,11 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Region</label>
+                      <label className="block text-sm font-medium text-[#15161a] mb-1">Region</label>
                       <select
                         value={provisionRegion}
                         onChange={(e) => setProvisionRegion(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                       >
                         <option value="global">Global</option>
                         <option value="us-east">US East</option>
@@ -479,12 +500,12 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                       </select>
                     </div>
                   </div>
-                  {provisionError && <p className="text-sm text-red-600">{provisionError}</p>}
+                  {provisionError && <p className="text-sm text-[#e31e24]">{provisionError}</p>}
                   <div className="flex gap-2">
-                    <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700" disabled={provisionLoading}>
+                    <Button type="submit" size="sm" className="bg-[#e31e24] hover:bg-[#cf1a1f] text-white rounded-lg" disabled={provisionLoading}>
                       {provisionLoading ? 'Provisioning...' : 'Create tenant'}
                     </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setShowProvisionForm(false)} disabled={provisionLoading}>
+                    <Button type="button" size="sm" variant="outline" className="border-[#d5cfc0] text-[#5b5c63]" onClick={() => setShowProvisionForm(false)} disabled={provisionLoading}>
                       Cancel
                     </Button>
                   </div>
@@ -492,48 +513,55 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               )}
               <Tabs defaultValue="all" className="w-full">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <TabsList>
+                  <TabsList className="bg-[#f3f1ea]">
                     <TabsTrigger value="all">All tenants</TabsTrigger>
                     <TabsTrigger value="alerts">Needs attention</TabsTrigger>
                   </TabsList>
-                  <p className="text-xs text-slate-500">Data refreshed 16 seconds ago</p>
+                  <p className="text-xs text-[#9b9a94]">Data refreshed {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
 
                 <TabsContent value="all" className="mt-4">
-                  <div className="rounded-xl border border-slate-100">
+                  <div className="rounded-xl border border-[#e6e2d8] overflow-hidden">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Tenant</TableHead>
-                          <TableHead>Plan</TableHead>
-                          <TableHead>Region</TableHead>
-                          <TableHead>Adoption</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                        <TableRow className="bg-[#f3f1ea] border-[#e6e2d8]">
+                          <TableHead className="text-[#5b5c63] font-medium">Tenant</TableHead>
+                          <TableHead className="text-[#5b5c63] font-medium">Plan</TableHead>
+                          <TableHead className="text-[#5b5c63] font-medium">Region</TableHead>
+                          <TableHead className="text-[#5b5c63] font-medium">Adoption</TableHead>
+                          <TableHead className="text-[#5b5c63] font-medium">Status</TableHead>
+                          <TableHead className="text-right text-[#5b5c63] font-medium">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {tenants.length === 0 ? (
-                          <TableRow><TableCell colSpan={6} className="text-center text-gray-500">No tenants found</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={6} className="text-center text-[#9b9a94] py-8">No tenants found</TableCell></TableRow>
                         ) : tenants.map((tenant) => (
-                          <TableRow key={tenant.id ?? tenant.name}>
+                          <TableRow key={tenant.id ?? tenant.name} className="border-[#e6e2d8] hover:bg-[#f3f1ea]/50">
                             <TableCell>
-                              <div className="font-medium text-slate-900">{tenant.name}</div>
-                              <p className="text-xs text-slate-500">{tenant.alerts > 0 ? `${tenant.alerts} open alerts` : 'Operational'}</p>
+                              <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-lg bg-[#15161a] flex items-center justify-center flex-shrink-0">
+                                  <Building2 className="h-4 w-4 text-[#F7931E]" />
+                                </div>
+                                <div>
+                                  <div className="font-medium text-[#15161a]">{tenant.name}</div>
+                                  <p className="text-xs text-[#9b9a94]">{tenant.alerts > 0 ? `${tenant.alerts} open alerts` : 'Operational'}</p>
+                                </div>
+                              </div>
                             </TableCell>
-                            <TableCell>{tenant.subscription}</TableCell>
-                            <TableCell>{tenant.region}</TableCell>
+                            <TableCell><span className="text-sm text-[#5b5c63] capitalize">{tenant.subscription}</span></TableCell>
+                            <TableCell><span className="text-sm text-[#5b5c63]">{tenant.region}</span></TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 w-32">
                                 <Progress value={tenant.usage} className="h-2" />
-                                <span className="text-sm text-slate-600">{tenant.usage}%</span>
+                                <span className="text-xs text-[#5b5c63]">{tenant.usage}%</span>
                               </div>
                             </TableCell>
                             <TableCell>{statusBadge(tenant.status)}</TableCell>
                             <TableCell className="text-right">
-                              <Button size="sm" variant="outline" className="gap-1" onClick={() => openAdminModal(tenant)}>
+                              <Button size="sm" variant="outline" className="gap-1 border-[#d5cfc0] text-[#15161a] hover:bg-[#f3f1ea] rounded-lg" onClick={() => openAdminModal(tenant)}>
                                 <Shield className="h-3.5 w-3.5" />
-                                Manage Admins
+                                Manage
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -545,19 +573,19 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
 
                 <TabsContent value="alerts" className="mt-4">
                   {tenantsNeedingAttention.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+                    <div className="rounded-xl border border-dashed border-[#d5cfc0] p-8 text-center text-sm text-[#9b9a94]">
                       All tenants are healthy right now.
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {tenantsNeedingAttention.map((tenant) => (
-                        <div key={tenant.id ?? tenant.name} className="rounded-xl border border-amber-100 bg-amber-50/60 p-4">
+                        <div key={tenant.id ?? tenant.name} className="rounded-xl border border-[#F7C93C]/40 bg-[#F7C93C]/5 p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-medium text-slate-900">{tenant.name}</p>
-                              <p className="text-xs text-slate-500">{tenant.alerts} alert(s) • {tenant.status}</p>
+                              <p className="font-medium text-[#15161a]">{tenant.name}</p>
+                              <p className="text-xs text-[#5b5c63]">{tenant.alerts} alert(s) • {tenant.status}</p>
                             </div>
-                            <Button size="sm" variant="outline" className="gap-1">
+                            <Button size="sm" variant="outline" className="gap-1 border-[#d5cfc0] text-[#15161a] rounded-lg">
                               Investigate
                               <ArrowUpRight className="h-3.5 w-3.5" />
                             </Button>
@@ -568,94 +596,137 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   )}
                 </TabsContent>
               </Tabs>
-            </CardHeader>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Provisioning queue</CardTitle>
-              <p className="text-sm text-slate-500">Fast-track rollouts and escalations.</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {provisioningQueue.length === 0 ? (
-                <p className="text-sm text-slate-500">No items in queue</p>
-              ) : provisioningQueue.map((item) => (
-                <div key={item.id ?? item.name} className="rounded-xl border border-slate-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-slate-900">{item.name}</p>
-                      <p className="text-xs text-slate-500">{item.type}</p>
-                    </div>
-                    <Badge className="bg-slate-100 text-slate-700">{item.eta}</Badge>
-                  </div>
-                  <p className="mt-3 text-xs text-slate-500">Owner • {item.owner}</p>
-                  <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="outline" className="flex-1">
-                      Pause
-                    </Button>
-                    <Button size="sm" className="flex-1 bg-slate-900 hover:bg-slate-800">
-                      Push live
-                    </Button>
-                  </div>
+          <div className="rounded-2xl border border-[#e6e2d8] bg-white overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-8 w-8 rounded-lg bg-[#F7931E]/10 flex items-center justify-center">
+                  <Zap className="h-4 w-4 text-[#F7931E]" />
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+                <div>
+                  <h2 className="text-base font-semibold text-[#15161a]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 560 }}>
+                    Provisioning Queue
+                  </h2>
+                  <p className="text-xs text-[#9b9a94]">Fast-track rollouts</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {provisioningQueue.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-[#d5cfc0] p-6 text-center text-sm text-[#9b9a94]">
+                    No items in queue
+                  </div>
+                ) : provisioningQueue.map((item) => (
+                  <div key={item.id ?? item.name} className="rounded-xl border border-[#e6e2d8] p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-[#15161a]">{item.name}</p>
+                        <p className="text-xs text-[#9b9a94]">{item.type}</p>
+                      </div>
+                      <Badge className="bg-[#F7931E]/10 text-[#F7931E] border-[#F7931E]/20">{item.eta}</Badge>
+                    </div>
+                    <p className="mt-3 text-xs text-[#5b5c63]">Owner • {item.owner}</p>
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1 border-[#d5cfc0] text-[#5b5c63] rounded-lg">
+                        Pause
+                      </Button>
+                      <Button size="sm" className="flex-1 bg-[#15161a] hover:bg-[#15161a]/90 text-white rounded-lg">
+                        Push live
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Incidents + Activity */}
         <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-col gap-2">
-              <CardTitle>Operational incidents</CardTitle>
-              <p className="text-sm text-slate-500">Live SRE timeline across connected services.</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {incidentLog.length === 0 ? (
-                <p className="text-sm text-slate-500">No incidents</p>
-              ) : incidentLog.map((incident) => (
-                <div key={incident.id ?? incident.title} className="rounded-xl border border-slate-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-900">{incident.title}</p>
-                      <p className="text-xs text-slate-500">Impact: {incident.impact}</p>
+          <div className="rounded-2xl border border-[#e6e2d8] bg-white overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-8 w-8 rounded-lg bg-[#e31e24]/10 flex items-center justify-center">
+                  <AlertTriangle className="h-4 w-4 text-[#e31e24]" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-[#15161a]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 560 }}>
+                    Operational Incidents
+                  </h2>
+                  <p className="text-xs text-[#9b9a94]">Live SRE timeline</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {incidentLog.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-[#d5cfc0] p-6 text-center text-sm text-[#9b9a94]">
+                    No incidents
+                  </div>
+                ) : incidentLog.map((incident) => (
+                  <div key={incident.id ?? incident.title} className="rounded-xl border border-[#e6e2d8] p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-[#15161a]">{incident.title}</p>
+                        <p className="text-xs text-[#9b9a94]">Impact: {incident.impact}</p>
+                      </div>
+                      <Badge className="bg-[#f3f1ea] text-[#5b5c63] border-[#d5cfc0]">{incident.timestamp}</Badge>
                     </div>
-                    <Badge className="bg-slate-100 text-slate-700">{incident.timestamp}</Badge>
+                    <div className="mt-3 flex items-center gap-2 text-sm">
+                      {incident.status === 'Mitigated' ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-[#F7C93C]" />
+                      )}
+                      <span className="text-[#5b5c63]">Status: {incident.status}</span>
+                    </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-2 text-sm">
-                    {incident.status === 'Mitigated' ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    ) : (
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    )}
-                    <span className="text-slate-600">Status: {incident.status}</span>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                ))}
+              </div>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-col gap-2">
-              <CardTitle>Activity feed</CardTitle>
-              <p className="text-sm text-slate-500">Latest orchestration and compliance events.</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {activityFeed.length === 0 ? (
-                <p className="text-sm text-slate-500">No recent activity</p>
-              ) : activityFeed.map((activity) => (
-                <div key={activity.id ?? activity.title} className="flex items-start gap-3">
-                  <div className="rounded-full bg-white p-2 shadow-sm bg-slate-100">
-                    <Activity className="h-4 w-4 text-slate-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-900">{activity.title}</p>
-                    <p className="text-xs text-slate-500">{activity.meta}</p>
-                  </div>
+          <div className="rounded-2xl border border-[#e6e2d8] bg-white overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-8 w-8 rounded-lg bg-[#F7C93C]/10 flex items-center justify-center">
+                  <Activity className="h-4 w-4 text-[#F7C93C]" />
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+                <div>
+                  <h2 className="text-base font-semibold text-[#15161a]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 560 }}>
+                    Activity Feed
+                  </h2>
+                  <p className="text-xs text-[#9b9a94]">Latest orchestration events</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {activityFeed.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-[#d5cfc0] p-6 text-center text-sm text-[#9b9a94]">
+                    No recent activity
+                  </div>
+                ) : activityFeed.map((activity) => (
+                  <div key={activity.id ?? activity.title} className="flex items-start gap-3">
+                    <div className="rounded-full bg-[#f3f1ea] p-2 flex-shrink-0">
+                      <Activity className="h-4 w-4 text-[#5b5c63]" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-[#15161a]">{activity.title}</p>
+                      <p className="text-xs text-[#9b9a94]">{activity.meta}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-4 pb-2">
+          <p className="text-xs text-[#9b9a94]">
+            Pisairtel Schools · Super Admin Command Center
+          </p>
+          <div className="flex items-center gap-2 text-xs text-[#9b9a94]">
+            <Server className="h-3.5 w-3.5" />
+            <span>All systems operational</span>
+          </div>
         </div>
       </main>
 
@@ -665,11 +736,13 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           <DialogHeader>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <DialogTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-slate-600" />
+                <DialogTitle className="flex items-center gap-2 text-[#15161a]">
+                  <div className="h-7 w-7 rounded-lg bg-[#15161a] flex items-center justify-center">
+                    <Shield className="h-4 w-4 text-[#e31e24]" />
+                  </div>
                   {selectedTenant ? `Manage Admins — ${selectedTenant.name}` : 'Manage Admins'}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-[#5b5c63]">
                   Create and manage administrators for this tenant.
                 </DialogDescription>
               </div>
@@ -678,18 +751,18 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
+                    className="gap-1 text-[#e31e24] border-[#e31e24]/20 hover:bg-[#e31e24]/5 rounded-lg"
                     disabled={tenantActionLoading}
                     onClick={() => updateTenantStatus(selectedTenant.id, 'suspended')}
                   >
                     <Ban className="h-3.5 w-3.5" />
-                    Suspend License
+                    Suspend
                   </Button>
                 ) : (
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                    className="gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-lg"
                     disabled={tenantActionLoading}
                     onClick={() => updateTenantStatus(selectedTenant!.id, 'active')}
                   >
@@ -703,24 +776,28 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
 
           <div className="space-y-4">
             {selectedTenant && (
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <span className="font-medium text-slate-700">Tenant status:</span>
+              <div className="flex items-center gap-2 text-sm text-[#5b5c63]">
+                <span className="font-medium text-[#15161a]">Status:</span>
                 {statusBadge(selectedTenant.status)}
-                <span className="ml-2">Plan: {selectedTenant.subscription}</span>
+                <span className="ml-2">Plan: <span className="capitalize">{selectedTenant.subscription}</span></span>
               </div>
             )}
 
-            {adminError && <p className="text-sm text-red-600">{adminError}</p>}
+            {adminError && (
+              <div className="rounded-lg border border-[#e31e24]/20 bg-[#e31e24]/5 p-3">
+                <p className="text-sm text-[#e31e24]">{adminError}</p>
+              </div>
+            )}
             {resetPasswordResult && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex items-center justify-between">
+              <div className="rounded-lg border border-[#F7931E]/20 bg-[#F7931E]/5 p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-800">Password reset for {resetPasswordResult.name}</p>
-                  <p className="text-xs text-blue-700">New temporary password: <span className="font-mono font-semibold">{resetPasswordResult.password}</span></p>
+                  <p className="text-sm font-medium text-[#15161a]">Password reset for {resetPasswordResult.name}</p>
+                  <p className="text-xs text-[#5b5c63]">New temporary password: <span className="font-mono font-semibold text-[#e31e24]">{resetPasswordResult.password}</span></p>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-blue-200 text-blue-700 hover:bg-blue-100"
+                  className="border-[#F7931E]/20 text-[#F7931E] hover:bg-[#F7931E]/10 rounded-lg"
                   onClick={() => navigator.clipboard.writeText(resetPasswordResult.password)}
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -731,7 +808,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
             <div className="flex justify-end">
               <Button
                 size="sm"
-                className="gap-2 bg-slate-900 hover:bg-slate-800"
+                className="gap-2 bg-[#15161a] hover:bg-[#15161a]/90 text-white rounded-lg"
                 onClick={() => {
                   setShowAdminForm((s) => !s)
                   setAdminError(null)
@@ -745,38 +822,38 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
             </div>
 
             {showAdminForm && (
-              <form onSubmit={handleCreateAdminSubmit} className="rounded-xl border border-slate-100 bg-slate-50/40 p-4 space-y-3">
+              <form onSubmit={handleCreateAdminSubmit} className="rounded-xl border border-[#e6e2d8] bg-[#f3f1ea] p-4 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                    <label className="block text-sm font-medium text-[#15161a] mb-1">Name</label>
                     <input
                       type="text"
                       value={adminName}
                       onChange={(e) => setAdminName(e.target.value)}
                       placeholder="e.g. John Doe"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                       required
                       minLength={2}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-[#15161a] mb-1">Email</label>
                     <input
                       type="email"
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
                       placeholder="john@school.edu"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                       required
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                  <label className="block text-sm font-medium text-[#15161a] mb-1">Role</label>
                   <select
                     value={adminRole}
                     onChange={(e) => setAdminRole(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                   >
                     <option value="tenant_admin">Tenant Admin</option>
                     <option value="Admin">Admin</option>
@@ -784,15 +861,15 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Password <span className="text-slate-400 font-normal">(optional — auto-generated if left blank)</span>
+                  <label className="block text-sm font-medium text-[#15161a] mb-1">
+                    Password <span className="text-[#9b9a94] font-normal">(optional — auto-generated if left blank)</span>
                   </label>
                   <input
                     type="text"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     placeholder="Leave blank to auto-generate"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                     minLength={6}
                   />
                 </div>
@@ -806,7 +883,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-100 rounded-lg"
                       onClick={() => navigator.clipboard.writeText(generatedPassword)}
                     >
                       <Copy className="h-3.5 w-3.5" />
@@ -814,39 +891,46 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Button type="submit" size="sm" className="bg-slate-900 hover:bg-slate-800" disabled={adminLoading}>
+                  <Button type="submit" size="sm" className="bg-[#e31e24] hover:bg-[#cf1a1f] text-white rounded-lg" disabled={adminLoading}>
                     {adminLoading ? 'Creating...' : 'Create admin'}
                   </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setShowAdminForm(false)} disabled={adminLoading}>
+                  <Button type="button" size="sm" variant="outline" className="border-[#d5cfc0] text-[#5b5c63] rounded-lg" onClick={() => setShowAdminForm(false)} disabled={adminLoading}>
                     Cancel
                   </Button>
                 </div>
               </form>
             )}
 
-            <div className="rounded-xl border border-slate-100">
+            <div className="rounded-xl border border-[#e6e2d8] overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                  <TableRow className="bg-[#f3f1ea] border-[#e6e2d8]">
+                    <TableHead className="text-[#5b5c63] font-medium">Name</TableHead>
+                    <TableHead className="text-[#5b5c63] font-medium">Email</TableHead>
+                    <TableHead className="text-[#5b5c63] font-medium">Role</TableHead>
+                    <TableHead className="text-[#5b5c63] font-medium">Status</TableHead>
+                    <TableHead className="text-right text-[#5b5c63] font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {modalAdmins.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center text-gray-500">No tenant admins found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center text-[#9b9a94] py-6">No tenant admins found</TableCell></TableRow>
                   ) : modalAdmins.map((admin) => (
-                    <TableRow key={admin.id}>
+                    <TableRow key={admin.id} className="border-[#e6e2d8] hover:bg-[#f3f1ea]/50">
                       <TableCell>
-                        <div className="font-medium text-slate-900">{admin.name}</div>
-                        <div className="text-xs text-slate-500">{admin.staffId}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-[#15161a] flex items-center justify-center flex-shrink-0">
+                            <Users className="h-3.5 w-3.5 text-[#F7931E]" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-[#15161a]">{admin.name}</div>
+                            <div className="text-xs text-[#9b9a94]">{admin.staffId}</div>
+                          </div>
+                        </div>
                       </TableCell>
-                      <TableCell>{admin.email}</TableCell>
+                      <TableCell className="text-sm text-[#5b5c63]">{admin.email}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="gap-1">
+                        <Badge variant="outline" className="gap-1 border-[#d5cfc0] text-[#5b5c63]">
                           <Shield className="h-3 w-3" />
                           {admin.role}
                         </Badge>
@@ -857,18 +941,18 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-slate-500 hover:text-blue-600"
+                            className="text-[#9b9a94] hover:text-[#e31e24] rounded-lg"
                             onClick={() => resetAdminPassword(admin.id, admin.name)}
                             title="Reset password"
                           >
                             <KeyRound className="h-3.5 w-3.5" />
                           </Button>
                           {admin.status !== 'active' ? (
-                            <Button size="sm" variant="outline" onClick={() => toggleAdminStatus(admin.id, 'active')}>
+                            <Button size="sm" variant="outline" className="border-[#d5cfc0] text-emerald-600 hover:bg-emerald-50 rounded-lg" onClick={() => toggleAdminStatus(admin.id, 'active')}>
                               Activate
                             </Button>
                           ) : (
-                            <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => toggleAdminStatus(admin.id, 'suspended')}>
+                            <Button size="sm" variant="outline" className="border-[#d5cfc0] text-[#e31e24] hover:bg-[#e31e24]/5 rounded-lg" onClick={() => toggleAdminStatus(admin.id, 'suspended')}>
                               Suspend
                             </Button>
                           )}

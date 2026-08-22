@@ -1,0 +1,3 @@
+$env:SSHPASS = '2Gcu*d8Q'
+$result = sshpass -e ssh -o StrictHostKeyChecking=no root@162.35.104.28 "cd /opt/pisairtel-sms && git checkout -- . && git pull origin main 2>&1; echo '---SEP---'; docker compose up -d --build app 2>&1 | tail -5; echo '---SEP---'; sleep 10; docker ps --format '{{.Names}} {{.Status}}' 2>&1 | grep pisairtel; echo '---SEP---'; curl -s -X POST http://localhost:3000/api/tenant/auth/reset-password -H 'Content-Type: application/json' -d '{\"email\":\"akoma@kreatixtech.com\"}' 2>&1; echo ''; echo '---SEP---'; curl -s -X POST http://localhost:3000/api/tenant/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"akoma@kreatixtech.com\",\"password\":\"admin123\"}' 2>&1 | head -c 200"
+Write-Output $result

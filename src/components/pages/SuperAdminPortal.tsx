@@ -367,6 +367,15 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
     }
   }
 
+  const tenantsNeedingAttention = tenants.filter((tenant) => tenant.alerts > 0)
+
+  const tenantStats = [
+    { label: 'Active Tenants', value: stats?.activeTenants?.toString() ?? '—', delta: 'live count', icon: Building2 },
+    { label: 'Pending Provisioning', value: stats?.pendingProvisioning?.toString() ?? '—', delta: 'in queue', icon: RefreshCcw },
+    { label: 'Compliance Alerts', value: stats?.complianceAlerts?.toString() ?? '—', delta: 'open', icon: AlertTriangle },
+    { label: 'Overall Health', value: stats?.overallHealth ?? '—', delta: 'uptime', icon: ShieldCheck },
+  ]
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#f3f1ea]">

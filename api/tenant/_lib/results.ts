@@ -96,6 +96,8 @@ export async function ensureResultsTable(): Promise<void> {
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by TEXT`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by_name TEXT`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submission_status TEXT DEFAULT 'submitted'`, [])
+    // Drop check constraint that limits ca_score to <=100 (breakdown scores can sum higher)
+    await poolQuery(`ALTER TABLE student_scores DROP CONSTRAINT IF EXISTS student_scores_ca_score_check`, [])
     // Add unique constraint for ON CONFLICT upserts
     await poolQuery(
       `DO $$ BEGIN

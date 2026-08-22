@@ -12,4 +12,17 @@ PASS: Password reset OK
 PASS: Tenant admin login OK
 
 === 2. GET CA CONFIG ===
-FAIL: CA config fetch failed. Response: {"error":"Internal server error","message":"Cannot find module '/app/api/tenant/_lib/pg-pool.js' imported from /app/api/tenant/_lib/ca-config.ts"}
+PASS: CA config returned
+INFO: {"data":{"published":{"primary":{"tests":30,"assignments":20,"projects":10,"exams":40},"jss":{"tests":25,"assignments":15,"projects":10,"exams":50},"sss":{"tests":20,"assignments":15,"projects":15,"exams":50}},"draft":null,"status":"published","updated_at":"2026-08-22T22:58:15.904Z","published_at":"
+
+=== 3. SAVE DRAFT CA CONFIG ===
+PASS: Draft CA config saved
+
+=== 4. PUBLISH CA CONFIG ===
+PASS: CA config published
+
+=== 5. VERIFY PUBLISHED CA CONFIG ===
+PASS: Config status is published
+
+=== 6. ENTER CA SCORES (Student 1) ===
+FAIL: Score entry failed. Response: {"error":"Failed to create score"}

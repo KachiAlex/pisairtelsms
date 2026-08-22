@@ -96,6 +96,21 @@ export async function ensureResultsTable(): Promise<void> {
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by TEXT`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by_name TEXT`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submission_status TEXT DEFAULT 'submitted'`, [])
+    // Add unique constraint for ON CONFLICT upserts
+    await poolQuery(
+      `DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'student_scores_unique_composite'
+            AND conrelid = 'student_scores'::regclass
+        ) THEN
+          ALTER TABLE student_scores
+          ADD CONSTRAINT student_scores_unique_composite
+          UNIQUE (tenant_id, student_id, subject, academic_session, term);
+        END IF;
+      END $$`,
+      []
+    )
   } catch (error) {
     console.error('Error ensuring student_scores table:', error)
   }

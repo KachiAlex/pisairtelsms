@@ -12,10 +12,10 @@ INFO: Reset response: {"success":true,"data":{"id":"staff_1779874611429_wf2i6u9"
 PASS: Tenant admin login OK
 
 === 4. CREATE QUESTION ===
-PASS: Created question ID=da0cba57-15d4-4d4b-bce0-91626ae1cb11
+PASS: Created question ID=1499ff64-4918-4b33-ab8b-4f3ee5decc71
 
 === 5. CREATE EXAM ===
-PASS: Created exam ID=e7384dba-f744-4b87-8dbd-364016a3e19a
+PASS: Created exam ID=182fa940-2047-437d-a694-c1bd783cbe14
 
 === 6. SCHEDULE EXAM ===
 PASS: Exam scheduled (status=Scheduled)
@@ -24,18 +24,18 @@ PASS: Exam scheduled (status=Scheduled)
 PASS: Exam started (status=Ongoing)
 
 === 8. SIMULATE STUDENT SUBMISSION (via DB) ===
-PASS: Created result ID=file:///app/insert_result.js:1const{Pool}=require('pg');^ReferenceError:requireisnotdefinedinESmodulescope,youcanuseimportinsteadThisfileisbeingtreatedasanESmodulebecauseithasa'.js'fileextensionand'/app/package.json'contains"type":"module".TotreatitasaCommonJSscript,renameittousethe'.cjs'fileextension.atfile:///app/insert_result.js:1:18atModuleJob.run(node:internal/modules/esm/module_job:343:25)atasynconImport.tracePromise.__proto__(node:internal/modules/esm/loader:681:26)atasyncasyncRunEntryPointWithESMLoader(node:internal/modules/run_main:117:5)Node.jsv22.23.2
+PASS: Created result ID=5287a3f1-67ff-4ae3-b989-4985c9514910
 PASS: Recorded student answer
 
 === 9. END EXAM ===
 PASS: Exam ended (status=Completed)
 
 === 10. FETCH RESULTS SUMMARY ===
-INFO: Summary: {"success":true,"data":{"examId":"e7384dba-f744-4b87-8dbd-364016a3e19a","examTitle":"CBT Flow Test Exam","totalStudents":0,"completedStudents":0,"averageScore":0,"passRate":0,"highestScore":0,"lowestScore":0,"completionRate":0,"results":[]}}
+INFO: Summary: {"success":true,"data":{"examId":"182fa940-2047-437d-a694-c1bd783cbe14","examTitle":"CBT Flow Test Exam","totalStudents":1,"completedStudents":1,"averageScore":80,"passRate":100,"highestScore":80,"lowestScore":80,"completionRate":100,"results":[{"id":"5287a3f1-67ff-4ae3-b989-4985c9514910","examId":"182fa940-2047-437d-a694-c1bd783cbe14","studentId":"test-student-001","studentName":"Unknown Student","score":80,"totalMarks":100,"percentage":80,"status":"Passed","timeSpent":1200,"submittedAt":"2026-08-22T22:30:59.754Z","createdAt":"2026-08-22T22:30:59.754Z"}]}}
 PASS: Summary returned valid JSON with success=true
 PASS: Results array present in summary
 PASS: examTitle present in summary
-WARN: No studentName in results
+PASS: studentName present in results
 PASS: completionRate present in summary
 
 === 11. FETCH RESULTS LIST ===
@@ -43,9 +43,9 @@ INFO: List: {"success":false,"error":"Failed to fetch results"}
 WARN: No data in results list
 
 === 12. FETCH DETAILED RESULT (answers) ===
-INFO: Detail: <!doctype html> <html lang="en"> <head> <meta charset="UTF-8" /> <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" /> <meta http-equiv="X-UA-Compatible" content="IE=edge" /> <!-- Primary Meta Tags --> <title>Pisairtel SMS — Multi-Tenant School Management System</title> <meta name="title" content="Pisairtel SMS — Multi-Tenant School Management System" /> <meta name="description" content="All-in-one cloud school management platform featuring Computer-Base
-WARN: No answers in detailed result
-WARN: No questionText in answers
+INFO: Detail: {"success":true,"data":[{"id":"cd99ce7a-cd23-43ab-9dfa-757782c2907c","resultId":"5287a3f1-67ff-4ae3-b989-4985c9514910","questionId":"1499ff64-4918-4b33-ab8b-4f3ee5decc71","questionText":"CBT Test: What is 5 + 3? (ref: 1787437859)","studentAnswer":"8","correctAnswer":"8","isCorrect":true,"marksObtained":80,"totalMarks":100,"createdAt":"2026-08-22T22:30:59.764Z"}]}
+PASS: Answers endpoint returned data
+PASS: questionText present in answers
 
 === 13. FETCH EXAM STATS ===
 PASS: Exam stats returned successfully

@@ -68,6 +68,7 @@ export async function getResults(
   const total = parseInt(countResult?.count || '0');
 
   // Get paginated results with student names
+  // Note: whereClause starts with "WHERE ..." so we insert JOINs before it
   const rawResults = await queryAll<{
     id: string;
     exam_id: string;
@@ -82,9 +83,10 @@ export async function getResults(
     student_name: string;
   }>(
     `SELECT er.*, COALESCE(s.name, u.name, 'Unknown Student') as student_name
-     FROM exam_results er ${whereClause}
+     FROM exam_results er
      LEFT JOIN students s ON s.id::text = er.student_id
      LEFT JOIN tenant_users u ON u.id::text = er.student_id
+     ${whereClause}
      ORDER BY er.submitted_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
     [...params, limit, offset]
   );

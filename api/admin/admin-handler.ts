@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import { poolQuery } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 async function ensureAdminTables() {
@@ -18,31 +18,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     await ensureAdminTables()
     if (action === 'provisioning-queue') {
-      const r = await sql`
-        SELECT id, name, type, eta, owner FROM admin_provisioning_queue
-        WHERE status != 'completed' ORDER BY created_at DESC LIMIT 20`
+      const r = await poolQuery(
+        `SELECT id, name, type, eta, owner FROM admin_provisioning_queue
+         WHERE status != 'completed' ORDER BY created_at DESC LIMIT 20`
+      )
       return res.json({ success: true, data: r.rows })
     }
 
     if (action === 'activity-feed') {
-      const r = await sql`
-        SELECT id, title, meta FROM admin_activity_feed
-        ORDER BY created_at DESC LIMIT 20`
+      const r = await poolQuery(
+        `SELECT id, title, meta FROM admin_activity_feed
+         ORDER BY created_at DESC LIMIT 20`
+      )
       return res.json({ success: true, data: r.rows })
     }
 
     if (action === 'incidents') {
-      const r = await sql`
-        SELECT id, title, impact, status,
-               TO_CHAR(created_at, 'HH24:MI') AS timestamp
-        FROM admin_incidents ORDER BY created_at DESC LIMIT 20`
+      const r = await poolQuery(
+        `SELECT id, title, impact, status,
+           TO_CHAR(created_at, 'HH24:MI') AS timestamp
+         FROM admin_incidents ORDER BY created_at DESC LIMIT 20`
+      )
       return res.json({ success: true, data: r.rows })
     }
 
     if (action === 'stats') {
-      const active = await sql`SELECT COUNT(*)::int AS n FROM tenants WHERE status = 'active'`
-      const pending = await sql`SELECT COUNT(*)::int AS n FROM admin_provisioning_queue WHERE status != 'completed'`
-      const alerts = await sql`SELECT COUNT(*)::int AS n FROM admin_incidents WHERE status NOT IN ('Mitigated','Resolved')`
+      const active = await poolQuery<{ n: number }>('SELECT COUNT(*)::int AS n FROM tenants WHERE status = $1', ['active'])
+      const pending = await poolQuery<{ n: number }>("SELECT COUNT(*)::int AS n FROM admin_provisioning_queue WHERE status != 'completed'")
+      const alerts = await poolQuery<{ n: number }>("SELECT COUNT(*)::int AS n FROM admin_incidents WHERE status NOT IN ('Mitigated','Resolved')")
       return res.json({
         success: true,
         data: {

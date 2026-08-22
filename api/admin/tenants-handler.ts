@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import { poolQuery } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 async function ensureTenantsTable() {
@@ -12,18 +12,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       await ensureTenantsTable()
-      const r = await sql`
-        SELECT
-          id,
-          name,
-          subscription_plan AS subscription,
-          region,
-          COALESCE(usage_percent, 0)::int AS usage,
-          status,
+      const r = await poolQuery(
+        `SELECT id, name, subscription_plan AS subscription, region,
+          COALESCE(usage_percent, 0)::int AS usage, status,
           TO_CHAR(last_sync_at, 'HH24:MI') AS "lastSync",
           COALESCE(open_alerts, 0)::int AS alerts
-        FROM tenants
-        ORDER BY name ASC`
+        FROM tenants ORDER BY name ASC`
+      )
       return res.json({ success: true, data: r.rows })
     } catch (error) {
       console.error('tenants-handler error:', error)
@@ -42,11 +37,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       await ensureTenantsTable()
-      const r = await sql`
-        INSERT INTO tenants (name, subscription_plan, region, status)
-        VALUES (${name.trim()}, ${subscription}, ${region}, 'active')
-        RETURNING id, name, subscription_plan AS subscription, region, usage_percent AS usage, status, TO_CHAR(last_sync_at, 'HH24:MI') AS "lastSync", open_alerts AS alerts
-      `
+      const r = await poolQuery(
+        `INSERT INTO tenants (name, subscription_plan, region, status)
+         VALUES ($1, $2, $3, 'active')
+         RETURNING id, name, subscription_plan AS subscription, region,
+           usage_percent AS usage, status,
+           TO_CHAR(last_sync_at, 'HH24:MI') AS "lastSync", open_alerts AS alerts`,
+        [name.trim(), subscription, region]
+      )
       return res.status(201).json({ success: true, data: r.rows[0] })
     } catch (error) {
       console.error('tenants-handler POST error:', error)
@@ -69,14 +67,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       await ensureTenantsTable()
-      const r = await sql`
-        UPDATE tenants SET status = ${status}
-        WHERE id = ${id}
-        RETURNING
-          id, name, subscription_plan AS subscription, region,
-          usage_percent AS usage, status, TO_CHAR(last_sync_at, 'HH24:MI') AS "lastSync",
-          open_alerts AS alerts
-      `
+      const r = await poolQuery(
+        `UPDATE tenants SET status = $1 WHERE id = $2
+         RETURNING id, name, subscription_plan AS subscription, region,
+           usage_percent AS usage, status,
+           TO_CHAR(last_sync_at, 'HH24:MI') AS "lastSync", open_alerts AS alerts`,
+        [status, id]
+      )
       if (r.rows.length === 0) {
         return res.status(404).json({ success: false, error: 'Tenant not found' })
       }

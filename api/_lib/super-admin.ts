@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { poolQuery, poolQueryOne } from './pg-pool.js'
 import { hash, verify } from '@node-rs/argon2'
 
 export interface SuperAdminRow {
@@ -62,7 +62,7 @@ export async function fetchSuperAdmin() {
   }
 
   await ensureSuperAdminTable()
-  const result = await sql<SuperAdminRow>`SELECT * FROM super_admin_accounts LIMIT 1`
+  const result = await poolQuery<SuperAdminRow>('SELECT * FROM super_admin_accounts LIMIT 1')
   if (result.rowCount === 0) return null
   return mapRow(result.rows[0])
 }
@@ -91,16 +91,17 @@ export async function createOrUpdateSuperAdmin(data: {
   }
 
   await ensureSuperAdminTable()
-  const result = await sql<SuperAdminRow>`
-    INSERT INTO super_admin_accounts (full_name, organization, email, password_hash)
-    VALUES (${data.fullName}, ${data.organization}, ${data.email}, ${passwordHash})
-    ON CONFLICT (email) DO UPDATE SET
-      full_name = EXCLUDED.full_name,
-      organization = EXCLUDED.organization,
-      password_hash = EXCLUDED.password_hash,
-      updated_at = NOW()
-    RETURNING *;
-  `
+  const result = await poolQuery<SuperAdminRow>(
+    `INSERT INTO super_admin_accounts (full_name, organization, email, password_hash)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (email) DO UPDATE SET
+       full_name = EXCLUDED.full_name,
+       organization = EXCLUDED.organization,
+       password_hash = EXCLUDED.password_hash,
+       updated_at = NOW()
+     RETURNING *`,
+    [data.fullName, data.organization, data.email, passwordHash]
+  )
   return mapRow(result.rows[0])
 }
 
@@ -114,7 +115,10 @@ export async function verifySuperAdminCredentials(email: string, password: strin
   }
 
   await ensureSuperAdminTable()
-  const result = await sql<SuperAdminRow>`SELECT * FROM super_admin_accounts WHERE email = ${email} LIMIT 1`
+  const result = await poolQuery<SuperAdminRow>(
+    'SELECT * FROM super_admin_accounts WHERE email = $1 LIMIT 1',
+    [email]
+  )
   if (result.rowCount === 0) return null
   const row = result.rows[0]
   const valid = await verify(row.password_hash, password)

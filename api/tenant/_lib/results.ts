@@ -1,4 +1,4 @@
-import { poolQuery } from '../_lib/pg-pool.js'
+import { poolQuery } from '../../_lib/pg-pool.js'
 import { getTenantCAConfig, type CAConfig } from './ca-config.js'
 
 export interface StudentScore {

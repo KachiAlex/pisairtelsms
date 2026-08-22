@@ -1,0 +1,15 @@
+==========================================
+  CA-TO-RESULT COMPILATION FLOW TEST
+==========================================
+
+=== 1a. LOGIN AS SUPERADMIN ===
+PASS: Superadmin login OK
+
+=== 1b. RESET TENANT ADMIN PASSWORD ===
+PASS: Password reset OK
+
+=== 1. LOGIN AS TENANT ADMIN ===
+PASS: Tenant admin login OK
+
+=== 2. GET CA CONFIG ===
+FAIL: CA config fetch failed. Response: {"error":"Internal server error","message":"Cannot find module '/app/api/tenant/_lib/pg-pool.js' imported from /app/api/tenant/_lib/ca-config.ts"}

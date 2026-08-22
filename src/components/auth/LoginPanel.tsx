@@ -36,6 +36,8 @@ export function LoginPanel({ onLogin, roleData, activeRole }: LoginPanelProps) {
   const [accountLoadError, setAccountLoadError] = useState('')
   const [isVerifying, setIsVerifying] = useState(false)
   const [error, setError] = useState('')
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false)
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -286,8 +288,36 @@ export function LoginPanel({ onLogin, roleData, activeRole }: LoginPanelProps) {
           </div>
           <span className="text-[13px] text-[#5b5c63]">Remember me</span>
         </button>
-        <button type="button" className="text-[13px] font-semibold text-[#e31e24] hover:underline bg-transparent border-none">
-          Forgot password?
+        <button
+          type="button"
+          disabled={forgotPasswordLoading || !email}
+          onClick={async () => {
+            if (!email) {
+              setError('Enter your email address above first, then click Forgot password.')
+              return
+            }
+            setForgotPasswordLoading(true)
+            setError('')
+            try {
+              const res = await fetch('/api/tenant/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+              })
+              if (res.ok) {
+                setForgotPasswordSent(true)
+              } else {
+                setError('Unable to process request. Please try again.')
+              }
+            } catch {
+              setError('Network error. Please try again.')
+            } finally {
+              setForgotPasswordLoading(false)
+            }
+          }}
+          className="text-[13px] font-semibold text-[#e31e24] hover:underline bg-transparent border-none disabled:opacity-50"
+        >
+          {forgotPasswordLoading ? 'Sending...' : forgotPasswordSent ? 'Check your email ✓' : 'Forgot password?'}
         </button>
       </div>
 

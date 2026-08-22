@@ -5,6 +5,7 @@ import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
 import { fetchStaffByEmail, verifyStaffPassword, hashPassword } from '../../tenant/_lib/staff.js'
+import { poolQuery } from '../../_lib/pg-pool.js'
 
 const ADMIN_ROLES = new Set(['tenant_admin', 'Admin', 'Principal', 'admin', 'principal'])
 
@@ -62,8 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       // Auto-set the password hash
       const newHash = await hashPassword(password)
-      const { sql } = await import('@vercel/postgres')
-      await sql`UPDATE staff SET password_hash = ${newHash} WHERE id = ${staff.id}`
+      await poolQuery('UPDATE staff SET password_hash = $1 WHERE id = $2', [newHash, staff.id])
     } else {
       const valid = await verifyStaffPassword(password, staff.passwordHash)
       if (!valid) {

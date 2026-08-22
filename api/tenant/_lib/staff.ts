@@ -1,4 +1,5 @@
 import { sql } from '@vercel/postgres'
+import { poolQuery } from '../../_lib/pg-pool.js'
 import * as crypto from 'crypto'
 
 export async function hashPassword(password: string): Promise<string> {
@@ -523,7 +524,10 @@ export async function fetchStaffById(id: string, tenantId?: string): Promise<Sta
 export async function fetchStaffByEmail(email: string): Promise<(Staff & { passwordHash: string | null }) | null> {
   await ensureStaffTables()
   try {
-    const result = await sql<StaffRow & { password_hash: string | null }>`SELECT * FROM staff WHERE email = ${email} LIMIT 1`
+    const result = await poolQuery<StaffRow & { password_hash: string | null }>(
+      'SELECT * FROM staff WHERE email = $1 LIMIT 1',
+      [email]
+    )
     if (!result.rows[0]) return null
     return { ...rowToStaff(result.rows[0]), passwordHash: result.rows[0].password_hash }
   } catch (error) {
@@ -659,7 +663,10 @@ export async function deleteStaffMember(id: string, tenantId?: string): Promise<
 export async function resetStaffPassword(id: string, newPassword: string): Promise<boolean> {
   try {
     const passwordHash = await hashPassword(newPassword)
-    const result = await sql`UPDATE staff SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${id}`
+    const result = await poolQuery(
+      'UPDATE staff SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, id]
+    )
     return (result.rowCount ?? 0) > 0
   } catch (error) {
     console.error('Error resetting staff password:', error)

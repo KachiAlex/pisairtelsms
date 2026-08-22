@@ -6,8 +6,10 @@ BASE="http://localhost:3000"
 TENANT_ID="f038d6a2-8957-45e6-a716-393dfd69173b"
 TENANT_EMAIL="akoma@kreatixtech.com"
 TENANT_PASSWORD="password123"
-SESSION="2025/2026"
-TERM="First Term"
+SESSION="2025%2F2026"
+SESSION_RAW="2025/2026"
+TERM="First%20Term"
+TERM_RAW="First Term"
 CLASS="JSS1A"
 SUBJECT="Mathematics"
 STUDENT_ID="test-ca-student-001"
@@ -119,8 +121,8 @@ SCORE1_RESP=$(curl -s -X POST "$BASE/api/tenant/results" \
   -d "{
     \"studentId\": \"$STUDENT_ID\",
     \"subject\": \"$SUBJECT\",
-    \"academicSession\": \"$SESSION\",
-    \"term\": \"$TERM\",
+    \"academicSession\": \"$SESSION_RAW\",
+    \"term\": \"$TERM_RAW\",
     \"class\": \"$CLASS\",
     \"testsScore\": 80,
     \"assignmentsScore\": 70,
@@ -145,8 +147,8 @@ SCORE2_RESP=$(curl -s -X POST "$BASE/api/tenant/results" \
   -d "{
     \"studentId\": \"$STUDENT_ID2\",
     \"subject\": \"$SUBJECT\",
-    \"academicSession\": \"$SESSION\",
-    \"term\": \"$TERM\",
+    \"academicSession\": \"$SESSION_RAW\",
+    \"term\": \"$TERM_RAW\",
     \"class\": \"$CLASS\",
     \"testsScore\": 60,
     \"assignmentsScore\": 65,
@@ -171,8 +173,8 @@ SCORE3_RESP=$(curl -s -X POST "$BASE/api/tenant/results" \
   -d "{
     \"studentId\": \"$STUDENT_ID\",
     \"subject\": \"English\",
-    \"academicSession\": \"$SESSION\",
-    \"term\": \"$TERM\",
+    \"academicSession\": \"$SESSION_RAW\",
+    \"term\": \"$TERM_RAW\",
     \"class\": \"$CLASS\",
     \"testsScore\": 75,
     \"assignmentsScore\": 80,
@@ -192,8 +194,8 @@ SCORE4_RESP=$(curl -s -X POST "$BASE/api/tenant/results" \
   -d "{
     \"studentId\": \"$STUDENT_ID2\",
     \"subject\": \"English\",
-    \"academicSession\": \"$SESSION\",
-    \"term\": \"$TERM\",
+    \"academicSession\": \"$SESSION_RAW\",
+    \"term\": \"$TERM_RAW\",
     \"class\": \"$CLASS\",
     \"testsScore\": 55,
     \"assignmentsScore\": 60,
@@ -387,7 +389,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   } catch(e) { console.error('DB_ERR:' + e.message); process.exit(1); }
 })();
 JSEOF
-CLEANUP=$(node /app/cleanup_ca.cjs "$SESSION" "$TERM" "$CLASS" "$SUBJECT" "$STUDENT_ID" "$STUDENT_ID2" 2>&1)
+CLEANUP=$(node /app/cleanup_ca.cjs "$SESSION_RAW" "$TERM_RAW" "$CLASS" "$SUBJECT" "$STUDENT_ID" "$STUDENT_ID2" 2>&1)
 if echo "$CLEANUP" | grep -q "CLEANUP_OK"; then
   echo "PASS: Test data cleaned up"
 else

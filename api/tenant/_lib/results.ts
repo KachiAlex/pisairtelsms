@@ -951,7 +951,7 @@ export async function fetchBroadsheet(
              cr.class_position, cr.total_students, cr.attendance_percent, cr.status,
              s.name AS student_name
       FROM compiled_results cr
-      LEFT JOIN students s ON s.id = cr.student_id
+      LEFT JOIN students s ON s.id::text = cr.student_id
       WHERE cr.tenant_id = $1
         AND cr.academic_session = $2
         AND cr.term = $3

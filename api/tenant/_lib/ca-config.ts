@@ -66,13 +66,13 @@ export async function ensureCAConfigTable(): Promise<void> {
       `CREATE TABLE IF NOT EXISTS ca_config (
         id SERIAL PRIMARY KEY,
         tenant_id TEXT UNIQUE NOT NULL,
-        published_config JSONB NOT NULL DEFAULT $1,
+        published_config JSONB NOT NULL DEFAULT '${defaultConfigJson.replace(/'/g, "''")}'::jsonb,
         draft_config JSONB,
         status TEXT NOT NULL DEFAULT 'published',
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         published_at TIMESTAMPTZ
       )`,
-      [defaultConfigJson]
+      []
     )
     await poolQuery(
       `CREATE TABLE IF NOT EXISTS ca_config_audit (

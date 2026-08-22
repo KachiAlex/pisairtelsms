@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import { poolQuery } from '../../_lib/pg-pool.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 /**
@@ -30,21 +30,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get active sessions count
     let activeSessions = 0
     try {
-      const sessionsResult = await sql`
-        SELECT COUNT(*) as count FROM user_sessions
-        WHERE tenant_id = ${tenantId} AND terminated_at IS NULL AND expires_at > NOW()
-      `
+      const sessionsResult = await poolQuery(
+        'SELECT COUNT(*) as count FROM user_sessions WHERE tenant_id = $1 AND terminated_at IS NULL AND expires_at > NOW()',
+        [tenantId]
+      )
       activeSessions = parseInt(sessionsResult.rows[0]?.count || '0')
     } catch (e) { console.error('user_sessions query error:', e) }
 
     // Get privileged identities count
     let privilegedIdentities = 0
     try {
-      const privilegedResult = await sql`
-        SELECT COUNT(*) as count FROM role_assignments ra
-        JOIN privileged_roles pr ON ra.role_id = pr.id
-        WHERE ra.tenant_id = ${tenantId} AND ra.is_active = true AND pr.is_active = true
-      `
+      const privilegedResult = await poolQuery(
+        'SELECT COUNT(*) as count FROM role_assignments ra JOIN privileged_roles pr ON ra.role_id = pr.id WHERE ra.tenant_id = $1 AND ra.is_active = true AND pr.is_active = true',
+        [tenantId]
+      )
       privilegedIdentities = parseInt(privilegedResult.rows[0]?.count || '0')
     } catch (e) { console.error('role_assignments query error:', e) }
 
@@ -54,10 +53,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get encryption coverage
     let encryptionCoverage = 0
     try {
-      const encryptionResult = await sql`
-        SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'active' THEN 1 END) as active
-        FROM encryption_keys WHERE tenant_id = ${tenantId}
-      `
+      const encryptionResult = await poolQuery(
+        "SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'active' THEN 1 END) as active FROM encryption_keys WHERE tenant_id = $1",
+        [tenantId]
+      )
       const totalKeys = parseInt(encryptionResult.rows[0]?.total || '0')
       const activeKeys = parseInt(encryptionResult.rows[0]?.active || '0')
       encryptionCoverage = totalKeys > 0 ? Math.round((activeKeys / totalKeys) * 100) : 0
@@ -66,32 +65,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get critical alerts
     let criticalAlerts = 0
     try {
-      const alertsResult = await sql`
-        SELECT COUNT(*) as count FROM security_events
-        WHERE tenant_id = ${tenantId} AND severity IN ('high', 'critical')
-        AND created_at > NOW() - INTERVAL '24 hours'
-      `
+      const alertsResult = await poolQuery(
+        "SELECT COUNT(*) as count FROM security_events WHERE tenant_id = $1 AND severity IN ('high', 'critical') AND created_at > NOW() - INTERVAL '24 hours'",
+        [tenantId]
+      )
       criticalAlerts = parseInt(alertsResult.rows[0]?.count || '0')
     } catch (e) { console.error('security_events query error:', e) }
 
     // Get pending reviews
     let pendingReviews = 0
     try {
-      const reviewsResult = await sql`
-        SELECT COUNT(*) as count FROM privileged_roles
-        WHERE tenant_id = ${tenantId} AND next_review_date < NOW() + INTERVAL '7 days'
-      `
+      const reviewsResult = await poolQuery(
+        "SELECT COUNT(*) as count FROM privileged_roles WHERE tenant_id = $1 AND next_review_date < NOW() + INTERVAL '7 days'",
+        [tenantId]
+      )
       pendingReviews = parseInt(reviewsResult.rows[0]?.count || '0')
     } catch (e) { console.error('privileged_roles query error:', e) }
 
     // Get backup success rate
     let backupSuccessRate = 100
     try {
-      const backupResult = await sql`
-        SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'succeeded' THEN 1 END) as succeeded
-        FROM backup_jobs
-        WHERE tenant_id = ${tenantId} AND created_at > NOW() - INTERVAL '24 hours'
-      `
+      const backupResult = await poolQuery(
+        "SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'succeeded' THEN 1 END) as succeeded FROM backup_jobs WHERE tenant_id = $1 AND created_at > NOW() - INTERVAL '24 hours'",
+        [tenantId]
+      )
       const totalBackups = parseInt(backupResult.rows[0]?.total || '0')
       const succeededBackups = parseInt(backupResult.rows[0]?.succeeded || '0')
       backupSuccessRate = totalBackups > 0 ? Math.round((succeededBackups / totalBackups) * 100) : 100
@@ -100,10 +97,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get compliance tasks
     let complianceTasks = 0
     try {
-      const complianceResult = await sql`
-        SELECT COUNT(*) as count FROM compliance_tasks
-        WHERE tenant_id = ${tenantId} AND status NOT IN ('completed', 'overdue')
-      `
+      const complianceResult = await poolQuery(
+        "SELECT COUNT(*) as count FROM compliance_tasks WHERE tenant_id = $1 AND status NOT IN ('completed', 'overdue')",
+        [tenantId]
+      )
       complianceTasks = parseInt(complianceResult.rows[0]?.count || '0')
     } catch (e) { console.error('compliance_tasks query error:', e) }
 

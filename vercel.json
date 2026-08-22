@@ -111,6 +111,7 @@
     { "source": "/api/staff/messages", "destination": "/api/staff/messages.ts" },
     { "source": "/api/staff/messages/:id/read", "destination": "/api/staff/messages/:id/read.ts" },
     { "source": "/api/staff/profile", "destination": "/api/staff/profile.ts" },
+    { "source": "/api/tenant/security/overview", "destination": "/api/tenant/security/overview.ts" },
     { "source": "/api/tenant/security/sessions/policy", "destination": "/api/tenant/security/sessions-handler.ts?action=policy" },
     { "source": "/api/tenant/security/sessions/history", "destination": "/api/tenant/security/sessions-handler.ts?action=history" },
     { "source": "/api/tenant/security/sessions/:id/logout", "destination": "/api/tenant/security/sessions-handler.ts?id=:id&action=logout" },

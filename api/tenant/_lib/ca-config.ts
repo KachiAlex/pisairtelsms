@@ -130,7 +130,7 @@ export async function getTenantCAConfig(tenantId: string): Promise<{
     if (result.rows.length > 0) {
       const row = result.rows[0];
       return {
-        published: row.published_config as CAConfig,
+        published: (row.published_config as CAConfig) || defaultCAConfig,
         draft: row.draft_config as CAConfig | null,
         status: row.status as 'published' | 'has_draft',
         updated_at: row.updated_at as string,
@@ -176,7 +176,11 @@ export async function saveDraftCAConfig(
       `INSERT INTO ca_config (tenant_id, published_config, draft_config, status, updated_at)
        VALUES ($1, $2, $3, 'has_draft', NOW())
        ON CONFLICT (tenant_id)
-       DO UPDATE SET draft_config = EXCLUDED.draft_config, status = 'has_draft', updated_at = NOW()`,
+       DO UPDATE SET 
+         draft_config = EXCLUDED.draft_config,
+         published_config = COALESCE(ca_config.published_config, EXCLUDED.published_config),
+         status = 'has_draft',
+         updated_at = NOW()`,
       [tenantId, configJson, configJson]
     )
 
@@ -203,14 +207,14 @@ export async function publishCAConfig(
 
     const result = await poolQuery(
       `UPDATE ca_config
-       SET published_config = COALESCE(draft_config, published_config),
+       SET published_config = COALESCE(draft_config, published_config, $2::jsonb),
            draft_config = NULL,
            status = 'published',
            updated_at = NOW(),
            published_at = NOW()
        WHERE tenant_id = $1
        RETURNING published_config`,
-      [tenantId]
+      [tenantId, defaultConfigJson]
     )
 
     const publishedConfig = (result.rows[0]?.published_config as CAConfig) || defaultCAConfig;

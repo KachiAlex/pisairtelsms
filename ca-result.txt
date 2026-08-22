@@ -13,7 +13,7 @@ PASS: Tenant admin login OK
 
 === 2. GET CA CONFIG ===
 PASS: CA config returned
-INFO: {"data":{"published":{"primary":{"tests":30,"assignments":20,"projects":10,"exams":40},"jss":{"tests":25,"assignments":15,"projects":10,"exams":50},"sss":{"tests":20,"assignments":15,"projects":15,"exams":50}},"draft":null,"status":"published","updated_at":"2026-08-22T23:24:08.156Z","published_at":"
+INFO: {"data":{"published":null,"draft":null,"status":"published","updated_at":"2026-05-30T15:34:16.410Z","published_at":null}}
 
 === 3. SAVE DRAFT CA CONFIG ===
 PASS: Draft CA config saved
@@ -25,10 +25,10 @@ PASS: CA config published
 PASS: Config status is published
 
 === 6. ENTER CA SCORES (Student 1) ===
-PASS: Student 1 score created (totalScore=82.5)
+PASS: Student 1 score created (totalScore=325)
 
 === 7. ENTER CA SCORES (Student 2) ===
-PASS: Student 2 score created (totalScore=69.75)
+PASS: Student 2 score created (totalScore=270)
 
 === 8. ENTER SECOND SUBJECT SCORES ===
 PASS: Student 1 English score created
@@ -48,7 +48,7 @@ PASS: Principal comments generated
 
 === 12. FETCH COMPILED RESULTS ===
 PASS: Compiled results fetched
-INFO: {"data":[{"id":"compiled_f038d6a2-8957-45e6-a716-393dfd69173b_test-ca-student-001_English_2025/2026_First_Term","tenant_id":"f038d6a2-8957-45e6-a716-393dfd69173b","student_id":"test-ca-student-001","subject":"English","class":"JSS1A","academic_session":"2025/2026","term":"First Term","total_score":"74.75","grade":"B2","remark":"Very Good","class_average":"64.75","highest_score":"74.75","lowest_sco
+INFO: {"data":[{"id":"compiled_f038d6a2-8957-45e6-a716-393dfd69173b_test-ca-student-001_English_2025/2026_First_Term","tenant_id":"f038d6a2-8957-45e6-a716-393dfd69173b","student_id":"test-ca-student-001","subject":"English","class":"JSS1A","academic_session":"2025/2026","term":"First Term","total_score":"310.00","grade":"A1","remark":"Distinction","class_average":"270.00","highest_score":"310.00","lowes
 
 === 13. APPROVE COMPILED RESULTS ===
 PASS: Results approved (approved=4)
@@ -57,10 +57,14 @@ PASS: Results approved (approved=4)
 PASS: Results published (published=4)
 
 === 15. FETCH BROADSHEET ===
-WARN: Broadsheet fetch: {"error":"No compiled results found for this class/term. Run Result Computation first."}
+PASS: Broadsheet fetched
+PASS: Broadsheet has subjects
+PASS: Broadsheet has students
+PASS: Broadsheet has class positions
+INFO: {"data":{"className":"JSS1A","academicSession":"2025/2026","term":"First Term","subjects":["English","Mathematics"],"students":[{"studentId":"test-ca-student-001","studentName":"test-ca-student-001","classPosition":1,"totalStudents":2,"overallTotal":635,"overallAverage":317.5,"attendancePercent":100,"subjects":{"English":{"score":310,"grade":"A1","position":1,"remark":"Distinction"},"Mathematics":{"score":325,"grade":"A1","position":1,"remark":"Distinction"}}},{"studentId":"test-ca-student-002",
 
 === 16. VERIFY WEIGHTED TOTAL ===
-PASS: Weighted total correct (got=82.5, expected=82)
+PASS: Weighted total correct (got=325, expected=82)
 
 === 17. FETCH CA CONFIG AUDIT LOG ===
 PASS: Audit log fetched

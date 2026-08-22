@@ -1,0 +1,6 @@
+c7eef0a39d46   pisairtel-sms-app         "docker-entrypoint.s…"   About a minute ago   Up About a minute (health: starting)   0.0.0.0:3000->3000/tcp                     pisairtel-sms
+a495aef7488c   nginx:alpine              "/docker-entrypoint.…"   6 hours ago          Up 6 hours                             0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp   pisairtel-nginx
+7c4eb8b325de   postgres:16-alpine        "docker-entrypoint.s…"   6 hours ago          Up 6 hours (healthy)                   127.0.0.1:5432->5432/tcp                   pisairtel-postgres
+72e7f3a59f10   pisairtel-portal          "docker-entrypoint.s…"   12 hours ago         Up 12 hours                            0.0.0.0:3001->3001/tcp                     pisairtel-portal
+Pisairtel SMS server running on port 3000
+API routes: 284 registered

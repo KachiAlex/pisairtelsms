@@ -37,8 +37,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       # Database — points to the postgres service
-      POSTGRES_URL: postgresql://pisairtel:${POSTGRES_PASSWORD:-PisairtelSMS2024!}@postgres:5432/pisairtel_sms
-      DATABASE_URL: postgresql://pisairtel:${POSTGRES_PASSWORD:-PisairtelSMS2024!}@postgres:5432/pisairtel_sms
+      POSTGRES_URL: postgresql://pisairtel:${POSTGRES_PASSWORD:-PisairtelSMS2024!}@postgres:5432/pisairtel_sms?pooling=true
+      DATABASE_URL: postgresql://pisairtel:${POSTGRES_PASSWORD:-PisairtelSMS2024!}@postgres:5432/pisairtel_sms?pooling=true
       # Auth
       JWT_SECRET: ${JWT_SECRET:-pisairtel-sms-jwt-secret-key-2024-very-secure-32chars}
       # App config

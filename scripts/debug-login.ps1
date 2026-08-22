@@ -1,0 +1,3 @@
+$env:SSHPASS = '2Gcu*d8Q'
+$result = sshpass -e ssh -o StrictHostKeyChecking=no root@162.35.104.28 "docker exec pisairtel-postgres psql -U pisairtel -d pisairtel_sms -t -A -c \"SELECT email, role, CASE WHEN password_hash IS NULL THEN 'NULL' ELSE 'SET' END as pwd_status FROM staff WHERE email='akoma@kreatixtech.com';\" 2>&1; echo '---SEP---'; curl -s http://localhost:80/api/tenant/auth/login -X POST -H 'Content-Type: application/json' -d '{\"email\":\"akoma@kreatixtech.com\",\"password\":\"akoma@kreatixtech.com\"}' 2>&1; echo '---SEP---'; docker logs pisairtel-sms 2>&1 | tail -10"
+Write-Output $result

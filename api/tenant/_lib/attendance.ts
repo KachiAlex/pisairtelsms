@@ -1238,6 +1238,23 @@ export async function triggerAtRiskNotifications(
           createdBy
         )
 
+        // Send actual email via Brevo
+        try {
+          const { sendEmail } = await import('../../_lib/email.js')
+          const { emailTemplates } = await import('../../_lib/email-templates.js')
+          const { html, subject } = emailTemplates.attendanceAlert({
+            guardianName: studentRecord.guardian || 'Guardian',
+            studentName: student.name,
+            attendanceRate: student.attendance,
+            absenceCount: student.absenceCount,
+            lateCount: student.lateCount,
+            recommendedActions,
+          })
+          await sendEmail({ to: studentRecord.email, subject, html })
+        } catch (emailErr) {
+          console.error(`Email send failed for ${studentRecord.email}:`, emailErr)
+        }
+
         sentCount++
       } catch (error) {
         console.error(`Error creating notification for student ${student.studentId}:`, error)

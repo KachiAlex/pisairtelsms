@@ -572,6 +572,22 @@ export async function createStaffMember(
     console.error('tenant_users mirror insert failed:', e)
   }
 
+  // Send credentials email via Brevo
+  try {
+    const { sendEmail } = await import('../../_lib/email.js')
+    const { emailTemplates } = await import('../../_lib/email-templates.js')
+    const { html, subject } = emailTemplates.staffCredentials({
+      name: payload.name,
+      email: payload.email,
+      password: rawPassword,
+      role: payload.role,
+      loginUrl: process.env.APP_URL || 'https://pisairtelsms.com',
+    })
+    await sendEmail({ to: payload.email, subject, html })
+  } catch (emailErr) {
+    console.error('Staff credentials email failed:', emailErr)
+  }
+
   return rowToStaff(result.rows[0])
 }
 

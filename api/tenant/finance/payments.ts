@@ -304,6 +304,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { confirmedBy }
       )
 
+      // Send confirmation email to student/guardian
+      try {
+        const { queryOne } = await import('../cbt/_lib/db.js')
+        const { sendEmail } = await import('../../_lib/email.js')
+        const { emailTemplates } = await import('../../_lib/email-templates.js')
+        const student = await queryOne<any>(
+          'SELECT email, name FROM students WHERE id = $1',
+          [payment.studentId]
+        )
+        if (student?.email) {
+          const { html, subject } = emailTemplates.paymentConfirmation({
+            studentName: student.name || body?.studentName,
+            paymentId: payment.id,
+            description: body?.description || 'School Fees',
+            amount: payment.amount,
+            date: new Date().toLocaleDateString(),
+            method: 'Manual',
+          })
+          await sendEmail({ to: student.email, subject, html })
+        }
+      } catch (emailErr) {
+        console.error('Payment confirmation email failed:', emailErr)
+      }
+
       return res.status(200).json({ data: payment })
     } catch (error) {
       console.error('Error confirming payment:', error)
@@ -333,6 +357,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         payment.amount,
         { rejectionReason: reason, rejectedBy: body?.rejectedBy || 'admin' }
       )
+
+      // Send rejection email to student/guardian
+      try {
+        const { queryOne } = await import('../cbt/_lib/db.js')
+        const { sendEmail } = await import('../../_lib/email.js')
+        const { emailTemplates } = await import('../../_lib/email-templates.js')
+        const student = await queryOne<any>(
+          'SELECT email, name FROM students WHERE id = $1',
+          [payment.studentId]
+        )
+        if (student?.email) {
+          const { html, subject } = emailTemplates.paymentRejected({
+            studentName: student.name || body?.studentName,
+            paymentId: payment.id,
+            amount: payment.amount,
+            reason: reason || 'Payment could not be verified',
+          })
+          await sendEmail({ to: student.email, subject, html })
+        }
+      } catch (emailErr) {
+        console.error('Payment rejection email failed:', emailErr)
+      }
 
       return res.status(200).json({ data: payment })
     } catch (error) {

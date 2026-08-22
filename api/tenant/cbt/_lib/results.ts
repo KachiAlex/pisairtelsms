@@ -84,7 +84,7 @@ export async function getResults(
     `SELECT er.*, COALESCE(s.name, u.name, 'Unknown Student') as student_name
      FROM exam_results er ${whereClause}
      LEFT JOIN students s ON s.id::text = er.student_id
-     LEFT JOIN users u ON u.id::text = er.student_id
+     LEFT JOIN tenant_users u ON u.id::text = er.student_id
      ORDER BY er.submitted_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
     [...params, limit, offset]
   );
@@ -140,7 +140,7 @@ export async function getResult(
      FROM exam_results er
      JOIN exams e ON er.exam_id = e.id
      LEFT JOIN students s ON s.id::text = er.student_id
-     LEFT JOIN users u ON u.id::text = er.student_id
+     LEFT JOIN tenant_users u ON u.id::text = er.student_id
      WHERE er.id = $1 AND e.tenant_id = $2`,
     [resultId, tenantId]
   );
@@ -217,7 +217,7 @@ export async function getExamResultsSummary(
        COALESCE(s.name, u.name, 'Unknown Student') as student_name
      FROM exam_results er
      LEFT JOIN students s ON s.id::text = er.student_id
-     LEFT JOIN users u ON u.id::text = er.student_id
+     LEFT JOIN tenant_users u ON u.id::text = er.student_id
      WHERE er.exam_id = $1
      ORDER BY er.score DESC`,
     [examId]

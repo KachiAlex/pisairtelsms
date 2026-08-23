@@ -5,7 +5,7 @@
 BASE="http://localhost:3000"
 TENANT_ID="f038d6a2-8957-45e6-a716-393dfd69173b"
 TENANT_EMAIL="akoma@kreatixtech.com"
-TENANT_PASSWORD="password123"
+TENANT_PASSWORD="dikaoliver2660"
 SESSION="2025%2F2026"
 SESSION_RAW="2025/2026"
 TERM="First%20Term"
@@ -18,32 +18,6 @@ STUDENT_ID2="test-ca-student-002"
 echo "=========================================="
 echo "  CA-TO-RESULT COMPILATION FLOW TEST"
 echo "=========================================="
-
-# 1a. Login as superadmin to reset tenant admin password
-echo ""
-echo "=== 1a. LOGIN AS SUPERADMIN ==="
-SA_LOGIN=$(curl -s -X POST "$BASE/api/super-admin/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@pisairtelsms.com","password":"admin123"}')
-SA_TOKEN=$(echo "$SA_LOGIN" | grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
-if [ -z "$SA_TOKEN" ]; then
-  echo "FAIL: Superadmin login failed"
-  exit 1
-fi
-echo "PASS: Superadmin login OK"
-
-# 1b. Reset tenant admin password
-echo ""
-echo "=== 1b. RESET TENANT ADMIN PASSWORD ==="
-RESET_RESP=$(curl -s -X PUT "$BASE/api/admin/tenant-admins" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $SA_TOKEN" \
-  -d '{"id":"staff_1779874611429_wf2i6u9","password":"password123"}')
-if echo "$RESET_RESP" | grep -q '"success":true'; then
-  echo "PASS: Password reset OK"
-else
-  echo "INFO: Reset response: $(echo $RESET_RESP | head -c 200)"
-fi
 
 # 1. Login as tenant admin
 echo ""

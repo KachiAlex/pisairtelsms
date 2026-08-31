@@ -1,0 +1,59 @@
+==========================================
+  CBT END-TO-END FLOW TEST
+==========================================
+
+=== 1. LOGIN AS SUPERADMIN ===
+PASS: Superadmin login OK
+
+=== 2. RESET TENANT ADMIN PASSWORD ===
+INFO: Reset response: {"success":true,"data":{"id":"staff_1779874611429_wf2i6u9","staffId":"STF611429","name":"Onyedikachi Akoma","email":"akoma@kreatixtech.com","role":"tenant_admin","tenantId":"f038d6a2-8957-45e6-a716-39
+
+=== 3. LOGIN AS TENANT ADMIN ===
+PASS: Tenant admin login OK
+
+=== 4. CREATE QUESTION ===
+PASS: Created question ID=8d8119fa-d3a9-4534-b132-437af0975eb5
+
+=== 5. CREATE EXAM ===
+PASS: Created exam ID=622235b2-8f04-4bb2-9187-763a115e1595
+
+=== 6. SCHEDULE EXAM ===
+PASS: Exam scheduled (status=Scheduled)
+
+=== 7. START EXAM ===
+PASS: Exam started (status=Ongoing)
+
+=== 8. SIMULATE STUDENT SUBMISSION (via DB) ===
+PASS: Created result ID=df83aee9-c032-41a8-b38b-3e90d7ccd248
+PASS: Recorded student answer
+
+=== 9. END EXAM ===
+PASS: Exam ended (status=Completed)
+
+=== 10. FETCH RESULTS SUMMARY ===
+INFO: Summary: {"success":true,"data":{"examId":"622235b2-8f04-4bb2-9187-763a115e1595","examTitle":"CBT Flow Test Exam","totalStudents":1,"completedStudents":1,"averageScore":80,"passRate":100,"highestScore":80,"lowestScore":80,"completionRate":100,"results":[{"id":"df83aee9-c032-41a8-b38b-3e90d7ccd248","examId":"622235b2-8f04-4bb2-9187-763a115e1595","studentId":"test-student-001","studentName":"Unknown Student","score":80,"totalMarks":100,"percentage":80,"status":"Passed","timeSpent":1200,"submittedAt":"2026-08-22T22:38:53.557Z","createdAt":"2026-08-22T22:38:53.557Z"}]}}
+PASS: Summary returned valid JSON with success=true
+PASS: Results array present in summary
+PASS: examTitle present in summary
+PASS: studentName present in results
+PASS: completionRate present in summary
+
+=== 11. FETCH RESULTS LIST ===
+INFO: List: {"success":true,"data":[{"id":"df83aee9-c032-41a8-b38b-3e90d7ccd248","examId":"622235b2-8f04-4bb2-9187-763a115e1595","studentId":"test-student-001","studentName":"Unknown Student","score":80,"totalMarks":100,"percentage":80,"status":"Passed","timeSpent":1200,"submittedAt":"2026-08-22T22:38:53.557Z","createdAt":"2026-08-22T22:38:53.557Z"}],"pagination":{"page":1,"limit":10,"total":1,"totalPages":1}
+PASS: Results list returned data
+
+=== 12. FETCH DETAILED RESULT (answers) ===
+INFO: Detail: {"success":true,"data":[{"id":"3e17d301-39e5-4083-a75a-062b8b482cf5","resultId":"df83aee9-c032-41a8-b38b-3e90d7ccd248","questionId":"8d8119fa-d3a9-4534-b132-437af0975eb5","questionText":"CBT Test: What is 5 + 3? (ref: 1787438333)","studentAnswer":"8","correctAnswer":"8","isCorrect":true,"marksObtained":80,"totalMarks":100,"createdAt":"2026-08-22T22:38:53.567Z"}]}
+PASS: Answers endpoint returned data
+PASS: questionText present in answers
+
+=== 13. FETCH EXAM STATS ===
+PASS: Exam stats returned successfully
+
+=== 14. CLEANUP ===
+PASS: Test exam deleted
+PASS: Test question deleted
+
+==========================================
+  CBT FLOW TEST COMPLETE
+==========================================

@@ -1,0 +1,17 @@
+{
+  "name": "Pisairtel SMS",
+  "short_name": "Pisairtel",
+  "description": "Multi-Tenant School Management System with CBT, Attendance, Fees & Reporting",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "/pisairtel-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

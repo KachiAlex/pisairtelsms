@@ -1,0 +1,79 @@
+# =============================================================================
+# Pisairtel SMS — Docker Compose
+# Services: app (Express+frontend), postgres, nginx
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pisairtel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pisairtel_sms
+      POSTGRES_USER: pisairtel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-PisairtelSMS2024!}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pisairtel -d pisairtel_sms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pisairtel-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pisairtel-sms
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Database — points to the postgres service
+      POSTGRES_URL: postgresql://pisairtel:${POSTGRES_PASSWORD:-PisairtelSMS2024!}@postgres:5432/pisairtel_sms?pooling=true
+      DATABASE_URL: postgresql://pisairtel:${POSTGRES_PASSWORD:-PisairtelSMS2024!}@postgres:5432/pisairtel_sms?pooling=true
+      # Auth
+      JWT_SECRET: ${JWT_SECRET:-pisairtel-sms-jwt-secret-key-2024-very-secure-32chars}
+      # App config
+      APP_URL: ${APP_URL:-https://pisairtelsms.com}
+      # Brevo Email Service
+      BREVO_SMTP_HOST: ${BREVO_SMTP_HOST:-smtp-relay.brevo.com}
+      BREVO_SMTP_PORT: ${BREVO_SMTP_PORT:-587}
+      BREVO_SMTP_USER: ${BREVO_SMTP_USER}
+      BREVO_SMTP_KEY: ${BREVO_SMTP_KEY}
+      BREVO_FROM_EMAIL: ${BREVO_FROM_EMAIL:-noreply@pisairtelsms.com}
+      BREVO_FROM_NAME: ${BREVO_FROM_NAME:-Pisairtel SMS}
+    ports:
+      - "3000:3000"
+    networks:
+      - pisairtel-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: pisairtel-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - pisairtel-net
+
+volumes:
+  postgres_data:
+
+networks:
+  pisairtel-net:
+    driver: bridge

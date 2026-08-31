@@ -1,0 +1,3 @@
+$env:SSHPASS = '2Gcu*d8Q'
+$result = sshpass -e ssh -o StrictHostKeyChecking=no root@162.35.104.28 "cd /opt/pisairtel-sms && git checkout -- . && git pull origin main 2>&1; echo '---SEP---'; docker compose build --no-cache 2>&1 | tail -5; echo '---SEP---'; docker compose up -d 2>&1; echo '---SEP---'; sleep 10; docker ps --format '{{.Names}} {{.Status}}' 2>&1; echo '---SEP---'; curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/robots.txt; echo ''; curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/sitemap.xml; echo ''; curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/manifest.json; echo ''; echo '---SEP---'; curl -s http://localhost:3000/ 2>&1 | grep -o '<title>[^<]*</title>'"
+Write-Output $result

@@ -1,0 +1,30 @@
+  file: 'scan.l',
+  line: '1244',
+  routine: 'scanner_yyerror'
+}
+Error fetching results: error: syntax error at or near "LEFT"
+    at /app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async query (/app/api/tenant/cbt/_lib/db.ts:71:12)
+    at async queryAll (/app/api/tenant/cbt/_lib/db.ts:96:18)
+    at async getResults (/app/api/tenant/cbt/_lib/results.ts:71:22)
+    at async handler (/app/api/tenant/cbt/results.ts:109:22)
+    at async <anonymous> (/app/server.mjs:118:7) {
+  length: 94,
+  severity: 'ERROR',
+  code: '42601',
+  detail: undefined,
+  hint: undefined,
+  position: '189',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'scan.l',
+  line: '1244',
+  routine: 'scanner_yyerror'
+}

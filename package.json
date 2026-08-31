@@ -11,7 +11,7 @@
     "check-chunks": "node scripts/check-chunk-sizes.mjs",
     "clean-violations": "node scripts/clean-violations.mjs",
     "migrate": "node scripts/run-consolidated-migration.mjs",
-    "postinstall": "node server/copy-shims.mjs",
+    "postinstall": "node server/copy-shims.mjs || exit 0",
     "deploy": "node server/deploy.mjs",
     "deploy:build-only": "node server/deploy.mjs --build-only",
     "deploy:skip-build": "node server/deploy.mjs --skip-build"

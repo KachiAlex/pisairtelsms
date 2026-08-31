@@ -103,9 +103,10 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [showProvisionForm, setShowProvisionForm] = useState(false)
   const [provisionName, setProvisionName] = useState('')
   const [provisionRegion, setProvisionRegion] = useState('global')
-  const [provisionPlan, setProvisionPlan] = useState('basic')
+  const [provisionPlan, setProvisionPlan] = useState('starter')
   const [provisionLoading, setProvisionLoading] = useState(false)
   const [provisionError, setProvisionError] = useState<string | null>(null)
+  const [availablePlans, setAvailablePlans] = useState<Array<{ planName: string; rate: number; isActive: boolean }>>([])
 
   // Tenant Admin Modal
   const [adminModalOpen, setAdminModalOpen] = useState(false)
@@ -163,12 +164,23 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         if (!r.ok) throw new Error(`Stats API ${r.status}`)
         return r.json()
       }).catch((e) => { console.error(e); return {} }),
-    ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes]) => {
+      fetch('/api/admin/plans', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`Plans API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
+    ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes, plansRes]) => {
       if (tenantsRes.data) setTenants(tenantsRes.data)
       if (queueRes.data) setProvisioningQueue(queueRes.data)
       if (feedRes.data) setActivityFeed(feedRes.data)
       if (incidentsRes.data) setIncidentLog(incidentsRes.data)
       if (statsRes.data) setStats(statsRes.data)
+      if (plansRes.data) {
+        const activePlans = plansRes.data.filter((p: any) => p.isActive)
+        setAvailablePlans(activePlans)
+        if (activePlans.length > 0 && !activePlans.find((p: any) => p.planName === provisionPlan)) {
+          setProvisionPlan(activePlans[0].planName)
+        }
+      }
     }).finally(() => setLoading(false))
   }, [])
 
@@ -202,7 +214,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       setTenants((prev) => [...prev, data.data])
       setShowProvisionForm(false)
       setProvisionName('')
-      setProvisionPlan('basic')
+      setProvisionPlan(availablePlans[0]?.planName || 'starter')
       setProvisionRegion('global')
     } catch (err: any) {
       setProvisionError(err.message || 'Something went wrong')
@@ -514,9 +526,19 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                         onChange={(e) => setProvisionPlan(e.target.value)}
                         className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                       >
-                        <option value="basic">Basic</option>
-                        <option value="standard">Standard</option>
-                        <option value="premium">Premium</option>
+                        {availablePlans.length > 0 ? (
+                          availablePlans.map((p) => (
+                            <option key={p.planName} value={p.planName}>
+                              {p.planName.charAt(0).toUpperCase() + p.planName.slice(1)} — ₦{p.rate.toLocaleString()}/term
+                            </option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="starter">Starter</option>
+                            <option value="standard">Standard</option>
+                            <option value="premium">Premium</option>
+                          </>
+                        )}
                       </select>
                     </div>
                     <div>

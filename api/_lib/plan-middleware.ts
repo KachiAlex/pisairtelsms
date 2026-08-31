@@ -1,7 +1,33 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { poolQuery } from './pg-pool.js'
-import { PLAN_CONFIG, PlanFeatures } from '../../src/lib/plans.js'
+import { PLAN_CONFIG, PLAN_RATES, PlanFeatures, PlanType } from '../../src/lib/plans.js'
 import { getTenantIdFromRequest } from './auth-middleware.js'
+
+let planConfigCache: { data: Record<string, any> | null; ts: number } = { data: null, ts: 0 }
+const CACHE_TTL = 60000
+
+async function getPlanConfigFromDB(): Promise<Record<string, any> | null> {
+  const now = Date.now()
+  if (planConfigCache.data && now - planConfigCache.ts < CACHE_TTL) {
+    return planConfigCache.data
+  }
+
+  try {
+    const result = await poolQuery('SELECT plan_name, features, rate FROM plan_config WHERE is_active = true')
+    if (result.rows.length === 0) return null
+
+    const config: Record<string, any> = {}
+    for (const row of result.rows) {
+      const features = typeof row.features === 'string' ? JSON.parse(row.features) : row.features
+      config[row.plan_name] = features
+    }
+
+    planConfigCache = { data: config, ts: now }
+    return config
+  } catch {
+    return null
+  }
+}
 
 /**
  * Middleware to enforce subscription plan features at the API level.
@@ -30,8 +56,11 @@ export async function enforcePlan(
       return false
     }
 
-    const plan = (result.rows[0].subscription_plan || 'starter').toLowerCase() as any
-    const planConfig = PLAN_CONFIG[plan]
+    const plan = (result.rows[0].subscription_plan || 'starter').toLowerCase() as PlanType
+
+    // Try DB config first, fall back to static
+    const dbConfig = await getPlanConfigFromDB()
+    const planConfig = dbConfig?.[plan] || PLAN_CONFIG[plan]
 
     if (!planConfig) {
       res.status(500).json({ error: 'Invalid plan configuration' })

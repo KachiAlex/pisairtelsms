@@ -269,6 +269,7 @@
     { "source": "/api/admin/incidents", "destination": "/api/admin/admin-handler.ts?action=incidents" },
     { "source": "/api/admin/stats", "destination": "/api/admin/admin-handler.ts?action=stats" },
     { "source": "/api/admin/tenant-admins", "destination": "/api/admin/tenant-admins-handler.ts" },
+    { "source": "/api/admin/plans", "destination": "/api/admin/plans-handler.ts" },
     { "source": "/api/tenant/users", "destination": "/api/tenant/users.ts" },
     { "source": "/api/tenant/roles", "destination": "/api/tenant/roles.ts" },
     { "source": "/api/tenant/system-health", "destination": "/api/tenant/system-health-handler.ts" },

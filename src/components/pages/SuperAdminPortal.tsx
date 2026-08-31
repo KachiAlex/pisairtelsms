@@ -19,7 +19,9 @@ import {
   Ban,
   Server,
   Zap,
+  CreditCard,
 } from 'lucide-react'
+import { PlansTab } from './PlansTab'
 
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -423,6 +425,20 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">
+        {/* Top-level tabs */}
+        <Tabs defaultValue="command-center" className="w-full">
+          <TabsList className="bg-white border border-[#e6e2d8] rounded-lg p-1">
+            <TabsTrigger value="command-center" className="gap-2 rounded-md data-[state=active]:bg-[#15161a] data-[state=active]:text-white">
+              <ShieldCheck className="h-4 w-4" />
+              Command Center
+            </TabsTrigger>
+            <TabsTrigger value="plans" className="gap-2 rounded-md data-[state=active]:bg-[#15161a] data-[state=active]:text-white">
+              <CreditCard className="h-4 w-4" />
+              Plans & Features
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="command-center" className="mt-6 space-y-6">
         {/* Stats overview */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {tenantStats.map((stat, idx) => (
@@ -745,6 +761,12 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
             <span>All systems operational</span>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="plans" className="mt-6">
+            <PlansTab />
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Tenant Admin Management Modal */}

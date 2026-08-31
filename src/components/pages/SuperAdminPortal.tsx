@@ -22,6 +22,7 @@ import {
   CreditCard,
 } from 'lucide-react'
 import { PlansTab } from './PlansTab'
+import { TenantDetailDrawer } from './TenantDetailDrawer'
 
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -107,6 +108,17 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [provisionLoading, setProvisionLoading] = useState(false)
   const [provisionError, setProvisionError] = useState<string | null>(null)
   const [availablePlans, setAvailablePlans] = useState<Array<{ planName: string; rate: number; isActive: boolean }>>([])
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false)
+  const [detailTenant, setDetailTenant] = useState<Tenant | null>(null)
+  const [auditLog, setAuditLog] = useState<Array<{ id: string; action: string; adminId: string; adminEmail: string; targetType: string; targetId: string; timestamp: string }>>([])
+
+  // Provision form extended fields
+  const [provisionSubdomain, setProvisionSubdomain] = useState('')
+  const [provisionContactEmail, setProvisionContactEmail] = useState('')
+  const [provisionContactPhone, setProvisionContactPhone] = useState('')
+  const [provisionAdminName, setProvisionAdminName] = useState('')
+  const [provisionAdminEmail, setProvisionAdminEmail] = useState('')
+  const [provisionTrialDays, setProvisionTrialDays] = useState<number | ''>('')
 
   // Tenant Admin Modal
   const [adminModalOpen, setAdminModalOpen] = useState(false)
@@ -168,7 +180,11 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
         if (!r.ok) throw new Error(`Plans API ${r.status}`)
         return r.json()
       }).catch((e) => { console.error(e); return {} }),
-    ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes, plansRes]) => {
+      fetch('/api/admin/audit-log', { headers }).then(async (r) => {
+        if (!r.ok) throw new Error(`Audit API ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} }),
+    ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes, plansRes, auditRes]) => {
       if (tenantsRes.data) setTenants(tenantsRes.data)
       if (queueRes.data) setProvisioningQueue(queueRes.data)
       if (feedRes.data) setActivityFeed(feedRes.data)
@@ -181,6 +197,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           setProvisionPlan(activePlans[0].planName)
         }
       }
+      if (auditRes.data) setAuditLog(auditRes.data)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -205,6 +222,12 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           name: provisionName.trim(),
           subscription: provisionPlan,
           region: provisionRegion,
+          subdomain: provisionSubdomain || undefined,
+          contactEmail: provisionContactEmail || undefined,
+          contactPhone: provisionContactPhone || undefined,
+          adminName: provisionAdminName || undefined,
+          adminEmail: provisionAdminEmail || undefined,
+          trialDays: provisionTrialDays || undefined,
         }),
       })
       const data = await res.json()
@@ -214,8 +237,17 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       setTenants((prev) => [...prev, data.data])
       setShowProvisionForm(false)
       setProvisionName('')
+      setProvisionSubdomain('')
+      setProvisionContactEmail('')
+      setProvisionContactPhone('')
+      setProvisionAdminName('')
+      setProvisionAdminEmail('')
+      setProvisionTrialDays('')
       setProvisionPlan(availablePlans[0]?.planName || 'starter')
       setProvisionRegion('global')
+      if (data.generatedPassword) {
+        toast({ title: 'Tenant provisioned', description: `Admin password: ${data.generatedPassword}` })
+      }
     } catch (err: any) {
       setProvisionError(err.message || 'Something went wrong')
     } finally {
@@ -448,6 +480,10 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               <CreditCard className="h-4 w-4" />
               Plans & Features
             </TabsTrigger>
+            <TabsTrigger value="audit" className="gap-2 rounded-md data-[state=active]:bg-[#15161a] data-[state=active]:text-white">
+              <Activity className="h-4 w-4" />
+              Audit Log
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="command-center" className="mt-6 space-y-6">
@@ -506,19 +542,31 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               </div>
               {showProvisionForm && (
                 <form onSubmit={handleProvisionSubmit} className="rounded-xl border border-[#e6e2d8] bg-[#f3f1ea] p-4 space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-[#15161a] mb-1">Tenant name</label>
-                    <input
-                      type="text"
-                      value={provisionName}
-                      onChange={(e) => setProvisionName(e.target.value)}
-                      placeholder="e.g. Lincoln High School"
-                      className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
-                      required
-                      minLength={2}
-                    />
-                  </div>
                   <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-[#15161a] mb-1">Tenant name</label>
+                      <input
+                        type="text"
+                        value={provisionName}
+                        onChange={(e) => setProvisionName(e.target.value)}
+                        placeholder="e.g. Lincoln High School"
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
+                        required
+                        minLength={2}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#15161a] mb-1">Subdomain <span className="text-[#9b9a94] font-normal">(auto-generated if blank)</span></label>
+                      <input
+                        type="text"
+                        value={provisionSubdomain}
+                        onChange={(e) => setProvisionSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                        placeholder="lincolnhigh"
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-[#15161a] mb-1">Plan</label>
                       <select
@@ -553,6 +601,59 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                         <option value="eu-west">EU West</option>
                         <option value="asia-pacific">Asia Pacific</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#15161a] mb-1">Trial days <span className="text-[#9b9a94] font-normal">(optional)</span></label>
+                      <input
+                        type="number"
+                        value={provisionTrialDays}
+                        onChange={(e) => setProvisionTrialDays(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        placeholder="14"
+                        min={1}
+                        max={90}
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-[#15161a] mb-1">Contact email <span className="text-[#9b9a94] font-normal">(optional)</span></label>
+                      <input
+                        type="email"
+                        value={provisionContactEmail}
+                        onChange={(e) => setProvisionContactEmail(e.target.value)}
+                        placeholder="admin@school.edu"
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#15161a] mb-1">Contact phone <span className="text-[#9b9a94] font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={provisionContactPhone}
+                        onChange={(e) => setProvisionContactPhone(e.target.value)}
+                        placeholder="+234..."
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-[#e6e2d8] bg-white p-3 space-y-2">
+                    <p className="text-xs font-medium text-[#15161a]">Initial Admin <span className="text-[#9b9a94] font-normal">(optional — creates first tenant admin)</span></p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={provisionAdminName}
+                        onChange={(e) => setProvisionAdminName(e.target.value)}
+                        placeholder="Admin name"
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="email"
+                        value={provisionAdminEmail}
+                        onChange={(e) => setProvisionAdminEmail(e.target.value)}
+                        placeholder="admin@school.edu"
+                        className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm"
+                      />
                     </div>
                   </div>
                   {provisionError && <p className="text-sm text-[#e31e24]">{provisionError}</p>}
@@ -592,7 +693,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                         {tenants.length === 0 ? (
                           <TableRow><TableCell colSpan={6} className="text-center text-[#9b9a94] py-8">No tenants found</TableCell></TableRow>
                         ) : tenants.map((tenant) => (
-                          <TableRow key={tenant.id ?? tenant.name} className="border-[#e6e2d8] hover:bg-[#f3f1ea]/50">
+                          <TableRow key={tenant.id ?? tenant.name} className="border-[#e6e2d8] hover:bg-[#f3f1ea]/50 cursor-pointer" onClick={() => { setDetailTenant(tenant); setDetailDrawerOpen(true) }}>
                             <TableCell>
                               <div className="flex items-center gap-3">
                                 <div className="h-8 w-8 rounded-lg bg-[#15161a] flex items-center justify-center flex-shrink-0">
@@ -600,7 +701,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                                 </div>
                                 <div>
                                   <div className="font-medium text-[#15161a]">{tenant.name}</div>
-                                  <p className="text-xs text-[#9b9a94]">{tenant.alerts > 0 ? `${tenant.alerts} open alerts` : 'Operational'}</p>
+                                  <p className="text-xs text-[#9b9a94]">{(tenant as any).subdomain ? `${(tenant as any).subdomain}.pisairtelsms.com` : (tenant.alerts > 0 ? `${tenant.alerts} open alerts` : 'Operational')}</p>
                                 </div>
                               </div>
                             </TableCell>
@@ -613,7 +714,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                               </div>
                             </TableCell>
                             <TableCell>{statusBadge(tenant.status)}</TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <Button size="sm" variant="outline" className="gap-1 border-[#d5cfc0] text-[#15161a] hover:bg-[#f3f1ea] rounded-lg" onClick={() => openAdminModal(tenant)}>
                                 <Shield className="h-3.5 w-3.5" />
                                 Manage
@@ -788,8 +889,68 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           <TabsContent value="plans" className="mt-6">
             <PlansTab />
           </TabsContent>
+
+          <TabsContent value="audit" className="mt-6">
+            <div className="rounded-2xl border border-[#e6e2d8] bg-white overflow-hidden">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-8 w-8 rounded-lg bg-[#F7C93C]/10 flex items-center justify-center">
+                    <Activity className="h-4 w-4 text-[#F7C93C]" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-[#15161a]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 560 }}>
+                      Audit Log
+                    </h2>
+                    <p className="text-xs text-[#9b9a94]">Admin action history</p>
+                  </div>
+                </div>
+                {auditLog.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-[#d5cfc0] p-6 text-center text-sm text-[#9b9a94]">
+                    No audit entries yet
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-[#e6e2d8] overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-[#f3f1ea] border-[#e6e2d8]">
+                          <TableHead className="text-[#5b5c63] font-medium">Action</TableHead>
+                          <TableHead className="text-[#5b5c63] font-medium">Admin</TableHead>
+                          <TableHead className="text-[#5b5c63] font-medium">Target</TableHead>
+                          <TableHead className="text-[#5b5c63] font-medium">Time</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {auditLog.map((entry) => (
+                          <TableRow key={entry.id} className="border-[#e6e2d8] hover:bg-[#f3f1ea]/50">
+                            <TableCell><Badge variant="outline" className="border-[#d5cfc0] text-[#5b5c63] font-mono text-xs">{entry.action}</Badge></TableCell>
+                            <TableCell className="text-sm text-[#5b5c63]">{entry.adminEmail || entry.adminId}</TableCell>
+                            <TableCell className="text-sm text-[#5b5c63]">{entry.targetType} {entry.targetId ? `· ${entry.targetId.slice(0, 8)}` : ''}</TableCell>
+                            <TableCell className="text-xs text-[#9b9a94]">{entry.timestamp}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </main>
+
+      {/* Tenant Detail Drawer */}
+      <TenantDetailDrawer
+        tenant={detailTenant}
+        open={detailDrawerOpen}
+        onOpenChange={setDetailDrawerOpen}
+        onTenantUpdated={(updated) => {
+          setTenants(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))
+          setDetailTenant(updated)
+        }}
+        onTenantArchived={(id) => {
+          setTenants(prev => prev.filter(t => t.id !== id))
+        }}
+      />
 
       {/* Tenant Admin Management Modal */}
       <Dialog open={adminModalOpen} onOpenChange={setAdminModalOpen}>

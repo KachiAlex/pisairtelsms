@@ -42,6 +42,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json({ success: true, data: r.rows })
     }
 
+    if (action === 'audit-log') {
+      const r = await poolQuery(
+        `SELECT id, admin_id AS "adminId", admin_email AS "adminEmail",
+           action, target_id AS "targetId", target_type AS "targetType",
+           metadata,
+           TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') AS timestamp
+         FROM admin_audit_log ORDER BY created_at DESC LIMIT 50`
+      )
+      return res.json({ success: true, data: r.rows })
+    }
+
     if (action === 'stats') {
       const active = await poolQuery<{ n: number }>('SELECT COUNT(*)::int AS n FROM tenants WHERE status = $1', ['active'])
       const pending = await poolQuery<{ n: number }>("SELECT COUNT(*)::int AS n FROM admin_provisioning_queue WHERE status != 'completed'")

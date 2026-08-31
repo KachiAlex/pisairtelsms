@@ -1,0 +1,45 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/pisairtel-sms
+
+            echo "=== Fetching latest code ==="
+            git fetch https://github.com/KachiAlex/pisairtelsms.git main
+            git merge FETCH_HEAD --ff-only
+
+            echo "=== Rebuilding Docker image ==="
+            docker compose build --no-cache app
+
+            echo "=== Restarting containers ==="
+            docker compose up -d
+
+            echo "=== Waiting for app to start ==="
+            sleep 10
+
+            echo "=== Health check ==="
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)
+            echo "Frontend status: $STATUS"
+
+            if [ "$STATUS" = "200" ]; then
+              echo "=== Deployment successful ==="
+            else
+              echo "=== WARNING: App may not be healthy (status: $STATUS) ==="
+              docker logs pisairtel-sms --tail 20
+            fi

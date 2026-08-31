@@ -20,9 +20,11 @@ import {
   Server,
   Zap,
   CreditCard,
+  Headphones,
 } from 'lucide-react'
 import { PlansTab } from './PlansTab'
 import { TenantDetailDrawer } from './TenantDetailDrawer'
+import { SupportTab } from './SupportTab'
 
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -484,6 +486,10 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               <Activity className="h-4 w-4" />
               Audit Log
             </TabsTrigger>
+            <TabsTrigger value="support" className="gap-2 rounded-md data-[state=active]:bg-[#15161a] data-[state=active]:text-white">
+              <Headphones className="h-4 w-4" />
+              Support
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="command-center" className="mt-6 space-y-6">
@@ -934,6 +940,10 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                 )}
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="support" className="mt-6">
+            <SupportTab />
           </TabsContent>
         </Tabs>
       </main>

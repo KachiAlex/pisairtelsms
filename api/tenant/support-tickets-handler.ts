@@ -7,13 +7,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant';
+  const userId = decoded.sub || decoded.email || 'unknown';
+  const userName = decoded.email || userId;
 
   try {
     if (req.method === 'GET') {
       const { type, status, priority, id, limit, offset } = req.query;
 
       if (type === 'tickets') {
-        const result = supportTicketsApi.listTickets(tenantId, {
+        const result = await supportTicketsApi.listTickets(tenantId, {
           status: status as string,
           priority: priority as string,
           limit: limit ? parseInt(limit as string) : 50,
@@ -23,22 +25,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (type === 'ticket' && id) {
-        const result = supportTicketsApi.getTicketById(tenantId, id as string);
+        const result = await supportTicketsApi.getTicketById(tenantId, id as string);
         return res.status(200).json(result);
       }
 
       if (type === 'agents') {
-        const result = supportTicketsApi.listAgents(tenantId);
+        const result = await supportTicketsApi.listAgents(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'rules') {
-        const result = supportTicketsApi.listRules(tenantId);
+        const result = await supportTicketsApi.listRules(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'statistics') {
-        const result = supportTicketsApi.getStatistics(tenantId);
+        const result = await supportTicketsApi.getStatistics(tenantId);
         return res.status(200).json(result);
       }
 
@@ -46,31 +48,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      const { action, payload, ticketId, userId } = req.body || {};
+      const { action, payload, ticketId } = req.body || {};
 
       if (action === 'create-ticket') {
-        const ticket = supportTicketsApi.createTicket(tenantId, payload);
+        const ticket = await supportTicketsApi.createTicket(tenantId, {
+          ...payload,
+          requester: userId,
+          createdByName: userName,
+        });
         return res.status(201).json(ticket);
       }
 
       if (action === 'update-ticket') {
-        const ticket = supportTicketsApi.updateTicket(tenantId, ticketId, payload);
+        const ticket = await supportTicketsApi.updateTicket(tenantId, ticketId, payload);
         return res.status(200).json(ticket);
       }
 
       if (action === 'add-comment') {
-        const comment = supportTicketsApi.addComment(tenantId, ticketId, userId, payload.text);
+        const comment = await supportTicketsApi.addComment(tenantId, ticketId, userId, payload.text, userName, decoded.role || 'tenant_admin');
         return res.status(201).json(comment);
-      }
-
-      if (action === 'create-agent') {
-        const agent = supportTicketsApi.createAgent(tenantId, payload);
-        return res.status(201).json(agent);
-      }
-
-      if (action === 'create-rule') {
-        const rule = supportTicketsApi.createRule(tenantId, payload);
-        return res.status(201).json(rule);
       }
 
       return res.status(400).json({ error: 'Invalid action' });

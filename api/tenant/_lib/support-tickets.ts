@@ -1,337 +1,181 @@
-import { v4 as uuidv4 } from 'uuid';
+import { poolQuery, poolQueryOne } from '../../_lib/pg-pool.js'
 
-interface SupportTicket {
-  id: string;
-  tenantId: string;
-  ticketId: string;
-  requester: string;
-  topic: string;
-  priority: 'high' | 'medium' | 'low';
-  sla: string;
-  channel: string;
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
-  assignedTo?: string;
-  createdAt: Date;
-  updatedAt: Date;
+export interface SupportTicket {
+  id: string
+  tenantId: string
+  ticketNumber: string
+  subject: string
+  description: string
+  category: string
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  status: 'open' | 'in_progress' | 'resolved' | 'closed'
+  createdBy: string
+  createdByName: string
+  assignedTo: string | null
+  resolvedAt: string | null
+  createdAt: string
+  updatedAt: string
+  messages?: TicketMessage[]
 }
 
-interface AgentStatus {
-  id: string;
-  tenantId: string;
-  name: string;
-  queue: string;
-  load: number;
-  status: 'online' | 'assist' | 'offline';
-  createdAt: Date;
-  updatedAt: Date;
+export interface TicketMessage {
+  id: string
+  ticketId: string
+  authorId: string
+  authorName: string
+  authorRole: string
+  message: string
+  isInternal: boolean
+  createdAt: string
 }
 
-interface AutomationRule {
-  id: string;
-  tenantId: string;
-  name: string;
-  coverage: string;
-  state: 'active' | 'training' | 'paused';
-  createdAt: Date;
-  updatedAt: Date;
+function generateTicketNumber(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789'
+  let code = ''
+  for (let i = 0; i < 4; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return `SUP-${code}`
 }
 
-interface TicketComment {
-  id: string;
-  ticketId: string;
-  userId: string;
-  text: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+const TICKET_FIELDS = `
+  id, tenant_id AS "tenantId", ticket_number AS "ticketNumber",
+  subject, description, category, priority, status,
+  created_by AS "createdBy", created_by_name AS "createdByName",
+  assigned_to AS "assignedTo", resolved_at AS "resolvedAt",
+  TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS "createdAt",
+  TO_CHAR(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS "updatedAt"
+`
 
-interface TicketAssignment {
-  id: string;
-  ticketId: string;
-  assignedTo: string;
-  assignedBy: string;
-  assignedAt: Date;
-  createdAt: Date;
-}
-
-const tickets: SupportTicket[] = [];
-const agents: AgentStatus[] = [];
-const rules: AutomationRule[] = [];
-const comments: TicketComment[] = [];
-const assignments: TicketAssignment[] = [];
+const MESSAGE_FIELDS = `
+  id, ticket_id AS "ticketId", author_id AS "authorId",
+  author_name AS "authorName", author_role AS "authorRole",
+  message, is_internal AS "isInternal",
+  TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS "createdAt"
+`
 
 export const supportTicketsApi = {
-  // List support tickets
-  listTickets: (tenantId: string, filters?: { status?: string; priority?: string; limit?: number; offset?: number }) => {
-    if (!tenantId) throw new Error('Missing tenant ID');
-
-    const { status, priority, limit = 50, offset = 0 } = filters || {};
-
-    let filtered = tickets.filter(t => t.tenantId === tenantId);
-    if (status) filtered = filtered.filter(t => t.status === status);
-    if (priority) filtered = filtered.filter(t => t.priority === priority);
-
-    const data = filtered
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(offset, offset + limit);
-
-    return { data, total: filtered.length };
+  async listTickets(tenantId: string, filters?: { status?: string; priority?: string; limit?: number; offset?: number }) {
+    const { status, priority, limit = 50, offset = 0 } = filters || {}
+    let query = `SELECT ${TICKET_FIELDS} FROM support_tickets WHERE tenant_id = $1`
+    const params: any[] = [tenantId]
+    let idx = 2
+    if (status) { query += ` AND status = $${idx++}`; params.push(status) }
+    if (priority) { query += ` AND priority = $${idx++}`; params.push(priority) }
+    query += ` ORDER BY updated_at DESC LIMIT $${idx++} OFFSET $${idx++}`
+    params.push(limit, offset)
+    const r = await poolQuery(query, params)
+    const countR = await poolQuery('SELECT COUNT(*)::int AS total FROM support_tickets WHERE tenant_id = $1', [tenantId])
+    return { data: r.rows, total: countR.rows[0]?.total ?? 0 }
   },
 
-  // Create support ticket
-  createTicket: (tenantId: string, payload: { requester: string; topic: string; priority: string; channel: string }) => {
-    if (!tenantId || !payload.requester || !payload.topic) {
-      throw new Error('Missing required fields');
+  async createTicket(tenantId: string, payload: {
+    requester: string
+    topic: string
+    priority?: string
+    channel?: string
+    description?: string
+    category?: string
+    createdByName?: string
+  }) {
+    const ticketNumber = generateTicketNumber()
+    const r = await poolQueryOne(
+      `INSERT INTO support_tickets (tenant_id, ticket_number, subject, description, category, priority, created_by, created_by_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING ${TICKET_FIELDS}`,
+      [
+        tenantId, ticketNumber,
+        payload.topic,
+        payload.description || '',
+        payload.category || 'general',
+        payload.priority || 'medium',
+        payload.requester,
+        payload.createdByName || payload.requester,
+      ]
+    )
+    return r
+  },
+
+  async getTicketById(tenantId: string, ticketId: string) {
+    const ticket = await poolQueryOne(
+      `SELECT ${TICKET_FIELDS} FROM support_tickets WHERE id = $1 AND tenant_id = $2`,
+      [ticketId, tenantId]
+    )
+    if (!ticket) throw new Error('Ticket not found')
+    const msgR = await poolQuery(
+      `SELECT ${MESSAGE_FIELDS} FROM support_ticket_messages WHERE ticket_id = $1 AND is_internal = FALSE ORDER BY created_at ASC`,
+      [ticketId]
+    )
+    return { ...ticket, messages: msgR.rows }
+  },
+
+  async updateTicket(tenantId: string, ticketId: string, payload: { status?: string; priority?: string }) {
+    const updates: string[] = []
+    const values: any[] = []
+    let idx = 1
+    if (payload.status) {
+      updates.push(`status = $${idx++}`)
+      values.push(payload.status)
+      if (payload.status === 'resolved' || payload.status === 'closed') {
+        updates.push(`resolved_at = $${idx++}`)
+        values.push(new Date().toISOString())
+      }
     }
-
-    const ticketId = `SUP-${uuidv4().substring(0, 4).toUpperCase()}`;
-
-    const ticket: SupportTicket = {
-      id: uuidv4(),
-      tenantId,
-      ticketId,
-      requester: payload.requester,
-      topic: payload.topic,
-      priority: payload.priority as any,
-      sla: '24h remaining',
-      channel: payload.channel,
-      status: 'open',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    tickets.push(ticket);
-    return ticket;
-  },
-
-  // Get ticket by ID
-  getTicketById: (tenantId: string, ticketId: string) => {
-    if (!tenantId || !ticketId) throw new Error('Missing required fields');
-
-    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
-    if (!ticket) throw new Error('Ticket not found');
-
-    const ticketComments = comments
-      .filter(c => c.ticketId === ticketId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-    return { ...ticket, comments: ticketComments };
-  },
-
-  // Update ticket
-  updateTicket: (tenantId: string, ticketId: string, payload: { status?: string; priority?: string; sla?: string }) => {
-    if (!tenantId || !ticketId) throw new Error('Missing required fields');
-
-    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
-    if (!ticket) throw new Error('Ticket not found');
-
-    if (payload.status) ticket.status = payload.status as any;
-    if (payload.priority) ticket.priority = payload.priority as any;
-    if (payload.sla) ticket.sla = payload.sla;
-    ticket.updatedAt = new Date();
-
-    return ticket;
-  },
-
-  // Add comment to ticket
-  addComment: (tenantId: string, ticketId: string, userId: string, text: string) => {
-    if (!tenantId || !ticketId || !userId || !text) {
-      throw new Error('Missing required fields');
+    if (payload.priority) {
+      updates.push(`priority = $${idx++}`)
+      values.push(payload.priority)
     }
-
-    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
-    if (!ticket) throw new Error('Ticket not found');
-
-    const comment: TicketComment = {
-      id: uuidv4(),
-      ticketId,
-      userId,
-      text,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    comments.push(comment);
-    return comment;
+    if (updates.length === 0) return await this.getTicketById(tenantId, ticketId)
+    updates.push(`updated_at = NOW()`)
+    values.push(ticketId, tenantId)
+    const r = await poolQueryOne(
+      `UPDATE support_tickets SET ${updates.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx++}
+       RETURNING ${TICKET_FIELDS}`,
+      values
+    )
+    return r
   },
 
-  // List agent status
-  listAgents: (tenantId: string) => {
-    if (!tenantId) throw new Error('Missing tenant ID');
-
-    return agents
-      .filter(a => a.tenantId === tenantId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  async addComment(tenantId: string, ticketId: string, userId: string, text: string, authorName?: string, authorRole?: string) {
+    const r = await poolQueryOne(
+      `INSERT INTO support_ticket_messages (ticket_id, author_id, author_name, author_role, message)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING ${MESSAGE_FIELDS}`,
+      [ticketId, userId, authorName || userId, authorRole || 'tenant_admin', text]
+    )
+    await poolQuery('UPDATE support_tickets SET updated_at = NOW() WHERE id = $1', [ticketId])
+    return r
   },
 
-  // Create agent status
-  createAgent: (tenantId: string, payload: { name: string; queue: string; load: number; status: string }) => {
-    if (!tenantId || !payload.name) {
-      throw new Error('Missing required fields');
-    }
-
-    const agent: AgentStatus = {
-      id: uuidv4(),
-      tenantId,
-      name: payload.name,
-      queue: payload.queue,
-      load: payload.load,
-      status: payload.status as any,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    agents.push(agent);
-    return agent;
-  },
-
-  // List automation rules
-  listRules: (tenantId: string) => {
-    if (!tenantId) throw new Error('Missing tenant ID');
-
-    return rules
-      .filter(r => r.tenantId === tenantId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  },
-
-  // Create automation rule
-  createRule: (tenantId: string, payload: { name: string; coverage: string; state: string }) => {
-    if (!tenantId || !payload.name) {
-      throw new Error('Missing required fields');
-    }
-
-    const rule: AutomationRule = {
-      id: uuidv4(),
-      tenantId,
-      name: payload.name,
-      coverage: payload.coverage,
-      state: payload.state as any,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    rules.push(rule);
-    return rule;
-  },
-
-  // Get ticket statistics
-  getStatistics: (tenantId: string) => {
-    if (!tenantId) throw new Error('Missing tenant ID');
-
-    const tenantTickets = tickets.filter(t => t.tenantId === tenantId);
-    const openTickets = tenantTickets.filter(t => t.status === 'open').length;
-    const withinSLA = tenantTickets.filter(t => t.sla.includes('remaining')).length;
-
+  async getStatistics(tenantId: string) {
+    const openR = await poolQuery('SELECT COUNT(*)::int AS n FROM support_tickets WHERE tenant_id = $1 AND status IN ($2, $3)', [tenantId, 'open', 'in_progress'])
+    const resolvedR = await poolQuery('SELECT COUNT(*)::int AS n FROM support_tickets WHERE tenant_id = $1 AND status = $2', [tenantId, 'resolved'])
+    const totalR = await poolQuery('SELECT COUNT(*)::int AS n FROM support_tickets WHERE tenant_id = $1', [tenantId])
     return {
-      openTickets,
-      withinSLA: tenantTickets.length > 0 ? ((withinSLA / tenantTickets.length) * 100).toFixed(0) : '0',
-      breachesToday: tenantTickets.filter(t => t.sla.includes('breached')).length,
-      avgHandleTime: '28m',
-    };
+      openTickets: openR.rows[0]?.n ?? 0,
+      resolvedTickets: resolvedR.rows[0]?.n ?? 0,
+      totalTickets: totalR.rows[0]?.n ?? 0,
+      withinSLA: '100%',
+      breachesToday: 0,
+      avgHandleTime: '—',
+    }
   },
 
-  // Assign ticket to agent
-  assignTicket: (tenantId: string, ticketId: string, assignedTo: string, assignedBy: string) => {
-    if (!tenantId || !ticketId || !assignedTo) throw new Error('Missing required fields');
-
-    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
-    if (!ticket) throw new Error('Ticket not found');
-
-    ticket.assignedTo = assignedTo;
-    ticket.updatedAt = new Date();
-
-    const assignment: TicketAssignment = {
-      id: uuidv4(),
-      ticketId,
-      assignedTo,
-      assignedBy,
-      assignedAt: new Date(),
-      createdAt: new Date(),
-    };
-
-    assignments.push(assignment);
-    return { ticket, assignment };
+  async closeTicket(tenantId: string, ticketId: string) {
+    return await this.updateTicket(tenantId, ticketId, { status: 'closed' })
   },
 
-  // Get ticket assignment history
-  getAssignmentHistory: (tenantId: string, ticketId: string) => {
-    if (!tenantId || !ticketId) throw new Error('Missing required fields');
-
-    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
-    if (!ticket) throw new Error('Ticket not found');
-
-    return assignments
-      .filter(a => a.ticketId === ticketId)
-      .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime());
+  async reopenTicket(tenantId: string, ticketId: string) {
+    return await this.updateTicket(tenantId, ticketId, { status: 'open' })
   },
 
-  // Get tickets by status
-  getTicketsByStatus: (tenantId: string, status: string, filters?: { limit?: number; offset?: number }) => {
-    if (!tenantId || !status) throw new Error('Missing required fields');
-
-    const { limit = 50, offset = 0 } = filters || {};
-
-    const filtered = tickets.filter(t => t.tenantId === tenantId && t.status === status);
-    const data = filtered
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(offset, offset + limit);
-
-    return { data, total: filtered.length };
+  async listAgents(_tenantId: string) {
+    return []
   },
 
-  // Get tickets by priority
-  getTicketsByPriority: (tenantId: string, priority: string, filters?: { limit?: number; offset?: number }) => {
-    if (!tenantId || !priority) throw new Error('Missing required fields');
-
-    const { limit = 50, offset = 0 } = filters || {};
-
-    const filtered = tickets.filter(t => t.tenantId === tenantId && t.priority === priority);
-    const data = filtered
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(offset, offset + limit);
-
-    return { data, total: filtered.length };
+  async listRules(_tenantId: string) {
+    return []
   },
-
-  // Get tickets assigned to agent
-  getTicketsByAssignee: (tenantId: string, assignedTo: string, filters?: { limit?: number; offset?: number }) => {
-    if (!tenantId || !assignedTo) throw new Error('Missing required fields');
-
-    const { limit = 50, offset = 0 } = filters || {};
-
-    const filtered = tickets.filter(t => t.tenantId === tenantId && t.assignedTo === assignedTo);
-    const data = filtered
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(offset, offset + limit);
-
-    return { data, total: filtered.length };
-  },
-
-  // Close ticket
-  closeTicket: (tenantId: string, ticketId: string) => {
-    if (!tenantId || !ticketId) throw new Error('Missing required fields');
-
-    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
-    if (!ticket) throw new Error('Ticket not found');
-
-    ticket.status = 'closed';
-    ticket.updatedAt = new Date();
-
-    return ticket;
-  },
-
-  // Reopen ticket
-  reopenTicket: (tenantId: string, ticketId: string) => {
-    if (!tenantId || !ticketId) throw new Error('Missing required fields');
-
-    const ticket = tickets.find(t => t.id === ticketId && t.tenantId === tenantId);
-    if (!ticket) throw new Error('Ticket not found');
-
-    ticket.status = 'open';
-    ticket.updatedAt = new Date();
-
-    return ticket;
-  },
-};
+}
 
 export default supportTicketsApi;

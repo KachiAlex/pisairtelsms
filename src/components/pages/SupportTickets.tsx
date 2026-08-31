@@ -33,23 +33,29 @@ function getAuthHeaders(): Record<string, string> {
   }
 }
 
-interface TicketComment {
+interface TicketMessage {
   id: string
-  text: string
-  userId: string
+  authorId: string
+  authorName: string
+  authorRole: string
+  message: string
+  isInternal: boolean
   createdAt: string
 }
 
 interface SupportTicket {
   id: string
-  ticketId: string
-  topic: string
-  requester: string
-  priority: 'high' | 'medium' | 'low'
+  ticketNumber: string
+  subject: string
+  description: string
+  category: string
+  priority: 'low' | 'medium' | 'high' | 'urgent'
   status: 'open' | 'in_progress' | 'resolved' | 'closed'
-  sla: string
-  channel: string
-  comments?: TicketComment[]
+  createdByName: string
+  assignedTo: string | null
+  createdAt: string
+  updatedAt: string
+  messages?: TicketMessage[]
 }
 
 interface SupportAgent {
@@ -82,10 +88,10 @@ export function SupportTickets() {
   const [commentText, setCommentText] = useState('')
   const [showNewTicketForm, setShowNewTicketForm] = useState(false)
   const [newTicketData, setNewTicketData] = useState({
-    requester: '',
     topic: '',
+    description: '',
+    category: 'general',
     priority: 'medium',
-    channel: 'email',
   })
 
   const loadTicketData = useCallback(async () => {
@@ -134,8 +140,8 @@ export function SupportTickets() {
 
   const handleCreateTicket = async () => {
     try {
-      if (!newTicketData.requester || !newTicketData.topic) {
-        toast({ title: 'Validation Error', description: 'Please fill in all required fields.', variant: 'destructive' })
+      if (!newTicketData.topic) {
+        toast({ title: 'Validation Error', description: 'Please fill in the subject.', variant: 'destructive' })
         return
       }
 
@@ -150,9 +156,9 @@ export function SupportTickets() {
       const json = await res.json()
       const ticket = json.data || json
       setTickets([ticket, ...tickets])
-      setNewTicketData({ requester: '', topic: '', priority: 'medium', channel: 'email' })
+      setNewTicketData({ topic: '', description: '', category: 'general', priority: 'medium' })
       setShowNewTicketForm(false)
-      toast({ title: 'Ticket Created', description: `Ticket ${ticket.ticketId} has been opened.` })
+      toast({ title: 'Ticket Created', description: `Ticket ${ticket.ticketNumber} has been opened.` })
     } catch (err) {
       toast({ title: 'Error', description: 'Could not create support ticket.', variant: 'destructive' })
     }
@@ -169,16 +175,16 @@ export function SupportTickets() {
         body: JSON.stringify({
           action: 'add-comment',
           ticketId: selectedTicket.id,
-          payload: { text: commentText, userId: 'current-user' },
+          payload: { text: commentText },
         }),
       })
 
       if (!res.ok) throw new Error('Failed to add comment')
       const json = await res.json()
-      const comment = json.data || json
+      const msg = json.data || json
       setSelectedTicket({
         ...selectedTicket,
-        comments: [comment, ...(selectedTicket.comments || [])],
+        messages: [...(selectedTicket.messages || []), msg],
       })
       setCommentText('')
       toast({ title: 'Comment Added', description: 'Your message has been sent.' })
@@ -227,9 +233,9 @@ export function SupportTickets() {
   }
 
   const filteredTickets = tickets.filter(ticket => {
-    const matchesSearch = ticket.ticketId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ticket.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ticket.requester.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = ticket.ticketNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ticket.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (ticket.createdByName || '').toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = !statusFilter || ticket.status === statusFilter
     const matchesPriority = !priorityFilter || ticket.priority === priorityFilter
     return matchesSearch && matchesStatus && matchesPriority
@@ -306,22 +312,37 @@ export function SupportTickets() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Requester</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
               <Input
-                placeholder="Customer name or email"
-                value={newTicketData.requester}
-                onChange={(e) => setNewTicketData({ ...newTicketData, requester: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Topic</label>
-              <Input
-                placeholder="Issue description"
+                placeholder="Briefly describe the issue"
                 value={newTicketData.topic}
                 onChange={(e) => setNewTicketData({ ...newTicketData, topic: e.target.value })}
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                placeholder="Provide details about your issue or request..."
+                value={newTicketData.description}
+                onChange={(e) => setNewTicketData({ ...newTicketData, description: e.target.value })}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select
+                  value={newTicketData.category}
+                  onChange={(e) => setNewTicketData({ ...newTicketData, category: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="general">General</option>
+                  <option value="technical">Technical</option>
+                  <option value="billing">Billing</option>
+                  <option value="feature_request">Feature Request</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
                 <select
@@ -332,18 +353,7 @@ export function SupportTickets() {
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Channel</label>
-                <select
-                  value={newTicketData.channel}
-                  onChange={(e) => setNewTicketData({ ...newTicketData, channel: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                >
-                  <option value="email">Email</option>
-                  <option value="phone">Phone</option>
-                  <option value="chat">Chat</option>
+                  <option value="urgent">Urgent</option>
                 </select>
               </div>
             </div>
@@ -400,12 +410,12 @@ export function SupportTickets() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ticket ID</TableHead>
-                  <TableHead>Topic</TableHead>
-                  <TableHead>Requester</TableHead>
+                  <TableHead>Ticket #</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>SLA</TableHead>
+                  <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -416,16 +426,16 @@ export function SupportTickets() {
                       className="cursor-pointer hover:bg-gray-50"
                       onClick={() => handleSelectTicket(ticket.id)}
                     >
-                      <TableCell className="font-medium text-blue-600">{ticket.ticketId}</TableCell>
-                      <TableCell className="max-w-xs truncate">{ticket.topic}</TableCell>
-                      <TableCell>{ticket.requester}</TableCell>
+                      <TableCell className="font-medium text-blue-600">{ticket.ticketNumber}</TableCell>
+                      <TableCell className="max-w-xs truncate">{ticket.subject}</TableCell>
+                      <TableCell className="text-sm text-gray-600 capitalize">{ticket.category.replace('_', ' ')}</TableCell>
                       <TableCell>
                         <Badge variant={priorityVariant[ticket.priority] || 'secondary'}>{ticket.priority}</Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusVariant[ticket.status] || 'secondary'}>{ticket.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500">{ticket.sla}</TableCell>
+                      <TableCell className="text-sm text-gray-500">{new Date(ticket.createdAt).toLocaleDateString()}</TableCell>
                     </TableRow>
                   ))
                 ) : (
@@ -446,21 +456,27 @@ export function SupportTickets() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{selectedTicket.ticketId}</CardTitle>
-                <CardDescription>{selectedTicket.topic}</CardDescription>
+                <CardTitle>{selectedTicket.ticketNumber}</CardTitle>
+                <CardDescription>{selectedTicket.subject}</CardDescription>
               </div>
               <Button variant="outline" onClick={() => setSelectedTicket(null)}>Close</Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            {selectedTicket.description && (
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-xs text-gray-500 mb-1">Description</p>
+                <p className="text-sm text-gray-700">{selectedTicket.description}</p>
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-sm text-gray-600">Requester</p>
-                <p className="font-medium">{selectedTicket.requester}</p>
+                <p className="text-sm text-gray-600">Created by</p>
+                <p className="font-medium">{selectedTicket.createdByName}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Channel</p>
-                <p className="font-medium">{selectedTicket.channel}</p>
+                <p className="text-sm text-gray-600">Category</p>
+                <p className="font-medium capitalize">{selectedTicket.category.replace('_', ' ')}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Status</p>
@@ -475,31 +491,38 @@ export function SupportTickets() {
                   <option value="closed">Closed</option>
                 </select>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Priority</p>
-                <Badge variant={priorityVariant[selectedTicket.priority] || 'secondary'}>{selectedTicket.priority}</Badge>
-              </div>
             </div>
 
             <div className="border-t pt-4">
-              <h3 className="font-medium mb-3">Comments</h3>
-              <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
-                {selectedTicket.comments && selectedTicket.comments.length > 0 ? (
-                  selectedTicket.comments.map((comment: TicketComment) => (
-                    <div key={comment.id} className="rounded-lg bg-gray-50 p-3">
-                      <p className="text-sm font-medium text-gray-900">{comment.userId}</p>
-                      <p className="text-sm text-gray-600 mt-1">{comment.text}</p>
-                      <p className="text-xs text-gray-500 mt-1">{new Date(comment.createdAt).toLocaleString()}</p>
-                    </div>
-                  ))
+              <h3 className="font-medium mb-3">Conversation</h3>
+              <div className="space-y-3 mb-4 max-h-80 overflow-y-auto">
+                {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
+                  selectedTicket.messages.map((msg: TicketMessage) => {
+                    const isSuperAdmin = msg.authorRole === 'super_admin'
+                    return (
+                      <div key={msg.id} className={`flex ${isSuperAdmin ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] rounded-xl p-3 ${isSuperAdmin ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-xs font-medium ${isSuperAdmin ? 'text-white/80' : 'text-gray-600'}`}>
+                              {isSuperAdmin ? 'Support Team' : msg.authorName}
+                            </span>
+                            <span className={`text-xs ${isSuperAdmin ? 'text-white/60' : 'text-gray-400'}`}>
+                              {new Date(msg.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className={`text-sm ${isSuperAdmin ? 'text-white' : 'text-gray-700'}`}>{msg.message}</p>
+                        </div>
+                      </div>
+                    )
+                  })
                 ) : (
-                  <p className="text-sm text-gray-500">No comments yet</p>
+                  <p className="text-sm text-gray-500">No messages yet. The support team will respond shortly.</p>
                 )}
               </div>
 
               <div className="flex gap-2">
                 <Input
-                  placeholder="Add a comment..."
+                  placeholder="Add a reply..."
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}

@@ -27,8 +27,6 @@ import {
 import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 
-import { usePlanAccess } from '../hooks/usePlanAccess';
-
 interface SidebarProps {
   activePage: string;
   onNavigate: (page: string) => void;
@@ -40,9 +38,7 @@ interface NavItem {
   id: string;
   label: string;
   icon: React.ReactNode;
-  category?: keyof PlanFeatures;
-  feature?: string;
-  children?: { id: string; label: string; feature?: string }[];
+  children?: { id: string; label: string }[];
 }
 
 const navItems: NavItem[] = [
@@ -54,8 +50,8 @@ const navItems: NavItem[] = [
     children: [
       { id: 'students-list', label: 'All Students' },
       { id: 'student-enrollment', label: 'Enrollment & Admissions' },
-      { id: 'student-promotion', label: 'Promotion & Demotion', feature: 'promotion' },
-      { id: 'student-documents', label: 'Documents', feature: 'documents' },
+      { id: 'student-promotion', label: 'Promotion & Demotion' },
+      { id: 'student-documents', label: 'Documents' },
     ]
   },
   {
@@ -63,13 +59,13 @@ const navItems: NavItem[] = [
     label: 'Academic Structure',
     icon: <BookOpen className="w-5 h-5" />,
     children: [
-      { id: 'academic-structure', label: 'Overview', feature: 'overviewDashboard' },
+      { id: 'academic-structure', label: 'Overview' },
       { id: 'classes', label: 'Classes & Arms' },
       { id: 'subjects', label: 'Subjects' },
-      { id: 'teacher-allocation', label: 'Teacher Allocation', feature: 'teacherAllocation' },
+      { id: 'teacher-allocation', label: 'Teacher Allocation' },
       { id: 'ca-configuration', label: 'CA Configuration' },
       { id: 'grading-policy', label: 'Grading Policy' },
-      { id: 'academic-calendar', label: 'Academic Calendar', feature: 'calendar' },
+      { id: 'academic-calendar', label: 'Academic Calendar' },
     ]
   },
 
@@ -80,9 +76,9 @@ const navItems: NavItem[] = [
     children: [
       { id: 'ca-entry', label: 'CA Score Entry' },
       { id: 'result-computation', label: 'Result Computation' },
-      { id: 'result-approval', label: 'Result Approval', feature: 'approvalWorkflow' },
+      { id: 'result-approval', label: 'Result Approval' },
       { id: 'broadsheets', label: 'Broadsheets' },
-      { id: 'transcripts', label: 'Transcripts', feature: 'transcripts' },
+      { id: 'transcripts', label: 'Transcripts' },
       { id: 'result-publishing', label: 'Publishing' },
     ]
   },
@@ -92,7 +88,7 @@ const navItems: NavItem[] = [
     icon: <Calendar className="w-5 h-5" />,
     children: [
       { id: 'student-attendance', label: 'Student Attendance' },
-      { id: 'staff-attendance', label: 'Staff Attendance', feature: 'staffTracking' },
+      { id: 'staff-attendance', label: 'Staff Attendance' },
       { id: 'attendance-reports', label: 'Reports' },
     ]
   },
@@ -103,20 +99,19 @@ const navItems: NavItem[] = [
     children: [
       { id: 'cbt-question-bank', label: 'Question Bank' },
       { id: 'cbt-exam-creation', label: 'Create Exam' },
-      { id: 'cbt-live-monitoring', label: 'Live Monitoring', feature: 'liveMonitoring' },
+      { id: 'cbt-live-monitoring', label: 'Live Monitoring' },
       { id: 'cbt-results', label: 'Results' },
-      { id: 'cbt-security', label: 'Security Settings', feature: 'security' },
+      { id: 'cbt-security', label: 'Security Settings' },
     ]
   },
   {
     id: 'digital-learning',
     label: 'Digital Learning',
     icon: <MonitorPlay className="w-5 h-5" />,
-    category: 'digitalLearning',
     children: [
-      { id: 'virtual-classrooms', label: 'Virtual Classrooms', feature: 'virtualClassrooms' },
-      { id: 'private-lesson-request', label: 'Private Lesson Requests', feature: 'privateLessons' },
-      { id: 'private-lesson-approvals', label: 'Lesson Approvals', feature: 'privateLessons' },
+      { id: 'virtual-classrooms', label: 'Virtual Classrooms' },
+      { id: 'private-lesson-request', label: 'Private Lesson Requests' },
+      { id: 'private-lesson-approvals', label: 'Lesson Approvals' },
       { id: 'virtual-learning-settings', label: 'VL Settings' },
     ]
   },
@@ -124,12 +119,11 @@ const navItems: NavItem[] = [
     id: 'timetable',
     label: 'Timetable & Scheduling',
     icon: <Calendar className="w-5 h-5" />,
-    category: 'scheduling',
     children: [
-      { id: 'timetable-configure', label: 'Configure', feature: 'configuration' },
-      { id: 'timetable-class', label: 'Class Timetable', feature: 'timetables' },
-      { id: 'timetable-teacher', label: 'Teacher Timetable', feature: 'timetables' },
-      { id: 'timetable-exam', label: 'Exam Schedule', feature: 'timetables' },
+      { id: 'timetable-configure', label: 'Configure' },
+      { id: 'timetable-class', label: 'Class Timetable' },
+      { id: 'timetable-teacher', label: 'Teacher Timetable' },
+      { id: 'timetable-exam', label: 'Exam Schedule' },
     ]
   },
   {
@@ -139,7 +133,7 @@ const navItems: NavItem[] = [
     children: [
       { id: 'fee-structure', label: 'Fee Structure' },
       { id: 'fee-collection', label: 'Fee Collection' },
-      { id: 'outstanding-fees', label: 'Outstanding Fees', feature: 'reminders' },
+      { id: 'outstanding-fees', label: 'Outstanding Fees' },
       { id: 'invoices', label: 'Invoices' },
       { id: 'financial-reports', label: 'Financial Reports' },
     ]
@@ -150,10 +144,10 @@ const navItems: NavItem[] = [
     icon: <UserCog className="w-5 h-5" />,
     children: [
       { id: 'staff-list', label: 'All Staff' },
-      { id: 'staff-roles', label: 'Roles & Departments', feature: 'rolesDepartments' },
-      { id: 'payroll', label: 'Payroll', feature: 'payroll' },
-      { id: 'leave-management', label: 'Leave Management', feature: 'leave' },
-      { id: 'performance', label: 'Performance', feature: 'performance' },
+      { id: 'staff-roles', label: 'Roles & Departments' },
+      { id: 'payroll', label: 'Payroll' },
+      { id: 'leave-management', label: 'Leave Management' },
+      { id: 'performance', label: 'Performance' },
     ]
   },
   {
@@ -162,22 +156,21 @@ const navItems: NavItem[] = [
     icon: <MessageSquare className="w-5 h-5" />,
     children: [
       { id: 'announcements', label: 'Announcements' },
-      { id: 'bulk-notifications', label: 'Bulk Notifications', feature: 'bulkNotifications' },
-      { id: 'parent-messaging', label: 'Parent Messaging', feature: 'parentTeacherMessaging' },
-      { id: 'communication-logs', label: 'Communication Logs', feature: 'logs' },
+      { id: 'bulk-notifications', label: 'Bulk Notifications' },
+      { id: 'parent-messaging', label: 'Parent Messaging' },
+      { id: 'communication-logs', label: 'Communication Logs' },
     ]
   },
   {
     id: 'analytics',
     label: 'Analytics & Reports',
     icon: <BarChart3 className="w-5 h-5" />,
-    category: 'analytics',
     children: [
-      { id: 'academic-analytics', label: 'Academic Performance', feature: 'academic' },
-      { id: 'student-progress', label: 'Student Progress', feature: 'studentProgress' },
-      { id: 'teacher-performance', label: 'Teacher Performance', feature: 'teacherPerformance' },
-      { id: 'attendance-analytics', label: 'Attendance Analytics', feature: 'attendance' },
-      { id: 'financial-analytics', label: 'Financial Analytics', feature: 'financial' },
+      { id: 'academic-analytics', label: 'Academic Performance' },
+      { id: 'student-progress', label: 'Student Progress' },
+      { id: 'teacher-performance', label: 'Teacher Performance' },
+      { id: 'attendance-analytics', label: 'Attendance Analytics' },
+      { id: 'financial-analytics', label: 'Financial Analytics' },
     ]
   },
   {
@@ -185,10 +178,10 @@ const navItems: NavItem[] = [
     label: 'Security & Compliance',
     icon: <Shield className="w-5 h-5" />,
     children: [
-      { id: 'access-control', label: 'Access Control', feature: 'rbac' },
-      { id: 'session-management', label: 'Session Management', feature: 'sessionManagement' },
-      { id: 'data-encryption', label: 'Data Encryption', feature: 'encryption' },
-      { id: 'backup-restore', label: 'Backup & Restore', feature: 'encryption' },
+      { id: 'access-control', label: 'Access Control' },
+      { id: 'session-management', label: 'Session Management' },
+      { id: 'data-encryption', label: 'Data Encryption' },
+      { id: 'backup-restore', label: 'Backup & Restore' },
     ]
   },
   {
@@ -196,11 +189,11 @@ const navItems: NavItem[] = [
     label: 'Notifications & Tasks',
     icon: <Bell className="w-5 h-5" />,
     children: [
-      { id: 'action-center', label: 'Command Center', feature: 'approvalCenter' },
+      { id: 'action-center', label: 'Command Center' },
       { id: 'notifications', label: 'Notification Center' },
-      { id: 'pending-approvals', label: 'Pending Approvals', feature: 'approvalCenter' },
+      { id: 'pending-approvals', label: 'Pending Approvals' },
       { id: 'system-alerts', label: 'System Alerts' },
-      { id: 'task-management', label: 'Task Management', feature: 'taskManagement' },
+      { id: 'task-management', label: 'Task Management' },
     ]
   },
   {
@@ -209,8 +202,8 @@ const navItems: NavItem[] = [
     icon: <Palette className="w-5 h-5" />,
     children: [
       { id: 'branding', label: 'School Branding' },
-      { id: 'report-templates', label: 'Report Templates', feature: 'customTemplates' },
-      { id: 'grading-scale', label: 'Grading Scale', feature: 'gradingScales' },
+      { id: 'report-templates', label: 'Report Templates' },
+      { id: 'grading-scale', label: 'Grading Scale' },
     ]
   },
   {
@@ -218,10 +211,10 @@ const navItems: NavItem[] = [
     label: 'Integrations',
     icon: <Plug className="w-5 h-5" />,
     children: [
-      { id: 'payment-gateway', label: 'Payment Gateway', feature: 'paymentGateway' },
-      { id: 'biometric-devices', label: 'Biometric Devices', feature: 'biometricIntegration' },
-      { id: 'lms-integration', label: 'LMS Integration', feature: 'lmsIntegration' },
-      { id: 'api-management', label: 'API Management', feature: 'apiAccess' },
+      { id: 'payment-gateway', label: 'Payment Gateway' },
+      { id: 'biometric-devices', label: 'Biometric Devices' },
+      { id: 'lms-integration', label: 'LMS Integration' },
+      { id: 'api-management', label: 'API Management' },
     ]
   },
   {
@@ -231,11 +224,11 @@ const navItems: NavItem[] = [
     children: [
       { id: 'system-settings', label: 'System Settings' },
       { id: 'school-profile', label: 'School Profile' },
-      { id: 'tenant-settings', label: 'Tenant Settings', feature: 'multiSchool' },
-      { id: 'roles-permissions', label: 'Roles & Permissions', feature: 'customRoles' },
+      { id: 'tenant-settings', label: 'Tenant Settings' },
+      { id: 'roles-permissions', label: 'Roles & Permissions' },
       { id: 'user-accounts', label: 'User Accounts' },
-      { id: 'audit-logs', label: 'Audit Logs', feature: 'systemAuditLogs' },
-      { id: 'import-export', label: 'Import/Export', feature: 'importExport' },
+      { id: 'audit-logs', label: 'Audit Logs' },
+      { id: 'import-export', label: 'Import/Export' },
     ]
   },
   {
@@ -246,7 +239,7 @@ const navItems: NavItem[] = [
       { id: 'system-health', label: 'System Health' },
       { id: 'error-logs', label: 'Error Logs' },
       { id: 'help-center', label: 'Help Center' },
-      { id: 'support-tickets', label: 'Support Tickets', feature: 'ticketSystem' },
+      { id: 'support-tickets', label: 'Support Tickets' },
     ]
   },
 ];
@@ -254,175 +247,12 @@ const navItems: NavItem[] = [
 export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProps) {
   const [openSections, setOpenSections] = React.useState<string[]>(['system']);
   const { branding } = useBranding();
-  const { hasAccess } = usePlanAccess();
 
   const toggleSection = (id: string) => {
     setOpenSections(prev =>
       prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
     );
   };
-
-  const filteredItems = navItems.filter(item => {
-    // If it has a category, check if any feature in that category is allowed
-    if (item.category) {
-      return hasAccess(item.category);
-    }
-    return true;
-  }).map(item => ({
-    ...item,
-    children: item.children ? item.children.filter(child => {
-      if (child.feature) {
-        // Map top level category based on item.id for simplicity if not provided
-        const category = item.category || (item.id === 'students' ? 'studentManagement' : 
-                          item.id === 'academic' ? 'academicStructure' :
-                          item.id === 'results' ? 'results' :
-                          item.id === 'cbt' ? 'exams' :
-                          item.id === 'finance' ? 'finance' :
-                          item.id === 'staff' ? 'hr' :
-                          item.id === 'communication' ? 'communication' :
-                          item.id === 'security' ? 'security' :
-                          item.id === 'notifications' ? 'security' :
-                          item.id === 'customization' ? 'results' :
-                          item.id === 'integrations' ? 'admin' :
-                          item.id === 'system' ? 'security' :
-                          item.id === 'support' ? 'support' : 'security') as keyof PlanFeatures;
-        return hasAccess(category, child.feature);
-      }
-      return true;
-    }) : undefined
-  })).filter(item => !item.children || item.children.length > 0);
-
-  return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen bg-white border-r border-gray-200 z-50 transition-transform duration-300 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } w-72 flex flex-col`}
-      >
-        {/* Header */}
-        <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6">
-          <div className="flex items-center gap-2">
-            {branding.logoUrl ? (
-              <img
-                src={branding.logoUrl}
-                alt={branding.schoolName}
-                className="w-8 h-8 rounded-lg object-contain"
-              />
-            ) : (
-              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-                <GraduationCap className="w-5 h-5 text-white" />
-              </div>
-            )}
-            <span className="font-bold text-xl text-gray-900 truncate max-w-[160px]">
-              {branding.schoolName}
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="lg:hidden p-1 hover:bg-gray-100 rounded"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Session Selector */}
-        <div className="p-4 border-b border-gray-200">
-          <SessionSelector />
-        </div>
-
-        {/* Navigation */}
-        <ScrollArea className="flex-1">
-          <nav className="p-3 space-y-1">
-            {filteredItems.map((item) => (
-              <div key={item.id}>
-                {item.children ? (
-                  <Collapsible
-                    open={openSections.includes(item.id)}
-                    onOpenChange={() => toggleSection(item.id)}
-                  >
-                    <div className="flex items-center gap-0">
-                      <button
-                        onClick={() => {
-                          onNavigate(item.id);
-                          if (window.innerWidth < 1024) {
-                            onClose();
-                          }
-                        }}
-                        className={`flex-1 flex items-center gap-3 px-3 py-2 text-sm rounded-lg text-left ${
-                          activePage === item.id
-                            ? 'bg-blue-50 text-blue-700 font-medium'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {item.icon}
-                        <span>{item.label}</span>
-                      </button>
-                      <CollapsibleTrigger className="px-2 py-2 hover:bg-gray-100 rounded-lg">
-                        <ChevronDown
-                          className={`w-4 h-4 transition-transform ${
-                            openSections.includes(item.id) ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </CollapsibleTrigger>
-                    </div>
-                    <CollapsibleContent className="mt-1">
-                      <div className="ml-8 space-y-1">
-                        {item.children.map((child) => (
-                          <button
-                            key={child.id}
-                            onClick={() => {
-                              onNavigate(child.id);
-                              if (window.innerWidth < 1024) {
-                                onClose();
-                              }
-                            }}
-                            className={`w-full text-left px-3 py-2 text-sm rounded-lg ${
-                              activePage === child.id
-                                ? 'bg-blue-50 text-blue-700 font-medium'
-                                : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                          >
-                            {child.label}
-                          </button>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                ) : (
-                  <button
-                    onClick={() => {
-                      onNavigate(item.id);
-                      if (window.innerWidth < 1024) {
-                        onClose();
-                      }
-                    }}
-                    className={`flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg ${
-                      activePage === item.id
-                        ? 'bg-blue-50 text-blue-700 font-medium'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </button>
-                )}
-              </div>
-            ))}
-          </nav>
-        </ScrollArea>
-      </aside>
-    </>
-  );
-}
 
   return (
     <>

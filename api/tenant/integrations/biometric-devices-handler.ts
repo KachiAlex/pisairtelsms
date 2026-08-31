@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { requireRole } from '../../_lib/auth-middleware.js';
-import { enforcePlan } from '../../_lib/plan-middleware.js';
 
 async function ensureTables() {
   }
@@ -9,9 +8,6 @@ async function ensureTables() {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
-
-  const allowed = await enforcePlan(req, res, 'admin', 'biometricIntegration');
-  if (!allowed) return;
 
   const tenantId = decoded.tenantId || 'default-tenant';
   const userId   = (req.headers['x-user-id']   as string) || (req.query.userId   as string) || 'system';

@@ -1,14 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
 import { requireRole } from '../_lib/auth-middleware.js'
-import { enforcePlan } from '../_lib/plan-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
-
-  const allowed = await enforcePlan(req, res, 'digitalLearning', 'virtualClassrooms')
-  if (!allowed) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
   const userId = decoded.userId || decoded.sub || 'system'

@@ -3,37 +3,7 @@ import { poolQuery } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 async function ensureTenantsTable() {
-  try {
-    await poolQuery(`
-      CREATE TABLE IF NOT EXISTS tenants (
-        id TEXT PRIMARY KEY DEFAULT cuid(),
-        name TEXT NOT NULL,
-        domain TEXT UNIQUE,
-        subscription_plan TEXT DEFAULT 'starter',
-        region TEXT DEFAULT 'global',
-        usage_percent INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'active',
-        open_alerts INTEGER DEFAULT 0,
-        last_sync_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-      )
-    `)
-
-    // Ensure subscription_plan column exists for older tables
-    await poolQuery(`
-      ALTER TABLE tenants 
-      ADD COLUMN IF NOT EXISTS subscription_plan TEXT DEFAULT 'starter',
-      ADD COLUMN IF NOT EXISTS region TEXT DEFAULT 'global',
-      ADD COLUMN IF NOT EXISTS usage_percent INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active',
-      ADD COLUMN IF NOT EXISTS open_alerts INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMP
-    `)
-  } catch (err) {
-    console.error('ensureTenantsTable error:', err)
   }
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
@@ -60,14 +30,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const decoded = await requireRole(req, res, ['super_admin'])
     if (!decoded) return
 
-    const { name, subscription = 'starter', region = 'global' } = req.body || {}
+    const { name, subscription = 'basic', region = 'global' } = req.body || {}
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       return res.status(400).json({ success: false, error: 'Tenant name is required (min 2 chars)' })
-    }
-
-    const allowedPlans = ['starter', 'standard', 'premium']
-    if (!allowedPlans.includes(subscription.toLowerCase())) {
-      return res.status(400).json({ success: false, error: `subscription must be one of: ${allowedPlans.join(', ')}` })
     }
 
     try {

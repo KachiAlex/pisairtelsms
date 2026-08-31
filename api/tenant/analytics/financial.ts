@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getFinancialAnalytics, type AnalyticsFilters } from '../_lib/analytics/engine.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
-import { enforcePlan } from '../../_lib/plan-middleware.js'
 
 /**
  * GET /api/tenant/analytics/financial
@@ -10,9 +9,6 @@ import { enforcePlan } from '../../_lib/plan-middleware.js'
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
-
-  const allowed = await enforcePlan(req, res, 'analytics', 'financial')
-  if (!allowed) return
 
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')

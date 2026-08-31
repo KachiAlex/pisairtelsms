@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from './_lib/db.js'
 import { randomUUID } from 'crypto'
 import { requireRole } from '../../_lib/auth-middleware.js'
-import { enforcePlan } from '../../_lib/plan-middleware.js'
 
 interface SubjectConfig {
   subjectName: string
@@ -35,9 +34,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication - only staff or tenant_admin can access tenant timetable
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
-
-  const allowed = await enforcePlan(req, res, 'scheduling', 'autoGeneration')
-  if (!allowed) return
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')

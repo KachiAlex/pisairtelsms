@@ -72,11 +72,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const resolvedTenantId = staff.tenantId || staff.department || 'default-tenant'
-    
-    // Fetch tenant plan
-    const tenantResult = await poolQuery('SELECT subscription_plan FROM tenants WHERE id = $1', [resolvedTenantId])
-    const subscriptionPlan = tenantResult.rows[0]?.subscription_plan || 'starter'
-
     const jwtSecret = getJwtSecret()
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
@@ -85,7 +80,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       userId: staff.id,
       role: 'tenant_admin',
       tenantId: resolvedTenantId,
-      subscriptionPlan,
       email: staff.email,
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -105,7 +99,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       userId: staff.id,
       role: 'tenant_admin',
       tenantId: resolvedTenantId,
-      subscriptionPlan,
       name: staff.name,
       email: staff.email,
       expiresAt,

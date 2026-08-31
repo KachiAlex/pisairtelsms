@@ -101,7 +101,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [showProvisionForm, setShowProvisionForm] = useState(false)
   const [provisionName, setProvisionName] = useState('')
   const [provisionRegion, setProvisionRegion] = useState('global')
-  const [provisionPlan, setProvisionPlan] = useState('starter')
+  const [provisionPlan, setProvisionPlan] = useState('basic')
   const [provisionLoading, setProvisionLoading] = useState(false)
   const [provisionError, setProvisionError] = useState<string | null>(null)
 
@@ -200,7 +200,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       setTenants((prev) => [...prev, data.data])
       setShowProvisionForm(false)
       setProvisionName('')
-      setProvisionPlan('starter')
+      setProvisionPlan('basic')
       setProvisionRegion('global')
     } catch (err: any) {
       setProvisionError(err.message || 'Something went wrong')
@@ -498,9 +498,9 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                         onChange={(e) => setProvisionPlan(e.target.value)}
                         className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#e31e24]/20 focus:border-[#e31e24]"
                       >
-                        <option value="starter">Starter (₦2,000)</option>
-                        <option value="standard">Standard (₦3,000)</option>
-                        <option value="premium">Premium (₦6,000)</option>
+                        <option value="basic">Basic</option>
+                        <option value="standard">Standard</option>
+                        <option value="premium">Premium</option>
                       </select>
                     </div>
                     <div>

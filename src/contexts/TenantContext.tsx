@@ -6,8 +6,6 @@ interface TenantContextType {
   setTenantId: (id: string | null) => void
   tenantName: string | null
   setTenantName: (name: string | null) => void
-  subscriptionPlan: string | null
-  setSubscriptionPlan: (plan: string | null) => void
   loading: boolean
 }
 
@@ -16,19 +14,15 @@ export const TenantContext = createContext<TenantContextType | undefined>(undefi
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [tenantId, setTenantId] = useState<string | null>(null)
   const [tenantName, setTenantName] = useState<string | null>(null)
-  const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Initialize tenant info from auth storage on mount
   useEffect(() => {
-    const auth = getAuthFromStorage() as any
+    const auth = getAuthFromStorage()
 
-    // If valid non-expired token exists, set tenant info from auth
+    // If valid non-expired token exists, set tenantId from auth
     if (auth && !isTokenExpired()) {
       setTenantId(auth.tenantId)
-      if (auth.subscriptionPlan) {
-        setSubscriptionPlan(auth.subscriptionPlan)
-      }
     }
 
     setLoading(false)
@@ -51,21 +45,11 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     }
   }, [tenantName])
 
-  useEffect(() => {
-    if (subscriptionPlan) {
-      localStorage.setItem('subscriptionPlan', subscriptionPlan)
-    } else {
-      localStorage.removeItem('subscriptionPlan')
-    }
-  }, [subscriptionPlan])
-
   const value = {
     tenantId,
     setTenantId,
     tenantName,
     setTenantName,
-    subscriptionPlan,
-    setSubscriptionPlan,
     loading,
   }
 

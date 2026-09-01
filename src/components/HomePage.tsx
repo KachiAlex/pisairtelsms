@@ -292,64 +292,71 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
           </div>
 
           <div className="ps-hero-right" style={{ width:'48%', marginLeft:'40px' }}>
-            <div className="ps-reveal ps-in" ref={stackRef} style={{ position:'relative', height:'400px' }} onMouseMove={handleStackMouseMove} onMouseLeave={handleStackMouseLeave}>
+            <div className="ps-reveal ps-in" ref={stackRef} style={{ position:'relative', height:'460px' }} onMouseMove={handleStackMouseMove} onMouseLeave={handleStackMouseLeave}>
               <div ref={tiltRef} style={{ position:'absolute', inset:0, transition:'transform .15s ease-out' }}>
-                {/* Card back */}
-                <div style={{ position:'absolute', width:'320px', top:'60px', left:'10px', transform:'rotate(-6deg)', height:'220px', borderRadius:'16px', background:'var(--surface)', border:'1px solid var(--line)', boxShadow:'0 24px 60px -22px rgba(20,20,20,.22)', overflow:'hidden' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'13px 16px', borderBottom:'1px solid var(--line)' }}>
-                    <div style={{ display:'flex', gap:'6px' }}>
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
+                {/* Back card — student info summary */}
+                <div style={{ position:'absolute', width:'340px', top:'24px', left:'0px', transform:'rotate(-5deg)', height:'120px', borderRadius:'16px', background:'var(--surface)', border:'1px solid var(--line)', boxShadow:'0 24px 60px -22px rgba(20,20,20,.18)', overflow:'hidden' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'16px' }}>
+                    <div style={{ width:44, height:44, borderRadius:'50%', background:'linear-gradient(135deg,var(--orange),var(--pink))', flexShrink:0 }} />
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontFamily:'Fraunces,serif', fontWeight:600, fontSize:'14px', color:'var(--ink)' }}>Adaeze Okonkwo</div>
+                      <div style={{ fontSize:'11px', color:'var(--ink-faint)', marginTop:'2px' }}>JSS 2A · 2025/2026 First Term</div>
+                      <div style={{ display:'flex', gap:'8px', marginTop:'8px' }}>
+                        <span style={{ fontSize:'10px', fontFamily:'JetBrains Mono,monospace', background:'var(--surface-2)', padding:'3px 8px', borderRadius:'4px', color:'var(--ink-dim)' }}>Att: 94%</span>
+                        <span style={{ fontSize:'10px', fontFamily:'JetBrains Mono,monospace', background:'#e8f5e9', padding:'3px 8px', borderRadius:'4px', color:'#2e7d32' }}>Fees: Paid</span>
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ padding:'16px' }}>
-                    <div className="ps-skel" style={{ width:'60%' }} />
-                    <div className="ps-skel" style={{ width:'85%' }} />
-                    <div className="ps-skel" style={{ width:'40%' }} />
                   </div>
                 </div>
-                {/* Card mid */}
-                <div style={{ position:'absolute', width:'320px', top:'34px', left:'76px', transform:'rotate(4deg)', height:'220px', borderRadius:'16px', background:'var(--surface)', border:'1px solid var(--line)', boxShadow:'0 24px 60px -22px rgba(20,20,20,.22)', overflow:'hidden' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'13px 16px', borderBottom:'1px solid var(--line)' }}>
-                    <div style={{ display:'flex', gap:'6px' }}>
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
+                {/* Front card — result broadsheet */}
+                <div className="ps-card-front-anim" style={{ position:'absolute', width:'360px', top:'120px', left:'20px', zIndex:3, borderRadius:'16px', background:'var(--surface)', border:'1px solid var(--line)', boxShadow:'0 28px 70px -24px rgba(20,20,20,.25)', overflow:'hidden' }}>
+                  {/* Header */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px', borderBottom:'1px solid var(--line)' }}>
+                    <div style={{ fontFamily:'Fraunces,serif', fontWeight:600, fontSize:'14px', color:'var(--ink)' }}>Result Broadsheet</div>
+                    <div className="ps-live-tag" style={{ display:'flex', alignItems:'center', gap:'6px', fontFamily:'JetBrains Mono,monospace', fontSize:'10px', color:'var(--ink-faint)' }}>
+                      <span className="d" />
+                      <span>Published</span>
                     </div>
                   </div>
-                  <div style={{ padding:'16px' }}>
-                    {[0,1,2].map((i) => (
-                      <div key={i} className="ps-student-row">
-                        <div className="ps-avatar" style={{ marginRight:'10px' }} />
-                        <div style={{ flex:1 }}>
-                          <div className="ps-skel" style={{ width:['70%','55%','65%'][i], marginBottom:'5px' }} />
-                          <div className="ps-skel" style={{ width:['40%','35%','30%'][i], height:'6px' }} />
-                        </div>
+                  {/* Table header */}
+                  <div style={{ display:'grid', gridTemplateColumns:'1.4fr 0.5fr 0.5fr 0.5fr 0.4fr', gap:'4px', padding:'10px 18px', background:'var(--surface-2)', fontFamily:'JetBrains Mono,monospace', fontSize:'9.5px', letterSpacing:'.04em', textTransform:'uppercase', color:'var(--ink-faint)' }}>
+                    <span>Subject</span>
+                    <span style={{ textAlign:'center' }}>CA</span>
+                    <span style={{ textAlign:'center' }}>Exam</span>
+                    <span style={{ textAlign:'center' }}>Total</span>
+                    <span style={{ textAlign:'center' }}>Grade</span>
+                  </div>
+                  {/* Rows */}
+                  <div style={{ padding:'4px 18px 12px' }}>
+                    {[
+                      { subj:'Mathematics', ca:28, exam:65, total:93, grade:'A', color:'#2e7d32' },
+                      { subj:'English Language', ca:25, exam:58, total:83, grade:'A', color:'#2e7d32' },
+                      { subj:'Basic Science', ca:27, exam:60, total:87, grade:'A', color:'#2e7d32' },
+                      { subj:'Social Studies', ca:22, exam:55, total:77, grade:'B', color:'#1565c0' },
+                      { subj:'Agric Science', ca:24, exam:52, total:76, grade:'B', color:'#1565c0' },
+                      { subj:'Computer Studies', ca:29, exam:68, total:97, grade:'A', color:'#2e7d32' },
+                      { subj:'Fine Arts', ca:20, exam:48, total:68, grade:'C', color:'#e65100' },
+                    ].map((row, i) => (
+                      <div key={i} style={{ display:'grid', gridTemplateColumns:'1.4fr 0.5fr 0.5fr 0.5fr 0.4fr', gap:'4px', padding:'7px 0', borderBottom: i < 6 ? '1px solid var(--surface-2)' : 'none', alignItems:'center' }}>
+                        <span style={{ fontSize:'12px', color:'var(--ink)', fontWeight:500 }}>{row.subj}</span>
+                        <span style={{ fontSize:'12px', color:'var(--ink-dim)', textAlign:'center', fontFamily:'JetBrains Mono,monospace' }}>{row.ca}</span>
+                        <span style={{ fontSize:'12px', color:'var(--ink-dim)', textAlign:'center', fontFamily:'JetBrains Mono,monospace' }}>{row.exam}</span>
+                        <span style={{ fontSize:'12px', color:'var(--ink)', textAlign:'center', fontFamily:'JetBrains Mono,monospace', fontWeight:600 }}>{row.total}</span>
+                        <span style={{ textAlign:'center' }}>
+                          <span style={{ fontSize:'11px', fontWeight:700, fontFamily:'Fraunces,serif', color:row.color, background:`${row.color}15`, padding:'2px 8px', borderRadius:'4px' }}>{row.grade}</span>
+                        </span>
                       </div>
                     ))}
                   </div>
-                </div>
-                {/* Card front */}
-                <div className="ps-card-front-anim" style={{ position:'absolute', width:'320px', top:'82px', left:'36px', height:'236px', zIndex:3, borderRadius:'16px', background:'var(--surface)', border:'1px solid var(--line)', boxShadow:'0 24px 60px -22px rgba(20,20,20,.22)', overflow:'hidden' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'13px 16px', borderBottom:'1px solid var(--line)' }}>
-                    <div style={{ display:'flex', gap:'6px' }}>
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'var(--line-strong)' }} />
+                  {/* Footer summary */}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 18px', background:'var(--surface-2)', borderTop:'1px solid var(--line)' }}>
+                    <div>
+                      <span style={{ fontSize:'10px', fontFamily:'JetBrains Mono,monospace', color:'var(--ink-faint)', textTransform:'uppercase', letterSpacing:'.06em' }}>Average</span>
+                      <span style={{ display:'block', fontFamily:'Fraunces,serif', fontWeight:600, fontSize:'18px', color:'var(--ink)' }}>82.7%</span>
                     </div>
-                    <div className="ps-live-tag" style={{ display:'flex', alignItems:'center', gap:'6px', fontFamily:'JetBrains Mono,monospace', fontSize:'10px', color:'var(--ink-faint)' }}>
-                      <span className="d" />
-                      <span>SMS · live</span>
-                    </div>
-                  </div>
-                  <div style={{ padding:'16px' }}>
-                    <div className="ps-skel" style={{ width:'45%' }} />
-                    <div className="ps-skel" style={{ width:'75%' }} />
-                    <div className="ps-bars">
-                      {[60,75,52,88,65,80,70].map((h, i) => (
-                        <i key={i} style={{ height:`${h}%` }} />
-                      ))}
+                    <div style={{ textAlign:'right' }}>
+                      <span style={{ fontSize:'10px', fontFamily:'JetBrains Mono,monospace', color:'var(--ink-faint)', textTransform:'uppercase', letterSpacing:'.06em' }}>Position</span>
+                      <span style={{ display:'block', fontFamily:'Fraunces,serif', fontWeight:600, fontSize:'18px', color:'var(--red)' }}>3rd of 124</span>
                     </div>
                   </div>
                 </div>

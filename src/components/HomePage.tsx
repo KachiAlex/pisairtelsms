@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Menu, X, ArrowRight, Check, User, RefreshCw, Lock } from 'lucide-react';
 import { PLAN_RATES, PlanType } from '../lib/plans';
 
@@ -117,6 +118,7 @@ const subjects = [
 ];
 
 export function HomePage({ onNavigateToDashboard }: HomePageProps) {
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const stackRef = React.useRef<HTMLDivElement>(null);
   const tiltRef = React.useRef<HTMLDivElement>(null);
@@ -269,8 +271,8 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
               Enrollment, attendance, results, fees, and communication — one connected system built for how schools actually run, from first inquiry to final transcript.
             </p>
             <div className="ps-reveal ps-in" style={{ marginTop:'32px', display:'flex', flexWrap:'wrap', gap:'14px' }}>
-              <button className="ps-btn ps-btn-solid" style={{ padding:'14px 24px', fontSize:'14.5px' }} onClick={onNavigateToDashboard}>
-                <span>Start free trial</span>
+              <button className="ps-btn ps-btn-solid" style={{ padding:'14px 24px', fontSize:'14.5px' }} onClick={() => navigate('/demo')}>
+                <span>Request a demo</span>
                 <ArrowRight size={15} style={{ marginLeft:'7px' }} />
               </button>
               <a className="ps-btn ps-btn-ghost" href="#showcase" style={{ padding:'14px 24px', fontSize:'14.5px' }}>See how it works</a>
@@ -501,9 +503,9 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
                   <button
                     className={`ps-btn ${info.highlight ? 'ps-btn-solid' : 'ps-btn-ghost'}`}
                     style={{ width:'100%', justifyContent:'center', padding:'13px 20px' }}
-                    onClick={onNavigateToDashboard}
+                    onClick={() => navigate(planKey === 'premium' ? '/inquiry' : '/demo')}
                   >
-                    {planKey === 'premium' ? 'Contact sales' : 'Start free trial'}
+                    {planKey === 'premium' ? 'Contact sales' : 'Request a demo'}
                   </button>
                 </div>
               );
@@ -524,8 +526,8 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
               Start with your student directory today — attendance, results, and fees are ready when you are.
             </p>
             <div style={{ display:'flex', flexWrap:'wrap', gap:14, marginTop:20 }}>
-              <button className="ps-btn ps-btn-solid" style={{ padding:'14px 24px', fontSize:'14.5px' }} onClick={onNavigateToDashboard}>Start free trial</button>
-              <button className="ps-btn ps-btn-ghost" style={{ padding:'14px 24px', fontSize:'14.5px', borderColor:'rgba(255,255,255,.25)', color:'#fff' }} onClick={onNavigateToDashboard}>Talk to us</button>
+              <button className="ps-btn ps-btn-solid" style={{ padding:'14px 24px', fontSize:'14.5px' }} onClick={() => navigate('/demo')}>Request a demo</button>
+              <button className="ps-btn ps-btn-ghost" style={{ padding:'14px 24px', fontSize:'14.5px', borderColor:'rgba(255,255,255,.25)', color:'#fff' }} onClick={() => navigate('/inquiry')}>Talk to us</button>
             </div>
           </div>
         </div>
@@ -551,17 +553,17 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
                 <b style={{ display:'block', fontFamily:'JetBrains Mono,monospace', fontSize:11, letterSpacing:'.1em', color:'var(--ink-faint)', marginBottom:14 }}>PRODUCT</b>
                 <a href="#features" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Features</a>
                 <a href="#pricing" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Pricing</a>
-                <a href="#" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Security</a>
+                <a href="/demo" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Request a demo</a>
               </div>
               <div>
                 <b style={{ display:'block', fontFamily:'JetBrains Mono,monospace', fontSize:11, letterSpacing:'.1em', color:'var(--ink-faint)', marginBottom:14 }}>COMPANY</b>
-                <a href="#" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>About Pisairtel</a>
-                <a href="#" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Contact</a>
+                <a href="/inquiry" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>About Pisairtel</a>
+                <a href="/inquiry" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Contact</a>
               </div>
               <div>
                 <b style={{ display:'block', fontFamily:'JetBrains Mono,monospace', fontSize:11, letterSpacing:'.1em', color:'var(--ink-faint)', marginBottom:14 }}>RESOURCES</b>
-                <a href="#" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Help center</a>
-                <a href="#" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Status</a>
+                <a href="/apply" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Apply</a>
+                <a href="/inquiry" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Inquire</a>
               </div>
             </div>
           </div>

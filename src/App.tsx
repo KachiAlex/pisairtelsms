@@ -33,6 +33,7 @@ const StudentsList = lazy(() => import('./components/pages/StudentsList'));
 const StudentEnrollment = lazy(() => import('./components/pages/StudentEnrollment'));
 const PublicApplicationForm = lazy(() => import('./components/pages/PublicApplicationForm'));
 const PublicInquiryForm = lazy(() => import('./components/pages/PublicInquiryForm'));
+const DemoRequestForm = lazy(() => import('./components/pages/DemoRequestForm'));
 const StudentPromotion = lazy(() => import('./components/pages/StudentPromotion'));
 const StudentDocuments = lazy(() => import('./components/pages/StudentDocuments'));
 const StudentHealth = lazy(() => import('./components/pages/StudentHealth'));
@@ -511,6 +512,7 @@ export default function App() {
         />
         <Route path="/apply" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense></ErrorBoundary>} />
         <Route path="/inquiry" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense></ErrorBoundary>} />
+        <Route path="/demo" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><DemoRequestForm /></Suspense></ErrorBoundary>} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/tenant/*" element={<ProtectedRoute requiredRole="tenant_admin">{tenantShell}</ProtectedRoute>} />
         <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><ErrorBoundary><Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense></ErrorBoundary></ProtectedRoute>} />

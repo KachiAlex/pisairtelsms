@@ -520,7 +520,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
             <h2 style={{ fontFamily:'Fraunces,serif', fontWeight:560, fontSize:'clamp(28px,3.6vw,42px)', maxWidth:520, letterSpacing:'-.01em' }}>
               Ready to bring your <em style={{ fontStyle:'italic', fontWeight:500, color:'var(--gold)' }}>whole school</em> online?
             </h2>
-            <p style={{ marginTop:14, fontSize:'14.5px', color:'rgba(255,255,255,.6)', maxWidth:460 }}>
+            <p style={{ marginTop:14, fontSize:'15px', color:'rgba(255,255,255,.85)', maxWidth:460, lineHeight:1.6 }}>
               Start with your student directory today — attendance, results, and fees are ready when you are.
             </p>
             <div style={{ display:'flex', flexWrap:'wrap', gap:14, marginTop:20 }}>

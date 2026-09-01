@@ -1,5 +1,6 @@
 import React from 'react';
 import { Menu, X, ArrowRight, Check, User, RefreshCw, Lock } from 'lucide-react';
+import { PLAN_RATES, PlanType } from '../lib/plans';
 
 interface HomePageProps {
   onNavigateToDashboard: () => void;
@@ -63,6 +64,51 @@ const showcaseSteps = [
   { num: '02', title: 'Review and approve', desc: 'Results move through an approval workflow — teacher, department head, then administrator.' },
   { num: '03', title: 'Publish instantly', desc: 'Approved results appear in student and parent portals — no printing, no waiting.' },
 ];
+
+const planDisplayInfo: Record<PlanType, { label: string; highlight: boolean; blurb: string }> = {
+  starter: { label: 'Starter', highlight: false, blurb: 'Essential tools to digitise your student records and attendance.' },
+  standard: { label: 'Standard', highlight: true, blurb: 'Everything in Starter, plus communication, scheduling, and advanced finance.' },
+  premium: { label: 'Premium', highlight: false, blurb: 'The complete platform — CBT security, analytics, virtual classrooms, and multi-campus.' },
+};
+
+const planFeatureHighlights: Record<PlanType, string[]> = {
+  starter: [
+    'Student registration & directory',
+    'Daily attendance marking',
+    'CA & exam score entry',
+    'Automatic result computation',
+    'Broadsheets & result publishing',
+    'Fee structure, invoices & receipts',
+    'School-wide announcements',
+    'Role-based access control',
+  ],
+  standard: [
+    'Everything in Starter, plus:',
+    'Public admissions portal & inquiry tracking',
+    'QR code & batch attendance',
+    'Approval workflow for results',
+    'Transcripts & custom grading scales',
+    'CBT live monitoring & exam security',
+    'Class timetables with configuration',
+    'SMS notifications & parent messaging',
+    'Fee reminders, payment plans & exemptions',
+    'Academic, attendance & financial analytics',
+  ],
+  premium: [
+    'Everything in Standard, plus:',
+    'Biometric attendance with audit trail',
+    'Custom report templates',
+    'CBT item analysis & offline sync',
+    'Certificate verification',
+    'Auto-generated clash-free timetables',
+    'Virtual classrooms & private lessons',
+    'Online payment gateway & reconciliation',
+    'Staff payroll, payslips & leave management',
+    'Predictive risk analytics',
+    'Multi-campus / multi-school support',
+    'Priority support',
+  ],
+};
 
 const subjects = [
   { name: 'Mathematics', students: '124 students', pct: 78 },
@@ -157,6 +203,22 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
         @media(max-width:980px){ .ps-hero-left,.ps-hero-right{ width:100% !important; margin-left:0 !important; } .ps-hero-right{ margin-top:40px !important; } .ps-showcase-inner{ flex-direction:column !important; } .ps-showcase-right,.ps-showcase-left{ width:100% !important; margin-right:0 !important; } .ps-showcase-right{ margin-bottom:40px !important; } }
         @media(max-width:820px){ .ps-trust-inner{ flex-direction:column !important; } .ps-trust-item{ width:100% !important; margin-top:18px !important; border-left:none !important; border-top:1px solid var(--line) !important; padding-top:18px !important; } .ps-trust-item:first-child{ border-top:none !important; margin-top:0 !important; } .ps-feature-card{ width:calc(50% - 20px) !important; } .ps-mobile-toggle{ display:flex !important; } .ps-desktop-nav{ display:none !important; } }
         @media(max-width:560px){ .ps-feature-card{ width:calc(100% - 20px) !important; } }
+        .ps-pricing-grid { display:flex; gap:24px; align-items:stretch; margin-top:48px; }
+        .ps-price-card { flex:1; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:32px 28px; display:flex; flex-direction:column; transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+        .ps-price-card:hover { transform:translateY(-4px); box-shadow:0 20px 42px -20px rgba(20,20,20,.18); border-color:var(--line-strong); }
+        .ps-price-card.ps-price-featured { border:2px solid var(--ink); position:relative; }
+        .ps-price-card.ps-price-featured::before { content:'Most popular'; position:absolute; top:-12px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; padding:5px 14px; border-radius:20px; white-space:nowrap; }
+        .ps-price-name { font-family:'Fraunces',serif; font-weight:600; font-size:20px; margin-bottom:6px; }
+        .ps-price-blurb { font-size:13px; color:var(--ink-dim); line-height:1.55; margin-bottom:24px; min-height:40px; }
+        .ps-price-amount { display:flex; align-items:baseline; gap:4px; margin-bottom:24px; }
+        .ps-price-amount b { font-family:'Fraunces',serif; font-weight:620; font-size:36px; letter-spacing:-.02em; }
+        .ps-price-amount span { font-size:13px; color:var(--ink-faint); }
+        .ps-price-feat-list { list-style:none; padding:0; margin:0 0 28px 0; flex:1; }
+        .ps-price-feat-list li { display:flex; align-items:flex-start; gap:10px; font-size:13px; color:var(--ink-dim); line-height:1.5; margin-bottom:11px; }
+        .ps-price-feat-list li svg { flex-shrink:0; margin-top:2px; color:var(--red); }
+        .ps-price-feat-list li.ps-feat-header { font-family:'Fraunces',serif; font-weight:600; font-size:13.5px; color:var(--ink); margin-bottom:14px; margin-top:4px; }
+        .ps-price-feat-list li.ps-feat-header svg { display:none; }
+        @media(max-width:980px){ .ps-pricing-grid{ flex-direction:column !important; } .ps-price-card{ width:100% !important; } }
         @media(max-width:700px){ .ps-wrap{ padding:0 20px; } }
         @media(prefers-reduced-motion:reduce){ .ps-home *{ animation-duration:.001ms !important; transition-duration:.001ms !important; } }
       `}</style>
@@ -173,7 +235,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
           <div className="ps-desktop-nav" style={{ display:'flex', alignItems:'center', gap:'30px' }}>
             <a className="ps-nav-link" href="#features">Features</a>
             <a className="ps-nav-link" href="#showcase">How it works</a>
-            <a className="ps-nav-link" href="#" onClick={onNavigateToDashboard}>Pricing</a>
+            <a className="ps-nav-link" href="#pricing">Pricing</a>
             <a className="ps-nav-link" href="#" onClick={onNavigateToDashboard}>Support</a>
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
               <button className="ps-btn ps-btn-ghost" onClick={onNavigateToDashboard}>Sign in</button>
@@ -188,7 +250,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
           <div style={{ borderTop:'1px solid var(--line)', padding:'16px 20px', display:'flex', flexDirection:'column', gap:'12px' }}>
             <a href="#features" className="ps-nav-link" onClick={() => setIsMobileMenuOpen(false)}>Features</a>
             <a href="#showcase" className="ps-nav-link" onClick={() => setIsMobileMenuOpen(false)}>How it works</a>
-            <a href="#" className="ps-nav-link" onClick={(e) => { e.preventDefault(); onNavigateToDashboard(); }}>Pricing</a>
+            <a href="#pricing" className="ps-nav-link" onClick={() => setIsMobileMenuOpen(false)}>Pricing</a>
             <a href="#" className="ps-nav-link" onClick={(e) => { e.preventDefault(); onNavigateToDashboard(); }}>Support</a>
             <button className="ps-btn ps-btn-solid" style={{ width:'100%', justifyContent:'center' }} onClick={onNavigateToDashboard}>Get started</button>
           </div>
@@ -396,6 +458,53 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
         </div>
       </section>
 
+      {/* Pricing */}
+      <section id="pricing" style={{ padding:'100px 0' }}>
+        <div className="ps-wrap">
+          <div className="ps-reveal" style={{ textAlign:'center', marginBottom:8 }}>
+            <div className="ps-section-eyebrow">PRICING</div>
+            <h2 className="ps-h2" style={{ maxWidth:620, margin:'0 auto' }}>
+              Simple, per-term pricing. <em style={{ fontStyle:'italic', fontWeight:500, color:'var(--red)' }}>No hidden fees.</em>
+            </h2>
+            <p style={{ marginTop:14, fontSize:'14.5px', color:'var(--ink-dim)', maxWidth:520, margin:'14px auto 0' }}>
+              Choose a plan that fits your school today — upgrade anytime as your needs grow.
+            </p>
+          </div>
+          <div className="ps-pricing-grid ps-reveal">
+            {(Object.keys(planDisplayInfo) as PlanType[]).map((planKey) => {
+              const info = planDisplayInfo[planKey];
+              const rate = PLAN_RATES[planKey];
+              const feats = planFeatureHighlights[planKey];
+              return (
+                <div key={planKey} className={`ps-price-card ${info.highlight ? 'ps-price-featured' : ''}`}>
+                  <div className="ps-price-name">{info.label}</div>
+                  <div className="ps-price-blurb">{info.blurb}</div>
+                  <div className="ps-price-amount">
+                    <b>₦{rate.toLocaleString()}</b>
+                    <span>/term</span>
+                  </div>
+                  <ul className="ps-price-feat-list">
+                    {feats.map((feat, i) => (
+                      <li key={i} className={feat.endsWith(':') ? 'ps-feat-header' : ''}>
+                        {!feat.endsWith(':') && <Check style={{ width:15, height:15 }} />}
+                        {feat}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    className={`ps-btn ${info.highlight ? 'ps-btn-solid' : 'ps-btn-ghost'}`}
+                    style={{ width:'100%', justifyContent:'center', padding:'13px 20px' }}
+                    onClick={onNavigateToDashboard}
+                  >
+                    {planKey === 'premium' ? 'Contact sales' : 'Start free trial'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Closing CTA */}
       <section style={{ position:'relative', background:'var(--ink)', color:'#fff', padding:'90px 0', overflow:'hidden' }}>
         <div style={{ position:'absolute', inset:0, background:'radial-gradient(500px 320px at 15% 20%, rgba(232,40,110,.32), transparent 60%), radial-gradient(500px 320px at 85% 80%, rgba(247,147,30,.24), transparent 60%)' }} />
@@ -434,7 +543,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
               <div>
                 <b style={{ display:'block', fontFamily:'JetBrains Mono,monospace', fontSize:11, letterSpacing:'.1em', color:'var(--ink-faint)', marginBottom:14 }}>PRODUCT</b>
                 <a href="#features" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Features</a>
-                <a href="#" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Pricing</a>
+                <a href="#pricing" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Pricing</a>
                 <a href="#" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Security</a>
               </div>
               <div>

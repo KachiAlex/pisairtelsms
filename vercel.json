@@ -61,6 +61,7 @@
     { "source": "/api/super-admin/verify", "destination": "/api/super-admin/verify.ts" },
     { "source": "/api/super-admin", "destination": "/api/super-admin/index.ts" },
     { "source": "/api/tenant/payroll", "destination": "/api/tenant/payroll.ts" },
+    { "source": "/api/student-documents", "destination": "/api/student-documents.ts" },
     { "source": "/api/staff/auth/login", "destination": "/api/staff/auth/login.ts" },
     { "source": "/api/student/auth/login", "destination": "/api/student/auth/login.ts" },
     { "source": "/api/student/dashboard", "destination": "/api/student/dashboard.ts" },

@@ -246,6 +246,10 @@ export async function ensurePayrollTables() {
       )
     `
     await sql`
+      ALTER TABLE payroll_run_items
+        ADD COLUMN IF NOT EXISTS month VARCHAR(20)
+    `
+    await sql`
       CREATE TABLE IF NOT EXISTS payroll_approvals (
         id TEXT PRIMARY KEY,
         run_id TEXT NOT NULL,

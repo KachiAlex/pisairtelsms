@@ -13,6 +13,18 @@ export interface PromotionRule {
 
 export async function ensurePromotionRulesTable(): Promise<void> {
   try {
+    // If the table was created with the old (level/threshold) schema, drop and recreate
+    await sql`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'promotion_rules' AND column_name = 'level'
+        ) THEN
+          DROP TABLE promotion_rules;
+        END IF;
+      END $$;
+    `
     await sql`
       CREATE TABLE IF NOT EXISTS promotion_rules (
         id TEXT PRIMARY KEY,

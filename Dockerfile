@@ -49,6 +49,9 @@ COPY scripts ./scripts
 COPY prisma ./prisma
 COPY docker ./docker
 
+# Generate Prisma client (needed by cbt/schema-verify)
+RUN npx prisma generate --schema=./prisma/schema.prisma
+
 # Expose the Express server port
 EXPOSE 3000
 

@@ -38,7 +38,7 @@
     },
     {
       "source": "/api/tenant/integrations/biometric-devices",
-      "destination": "/api/tenant/integrations/biometric-devices.ts"
+      "destination": "/api/tenant/integrations/biometric-devices-handler.ts"
     },
     {
       "source": "/api/tenant/virtual-learning-notifications",
@@ -62,11 +62,11 @@
     },
     {
       "source": "/api/tenant/integrations/payment-gateway",
-      "destination": "/api/tenant/integrations/payment-gateway.ts"
+      "destination": "/api/tenant/integrations/payment-gateway-handler.ts"
     },
     {
       "source": "/api/tenant/integrations/api-management",
-      "destination": "/api/tenant/integrations/api-management.ts"
+      "destination": "/api/tenant/integrations/api-management-handler.ts"
     },
     {
       "source": "/api/tenant/security/encryption-handler",
@@ -102,7 +102,7 @@
     },
     {
       "source": "/api/tenant/certificates/verification",
-      "destination": "/api/tenant/certificates/verification.ts"
+      "destination": "/api/tenant/certificates/verification-routes.ts"
     },
     {
       "source": "/api/tenant/result-publishing-handler",
@@ -266,7 +266,7 @@
     },
     {
       "source": "/api/tenant/students/risk-alerts",
-      "destination": "/api/tenant/students/risk-alerts.ts"
+      "destination": "/api/tenant/students/risk-alerts-routes.ts"
     },
     {
       "source": "/api/tenant/timetable/time-slots",
@@ -294,11 +294,11 @@
     },
     {
       "source": "/api/tenant/exams/item-analysis",
-      "destination": "/api/tenant/exams/item-analysis.ts"
+      "destination": "/api/tenant/exams/item-analysis-routes.ts"
     },
     {
       "source": "/api/tenant/security/encryption",
-      "destination": "/api/tenant/security/encryption.ts"
+      "destination": "/api/tenant/security/encryption-handler.ts"
     },
     {
       "source": "/api/tenant/staff-attendance/qr",
@@ -394,7 +394,7 @@
     },
     {
       "source": "/api/tenant/security/sessions",
-      "destination": "/api/tenant/security/sessions.ts"
+      "destination": "/api/tenant/security/sessions-handler.ts"
     },
     {
       "source": "/api/tenant/tasks/workstreams",
@@ -430,7 +430,7 @@
     },
     {
       "source": "/api/tenant/integrations/lms",
-      "destination": "/api/tenant/integrations/lms.ts"
+      "destination": "/api/tenant/integrations/lms-handler.ts"
     },
     {
       "source": "/api/tenant/staff-attendance",

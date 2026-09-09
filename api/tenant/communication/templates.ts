@@ -1,155 +1,124 @@
-import { Router } from 'express';
-import { db } from '../../_lib/db';
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sql } from '@vercel/postgres'
+import { requireRole } from '../../_lib/auth-middleware.js'
 
-const router = Router();
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
 
-// GET all templates for tenant
-router.get('/', async (req, res) => {
-  try {
-    const decoded = (req as any).user || { tenantId: 'default-tenant' };
-    const tenantId = decoded.tenantId || 'default-tenant';
+  const tenantId = decoded.tenantId || 'default-tenant'
+  const method = req.method
 
-    const templates = (db
-      .prepare('SELECT * FROM communication_templates WHERE tenantId = ? ORDER BY createdAt DESC')
-      .all(tenantId) as any);
+  // GET: list all templates or a single template by id
+  if (method === 'GET') {
+    try {
+      const { id } = req.query
 
-    res.json({ data: templates });
-  } catch (error) {
-    console.error('Error fetching templates:', error);
-    res.status(500).json({ error: 'Failed to fetch templates' });
-  }
-});
+      if (id && typeof id === 'string') {
+        const result = await sql`
+          SELECT * FROM communication_templates WHERE id = ${id} AND tenant_id = ${tenantId}
+        `
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Template not found' })
+        }
+        return res.status(200).json({ data: result.rows[0] })
+      }
 
-// GET single template
-router.get('/:id', async (req, res) => {
-  try {
-    const decoded = (req as any).user || { tenantId: 'default-tenant' };
-    const tenantId = decoded.tenantId || 'default-tenant';
-
-    const template = (db
-      .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId) as any);
-
-    if (!template) {
-      return res.status(404).json({ error: 'Template not found' });
+      const result = await sql`
+        SELECT * FROM communication_templates WHERE tenant_id = ${tenantId} ORDER BY created_at DESC
+      `
+      return res.status(200).json({ data: result.rows })
+    } catch (error) {
+      console.error('Error fetching templates:', error)
+      return res.status(500).json({ error: 'Failed to fetch templates' })
     }
-
-    res.json({ data: template });
-  } catch (error) {
-    console.error('Error fetching template:', error);
-    res.status(500).json({ error: 'Failed to fetch template' });
   }
-});
 
-// POST create template
-router.post('/', async (req, res) => {
-  try {
-    const decoded = (req as any).user || { tenantId: 'default-tenant' };
-    const tenantId = decoded.tenantId || 'default-tenant';
+  // POST: create template
+  if (method === 'POST') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+      const { name, type, title, body: templateBody, channels, variables } = body
 
-    const { name, category, subject, body, channels, variables } = req.body;
+      if (!name || !type || !title || !templateBody) {
+        return res.status(400).json({ error: 'Missing required fields: name, type, title, body' })
+      }
 
-    if (!name || !category || !subject || !body) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      const id = `template_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      const result = await sql`
+        INSERT INTO communication_templates (id, tenant_id, name, type, title, body, channels, variables, created_at, updated_at)
+        VALUES (${id}, ${tenantId}, ${name}, ${type}, ${title}, ${templateBody},
+          ${channels || []}, ${variables || []}, NOW(), NOW())
+        RETURNING *
+      `
+
+      return res.status(201).json({ data: result.rows[0] })
+    } catch (error) {
+      console.error('Error creating template:', error)
+      return res.status(500).json({ error: 'Failed to create template' })
     }
-
-    const id = `template_${Date.now()}`;
-    const now = new Date().toISOString();
-
-    db.prepare(`
-      INSERT INTO communication_templates (id, tenantId, name, category, subject, body, channels, variables, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      tenantId,
-      name,
-      category,
-      subject,
-      body,
-      JSON.stringify(channels || []),
-      JSON.stringify(variables || []),
-      now,
-      now
-    );
-
-    const template = db
-      .prepare('SELECT * FROM communication_templates WHERE id = ?')
-      .get(id);
-
-    res.status(201).json({ data: template });
-  } catch (error) {
-    console.error('Error creating template:', error);
-    res.status(500).json({ error: 'Failed to create template' });
   }
-});
 
-// PUT update template
-router.put('/:id', async (req, res) => {
-  try {
-    const decoded = (req as any).user || { tenantId: 'default-tenant' };
-    const tenantId = decoded.tenantId || 'default-tenant';
+  // PUT: update template
+  if (method === 'PUT') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+      const { id, name, type, title, body: templateBody, channels, variables } = body
 
-    const { name, category, subject, body, channels, variables } = req.body;
+      if (!id) {
+        return res.status(400).json({ error: 'Template ID is required' })
+      }
 
-    const template = (db
-      .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId) as any);
+      const result = await sql`
+        UPDATE communication_templates SET
+          name = COALESCE(${name ?? null}, name),
+          type = COALESCE(${type ?? null}, type),
+          title = COALESCE(${title ?? null}, title),
+          body = COALESCE(${templateBody ?? null}, body),
+          channels = COALESCE(${channels ?? null}, channels),
+          variables = COALESCE(${variables ?? null}, variables),
+          updated_at = NOW()
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+        RETURNING *
+      `
 
-    if (!template) {
-      return res.status(404).json({ error: 'Template not found' });
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Template not found' })
+      }
+
+      return res.status(200).json({ data: result.rows[0] })
+    } catch (error) {
+      console.error('Error updating template:', error)
+      return res.status(500).json({ error: 'Failed to update template' })
     }
-
-    const now = new Date().toISOString();
-
-    db.prepare(`
-      UPDATE communication_templates
-      SET name = ?, category = ?, subject = ?, body = ?, channels = ?, variables = ?, updatedAt = ?
-      WHERE id = ? AND tenantId = ?
-    `).run(
-      name || template.name,
-      category || template.category,
-      subject || template.subject,
-      body || template.body,
-      channels ? JSON.stringify(channels) : template.channels,
-      variables ? JSON.stringify(variables) : template.variables,
-      now,
-      req.params.id,
-      tenantId
-    );
-
-    const updated = db
-      .prepare('SELECT * FROM communication_templates WHERE id = ?')
-      .get(req.params.id);
-
-    res.json({ data: updated });
-  } catch (error) {
-    console.error('Error updating template:', error);
-    res.status(500).json({ error: 'Failed to update template' });
   }
-});
 
-// DELETE template
-router.delete('/:id', async (req, res) => {
-  try {
-    const decoded = (req as any).user || { tenantId: 'default-tenant' };
-    const tenantId = decoded.tenantId || 'default-tenant';
+  // DELETE: delete template
+  if (method === 'DELETE') {
+    try {
+      const { id } = req.query
 
-    const template = (db
-      .prepare('SELECT * FROM communication_templates WHERE id = ? AND tenantId = ?')
-      .get(req.params.id, tenantId) as any);
+      if (!id || typeof id !== 'string') {
+        return res.status(400).json({ error: 'Template ID is required' })
+      }
 
-    if (!template) {
-      return res.status(404).json({ error: 'Template not found' });
+      const result = await sql`
+        DELETE FROM communication_templates WHERE id = ${id} AND tenant_id = ${tenantId}
+        RETURNING id
+      `
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Template not found' })
+      }
+
+      return res.status(200).json({ success: true })
+    } catch (error) {
+      console.error('Error deleting template:', error)
+      return res.status(500).json({ error: 'Failed to delete template' })
     }
-
-    db.prepare('DELETE FROM communication_templates WHERE id = ? AND tenantId = ?')
-      .run(req.params.id, tenantId);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting template:', error);
-    res.status(500).json({ error: 'Failed to delete template' });
   }
-});
 
-export default router;
+  res.setHeader('Allow', 'GET, POST, PUT, DELETE')
+  return res.status(405).json({ error: 'Method not allowed' })
+}

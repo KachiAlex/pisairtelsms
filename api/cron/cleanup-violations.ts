@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const result = await sql`
       DELETE FROM parent_child_violations
-      WHERE last_attempt < NOW() - INTERVAL ${retentionDays} DAY
+      WHERE last_attempt < NOW() - make_interval(days => ${retentionDays})
       RETURNING parent_id, child_id, context, attempts
     `
 

@@ -77,51 +77,16 @@ export async function updatePromotionRule(
   try {
     await ensurePromotionRulesTable()
 
-    // First verify the rule exists and belongs to this tenant
-    const existingRule = await sql<PromotionRule>`
-      SELECT * FROM promotion_rules
+    const conditions = updates.conditions !== undefined ? JSON.stringify(updates.conditions) : null
+
+    const result = await sql<PromotionRule>`
+      UPDATE promotion_rules SET
+        name = COALESCE(${updates.name ?? null}, name),
+        conditions = COALESCE(${conditions}::jsonb, conditions),
+        action = COALESCE(${updates.action ?? null}, action),
+        is_active = COALESCE(${updates.is_active ?? null}, is_active),
+        updated_at = NOW()
       WHERE id = ${ruleId} AND tenant_id = ${tenantId}
-    `
-
-    if (existingRule.rows.length === 0) {
-      return null
-    }
-
-    // Build dynamic update query
-    const updateFields: string[] = []
-    const values: (string | boolean)[] = []
-
-    if (updates.name !== undefined) {
-      updateFields.push(`name = $${updateFields.length + 1}`)
-      values.push(updates.name)
-    }
-    if (updates.conditions !== undefined) {
-      updateFields.push(`conditions = $${updateFields.length + 1}`)
-      values.push(updates.conditions)
-    }
-    if (updates.action !== undefined) {
-      updateFields.push(`action = $${updateFields.length + 1}`)
-      values.push(updates.action)
-    }
-    if (updates.is_active !== undefined) {
-      updateFields.push(`is_active = $${updateFields.length + 1}`)
-      values.push(updates.is_active)
-    }
-
-    if (updateFields.length === 0) {
-      // No fields to update, return existing rule
-      return existingRule.rows[0]
-    }
-
-    // Add updated_at and the WHERE clause parameters
-    updateFields.push(`updated_at = NOW()`)
-    values.push(ruleId)
-    values.push(tenantId)
-
-    const query = `
-      UPDATE promotion_rules
-      SET ${updateFields.join(', ')}
-      WHERE id = $${values.length - 1} AND tenant_id = $${values.length}
       RETURNING
         id,
         tenant_id,
@@ -132,8 +97,6 @@ export async function updatePromotionRule(
         created_at,
         updated_at
     `
-
-    const result = await sql.query(query, values)
 
     return result.rows.length > 0 ? result.rows[0] as PromotionRule : null
   } catch (error) {

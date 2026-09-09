@@ -1,4 +1,4 @@
-import { sql, db } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 
 export interface PromotionRecord {
   id: string;
@@ -217,33 +217,37 @@ export async function createBulkPromotionRecords(tenantId: string, records: Prom
 export async function updatePromotionRecord(tenantId: string, id: string, updates: Partial<PromotionPayload & { status: string; approvedBy?: string }>): Promise<PromotionRecord | null> {
   try {
     await ensurePromotionTables();
-    const client = await db.connect();
-    try {
-      const setClauses: string[] = [];
-      const values: any[] = [];
-      let i = 1;
-      if (updates.action !== undefined) { setClauses.push(`action = $${i++}`); values.push(updates.action); }
-      if (updates.toClass !== undefined) { setClauses.push(`to_class = $${i++}`); values.push(updates.toClass); }
-      if (updates.reason !== undefined) { setClauses.push(`reason = $${i++}`); values.push(updates.reason); }
-      if (updates.status !== undefined) {
-        setClauses.push(`status = $${i++}`);
-        values.push(updates.status);
-        if (updates.status === 'approved' && updates.approvedBy) {
-          setClauses.push(`approved_by = $${i++}`, `approved_at = NOW()`);
-          values.push(updates.approvedBy);
-        }
-      }
-      if (setClauses.length === 0) throw new Error('No fields to update');
-      values.push(id);
-      values.push(tenantId);
-      const result = await client.query(
-        `UPDATE promotion_records SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING id, student_id as "studentId", student_name as "studentName", from_class as "fromClass", to_class as "toClass", action, academic_session as "academicSession", term, average_score as "averageScore", attendance, teacher_recommendation as "teacherRecommendation", reason, status, approved_by as "approvedBy", approved_at as "approvedAt", created_at as "createdAt", updated_at as "updatedAt"`,
-        values
-      );
-      return result.rows.length > 0 ? result.rows[0] : null;
-    } finally {
-      client.release();
-    }
+    const approvedBy = updates.status === 'approved' && updates.approvedBy ? updates.approvedBy : null;
+    const result = await sql<PromotionRecord>`
+      UPDATE promotion_records SET
+        action = COALESCE(${updates.action ?? null}, action),
+        to_class = COALESCE(${updates.toClass ?? null}, to_class),
+        reason = COALESCE(${updates.reason ?? null}, reason),
+        status = COALESCE(${updates.status ?? null}, status),
+        approved_by = COALESCE(${approvedBy}, approved_by),
+        approved_at = CASE WHEN ${updates.status === 'approved'} THEN NOW() ELSE approved_at END,
+        updated_at = NOW()
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+      RETURNING
+        id,
+        student_id as "studentId",
+        student_name as "studentName",
+        from_class as "fromClass",
+        to_class as "toClass",
+        action,
+        academic_session as "academicSession",
+        term,
+        average_score as "averageScore",
+        attendance,
+        teacher_recommendation as "teacherRecommendation",
+        reason,
+        status,
+        approved_by as "approvedBy",
+        approved_at as "approvedAt",
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+    `;
+    return result.rows.length > 0 ? result.rows[0] : null;
   } catch (error) {
     console.error('Error updating promotion record:', error);
     throw new Error('Failed to update promotion record');
@@ -278,26 +282,25 @@ export async function fetchPromotionRules(tenantId: string): Promise<PromotionRu
 export async function updatePromotionRule(tenantId: string, id: string, updates: Partial<PromotionRule>): Promise<PromotionRule | null> {
   try {
     await ensurePromotionTables();
-    const client = await db.connect();
-    try {
-      const setClauses: string[] = [];
-      const values: any[] = [];
-      let i = 1;
-      if (updates.name !== undefined) { setClauses.push(`name = $${i++}`); values.push(updates.name); }
-      if (updates.conditions !== undefined) { setClauses.push(`conditions = $${i++}`); values.push(JSON.stringify(updates.conditions)); }
-      if (updates.action !== undefined) { setClauses.push(`action = $${i++}`); values.push(updates.action); }
-      if (updates.isActive !== undefined) { setClauses.push(`is_active = $${i++}`); values.push(updates.isActive); }
-      if (setClauses.length === 0) throw new Error('No fields to update');
-      values.push(id);
-      values.push(tenantId);
-      const result = await client.query(
-        `UPDATE promotion_rules SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING id, name, conditions, action, is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"`,
-        values
-      );
-      return result.rows.length > 0 ? result.rows[0] : null;
-    } finally {
-      client.release();
-    }
+    const conditions = updates.conditions !== undefined ? JSON.stringify(updates.conditions) : null;
+    const result = await sql<PromotionRule>`
+      UPDATE promotion_rules SET
+        name = COALESCE(${updates.name ?? null}, name),
+        conditions = COALESCE(${conditions}::jsonb, conditions),
+        action = COALESCE(${updates.action ?? null}, action),
+        is_active = COALESCE(${updates.isActive ?? null}, is_active),
+        updated_at = NOW()
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+      RETURNING
+        id,
+        name,
+        conditions,
+        action,
+        is_active as "isActive",
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+    `;
+    return result.rows.length > 0 ? result.rows[0] : null;
   } catch (error) {
     console.error('Error updating promotion rule:', error);
     throw new Error('Failed to update promotion rule');

@@ -80,13 +80,47 @@ const defaultPromotionRules: PromotionRule[] = [
 
 export async function ensurePromotionTables(): Promise<void> {
   try {
-    // Create promotion_records table
-    // Create promotion_rules table
+    await sql`
+      CREATE TABLE IF NOT EXISTS promotion_records (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        student_id TEXT NOT NULL,
+        student_name TEXT,
+        from_class TEXT,
+        to_class TEXT,
+        action TEXT,
+        academic_session TEXT,
+        term TEXT,
+        average_score NUMERIC,
+        attendance NUMERIC,
+        teacher_recommendation TEXT,
+        reason TEXT,
+        status TEXT DEFAULT 'pending',
+        approved_by TEXT,
+        approved_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS promotion_rules (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+        name TEXT NOT NULL,
+        conditions JSONB NOT NULL DEFAULT '{}'::jsonb,
+        action TEXT NOT NULL DEFAULT 'promote',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `
+
     // Insert default rules if they don't exist
     for (const rule of defaultPromotionRules) {
       await sql`
         INSERT INTO promotion_rules (id, tenant_id, name, conditions, action, is_active, created_at, updated_at)
-        VALUES (${rule.id}, 'default-tenant', ${rule.name}, ${JSON.stringify(rule.conditions)}, ${rule.action}, ${rule.isActive}, ${rule.createdAt}, ${rule.updatedAt})
+        VALUES (${rule.id}, 'default-tenant', ${rule.name}, ${JSON.stringify(rule.conditions)}::jsonb, ${rule.action}, ${rule.isActive}, ${rule.createdAt}, ${rule.updatedAt})
         ON CONFLICT (id) DO NOTHING
       `;
     }

@@ -241,6 +241,7 @@ export async function ensurePayrollTables() {
         payment_date TIMESTAMP WITH TIME ZONE,
         failure_reason TEXT,
         payslip_generated BOOLEAN DEFAULT false,
+        month VARCHAR(20),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `
@@ -675,12 +676,12 @@ export async function createPayrollRun(
 
     const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     await sql`
-      INSERT INTO payroll_run_items (id, run_id, tenant_id, staff_id, staff_name, basic_salary, earnings, deductions, gross_pay, total_deductions, net_pay, paye_tax, pension_employee, pension_employer, status, payslip_generated)
+      INSERT INTO payroll_run_items (id, run_id, tenant_id, staff_id, staff_name, basic_salary, earnings, deductions, gross_pay, total_deductions, net_pay, paye_tax, pension_employee, pension_employer, status, payslip_generated, month)
       VALUES (${itemId}, ${runId}, ${tenantId}, ${staffId}, ${staff.name}, ${basicSalary},
         ${JSON.stringify(earnings)}::jsonb, ${JSON.stringify(computed.allDeductions)}::jsonb,
         ${computed.grossPay}, ${computed.totalDeductions}, ${computed.netPay},
         ${computed.payeTax}, ${computed.pensionEmployee}, ${computed.pensionEmployer},
-        'pending', false)
+        'pending', false, ${month})
     `
 
     totalGross += computed.grossPay

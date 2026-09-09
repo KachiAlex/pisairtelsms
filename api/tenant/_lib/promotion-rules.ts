@@ -3,19 +3,28 @@ import { sql } from '@vercel/postgres'
 export interface PromotionRule {
   id: string
   tenant_id: string
-  level: string
-  promotion_threshold: number
-  repeat_threshold: number
-  review_threshold: number
-  attendance_threshold: number
-  active: boolean
+  name: string
+  conditions: any
+  action: 'promote' | 'review' | 'repeat'
+  is_active: boolean
   created_at: string
   updated_at: string
 }
 
 export async function ensurePromotionRulesTable(): Promise<void> {
   try {
-    // Create index on tenant_id for faster queries
+    await sql`
+      CREATE TABLE IF NOT EXISTS promotion_rules (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+        name TEXT NOT NULL,
+        conditions JSONB NOT NULL DEFAULT '{}'::jsonb,
+        action TEXT NOT NULL DEFAULT 'promote',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `
     console.log('Promotion rules table ensured.')
   } catch (error) {
     console.error('Error ensuring promotion rules table:', error)
@@ -30,17 +39,15 @@ export async function getPromotionRules(tenantId: string): Promise<PromotionRule
       SELECT
         id,
         tenant_id,
-        level,
-        promotion_threshold,
-        repeat_threshold,
-        review_threshold,
-        attendance_threshold,
-        active,
+        name,
+        conditions,
+        action,
+        is_active,
         created_at,
         updated_at
       FROM promotion_rules
       WHERE tenant_id = ${tenantId}
-      ORDER BY level ASC
+      ORDER BY name ASC
     `
 
     return result.rows
@@ -70,27 +77,23 @@ export async function updatePromotionRule(
 
     // Build dynamic update query
     const updateFields: string[] = []
-    const values: (string | number | boolean)[] = []
+    const values: (string | boolean)[] = []
 
-    if (updates.promotion_threshold !== undefined) {
-      updateFields.push(`promotion_threshold = $${updateFields.length + 1}`)
-      values.push(updates.promotion_threshold)
+    if (updates.name !== undefined) {
+      updateFields.push(`name = $${updateFields.length + 1}`)
+      values.push(updates.name)
     }
-    if (updates.repeat_threshold !== undefined) {
-      updateFields.push(`repeat_threshold = $${updateFields.length + 1}`)
-      values.push(updates.repeat_threshold)
+    if (updates.conditions !== undefined) {
+      updateFields.push(`conditions = $${updateFields.length + 1}`)
+      values.push(updates.conditions)
     }
-    if (updates.review_threshold !== undefined) {
-      updateFields.push(`review_threshold = $${updateFields.length + 1}`)
-      values.push(updates.review_threshold)
+    if (updates.action !== undefined) {
+      updateFields.push(`action = $${updateFields.length + 1}`)
+      values.push(updates.action)
     }
-    if (updates.attendance_threshold !== undefined) {
-      updateFields.push(`attendance_threshold = $${updateFields.length + 1}`)
-      values.push(updates.attendance_threshold)
-    }
-    if (updates.active !== undefined) {
-      updateFields.push(`active = $${updateFields.length + 1}`)
-      values.push(updates.active)
+    if (updates.is_active !== undefined) {
+      updateFields.push(`is_active = $${updateFields.length + 1}`)
+      values.push(updates.is_active)
     }
 
     if (updateFields.length === 0) {
@@ -110,12 +113,10 @@ export async function updatePromotionRule(
       RETURNING
         id,
         tenant_id,
-        level,
-        promotion_threshold,
-        repeat_threshold,
-        review_threshold,
-        attendance_threshold,
-        active,
+        name,
+        conditions,
+        action,
+        is_active,
         created_at,
         updated_at
     `

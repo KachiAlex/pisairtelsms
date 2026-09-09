@@ -111,6 +111,24 @@ export async function updatePromotionRecord(id: string, updates: Partial<Promoti
   return result.data
 }
 
+export async function approvePromotionRecord(id: string, approvedBy: string): Promise<PromotionRecord> {
+  return updatePromotionRecord(id, { status: 'approved', approvedBy })
+}
+
+export async function completePromotionRecord(id: string): Promise<PromotionRecord> {
+  return updatePromotionRecord(id, { status: 'completed' })
+}
+
+export async function deletePromotionRecord(id: string): Promise<void> {
+  const response = await fetch(`/api/tenant/promotions?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(typeof data.error === 'string' ? data.error : 'Unable to delete promotion record.')
+  }
+}
+
 export async function fetchPromotionRules(tenantId: string): Promise<PromotionRule[]> {
   const params = new URLSearchParams({ tenantId })
   const response = await fetch(`/api/tenant/promotion-rules?${params.toString()}`)
@@ -131,14 +149,42 @@ export async function updatePromotionRule(id: string, updates: Partial<Promotion
   return result.data
 }
 
+export async function createPromotionRule(rule: Omit<PromotionRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<PromotionRule> {
+  const response = await fetch('/api/tenant/promotion-rules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rule),
+  })
+  const result = await parseResponse<PromotionRule>(response)
+  if (!result.data) {
+    throw new Error('Unable to create promotion rule.')
+  }
+  return result.data
+}
+
+export async function deletePromotionRule(id: string, tenantId: string): Promise<void> {
+  const response = await fetch(`/api/tenant/promotion-rules?id=${encodeURIComponent(id)}&tenantId=${encodeURIComponent(tenantId)}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(typeof data.error === 'string' ? data.error : 'Unable to delete promotion rule.')
+  }
+}
+
 // Helper functions for promotion logic
 export function getPromotionStatus(averageScore?: number, attendance?: number, rules?: PromotionRule[]): 'promote' | 'review' | 'repeat' {
   if (!rules || rules.length === 0) {
     return averageScore && averageScore >= 50 ? 'promote' : 'review'
   }
 
-  // Check rules in order (promote rules first, then review, then repeat)
-  for (const rule of rules.filter(r => r.isActive)) {
+  // Fix #11: Sort rules by action priority (promote first, then review, then repeat)
+  const actionPriority: Record<string, number> = { promote: 0, review: 1, repeat: 2 }
+  const sortedRules = [...rules]
+    .filter(r => r.isActive)
+    .sort((a, b) => (actionPriority[a.action] ?? 3) - (actionPriority[b.action] ?? 3))
+
+  for (const rule of sortedRules) {
     const { conditions, action } = rule
 
     let matches = true

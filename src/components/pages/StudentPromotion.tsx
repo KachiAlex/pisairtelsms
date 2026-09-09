@@ -73,6 +73,9 @@ import {
   fetchPromotionRecords,
   createBulkPromotionRecords,
   updatePromotionRecord,
+  approvePromotionRecord,
+  completePromotionRecord,
+  deletePromotionRecord,
   fetchPromotionRules,
   getPromotionStatus,
   getNextClass,
@@ -113,8 +116,10 @@ export function StudentPromotion() {
   const [bulkPromotionData, setBulkPromotionData] = useState<{
     promoteTo: string
     exceptions: StudentWithPerformance[]
-    summary: { promote: number; repeat: number; demote: number }
+    summary: { promote: number; repeat: number; review: number }
   } | null>(null)
+  const [activeTab, setActiveTab] = useState<'decisions' | 'history'>('decisions')
+  const [bulkDestClass, setBulkDestClass] = useState('')
 
   // Load data on component mount and when filters change
   useEffect(() => {
@@ -255,6 +260,7 @@ export function StudentPromotion() {
   }
 
   // Save individual promotion decision
+  // Fix #6: The backend now upserts — if a record exists for this student/session/term, it updates instead of duplicating
   const handleSaveIndividualDecision = async (action: 'promote' | 'repeat' | 'demote' | 'hold', reason?: string) => {
     if (!selectedStudent) return
 
@@ -288,6 +294,65 @@ export function StudentPromotion() {
     }
   }
 
+  // Fix #5: Approve a promotion record
+  const handleApproveRecord = async (recordId: string) => {
+    try {
+      await approvePromotionRecord(recordId, 'current-user')
+      const records = await fetchPromotionRecords(academicSession, term, fromClass)
+      setPromotionRecords(records)
+    } catch (err) {
+      console.error('Error approving promotion record:', err)
+      setError('Failed to approve promotion record.')
+    }
+  }
+
+  // Fix #5: Complete a promotion record (applies the class change to the student)
+  const handleCompleteRecord = async (recordId: string) => {
+    try {
+      await completePromotionRecord(recordId)
+      const records = await fetchPromotionRecords(academicSession, term, fromClass)
+      setPromotionRecords(records)
+    } catch (err) {
+      console.error('Error completing promotion record:', err)
+      setError('Failed to complete promotion record.')
+    }
+  }
+
+  // Fix #8: Delete a promotion record
+  const handleDeleteRecord = async (recordId: string) => {
+    try {
+      await deletePromotionRecord(recordId)
+      const records = await fetchPromotionRecords(academicSession, term, fromClass)
+      setPromotionRecords(records)
+    } catch (err) {
+      console.error('Error deleting promotion record:', err)
+      setError('Failed to delete promotion record.')
+    }
+  }
+
+  // Fix #7: Export promotion report as CSV
+  const handleExportReport = () => {
+    const headers = ['Student ID', 'Student Name', 'From Class', 'To Class', 'Action', 'Session', 'Term', 'Average Score', 'Attendance', 'Status', 'Approved By', 'Created At']
+    const rows = promotionRecords.map(r => [
+      r.studentId, r.studentName, r.fromClass, r.toClass, r.action,
+      r.academicSession, r.term, r.averageScore ?? '', r.attendance ?? '',
+      r.status, r.approvedBy ?? '', r.createdAt
+    ])
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `promotion-report-${academicSession}-${term}-${fromClass}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Fix #7: View history — switch to history tab
+  const handleViewHistory = () => {
+    setActiveTab('history')
+  }
+
   // Start bulk promotion wizard
   const handleStartBulkPromotion = () => {
     setBulkWizardStep(1)
@@ -301,18 +366,22 @@ export function StudentPromotion() {
       setBulkWizardStep(2)
     } else if (bulkWizardStep === 2) {
       // Step 2: Review exceptions and create summary
-      const exceptions = studentsWithRecommendations.filter(s =>
+      // Fix #4: Only process selected students
+      const selectedForPromotion = studentsWithRecommendations.filter(s => selectedStudents.has(s.id))
+
+      const exceptions = selectedForPromotion.filter(s =>
         s.recommendedAction === 'review' || s.recommendedAction === 'repeat'
       )
 
+      // Fix #3: 'review' students are excluded from bulk promotion, not demoted
       const summary = {
-        promote: studentsWithRecommendations.filter(s => s.recommendedAction === 'promote').length,
-        repeat: studentsWithRecommendations.filter(s => s.recommendedAction === 'repeat').length,
-        demote: studentsWithRecommendations.filter(s => s.recommendedAction === 'review').length,
+        promote: selectedForPromotion.filter(s => s.recommendedAction === 'promote').length,
+        repeat: selectedForPromotion.filter(s => s.recommendedAction === 'repeat').length,
+        review: selectedForPromotion.filter(s => s.recommendedAction === 'review').length,
       }
 
       setBulkPromotionData({
-        promoteTo: getNextClass(fromClass, 'promote'),
+        promoteTo: bulkDestClass || getNextClass(fromClass, 'promote'),
         exceptions,
         summary,
       })
@@ -330,21 +399,27 @@ export function StudentPromotion() {
     if (!bulkPromotionData) return
 
     try {
-      const promotionPayloads: PromotionPayload[] = studentsWithRecommendations.map(student => ({
-        studentId: student.id,
-        studentName: student.name,
-        fromClass: student.class,
-        toClass: student.recommendedAction === 'promote' ? bulkPromotionData.promoteTo : student.class,
-        action: student.recommendedAction === 'promote' ? 'promote' :
-                student.recommendedAction === 'repeat' ? 'repeat' : 'demote',
-        academicSession,
-        term,
-        averageScore: student.averageScore ?? undefined,
-        attendance: student.attendance ?? undefined,
-        teacherRecommendation: (student as any).teacherRecommendation,
-      }))
+      // Fix #4: Only process selected students
+      // Fix #3: 'review' students are excluded, not demoted
+      const selectedForPromotion = studentsWithRecommendations.filter(s => selectedStudents.has(s.id))
+      const promotionPayloads: PromotionPayload[] = selectedForPromotion
+        .filter(s => s.recommendedAction !== 'review') // Exclude review students from bulk
+        .map(student => ({
+          studentId: student.id,
+          studentName: student.name,
+          fromClass: student.class,
+          toClass: student.recommendedAction === 'promote' ? bulkPromotionData.promoteTo : student.class,
+          action: student.recommendedAction === 'promote' ? 'promote' as const : 'repeat' as const,
+          academicSession,
+          term,
+          averageScore: student.averageScore ?? undefined,
+          attendance: student.attendance ?? undefined,
+          teacherRecommendation: (student as any).teacherRecommendation,
+        }))
 
-      await createBulkPromotionRecords(promotionPayloads)
+      if (promotionPayloads.length > 0) {
+        await createBulkPromotionRecords(promotionPayloads)
+      }
 
       // Refresh data
       const records = await fetchPromotionRecords(academicSession, term, fromClass)
@@ -353,6 +428,7 @@ export function StudentPromotion() {
       setShowConfirmation(false)
       setBulkPromotionData(null)
       setBulkWizardStep(1)
+      setSelectedStudents(new Set())
     } catch (err) {
       console.error('Error executing bulk promotion:', err)
       setError('Failed to execute bulk promotion. Please try again.')
@@ -401,11 +477,11 @@ export function StudentPromotion() {
           <p className="text-sm text-gray-600">Manage student progression between classes safely and efficiently</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleViewHistory}>
             <History className="h-4 w-4 mr-2" />
             View History
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExportReport}>
             <Download className="h-4 w-4 mr-2" />
             Export Report
           </Button>
@@ -526,87 +602,189 @@ export function StudentPromotion() {
         </Card>
       </div>
 
-      {/* Promotion Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Student Promotion Decisions</CardTitle>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={selectedStudents.size === studentsWithRecommendations.length && studentsWithRecommendations.length > 0}
-                onCheckedChange={handleSelectAll}
-              />
-              <span className="text-sm text-gray-600">Select All</span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedStudents.size === studentsWithRecommendations.length && studentsWithRecommendations.length > 0}
-                      onCheckedChange={handleSelectAll}
-                    />
-                  </TableHead>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Current Class</TableHead>
-                  <TableHead>Average Score</TableHead>
-                  <TableHead>Attendance</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Recommendation</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {studentsWithRecommendations.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedStudents.has(student.id)}
-                        onCheckedChange={(checked) => handleStudentSelect(student.id, checked as boolean)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{student.name}</TableCell>
-                    <TableCell>{student.class}</TableCell>
-                    <TableCell>
-                      {student.hasScores ? `${student.averageScore}%` : <span className="text-gray-400 italic">No scores recorded</span>}
-                    </TableCell>
-                    <TableCell>
-                      {student.hasScores ? `${student.attendance}%` : <span className="text-gray-400 italic">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(student.recommendedAction)}>
-                        {student.recommendedAction}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <p className="font-medium">{student.nextClass}</p>
-                        {!student.hasScores && (
-                          <p className="text-gray-500 text-xs mt-1">Awaiting scores</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenIndividualPanel(student)}
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        Decide
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Tabs: Decisions vs History */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'decisions' | 'history')}>
+        <TabsList>
+          <TabsTrigger value="decisions">Decisions</TabsTrigger>
+          <TabsTrigger value="history">History ({promotionRecords.length})</TabsTrigger>
+        </TabsList>
+
+        {/* Decisions Tab */}
+        <TabsContent value="decisions">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Student Promotion Decisions</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedStudents.size === studentsWithRecommendations.length && studentsWithRecommendations.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  <span className="text-sm text-gray-600">Select All</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedStudents.size === studentsWithRecommendations.length && studentsWithRecommendations.length > 0}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Current Class</TableHead>
+                      <TableHead>Average Score</TableHead>
+                      <TableHead>Attendance</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Recommendation</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {studentsWithRecommendations.map((student) => (
+                      <TableRow key={student.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedStudents.has(student.id)}
+                            onCheckedChange={(checked) => handleStudentSelect(student.id, checked as boolean)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{student.name}</TableCell>
+                        <TableCell>{student.class}</TableCell>
+                        <TableCell>
+                          {student.hasScores ? `${student.averageScore}%` : <span className="text-gray-400 italic">No scores recorded</span>}
+                        </TableCell>
+                        <TableCell>
+                          {student.hasScores ? `${student.attendance}%` : <span className="text-gray-400 italic">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(student.recommendedAction)}>
+                            {student.recommendedAction}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <p className="font-medium">{student.nextClass}</p>
+                            {!student.hasScores && (
+                              <p className="text-gray-500 text-xs mt-1">Awaiting scores</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenIndividualPanel(student)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Decide
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* History Tab — Fix #5: Approval workflow UI */}
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <CardTitle>Promotion History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {promotionRecords.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <History className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No promotion records found for the selected session, term, and class.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Student</TableHead>
+                        <TableHead>From</TableHead>
+                        <TableHead>To</TableHead>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Approved By</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {promotionRecords.map((record) => (
+                        <TableRow key={record.id}>
+                          <TableCell className="font-medium">{record.studentName}</TableCell>
+                          <TableCell>{record.fromClass}</TableCell>
+                          <TableCell>{record.toClass}</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(record.action)}>
+                              {record.action}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={
+                              record.status === 'completed' ? 'border-green-300 text-green-700' :
+                              record.status === 'approved' ? 'border-blue-300 text-blue-700' :
+                              'border-yellow-300 text-yellow-700'
+                            }>
+                              {record.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{record.approvedBy || '—'}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end">
+                              {record.status === 'pending' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-blue-600"
+                                  onClick={() => handleApproveRecord(record.id)}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Approve
+                                </Button>
+                              )}
+                              {record.status === 'approved' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-green-600"
+                                  onClick={() => handleCompleteRecord(record.id)}
+                                  title="Applies the class change to the student"
+                                >
+                                  <UserCheck className="h-4 w-4 mr-1" />
+                                  Complete
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600"
+                                onClick={() => handleDeleteRecord(record.id)}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Individual Student Promotion Panel */}
       <Dialog open={showIndividualPanel} onOpenChange={setShowIndividualPanel}>
@@ -739,16 +917,25 @@ export function StudentPromotion() {
                 </div>
                 <div>
                   <Label>Promote To</Label>
-                  <Select defaultValue={getNextClass(fromClass, 'promote')}>
+                  <Select value={bulkDestClass || getNextClass(fromClass, 'promote')} onValueChange={setBulkDestClass}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={getNextClass(fromClass, 'promote')}>
-                        {getNextClass(fromClass, 'promote')}
-                      </SelectItem>
+                      <SelectItem value={getNextClass(fromClass, 'promote')}>{getNextClass(fromClass, 'promote')}</SelectItem>
+                      <SelectItem value={fromClass}>{fromClass} (same class)</SelectItem>
+                      {(() => {
+                        const classProgression = ['Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3']
+                        const idx = classProgression.indexOf(fromClass)
+                        return classProgression
+                          .filter((c, i) => i !== idx && i !== idx + 1)
+                          .map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)
+                      })()}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                  Only students you have selected in the table will be processed. Students marked "review" will be excluded and require manual decisions.
                 </div>
               </div>
             )}
@@ -839,16 +1026,21 @@ export function StudentPromotion() {
                   <p className="text-2xl font-bold text-orange-600">{bulkPromotionData.summary.repeat}</p>
                   <p className="text-sm text-orange-700">Students Repeating</p>
                 </div>
-                <div className="text-center p-4 bg-red-50 rounded-lg">
-                  <p className="text-2xl font-bold text-red-600">{bulkPromotionData.summary.demote}</p>
-                  <p className="text-sm text-red-700">Students Demoted</p>
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <p className="text-2xl font-bold text-yellow-600">{bulkPromotionData.summary.review}</p>
+                  <p className="text-sm text-yellow-700">Excluded (Need Review)</p>
                 </div>
               </div>
 
               <div className="p-4 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-600">
-                  You are about to update <strong>{studentsWithRecommendations.length}</strong> student records
+                  You are about to update <strong>{bulkPromotionData.summary.promote + bulkPromotionData.summary.repeat}</strong> student records
                   for the <strong>{academicSession}</strong> academic session.
+                  {bulkPromotionData.summary.review > 0 && (
+                    <span className="block mt-1 text-yellow-700">
+                      {bulkPromotionData.summary.review} student(s) require manual review and will not be processed.
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

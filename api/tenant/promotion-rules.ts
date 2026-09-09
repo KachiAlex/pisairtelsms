@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getPromotionRules, updatePromotionRule } from './_lib/promotion-rules.js'
+import { getPromotionRules, updatePromotionRule, deletePromotionRule, createPromotionRule } from './_lib/promotion-rules.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,PUT')
+  res.setHeader('Allow', 'GET,POST,PUT,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -58,6 +58,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ data: updatedRule })
     } catch (error) {
       console.error('Promotion Rules PUT error:', error)
+      return res.status(500).json({ error: 'Internal server error' })
+    }
+  }
+
+  if (req.method === 'POST') {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' })
+    }
+
+    try {
+      const createdRule = await createPromotionRule(tenantId, body)
+      return res.status(201).json({ data: createdRule })
+    } catch (error) {
+      console.error('Promotion Rules POST error:', error)
+      return res.status(500).json({ error: 'Internal server error' })
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Rule ID is required' })
+    }
+
+    try {
+      const deleted = await deletePromotionRule(tenantId, id)
+      if (!deleted) {
+        return res.status(404).json({ error: 'Promotion rule not found' })
+      }
+      return res.status(200).json({ success: true })
+    } catch (error) {
+      console.error('Promotion Rules DELETE error:', error)
       return res.status(500).json({ error: 'Internal server error' })
     }
   }

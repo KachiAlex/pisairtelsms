@@ -4,6 +4,7 @@ import {
   createPromotionRecord,
   createBulkPromotionRecords,
   updatePromotionRecord,
+  deletePromotionRecord,
   fetchPromotionRules,
   updatePromotionRule,
   type PromotionRecord,
@@ -18,7 +19,7 @@ interface ApiResponse<T> {
 }
 
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,POST,PUT')
+  res.setHeader('Allow', 'GET,POST,PUT,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -103,6 +104,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error) {
       console.error('Error updating promotion record:', error)
       return res.status(500).json({ error: 'Failed to update promotion record' })
+    }
+  }
+
+  if (method === 'DELETE') {
+    try {
+      const { id } = req.query
+      if (!id || typeof id !== 'string') {
+        return res.status(400).json({ error: 'Record ID is required' })
+      }
+
+      const deleted = await deletePromotionRecord(decoded.tenantId || 'default-tenant', id)
+      if (!deleted) {
+        return res.status(404).json({ error: 'Promotion record not found' })
+      }
+
+      return res.status(200).json({ success: true })
+    } catch (error) {
+      console.error('Error deleting promotion record:', error)
+      return res.status(500).json({ error: 'Failed to delete promotion record' })
     }
   }
 

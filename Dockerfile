@@ -42,6 +42,7 @@ COPY --from=builder /app/dist ./dist
 
 # Copy API handlers, server, and config
 COPY api ./api
+COPY src/lib ./src/lib
 COPY server.mjs ./
 COPY vercel.json ./
 COPY scripts ./scripts

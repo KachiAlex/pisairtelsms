@@ -965,52 +965,52 @@
       "destination": "/_lib/db.ts"
     },
     {
-      "source": "/tenant/biometric-devices/:/test-connection",
+      "source": "/tenant/biometric-devices/:deviceId/test-connection",
       "destination": "/tenant/biometric-devices/[deviceId]/test-connection.ts"
     },
     {
-      "source": "/tenant/biometric-devices/:/sync-logs",
+      "source": "/tenant/biometric-devices/:deviceId/sync-logs",
       "destination": "/tenant/biometric-devices/[deviceId]/sync-logs.ts"
     },
     {
-      "source": "/tenant/biometric-devices/:/sync",
-      "destination": "/tenant/biometric-devices/[deviceId]/sync.ts"
-    },
-    {
-      "source": "/parent/announcements/:/read",
+      "source": "/parent/announcements/:announcementId/read",
       "destination": "/parent/announcements/[announcementId]/read.ts"
     },
     {
-      "source": "/parent/notifications/:/read",
+      "source": "/parent/notifications/:notificationId/read",
       "destination": "/parent/notifications/[notificationId]/read.ts"
     },
     {
-      "source": "/tenant/biometric-devices/:",
+      "source": "/tenant/biometric-devices/:deviceId/sync",
+      "destination": "/tenant/biometric-devices/[deviceId]/sync.ts"
+    },
+    {
+      "source": "/tenant/biometric-devices/:deviceId",
       "destination": "/tenant/biometric-devices/[deviceId].ts"
     },
     {
-      "source": "/staff/classes/:/students",
-      "destination": "/staff/classes/[classId]/students.ts"
-    },
-    {
-      "source": "/tenant/absence-reasons/:",
+      "source": "/tenant/absence-reasons/:reasonId",
       "destination": "/tenant/absence-reasons/[reasonId].ts"
     },
     {
-      "source": "/tenant/cbt/questions/:",
-      "destination": "/tenant/cbt/questions/[id].ts"
+      "source": "/staff/classes/:classId/students",
+      "destination": "/staff/classes/[classId]/students.ts"
     },
     {
-      "source": "/staff/messages/:/read",
+      "source": "/staff/messages/:messageId/read",
       "destination": "/staff/messages/[messageId]/read.ts"
     },
     {
-      "source": "/parent/children/:",
+      "source": "/staff/students/:studentId",
+      "destination": "/staff/students/[studentId].ts"
+    },
+    {
+      "source": "/parent/children/:childId",
       "destination": "/parent/children/[childId].ts"
     },
     {
-      "source": "/staff/students/:",
-      "destination": "/staff/students/[studentId].ts"
+      "source": "/tenant/cbt/questions/:id",
+      "destination": "/tenant/cbt/questions/[id].ts"
     },
     {
       "source": "/((?!assets/).*)",

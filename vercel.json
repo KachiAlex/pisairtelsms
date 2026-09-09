@@ -1,307 +1,1020 @@
 {
   "rewrites": [
-    { "source": "/api/tenant/students", "destination": "/api/tenant/students.ts" },
-    { "source": "/api/tenant/applications", "destination": "/api/tenant/applications.ts" },
-    { "source": "/api/tenant/integrated-dashboard", "destination": "/api/tenant/integrated-dashboard.ts" },
-    { "source": "/api/tenant/results", "destination": "/api/tenant/results.ts" },
-    { "source": "/api/tenant/finance", "destination": "/api/tenant/finance.ts" },
-    { "source": "/api/tenant/staff", "destination": "/api/tenant/staff.ts" },
-    { "source": "/api/tenant/staff-attendance", "destination": "/api/tenant/staff-attendance.ts" },
-    { "source": "/api/tenant/staff-attendance/qr", "destination": "/api/tenant/staff-attendance/qr.ts" },
-    { "source": "/api/tenant/email", "destination": "/api/tenant/email.ts" },
-    { "source": "/api/tenant/attendance", "destination": "/api/tenant/attendance.ts" },
-    { "source": "/api/tenant/attendance/analytics/dashboard", "destination": "/api/tenant/attendance/analytics/dashboard.ts" },
-    { "source": "/api/tenant/attendance/analytics/heatmap", "destination": "/api/tenant/attendance/analytics/heatmap.ts" },
-    { "source": "/api/tenant/attendance/analytics/at-risk-students", "destination": "/api/tenant/attendance/analytics/at-risk-students.ts" },
-    { "source": "/api/tenant/attendance/analytics/homeroom-leaderboard", "destination": "/api/tenant/attendance/analytics/homeroom-leaderboard.ts" },
-    { "source": "/api/tenant/attendance/reports", "destination": "/api/tenant/attendance/reports.ts" },
-    { "source": "/api/tenant/attendance/batch-upload", "destination": "/api/tenant/attendance/batch-upload.ts" },
-    { "source": "/api/tenant/attendance/notifications/bulk-send", "destination": "/api/tenant/attendance/notifications/bulk-send.ts" },
-    { "source": "/api/tenant/attendance/notifications/history", "destination": "/api/tenant/attendance/notifications/history.ts" },
-    { "source": "/api/tenant/attendance/notifications/jobs", "destination": "/api/tenant/attendance/notifications/jobs.ts" },
-    { "source": "/api/tenant/attendance/audit-trail", "destination": "/api/tenant/attendance/audit-trail.ts" },
-    { "source": "/api/tenant/communication/audiences", "destination": "/api/tenant/communication/audiences.ts" },
-    { "source": "/api/tenant/communication", "destination": "/api/tenant/communication.ts" },
-    { "source": "/api/tenant/bulk-notifications", "destination": "/api/tenant/bulk-notifications.ts" },
-    { "source": "/api/tenant/parent-messages", "destination": "/api/tenant/parent-messages.ts" },
-    { "source": "/api/tenant/communication-logs", "destination": "/api/tenant/communication-logs.ts" },
-    { "source": "/api/tenant/academics/calendar/milestones", "destination": "/api/tenant/academics/calendar/milestones.ts" },
-    { "source": "/api/tenant/academics/subjects", "destination": "/api/tenant/academics/subjects.ts" },
-    { "source": "/api/tenant/audit-logs", "destination": "/api/tenant/audit-logs.ts" },
-    { "source": "/api/tenant/promotion-rules", "destination": "/api/tenant/promotion-rules.ts" },
-    { "source": "/api/tenant/ca-config", "destination": "/api/tenant/ca-config.ts" },
-    { "source": "/api/tenant/lead", "destination": "/api/tenant/lead.ts" },
-    { "source": "/api/tenant/timetable/calendar", "destination": "/api/tenant/timetable/calendar.ts" },
-    { "source": "/api/tenant/timetable/time-slots", "destination": "/api/tenant/timetable/time-slots.ts" },
-    { "source": "/api/tenant/timetable/auto-schedule", "destination": "/api/tenant/timetable/auto-schedule.ts" },
-    { "source": "/api/tenant/timetable/class-schedules", "destination": "/api/tenant/timetable/class-schedules.ts" },
-    { "source": "/api/tenant/timetable/teacher-schedules", "destination": "/api/tenant/timetable/teacher-schedules.ts" },
-    { "source": "/api/tenant/timetable/exam-schedules", "destination": "/api/tenant/timetable/exam-schedules.ts" },
-    { "source": "/api/tenant/timetable/conflicts", "destination": "/api/tenant/timetable/conflicts.ts" },
-    { "source": "/api/tenant/timetable/change-requests", "destination": "/api/tenant/timetable/change-requests.ts" },
-    { "source": "/api/tenant/timetable/publish", "destination": "/api/tenant/timetable/publish.ts" },
-    { "source": "/api/tenant/finance/fee-structures/:id/copy", "destination": "/api/tenant/finance/fee-structures.ts?id=:id&action=copy" },
-    { "source": "/api/tenant/finance/fee-structures/:id/history", "destination": "/api/tenant/finance/fee-structures.ts?id=:id&action=history" },
-    { "source": "/api/tenant/finance/fee-structures/:id", "destination": "/api/tenant/finance/fee-structures.ts?id=:id" },
-    { "source": "/api/tenant/finance/fee-structures", "destination": "/api/tenant/finance/fee-structures.ts" },
-    { "source": "/api/tenant/finance/fee-assignments/:id/exemptions", "destination": "/api/tenant/finance/exemptions.ts?feeAssignmentId=:id" },
-    { "source": "/api/tenant/finance/fee-assignments/:id/ledger", "destination": "/api/tenant/finance/fee-assignments.ts?id=:id&action=ledger" },
-    { "source": "/api/tenant/finance/fee-assignments/:id", "destination": "/api/tenant/finance/fee-assignments.ts?id=:id" },
-    { "source": "/api/tenant/finance/fee-assignments", "destination": "/api/tenant/finance/fee-assignments.ts" },
-    { "source": "/api/tenant/finance/fee-adjustments", "destination": "/api/tenant/finance/fee-adjustments.ts" },
-    { "source": "/api/tenant/finance/payments", "destination": "/api/tenant/finance/payments.ts" },
-    { "source": "/api/tenant/finance/payment-plans", "destination": "/api/tenant/finance/payment-plans.ts" },
-    { "source": "/api/tenant/finance/reconciliation", "destination": "/api/tenant/finance/reconciliation.ts" },
-    { "source": "/api/tenant/finance/reports", "destination": "/api/tenant/finance/reports.ts" },
-    { "source": "/api/tenant/finance/audit-log", "destination": "/api/tenant/finance/audit-log.ts" },
-    { "source": "/api/tenant/staff/reset-password", "destination": "/api/tenant/staff/reset-password.ts" },
-    { "source": "/api/tenant/auth/login", "destination": "/api/tenant/auth/login.ts" },
-    { "source": "/api/tenant/auth/reset-password", "destination": "/api/tenant/auth/reset-password.ts" },
-    { "source": "/api/super-admin/auth/login", "destination": "/api/super-admin/auth/login.ts" },
-    { "source": "/api/super-admin/verify", "destination": "/api/super-admin/verify.ts" },
-    { "source": "/api/super-admin", "destination": "/api/super-admin/index.ts" },
-    { "source": "/api/tenant/payroll", "destination": "/api/tenant/payroll.ts" },
-    { "source": "/api/student-documents", "destination": "/api/student-documents.ts" },
-    { "source": "/api/staff/auth/login", "destination": "/api/staff/auth/login.ts" },
-    { "source": "/api/student/auth/login", "destination": "/api/student/auth/login.ts" },
-    { "source": "/api/student/dashboard", "destination": "/api/student/dashboard.ts" },
-    { "source": "/api/student/results", "destination": "/api/student/results.ts" },
-    { "source": "/api/student/attendance", "destination": "/api/student/attendance.ts" },
-    { "source": "/api/student/timetable", "destination": "/api/student/timetable.ts" },
-    { "source": "/api/student/fees", "destination": "/api/student/fees.ts" },
-    { "source": "/api/student/announcements", "destination": "/api/student/announcements.ts" },
-    { "source": "/api/student/messages", "destination": "/api/student/messages.ts" },
-    { "source": "/api/student/assignments", "destination": "/api/student/assignments.ts" },
-    { "source": "/api/student/materials", "destination": "/api/student/materials.ts" },
-    { "source": "/api/student/live-meetings", "destination": "/api/student/live-meetings.ts" },
-    { "source": "/api/student/exams", "destination": "/api/student/exams.ts" },
-    { "source": "/api/student/transcript", "destination": "/api/student/transcript.ts" },
-    { "source": "/api/student/profile", "destination": "/api/student/profile.ts" },
-    { "source": "/api/parent/auth/login", "destination": "/api/parent/auth/login.ts" },
-    { "source": "/api/parent/auth/logout", "destination": "/api/parent/auth/logout.ts" },
-    { "source": "/api/parent/children", "destination": "/api/parent/children.ts" },
-    { "source": "/api/parent/children/:childId", "destination": "/api/parent/children/:childId.ts" },
-    { "source": "/api/parent/dashboard", "destination": "/api/parent/dashboard.ts" },
-    { "source": "/api/parent/academic", "destination": "/api/parent/academic.ts" },
-    { "source": "/api/parent/attendance", "destination": "/api/parent/attendance.ts" },
-    { "source": "/api/parent/behavioral", "destination": "/api/parent/behavioral.ts" },
-    { "source": "/api/parent/announcements", "destination": "/api/parent/announcements.ts" },
-    { "source": "/api/parent/announcements/:announcementId/read", "destination": "/api/parent/announcements/:announcementId/read.ts" },
-    { "source": "/api/parent/messages", "destination": "/api/parent/messages.ts" },
-    { "source": "/api/parent/fees", "destination": "/api/parent/fees.ts" },
-    { "source": "/api/parent/assignments", "destination": "/api/parent/assignments.ts" },
-    { "source": "/api/parent/exams", "destination": "/api/parent/exams.ts" },
-    { "source": "/api/parent/transcript", "destination": "/api/parent/transcript.ts" },
-    { "source": "/api/parent/events", "destination": "/api/parent/events.ts" },
-    { "source": "/api/parent/timetable", "destination": "/api/parent/timetable.ts" },
-    { "source": "/api/parent/health", "destination": "/api/parent/health.ts" },
-    { "source": "/api/parent/notifications", "destination": "/api/parent/notifications.ts" },
-    { "source": "/api/parent/notifications/:notificationId/read", "destination": "/api/parent/notifications/:notificationId/read.ts" },
-    { "source": "/api/parent/notification-preferences", "destination": "/api/parent/notification-preferences.ts" },
-    { "source": "/api/parent/profile", "destination": "/api/parent/profile.ts" },
-    { "source": "/api/parent/change-password", "destination": "/api/parent/change-password.ts" },
-    { "source": "/api/staff/dashboard", "destination": "/api/staff/dashboard.ts" },
-    { "source": "/api/staff/timetable", "destination": "/api/staff/timetable.ts" },
-    { "source": "/api/staff/classes", "destination": "/api/staff/classes.ts" },
-    { "source": "/api/staff/classes/:id/students", "destination": "/api/staff/classes/:id/students.ts" },
-    { "source": "/api/staff/students/:id", "destination": "/api/staff/students/:id.ts" },
-    { "source": "/api/staff/attendance", "destination": "/api/staff/attendance.ts" },
-    { "source": "/api/staff/my-attendance", "destination": "/api/staff/my-attendance.ts" },
-    { "source": "/api/staff/leave", "destination": "/api/staff/leave.ts" },
-    { "source": "/api/staff/tasks", "destination": "/api/staff/tasks.ts" },
-    { "source": "/api/staff/documents", "destination": "/api/staff/documents.ts" },
-    { "source": "/api/staff/payslips", "destination": "/api/staff/payslips.ts" },
-    { "source": "/api/staff/announcements", "destination": "/api/staff/announcements.ts" },
-    { "source": "/api/staff/messages", "destination": "/api/staff/messages.ts" },
-    { "source": "/api/staff/messages/:id/read", "destination": "/api/staff/messages/:id/read.ts" },
-    { "source": "/api/staff/profile", "destination": "/api/staff/profile.ts" },
-    { "source": "/api/tenant/security/overview", "destination": "/api/tenant/security/overview.ts" },
-    { "source": "/api/tenant/security/sessions/policy", "destination": "/api/tenant/security/sessions-handler.ts?action=policy" },
-    { "source": "/api/tenant/security/sessions/history", "destination": "/api/tenant/security/sessions-handler.ts?action=history" },
-    { "source": "/api/tenant/security/sessions/:id/logout", "destination": "/api/tenant/security/sessions-handler.ts?id=:id&action=logout" },
-    { "source": "/api/tenant/security/sessions", "destination": "/api/tenant/security/sessions-handler.ts" },
-    { "source": "/api/tenant/security/encryption/audit-logs", "destination": "/api/tenant/security/encryption-handler.ts?action=audit-logs" },
-    { "source": "/api/tenant/security/encryption/rotate-keys", "destination": "/api/tenant/security/encryption-handler.ts?action=rotate-keys" },
-    { "source": "/api/tenant/security/encryption/fields", "destination": "/api/tenant/security/encryption-handler.ts?action=fields" },
-    { "source": "/api/tenant/security/encryption/config", "destination": "/api/tenant/security/encryption-handler.ts" },
-    { "source": "/api/tenant/security/encryption", "destination": "/api/tenant/security/encryption-handler.ts" },
-    { "source": "/api/tenant/approvals/statistics", "destination": "/api/tenant/approvals-handler.ts?id=statistics" },
-    { "source": "/api/tenant/approvals/streams", "destination": "/api/tenant/approvals-handler.ts?id=streams" },
-    { "source": "/api/tenant/approvals/breaches", "destination": "/api/tenant/approvals-handler.ts?id=breaches" },
-    { "source": "/api/tenant/approvals/workloads", "destination": "/api/tenant/approvals-handler.ts?id=workloads" },
-    { "source": "/api/tenant/approvals/bulk-approve", "destination": "/api/tenant/approvals-handler.ts?id=bulk-approve" },
-    { "source": "/api/tenant/approvals/bulk-reject", "destination": "/api/tenant/approvals-handler.ts?id=bulk-reject" },
-    { "source": "/api/tenant/approvals/:id/approve", "destination": "/api/tenant/approvals-handler.ts?id=:id&action=approve" },
-    { "source": "/api/tenant/approvals/:id/reject", "destination": "/api/tenant/approvals-handler.ts?id=:id&action=reject" },
-    { "source": "/api/tenant/approvals/:id/history", "destination": "/api/tenant/approvals-handler.ts?id=:id&action=history" },
-    { "source": "/api/tenant/approvals/:id", "destination": "/api/tenant/approvals-handler.ts?id=:id" },
-    { "source": "/api/tenant/approvals", "destination": "/api/tenant/approvals-handler.ts" },
-    { "source": "/api/tenant/alerts/statistics/summary", "destination": "/api/tenant/alerts-handler.ts?id=statistics&sub=summary" },
-    { "source": "/api/tenant/alerts/channels", "destination": "/api/tenant/alerts-handler.ts?id=channels" },
-    { "source": "/api/tenant/alerts/maintenance", "destination": "/api/tenant/alerts-handler.ts?id=maintenance" },
-    { "source": "/api/tenant/alerts/:id/acknowledge", "destination": "/api/tenant/alerts-handler.ts?id=:id&action=acknowledge" },
-    { "source": "/api/tenant/alerts/:id/resolve", "destination": "/api/tenant/alerts-handler.ts?id=:id&action=resolve" },
-    { "source": "/api/tenant/alerts/:id", "destination": "/api/tenant/alerts-handler.ts?id=:id" },
-    { "source": "/api/tenant/alerts", "destination": "/api/tenant/alerts-handler.ts" },
-    { "source": "/api/tenant/tasks/statistics", "destination": "/api/tenant/tasks-handler.ts?id=statistics" },
-    { "source": "/api/tenant/tasks/squads", "destination": "/api/tenant/tasks/squads.ts" },
-    { "source": "/api/tenant/tasks/workstreams", "destination": "/api/tenant/tasks/workstreams.ts" },
-    { "source": "/api/tenant/tasks/reminders", "destination": "/api/tenant/tasks/reminders.ts" },
-    { "source": "/api/tenant/tasks/notifications", "destination": "/api/tenant/tasks/notifications.ts" },
-    { "source": "/api/tenant/tasks/:id/comments", "destination": "/api/tenant/tasks-handler.ts?id=:id&action=comments" },
-    { "source": "/api/tenant/tasks/:id", "destination": "/api/tenant/tasks-handler.ts?id=:id" },
-    { "source": "/api/tenant/tasks", "destination": "/api/tenant/tasks-handler.ts" },
-    { "source": "/api/tenant/branding/logo", "destination": "/api/tenant/branding-handler.ts?action=logo" },
-    { "source": "/api/tenant/branding/publish", "destination": "/api/tenant/branding-handler.ts?action=publish" },
-    { "source": "/api/tenant/branding/history", "destination": "/api/tenant/branding-handler.ts?action=history" },
-    { "source": "/api/tenant/branding/audit-logs", "destination": "/api/tenant/branding-handler.ts?action=audit-logs" },
-    { "source": "/api/tenant/branding", "destination": "/api/tenant/branding-handler.ts" },
-    { "source": "/api/tenant/report-templates/:id/publish", "destination": "/api/tenant/report-templates-handler.ts?id=:id&action=publish" },
-    { "source": "/api/tenant/report-templates/:id/archive", "destination": "/api/tenant/report-templates-handler.ts?id=:id&action=archive" },
-    { "source": "/api/tenant/report-templates/:id/duplicate", "destination": "/api/tenant/report-templates-handler.ts?id=:id&action=duplicate" },
-    { "source": "/api/tenant/report-templates/:id/versions", "destination": "/api/tenant/report-templates-handler.ts?id=:id&action=versions" },
-    { "source": "/api/tenant/report-templates/:id/fields/reorder", "destination": "/api/tenant/report-templates-handler.ts?id=:id&action=fields-reorder" },
-    { "source": "/api/tenant/report-templates/:id/fields/:fieldId", "destination": "/api/tenant/report-templates-handler.ts?id=:id&action=fields&fieldId=:fieldId" },
-    { "source": "/api/tenant/report-templates/:id/fields", "destination": "/api/tenant/report-templates-handler.ts?id=:id&action=fields" },
-    { "source": "/api/tenant/report-templates/:id", "destination": "/api/tenant/report-templates-handler.ts?id=:id" },
-    { "source": "/api/tenant/report-templates", "destination": "/api/tenant/report-templates-handler.ts" },
-    { "source": "/api/tenant/grading-scales/:id/publish", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=publish" },
-    { "source": "/api/tenant/grading-scales/:id/archive", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=archive" },
-    { "source": "/api/tenant/grading-scales/:id/duplicate", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=duplicate" },
-    { "source": "/api/tenant/grading-scales/:id/versions", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=versions" },
-    { "source": "/api/tenant/grading-scales/:id/bands/:bandId", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=bands&bandId=:bandId" },
-    { "source": "/api/tenant/grading-scales/:id/bands", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=bands" },
-    { "source": "/api/tenant/grading-scales/:id/policy-rules/:ruleId", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=policy-rules&ruleId=:ruleId" },
-    { "source": "/api/tenant/grading-scales/:id/policy-rules", "destination": "/api/tenant/grading-scales-handler.ts?id=:id&action=policy-rules" },
-    { "source": "/api/tenant/grading-scales/:id", "destination": "/api/tenant/grading-scales-handler.ts?id=:id" },
-    { "source": "/api/tenant/grading-scales", "destination": "/api/tenant/grading-scales-handler.ts" },
-    { "source": "/api/tenant/integrations/payment-gateway/config", "destination": "/api/tenant/integrations/payment-gateway-handler.ts?action=config" },
-    { "source": "/api/tenant/integrations/payment-gateway/transactions", "destination": "/api/tenant/integrations/payment-gateway-handler.ts?action=transactions" },
-    { "source": "/api/tenant/integrations/payment-gateway/statistics", "destination": "/api/tenant/integrations/payment-gateway-handler.ts?action=statistics" },
-    { "source": "/api/tenant/integrations/payment-gateway/webhooks", "destination": "/api/tenant/integrations/payment-gateway-handler.ts?action=webhooks" },
-    { "source": "/api/tenant/integrations/payment-gateway/:id/status", "destination": "/api/tenant/integrations/payment-gateway-handler.ts?id=:id&action=transaction-status" },
-    { "source": "/api/tenant/integrations/payment-gateway", "destination": "/api/tenant/integrations/payment-gateway-handler.ts" },
-    { "source": "/api/tenant/integrations/biometric-devices/statistics", "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=statistics" },
-    { "source": "/api/tenant/integrations/biometric-devices/:id/status", "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id&action=status" },
-    { "source": "/api/tenant/integrations/biometric-devices/:id/sync/:syncId", "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id&action=sync&syncId=:syncId" },
-    { "source": "/api/tenant/integrations/biometric-devices/:id/sync", "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id&action=sync" },
-    { "source": "/api/tenant/integrations/biometric-devices/:id/logs", "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id&action=logs" },
-    { "source": "/api/tenant/integrations/biometric-devices/:id/sync-history", "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id&action=sync-history" },
-    { "source": "/api/tenant/integrations/biometric-devices/:id", "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id" },
-    { "source": "/api/tenant/integrations/biometric-devices", "destination": "/api/tenant/integrations/biometric-devices-handler.ts" },
-    { "source": "/api/tenant/integrations/lms/config", "destination": "/api/tenant/integrations/lms-handler.ts?id=config" },
-    { "source": "/api/tenant/integrations/lms/statistics", "destination": "/api/tenant/integrations/lms-handler.ts?id=statistics" },
-    { "source": "/api/tenant/integrations/lms/:id/test", "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=test" },
-    { "source": "/api/tenant/integrations/lms/:id/sync/students", "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=sync&syncType=students" },
-    { "source": "/api/tenant/integrations/lms/:id/sync/grades", "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=sync&syncType=grades" },
-    { "source": "/api/tenant/integrations/lms/:id/sync/:syncId", "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=sync&syncId=:syncId" },
-    { "source": "/api/tenant/integrations/lms/:id/sync-history", "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=sync-history" },
-    { "source": "/api/tenant/integrations/lms/:id/logs", "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=logs" },
-    { "source": "/api/tenant/integrations/lms", "destination": "/api/tenant/integrations/lms-handler.ts" },
-    { "source": "/api/tenant/integrations/api-management/statistics", "destination": "/api/tenant/integrations/api-management-handler.ts?id=statistics" },
-    { "source": "/api/tenant/integrations/api-management/:id/revoke", "destination": "/api/tenant/integrations/api-management-handler.ts?id=:id&action=revoke" },
-    { "source": "/api/tenant/integrations/api-management/:id/usage-stats", "destination": "/api/tenant/integrations/api-management-handler.ts?id=:id&action=usage-stats" },
-    { "source": "/api/tenant/integrations/api-management/:id/usage", "destination": "/api/tenant/integrations/api-management-handler.ts?id=:id&action=usage" },
-    { "source": "/api/tenant/integrations/api-management/:id/rate-limit", "destination": "/api/tenant/integrations/api-management-handler.ts?id=:id&action=rate-limit" },
-    { "source": "/api/tenant/integrations/api-management/:id", "destination": "/api/tenant/integrations/api-management-handler.ts?id=:id" },
-    { "source": "/api/tenant/integrations/api-management", "destination": "/api/tenant/integrations/api-management-handler.ts" },
-    { "source": "/api/tenant/cbt/exams/:id/schedule", "destination": "/api/tenant/cbt/exams.ts?id=:id&action=schedule" },
-    { "source": "/api/tenant/cbt/exams/:id/publish", "destination": "/api/tenant/cbt/exams.ts?id=:id&action=publish" },
-    { "source": "/api/tenant/cbt/exams/:id/start", "destination": "/api/tenant/cbt/exams.ts?id=:id&action=start" },
-    { "source": "/api/tenant/cbt/exams/:id/end", "destination": "/api/tenant/cbt/exams.ts?id=:id&action=end" },
-    { "source": "/api/tenant/cbt/exams/:id", "destination": "/api/tenant/cbt/exams.ts?id=:id" },
-    { "source": "/api/tenant/cbt/exams", "destination": "/api/tenant/cbt/exams.ts" },
-    { "source": "/api/tenant/cbt/tags/:id", "destination": "/api/tenant/cbt/tags.ts?id=:id" },
-    { "source": "/api/tenant/cbt/tags", "destination": "/api/tenant/cbt/tags.ts" },
-    { "source": "/api/tenant/cbt/questions/stats", "destination": "/api/tenant/cbt/questions.ts?action=stats" },
-    { "source": "/api/tenant/cbt/questions/tags", "destination": "/api/tenant/cbt/questions.ts?action=tags" },
-    { "source": "/api/tenant/cbt/questions/subjects", "destination": "/api/tenant/cbt/questions.ts?action=subjects" },
-    { "source": "/api/tenant/cbt/questions/export", "destination": "/api/tenant/cbt/questions.ts?action=export" },
-    { "source": "/api/tenant/cbt/questions/import", "destination": "/api/tenant/cbt/questions.ts?action=import" },
-    { "source": "/api/tenant/cbt/questions/:id", "destination": "/api/tenant/cbt/questions.ts?id=:id" },
-    { "source": "/api/tenant/cbt/questions", "destination": "/api/tenant/cbt/questions.ts" },
-    { "source": "/api/tenant/cbt/subjects", "destination": "/api/tenant/cbt/subjects.ts" },
-    { "source": "/api/tenant/cbt/classes", "destination": "/api/tenant/cbt/classes.ts" },
-    { "source": "/api/tenant/cbt/diagnostics", "destination": "/api/tenant/cbt/diagnostics.ts" },
-    { "source": "/api/tenant/cbt/monitoring/:examId/student/:studentId/flag", "destination": "/api/tenant/cbt/monitoring.ts?examId=:examId&studentId=:studentId&action=flag" },
-    { "source": "/api/tenant/cbt/monitoring/:examId", "destination": "/api/tenant/cbt/monitoring.ts?examId=:examId" },
-    { "source": "/api/tenant/cbt/results/export", "destination": "/api/tenant/cbt/results.ts?action=export" },
-    { "source": "/api/tenant/cbt/results/:examId/student/:studentId", "destination": "/api/tenant/cbt/results.ts?examId=:examId&studentId=:studentId" },
-    { "source": "/api/tenant/cbt/results/:examId", "destination": "/api/tenant/cbt/results.ts?examId=:examId" },
-    { "source": "/api/tenant/cbt/results", "destination": "/api/tenant/cbt/results.ts" },
-    { "source": "/api/tenant/cbt/security/:examId/logs", "destination": "/api/tenant/cbt/security.ts?examId=:examId&action=logs" },
-    { "source": "/api/tenant/cbt/security/:examId", "destination": "/api/tenant/cbt/security.ts?examId=:examId" },
-    { "source": "/api/tenant/cbt/offline-sync", "destination": "/api/tenant/cbt/offline-sync-routes.ts" },
-    { "source": "/api/tenant/virtual-classrooms", "destination": "/api/tenant/virtual-classrooms.ts" },
-    { "source": "/api/tenant/lessons/recording", "destination": "/api/tenant/lessons/recording.ts" },
-    { "source": "/api/tenant/lessons", "destination": "/api/tenant/lessons.ts" },
-    { "source": "/api/tenant/live-meetings/join", "destination": "/api/tenant/live-meetings.ts" },
-    { "source": "/api/tenant/assignments", "destination": "/api/tenant/assignments.ts" },
-    { "source": "/api/tenant/submissions", "destination": "/api/tenant/submissions.ts" },
-    { "source": "/api/tenant/course-materials", "destination": "/api/tenant/course-materials.ts" },
-    { "source": "/api/tenant/private-lesson-requests", "destination": "/api/tenant/private-lesson-requests.ts" },
-    { "source": "/api/tenant/private-lesson-rates", "destination": "/api/tenant/private-lesson-rates.ts" },
-    { "source": "/api/tenant/private-lesson-payments", "destination": "/api/tenant/private-lesson-payments.ts" },
-    { "source": "/api/tenant/virtual-learning-settings", "destination": "/api/tenant/virtual-learning-settings.ts" },
-    { "source": "/api/tenant/virtual-learning-consents", "destination": "/api/tenant/virtual-learning-consents.ts" },
-    { "source": "/api/tenant/virtual-learning-notifications", "destination": "/api/tenant/virtual-learning-notifications.ts" },
-    { "source": "/api/tenant/discussions", "destination": "/api/tenant/discussions.ts" },
-    { "source": "/api/tenant/discussions/replies", "destination": "/api/tenant/discussions/replies.ts" },
-    { "source": "/api/tenant/virtual-attendance", "destination": "/api/tenant/virtual-attendance.ts" },
-    { "source": "/api/tenant/exams/item-analysis", "destination": "/api/tenant/exams/item-analysis-routes.ts" },
-    { "source": "/api/tenant/students/risk-alerts", "destination": "/api/tenant/students/risk-alerts-routes.ts" },
-    { "source": "/api/tenant/certificates/verification", "destination": "/api/tenant/certificates/verification-routes.ts" },
-    { "source": "/api/tenant/analytics/financial", "destination": "/api/tenant/analytics/financial.ts" },
-    { "source": "/api/tenant/analytics/academic", "destination": "/api/tenant/analytics/academic.ts" },
-    { "source": "/api/tenant/analytics/performance", "destination": "/api/tenant/analytics/performance.ts" },
-    { "source": "/api/tenant/result-publishing/publish", "destination": "/api/tenant/result-publishing-handler.ts?action=publish" },
-    { "source": "/api/tenant/result-publishing/unpublish", "destination": "/api/tenant/result-publishing-handler.ts?action=unpublish" },
-    { "source": "/api/tenant/result-publishing/class-summaries", "destination": "/api/tenant/result-publishing-handler.ts?action=class-summaries" },
-    { "source": "/api/tenant/result-publishing/published-list", "destination": "/api/tenant/result-publishing-handler.ts?action=published-list" },
-    { "source": "/api/tenant/result-publishing/stats", "destination": "/api/tenant/result-publishing-handler.ts?action=stats" },
-    { "source": "/api/tenant/result-publishing", "destination": "/api/tenant/result-publishing-handler.ts" },
-    { "source": "/api/tenant/teacher-allocation/auto-balance", "destination": "/api/tenant/teacher-allocation-handler.ts?action=auto-balance" },
-    { "source": "/api/tenant/teacher-allocation/assign", "destination": "/api/tenant/teacher-allocation-handler.ts?action=assign" },
-    { "source": "/api/tenant/teacher-allocation/coverage-stats", "destination": "/api/tenant/teacher-allocation-handler.ts?action=coverage-stats" },
-    { "source": "/api/tenant/teacher-allocation/teachers", "destination": "/api/tenant/teacher-allocation-handler.ts?action=teachers" },
-    { "source": "/api/tenant/teacher-allocation/matrix", "destination": "/api/tenant/teacher-allocation-handler.ts?action=matrix" },
-    { "source": "/api/tenant/teacher-allocation/open-periods", "destination": "/api/tenant/teacher-allocation-handler.ts?action=open-periods" },
-    { "source": "/api/tenant/teacher-allocation/substitution-log", "destination": "/api/tenant/teacher-allocation-handler.ts?action=substitution-log" },
-    { "source": "/api/admin/tenants", "destination": "/api/admin/tenants-handler.ts" },
-    { "source": "/api/admin/provisioning-queue", "destination": "/api/admin/admin-handler.ts?action=provisioning-queue" },
-    { "source": "/api/admin/activity-feed", "destination": "/api/admin/admin-handler.ts?action=activity-feed" },
-    { "source": "/api/admin/incidents", "destination": "/api/admin/admin-handler.ts?action=incidents" },
-    { "source": "/api/admin/stats", "destination": "/api/admin/admin-handler.ts?action=stats" },
-    { "source": "/api/admin/audit-log", "destination": "/api/admin/admin-handler.ts?action=audit-log" },
-    { "source": "/api/admin/tenant-admins", "destination": "/api/admin/tenant-admins-handler.ts" },
-    { "source": "/api/admin/plans", "destination": "/api/admin/plans-handler.ts" },
-    { "source": "/api/admin/support-tickets", "destination": "/api/admin/support-tickets-handler.ts" },
-    { "source": "/api/tenant/users", "destination": "/api/tenant/users.ts" },
-    { "source": "/api/tenant/roles", "destination": "/api/tenant/roles.ts" },
-    { "source": "/api/tenant/system-health", "destination": "/api/tenant/system-health-handler.ts" },
-    { "source": "/api/tenant/error-logs", "destination": "/api/tenant/error-logs-handler.ts" },
-    { "source": "/api/tenant/support-tickets", "destination": "/api/tenant/support-tickets-handler.ts" },
-    { "source": "/api/tenant/virtual-classrooms", "destination": "/api/tenant/virtual-classrooms.ts" },
-    { "source": "/api/tenant/lessons", "destination": "/api/tenant/lessons.ts" },
-    { "source": "/api/tenant/assignments", "destination": "/api/tenant/assignments.ts" },
-    { "source": "/api/tenant/course-materials", "destination": "/api/tenant/course-materials.ts" },
-    { "source": "/api/tenant/private-lesson-requests", "destination": "/api/tenant/private-lesson-requests.ts" },
-    { "source": "/api/tenant/private-lesson-rates", "destination": "/api/tenant/private-lesson-rates.ts" },
-    { "source": "/api/tenant/private-lesson-rates/:id", "destination": "/api/tenant/private-lesson-rates.ts?id=:id" },
-    { "source": "/api/tenant/virtual-learning-settings", "destination": "/api/tenant/virtual-learning-settings.ts" },
-    { "source": "/api/tenant/virtual-attendance", "destination": "/api/tenant/virtual-attendance.ts" },
-    { "source": "/api/cron/cleanup-violations", "destination": "/api/cron/cleanup-violations.ts" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ],
-  "functions": {
-    "api/tenant/**/*.ts": {
-      "includeFiles": "api/tenant/cbt/_migrations/**"
-    }
-  },
-  "crons": [
     {
-      "path": "/api/cron/cleanup-violations",
-      "schedule": "0 3 * * *"
+      "source": "/tenant/attendance/analytics/homeroom-leaderboard",
+      "destination": "/tenant/attendance/analytics/homeroom-leaderboard.ts"
+    },
+    {
+      "source": "/tenant/integrations/biometric-devices-handler",
+      "destination": "/tenant/integrations/biometric-devices-handler.ts"
+    },
+    {
+      "source": "/tenant/attendance/analytics/at-risk-students",
+      "destination": "/tenant/attendance/analytics/at-risk-students.ts"
+    },
+    {
+      "source": "/tenant/integrations/payment-gateway-handler",
+      "destination": "/tenant/integrations/payment-gateway-handler.ts"
+    },
+    {
+      "source": "/tenant/integrations/api-management-handler",
+      "destination": "/tenant/integrations/api-management-handler.ts"
+    },
+    {
+      "source": "/tenant/attendance/notifications/bulk-send",
+      "destination": "/tenant/attendance/notifications/bulk-send.ts"
+    },
+    {
+      "source": "/tenant/attendance/notifications/history",
+      "destination": "/tenant/attendance/notifications/history.ts"
+    },
+    {
+      "source": "/tenant/certificates/verification-routes",
+      "destination": "/tenant/certificates/verification-routes.ts"
+    },
+    {
+      "source": "/tenant/attendance/analytics/dashboard",
+      "destination": "/tenant/attendance/analytics/dashboard.ts"
+    },
+    {
+      "source": "/tenant/integrations/biometric-devices",
+      "destination": "/tenant/integrations/biometric-devices.ts"
+    },
+    {
+      "source": "/tenant/virtual-learning-notifications",
+      "destination": "/tenant/virtual-learning-notifications.ts"
+    },
+    {
+      "source": "/tenant/academics/calendar/milestones",
+      "destination": "/tenant/academics/calendar/milestones.ts"
+    },
+    {
+      "source": "/tenant/analytics/teacher-performance",
+      "destination": "/tenant/analytics/teacher-performance.ts"
+    },
+    {
+      "source": "/tenant/attendance/notifications/jobs",
+      "destination": "/tenant/attendance/notifications/jobs.ts"
+    },
+    {
+      "source": "/tenant/attendance/analytics/heatmap",
+      "destination": "/tenant/attendance/analytics/heatmap.ts"
+    },
+    {
+      "source": "/tenant/integrations/payment-gateway",
+      "destination": "/tenant/integrations/payment-gateway.ts"
+    },
+    {
+      "source": "/tenant/integrations/api-management",
+      "destination": "/tenant/integrations/api-management.ts"
+    },
+    {
+      "source": "/tenant/security/encryption-handler",
+      "destination": "/tenant/security/encryption-handler.ts"
+    },
+    {
+      "source": "/tenant/security/session-management",
+      "destination": "/tenant/security/session-management.ts"
+    },
+    {
+      "source": "/tenant/students/risk-alerts-routes",
+      "destination": "/tenant/students/risk-alerts-routes.ts"
+    },
+    {
+      "source": "/tenant/timetable/teacher-schedules",
+      "destination": "/tenant/timetable/teacher-schedules.ts"
+    },
+    {
+      "source": "/tenant/analytics/student-progress",
+      "destination": "/tenant/analytics/student-progress.ts"
+    },
+    {
+      "source": "/tenant/biometric-devices/sync-all",
+      "destination": "/tenant/biometric-devices/sync-all.ts"
+    },
+    {
+      "source": "/tenant/exams/item-analysis-routes",
+      "destination": "/tenant/exams/item-analysis-routes.ts"
+    },
+    {
+      "source": "/tenant/teacher-allocation-handler",
+      "destination": "/tenant/teacher-allocation-handler.ts"
+    },
+    {
+      "source": "/tenant/certificates/verification",
+      "destination": "/tenant/certificates/verification.ts"
+    },
+    {
+      "source": "/tenant/result-publishing-handler",
+      "destination": "/tenant/result-publishing-handler.ts"
+    },
+    {
+      "source": "/tenant/security/sessions-handler",
+      "destination": "/tenant/security/sessions-handler.ts"
+    },
+    {
+      "source": "/tenant/system-alerts/maintenance",
+      "destination": "/tenant/system-alerts/maintenance.ts"
+    },
+    {
+      "source": "/tenant/timetable/change-requests",
+      "destination": "/tenant/timetable/change-requests.ts"
+    },
+    {
+      "source": "/tenant/timetable/class-schedules",
+      "destination": "/tenant/timetable/class-schedules.ts"
+    },
+    {
+      "source": "/tenant/virtual-learning-consents",
+      "destination": "/tenant/virtual-learning-consents.ts"
+    },
+    {
+      "source": "/tenant/virtual-learning-settings",
+      "destination": "/tenant/virtual-learning-settings.ts"
+    },
+    {
+      "source": "/parent/notification-preferences",
+      "destination": "/parent/notification-preferences.ts"
+    },
+    {
+      "source": "/tenant/integrations/lms-handler",
+      "destination": "/tenant/integrations/lms-handler.ts"
+    },
+    {
+      "source": "/tenant/report-templates-handler",
+      "destination": "/tenant/report-templates-handler.ts"
+    },
+    {
+      "source": "/tenant/security/data-encryption",
+      "destination": "/tenant/security/data-encryption.ts"
+    },
+    {
+      "source": "/tenant/timetable/exam-schedules",
+      "destination": "/tenant/timetable/exam-schedules.ts"
+    },
+    {
+      "source": "/tenant/attendance/batch-upload",
+      "destination": "/tenant/attendance/batch-upload.ts"
+    },
+    {
+      "source": "/tenant/cbt/offline-sync-routes",
+      "destination": "/tenant/cbt/offline-sync-routes.ts"
+    },
+    {
+      "source": "/tenant/communication/audiences",
+      "destination": "/tenant/communication/audiences.ts"
+    },
+    {
+      "source": "/tenant/communication/templates",
+      "destination": "/tenant/communication/templates.ts"
+    },
+    {
+      "source": "/tenant/finance/fee-adjustments",
+      "destination": "/tenant/finance/fee-adjustments.ts"
+    },
+    {
+      "source": "/tenant/finance/fee-assignments",
+      "destination": "/tenant/finance/fee-assignments.ts"
+    },
+    {
+      "source": "/tenant/private-lesson-payments",
+      "destination": "/tenant/private-lesson-payments.ts"
+    },
+    {
+      "source": "/tenant/private-lesson-requests",
+      "destination": "/tenant/private-lesson-requests.ts"
+    },
+    {
+      "source": "/tenant/security/access-control",
+      "destination": "/tenant/security/access-control.ts"
+    },
+    {
+      "source": "/tenant/security/backup-restore",
+      "destination": "/tenant/security/backup-restore.ts"
+    },
+    {
+      "source": "/tenant/support-tickets-handler",
+      "destination": "/tenant/support-tickets-handler.ts"
+    },
+    {
+      "source": "/tenant/timetable/auto-schedule",
+      "destination": "/tenant/timetable/auto-schedule.ts"
+    },
+    {
+      "source": "/admin/support-tickets-handler",
+      "destination": "/admin/support-tickets-handler.ts"
+    },
+    {
+      "source": "/tenant/attendance/audit-trail",
+      "destination": "/tenant/attendance/audit-trail.ts"
+    },
+    {
+      "source": "/tenant/finance/fee-structures",
+      "destination": "/tenant/finance/fee-structures.ts"
+    },
+    {
+      "source": "/tenant/finance/reconciliation",
+      "destination": "/tenant/finance/reconciliation.ts"
+    },
+    {
+      "source": "/tenant/grading-scales-handler",
+      "destination": "/tenant/grading-scales-handler.ts"
+    },
+    {
+      "source": "/tenant/system-alerts/channels",
+      "destination": "/tenant/system-alerts/channels.ts"
+    },
+    {
+      "source": "/tenant/analytics/performance",
+      "destination": "/tenant/analytics/performance.ts"
+    },
+    {
+      "source": "/tenant/finance/payment-plans",
+      "destination": "/tenant/finance/payment-plans.ts"
+    },
+    {
+      "source": "/tenant/system-alerts/metrics",
+      "destination": "/tenant/system-alerts/metrics.ts"
+    },
+    {
+      "source": "/tenant/system-health-handler",
+      "destination": "/tenant/system-health-handler.ts"
+    },
+    {
+      "source": "/admin/tenant-admins-handler",
+      "destination": "/admin/tenant-admins-handler.ts"
+    },
+    {
+      "source": "/tenant/approvals/statistics",
+      "destination": "/tenant/approvals/statistics.ts"
+    },
+    {
+      "source": "/tenant/cbt/questions/import",
+      "destination": "/tenant/cbt/questions/import.ts"
+    },
+    {
+      "source": "/tenant/integrated-dashboard",
+      "destination": "/tenant/integrated-dashboard.ts"
+    },
+    {
+      "source": "/tenant/private-lesson-rates",
+      "destination": "/tenant/private-lesson-rates.ts"
+    },
+    {
+      "source": "/tenant/staff/reset-password",
+      "destination": "/tenant/staff/reset-password.ts"
+    },
+    {
+      "source": "/tenant/students/risk-alerts",
+      "destination": "/tenant/students/risk-alerts.ts"
+    },
+    {
+      "source": "/tenant/timetable/time-slots",
+      "destination": "/tenant/timetable/time-slots.ts"
+    },
+    {
+      "source": "/tenant/analytics/financial",
+      "destination": "/tenant/analytics/financial.ts"
+    },
+    {
+      "source": "/tenant/approvals/workloads",
+      "destination": "/tenant/approvals/workloads.ts"
+    },
+    {
+      "source": "/tenant/auth/reset-password",
+      "destination": "/tenant/auth/reset-password.ts"
+    },
+    {
+      "source": "/tenant/cbt/questions/clear",
+      "destination": "/tenant/cbt/questions/clear.ts"
+    },
+    {
+      "source": "/tenant/discussions/replies",
+      "destination": "/tenant/discussions/replies.ts"
+    },
+    {
+      "source": "/tenant/exams/item-analysis",
+      "destination": "/tenant/exams/item-analysis.ts"
+    },
+    {
+      "source": "/tenant/security/encryption",
+      "destination": "/tenant/security/encryption.ts"
+    },
+    {
+      "source": "/tenant/staff-attendance/qr",
+      "destination": "/tenant/staff-attendance/qr.ts"
+    },
+    {
+      "source": "/tenant/system-alerts/index",
+      "destination": "/tenant/system-alerts/index.ts"
+    },
+    {
+      "source": "/tenant/tasks/notifications",
+      "destination": "/tenant/tasks/notifications.ts"
+    },
+    {
+      "source": "/tenant/timetable/conflicts",
+      "destination": "/tenant/timetable/conflicts.ts"
+    },
+    {
+      "source": "/tenant/academics/subjects",
+      "destination": "/tenant/academics/subjects.ts"
+    },
+    {
+      "source": "/tenant/analytics/academic",
+      "destination": "/tenant/analytics/academic.ts"
+    },
+    {
+      "source": "/tenant/approvals/breaches",
+      "destination": "/tenant/approvals/breaches.ts"
+    },
+    {
+      "source": "/tenant/attendance/reports",
+      "destination": "/tenant/attendance/reports.ts"
+    },
+    {
+      "source": "/tenant/bulk-notifications",
+      "destination": "/tenant/bulk-notifications.ts"
+    },
+    {
+      "source": "/tenant/communication-logs",
+      "destination": "/tenant/communication-logs.ts"
+    },
+    {
+      "source": "/tenant/error-logs-handler",
+      "destination": "/tenant/error-logs-handler.ts"
+    },
+    {
+      "source": "/tenant/finance/exemptions",
+      "destination": "/tenant/finance/exemptions.ts"
+    },
+    {
+      "source": "/tenant/timetable/calendar",
+      "destination": "/tenant/timetable/calendar.ts"
+    },
+    {
+      "source": "/tenant/virtual-attendance",
+      "destination": "/tenant/virtual-attendance.ts"
+    },
+    {
+      "source": "/tenant/virtual-classrooms",
+      "destination": "/tenant/virtual-classrooms.ts"
+    },
+    {
+      "source": "/tenant/approvals-handler",
+      "destination": "/tenant/approvals-handler.ts"
+    },
+    {
+      "source": "/tenant/approvals/streams",
+      "destination": "/tenant/approvals/streams.ts"
+    },
+    {
+      "source": "/tenant/biometric-devices",
+      "destination": "/tenant/biometric-devices.ts"
+    },
+    {
+      "source": "/tenant/cbt/schema-verify",
+      "destination": "/tenant/cbt/schema-verify.ts"
+    },
+    {
+      "source": "/tenant/cbt/ws-monitoring",
+      "destination": "/tenant/cbt/ws-monitoring.ts"
+    },
+    {
+      "source": "/tenant/finance/audit-log",
+      "destination": "/tenant/finance/audit-log.ts"
+    },
+    {
+      "source": "/tenant/lessons/recording",
+      "destination": "/tenant/lessons/recording.ts"
+    },
+    {
+      "source": "/tenant/security/overview",
+      "destination": "/tenant/security/overview.ts"
+    },
+    {
+      "source": "/tenant/security/sessions",
+      "destination": "/tenant/security/sessions.ts"
+    },
+    {
+      "source": "/tenant/tasks/workstreams",
+      "destination": "/tenant/tasks/workstreams.ts"
+    },
+    {
+      "source": "/tenant/teacher-workloads",
+      "destination": "/tenant/teacher-workloads.ts"
+    },
+    {
+      "source": "/tenant/timetable/publish",
+      "destination": "/tenant/timetable/publish.ts"
+    },
+    {
+      "source": "/_lib/password-validator",
+      "destination": "/_lib/password-validator.ts"
+    },
+    {
+      "source": "/cron/cleanup-violations",
+      "destination": "/cron/cleanup-violations.ts"
+    },
+    {
+      "source": "/tenant/branding-handler",
+      "destination": "/tenant/branding-handler.ts"
+    },
+    {
+      "source": "/tenant/course-materials",
+      "destination": "/tenant/course-materials.ts"
+    },
+    {
+      "source": "/tenant/exam-assignments",
+      "destination": "/tenant/exam-assignments.ts"
+    },
+    {
+      "source": "/tenant/finance/payments",
+      "destination": "/tenant/finance/payments.ts"
+    },
+    {
+      "source": "/tenant/integrations/lms",
+      "destination": "/tenant/integrations/lms.ts"
+    },
+    {
+      "source": "/tenant/staff-attendance",
+      "destination": "/tenant/staff-attendance.ts"
+    },
+    {
+      "source": "/tenant/student-progress",
+      "destination": "/tenant/student-progress.ts"
+    },
+    {
+      "source": "/tenant/tasks/statistics",
+      "destination": "/tenant/tasks/statistics.ts"
+    },
+    {
+      "source": "/parent/change-password",
+      "destination": "/parent/change-password.ts"
+    },
+    {
+      "source": "/super-admin/auth/login",
+      "destination": "/super-admin/auth/login.ts"
+    },
+    {
+      "source": "/tenant/absence-reasons",
+      "destination": "/tenant/absence-reasons.ts"
+    },
+    {
+      "source": "/tenant/approvals/index",
+      "destination": "/tenant/approvals/index.ts"
+    },
+    {
+      "source": "/tenant/cbt/diagnostics",
+      "destination": "/tenant/cbt/diagnostics.ts"
+    },
+    {
+      "source": "/tenant/class-dashboard",
+      "destination": "/tenant/class-dashboard.ts"
+    },
+    {
+      "source": "/tenant/finance/migrate",
+      "destination": "/tenant/finance/migrate.ts"
+    },
+    {
+      "source": "/tenant/finance/reports",
+      "destination": "/tenant/finance/reports.ts"
+    },
+    {
+      "source": "/tenant/parent-messages",
+      "destination": "/tenant/parent-messages.ts"
+    },
+    {
+      "source": "/tenant/promotion-rules",
+      "destination": "/tenant/promotion-rules.ts"
+    },
+    {
+      "source": "/tenant/tasks/reminders",
+      "destination": "/tenant/tasks/reminders.ts"
+    },
+    {
+      "source": "/_lib/security-headers",
+      "destination": "/_lib/security-headers.ts"
+    },
+    {
+      "source": "/admin/tenants-handler",
+      "destination": "/admin/tenants-handler.ts"
+    },
+    {
+      "source": "/student/announcements",
+      "destination": "/student/announcements.ts"
+    },
+    {
+      "source": "/student/live-meetings",
+      "destination": "/student/live-meetings.ts"
+    },
+    {
+      "source": "/tenant/alerts-handler",
+      "destination": "/tenant/alerts-handler.ts"
+    },
+    {
+      "source": "/tenant/cbt/migrations",
+      "destination": "/tenant/cbt/migrations.ts"
+    },
+    {
+      "source": "/tenant/cbt/monitoring",
+      "destination": "/tenant/cbt/monitoring.ts"
+    },
+    {
+      "source": "/tenant/communications",
+      "destination": "/tenant/communications.ts"
+    },
+    {
+      "source": "/_lib/auth-middleware",
+      "destination": "/_lib/auth-middleware.ts"
+    },
+    {
+      "source": "/_lib/email-templates",
+      "destination": "/_lib/email-templates.ts"
+    },
+    {
+      "source": "/_lib/ip-restrictions",
+      "destination": "/_lib/ip-restrictions.ts"
+    },
+    {
+      "source": "/_lib/plan-middleware",
+      "destination": "/_lib/plan-middleware.ts"
+    },
+    {
+      "source": "/_lib/tenant-settings",
+      "destination": "/_lib/tenant-settings.ts"
+    },
+    {
+      "source": "/_lib/token-blacklist",
+      "destination": "/_lib/token-blacklist.ts"
+    },
+    {
+      "source": "/parent/announcements",
+      "destination": "/parent/announcements.ts"
+    },
+    {
+      "source": "/parent/notifications",
+      "destination": "/parent/notifications.ts"
+    },
+    {
+      "source": "/tenant/cbt/questions",
+      "destination": "/tenant/cbt/questions.ts"
+    },
+    {
+      "source": "/tenant/communication",
+      "destination": "/tenant/communication.ts"
+    },
+    {
+      "source": "/tenant/domain-config",
+      "destination": "/tenant/domain-config.ts"
+    },
+    {
+      "source": "/tenant/live-meetings",
+      "destination": "/tenant/live-meetings.ts"
+    },
+    {
+      "source": "/tenant/tasks-handler",
+      "destination": "/tenant/tasks-handler.ts"
+    },
+    {
+      "source": "/admin/admin-handler",
+      "destination": "/admin/admin-handler.ts"
+    },
+    {
+      "source": "/admin/plans-handler",
+      "destination": "/admin/plans-handler.ts"
+    },
+    {
+      "source": "/staff/announcements",
+      "destination": "/staff/announcements.ts"
+    },
+    {
+      "source": "/staff/my-attendance",
+      "destination": "/staff/my-attendance.ts"
+    },
+    {
+      "source": "/student/assignments",
+      "destination": "/student/assignments.ts"
+    },
+    {
+      "source": "/student/auth/logout",
+      "destination": "/student/auth/logout.ts"
+    },
+    {
+      "source": "/tenant/applications",
+      "destination": "/tenant/applications.ts"
+    },
+    {
+      "source": "/tenant/cbt/metadata",
+      "destination": "/tenant/cbt/metadata.ts"
+    },
+    {
+      "source": "/tenant/cbt/security",
+      "destination": "/tenant/cbt/security.ts"
+    },
+    {
+      "source": "/tenant/cbt/subjects",
+      "destination": "/tenant/cbt/subjects.ts"
+    },
+    {
+      "source": "/tenant/security/mfa",
+      "destination": "/tenant/security/mfa.ts"
+    },
+    {
+      "source": "/tenant/tasks/squads",
+      "destination": "/tenant/tasks/squads.ts"
+    },
+    {
+      "source": "/_lib/cookie-helper",
+      "destination": "/_lib/cookie-helper.ts"
+    },
+    {
+      "source": "/_lib/error-handler",
+      "destination": "/_lib/error-handler.ts"
+    },
+    {
+      "source": "/parent/assignments",
+      "destination": "/parent/assignments.ts"
+    },
+    {
+      "source": "/parent/auth/logout",
+      "destination": "/parent/auth/logout.ts"
+    },
+    {
+      "source": "/student/attendance",
+      "destination": "/student/attendance.ts"
+    },
+    {
+      "source": "/student/auth/login",
+      "destination": "/student/auth/login.ts"
+    },
+    {
+      "source": "/student/transcript",
+      "destination": "/student/transcript.ts"
+    },
+    {
+      "source": "/super-admin/verify",
+      "destination": "/super-admin/verify.ts"
+    },
+    {
+      "source": "/tenant/assignments",
+      "destination": "/tenant/assignments.ts"
+    },
+    {
+      "source": "/tenant/cbt/classes",
+      "destination": "/tenant/cbt/classes.ts"
+    },
+    {
+      "source": "/tenant/cbt/results",
+      "destination": "/tenant/cbt/results.ts"
+    },
+    {
+      "source": "/tenant/discussions",
+      "destination": "/tenant/discussions.ts"
+    },
+    {
+      "source": "/tenant/submissions",
+      "destination": "/tenant/submissions.ts"
+    },
+    {
+      "source": "/tenant/tasks/index",
+      "destination": "/tenant/tasks/index.ts"
+    },
+    {
+      "source": "/tenant/user-lookup",
+      "destination": "/tenant/user-lookup.ts"
+    },
+    {
+      "source": "/_lib/audit-logger",
+      "destination": "/_lib/audit-logger.ts"
+    },
+    {
+      "source": "/parent/attendance",
+      "destination": "/parent/attendance.ts"
+    },
+    {
+      "source": "/parent/auth/login",
+      "destination": "/parent/auth/login.ts"
+    },
+    {
+      "source": "/parent/behavioral",
+      "destination": "/parent/behavioral.ts"
+    },
+    {
+      "source": "/parent/transcript",
+      "destination": "/parent/transcript.ts"
+    },
+    {
+      "source": "/staff/assignments",
+      "destination": "/staff/assignments.ts"
+    },
+    {
+      "source": "/staff/auth/logout",
+      "destination": "/staff/auth/logout.ts"
+    },
+    {
+      "source": "/student-documents",
+      "destination": "/student-documents.ts"
+    },
+    {
+      "source": "/student/dashboard",
+      "destination": "/student/dashboard.ts"
+    },
+    {
+      "source": "/student/materials",
+      "destination": "/student/materials.ts"
+    },
+    {
+      "source": "/student/timetable",
+      "destination": "/student/timetable.ts"
+    },
+    {
+      "source": "/super-admin/index",
+      "destination": "/super-admin/index.ts"
+    },
+    {
+      "source": "/tenant/attendance",
+      "destination": "/tenant/attendance.ts"
+    },
+    {
+      "source": "/tenant/audit-logs",
+      "destination": "/tenant/audit-logs.ts"
+    },
+    {
+      "source": "/tenant/auth/login",
+      "destination": "/tenant/auth/login.ts"
+    },
+    {
+      "source": "/tenant/cbt/health",
+      "destination": "/tenant/cbt/health.ts"
+    },
+    {
+      "source": "/tenant/promotions",
+      "destination": "/tenant/promotions.ts"
+    },
+    {
+      "source": "/tenant/transcript",
+      "destination": "/tenant/transcript.ts"
+    },
+    {
+      "source": "/_lib/super-admin",
+      "destination": "/_lib/super-admin.ts"
+    },
+    {
+      "source": "/parent/dashboard",
+      "destination": "/parent/dashboard.ts"
+    },
+    {
+      "source": "/parent/timetable",
+      "destination": "/parent/timetable.ts"
+    },
+    {
+      "source": "/staff/attendance",
+      "destination": "/staff/attendance.ts"
+    },
+    {
+      "source": "/staff/auth/login",
+      "destination": "/staff/auth/login.ts"
+    },
+    {
+      "source": "/student/messages",
+      "destination": "/student/messages.ts"
+    },
+    {
+      "source": "/tenant/analytics",
+      "destination": "/tenant/analytics.ts"
+    },
+    {
+      "source": "/tenant/ca-config",
+      "destination": "/tenant/ca-config.ts"
+    },
+    {
+      "source": "/tenant/cbt/audit",
+      "destination": "/tenant/cbt/audit.ts"
+    },
+    {
+      "source": "/tenant/cbt/exams",
+      "destination": "/tenant/cbt/exams.ts"
+    },
+    {
+      "source": "/_lib/jwt-secret",
+      "destination": "/_lib/jwt-secret.ts"
+    },
+    {
+      "source": "/_lib/rate-limit",
+      "destination": "/_lib/rate-limit.ts"
+    },
+    {
+      "source": "/parent/academic",
+      "destination": "/parent/academic.ts"
+    },
+    {
+      "source": "/parent/children",
+      "destination": "/parent/children.ts"
+    },
+    {
+      "source": "/parent/messages",
+      "destination": "/parent/messages.ts"
+    },
+    {
+      "source": "/staff/dashboard",
+      "destination": "/staff/dashboard.ts"
+    },
+    {
+      "source": "/staff/documents",
+      "destination": "/staff/documents.ts"
+    },
+    {
+      "source": "/staff/timetable",
+      "destination": "/staff/timetable.ts"
+    },
+    {
+      "source": "/student/profile",
+      "destination": "/student/profile.ts"
+    },
+    {
+      "source": "/student/results",
+      "destination": "/student/results.ts"
+    },
+    {
+      "source": "/tenant/cbt/sync",
+      "destination": "/tenant/cbt/sync.ts"
+    },
+    {
+      "source": "/tenant/cbt/tags",
+      "destination": "/tenant/cbt/tags.ts"
+    },
+    {
+      "source": "/tenant/settings",
+      "destination": "/tenant/settings.ts"
+    },
+    {
+      "source": "/tenant/students",
+      "destination": "/tenant/students.ts"
+    },
+    {
+      "source": "/_lib/validator",
+      "destination": "/_lib/validator.ts"
+    },
+    {
+      "source": "/parent/profile",
+      "destination": "/parent/profile.ts"
+    },
+    {
+      "source": "/staff/messages",
+      "destination": "/staff/messages.ts"
+    },
+    {
+      "source": "/staff/payslips",
+      "destination": "/staff/payslips.ts"
+    },
+    {
+      "source": "/student-health",
+      "destination": "/student-health.ts"
+    },
+    {
+      "source": "/tenant/finance",
+      "destination": "/tenant/finance.ts"
+    },
+    {
+      "source": "/tenant/lessons",
+      "destination": "/tenant/lessons.ts"
+    },
+    {
+      "source": "/tenant/payroll",
+      "destination": "/tenant/payroll.ts"
+    },
+    {
+      "source": "/tenant/results",
+      "destination": "/tenant/results.ts"
+    },
+    {
+      "source": "/parent/events",
+      "destination": "/parent/events.ts"
+    },
+    {
+      "source": "/parent/health",
+      "destination": "/parent/health.ts"
+    },
+    {
+      "source": "/staff/classes",
+      "destination": "/staff/classes.ts"
+    },
+    {
+      "source": "/staff/profile",
+      "destination": "/staff/profile.ts"
+    },
+    {
+      "source": "/student/exams",
+      "destination": "/student/exams.ts"
+    },
+    {
+      "source": "/_lib/pg-pool",
+      "destination": "/_lib/pg-pool.ts"
+    },
+    {
+      "source": "/parent/exams",
+      "destination": "/parent/exams.ts"
+    },
+    {
+      "source": "/student/fees",
+      "destination": "/student/fees.ts"
+    },
+    {
+      "source": "/tenant/email",
+      "destination": "/tenant/email.ts"
+    },
+    {
+      "source": "/tenant/roles",
+      "destination": "/tenant/roles.ts"
+    },
+    {
+      "source": "/tenant/staff",
+      "destination": "/tenant/staff.ts"
+    },
+    {
+      "source": "/tenant/users",
+      "destination": "/tenant/users.ts"
+    },
+    {
+      "source": "/parent/fees",
+      "destination": "/parent/fees.ts"
+    },
+    {
+      "source": "/staff/leave",
+      "destination": "/staff/leave.ts"
+    },
+    {
+      "source": "/staff/tasks",
+      "destination": "/staff/tasks.ts"
+    },
+    {
+      "source": "/tenant/lead",
+      "destination": "/tenant/lead.ts"
+    },
+    {
+      "source": "/_lib/email",
+      "destination": "/_lib/email.ts"
+    },
+    {
+      "source": "/_lib/csrf",
+      "destination": "/_lib/csrf.ts"
+    },
+    {
+      "source": "/_lib/db",
+      "destination": "/_lib/db.ts"
+    },
+    {
+      "source": "/tenant/biometric-devices/:/test-connection",
+      "destination": "/tenant/biometric-devices/[deviceId]/test-connection.ts"
+    },
+    {
+      "source": "/tenant/biometric-devices/:/sync-logs",
+      "destination": "/tenant/biometric-devices/[deviceId]/sync-logs.ts"
+    },
+    {
+      "source": "/tenant/biometric-devices/:/sync",
+      "destination": "/tenant/biometric-devices/[deviceId]/sync.ts"
+    },
+    {
+      "source": "/parent/announcements/:/read",
+      "destination": "/parent/announcements/[announcementId]/read.ts"
+    },
+    {
+      "source": "/parent/notifications/:/read",
+      "destination": "/parent/notifications/[notificationId]/read.ts"
+    },
+    {
+      "source": "/tenant/biometric-devices/:",
+      "destination": "/tenant/biometric-devices/[deviceId].ts"
+    },
+    {
+      "source": "/staff/classes/:/students",
+      "destination": "/staff/classes/[classId]/students.ts"
+    },
+    {
+      "source": "/tenant/absence-reasons/:",
+      "destination": "/tenant/absence-reasons/[reasonId].ts"
+    },
+    {
+      "source": "/tenant/cbt/questions/:",
+      "destination": "/tenant/cbt/questions/[id].ts"
+    },
+    {
+      "source": "/staff/messages/:/read",
+      "destination": "/staff/messages/[messageId]/read.ts"
+    },
+    {
+      "source": "/parent/children/:",
+      "destination": "/parent/children/[childId].ts"
+    },
+    {
+      "source": "/staff/students/:",
+      "destination": "/staff/students/[studentId].ts"
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
     }
   ]
 }

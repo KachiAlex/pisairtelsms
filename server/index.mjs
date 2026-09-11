@@ -40,6 +40,30 @@ app.use((req, res, next) => {
   next();
 });
 
+// Apply security headers to API responses (mirrors api/_lib/security-headers.ts
+// which is used as withSecurityHeaders() in Vercel serverless functions).
+// On the VPS Express server, handlers write responses directly without that
+// wrapper, so we apply the headers here instead.
+const isProduction = process.env.NODE_ENV === 'production';
+app.use('/api', (req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.paystack.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.paystack.co; frame-src https://standard.paystack.co; frame-ancestors 'none';"
+  );
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Permissions-Policy',
+    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), unload=(self)'
+  );
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  next();
+});
+
 const handlerCache = new Map();
 
 async function loadHandler(handlerPath) {

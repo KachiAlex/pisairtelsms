@@ -237,8 +237,9 @@ export function LoginPanel({ onLogin, roleData, activeRole }: LoginPanelProps) {
         </label>
         <div className="relative">
           <Input
-            id="login-password"
+                        id="login-password"
             type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
             placeholder="••••••••"
             value={password}
             onChange={(event) => setPassword(event.target.value)}

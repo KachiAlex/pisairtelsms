@@ -111,7 +111,7 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
           throw new Error('Not authenticated')
         }
 
-        const res = await fetch('/api/tenant/live-meetings/join', {
+                const res = await fetch('/api/tenant/live-meetings', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

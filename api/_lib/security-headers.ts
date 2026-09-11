@@ -32,8 +32,8 @@ export function setSecurityHeaders(res: VercelResponse): void {
   // Permissions-Policy (formerly Feature-Policy)
   // Controls browser features access
   res.setHeader(
-    'Permissions-Policy',
-    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=()'
+        'Permissions-Policy',
+    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), unload=(self)'
   )
 
   // Strict-Transport-Security (HSTS)

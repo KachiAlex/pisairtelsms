@@ -19,6 +19,10 @@ import { clearAuthFromStorage, getAuthFromStorage } from './lib/auth';
 import { useDocumentMeta } from './hooks/useDocumentMeta';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
 import { UnauthorizedPage } from './components/pages/UnauthorizedPage';
+import { SchoolNotFound } from './components/pages/SchoolNotFound';
+import { JoinLinkResolver } from './components/join/JoinLinkResolver';
+import type { PublicSchoolMeta } from './lib/tenantUrlResolver';
+import { getPublicSchoolMeta } from './lib/tenantUrlResolver';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import {
@@ -103,6 +107,17 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useDocumentMeta();
+
+  // Per-school URL context: resolves the current host to a school identity
+  // (or flags an unknown <slug>.<root> host so we can render SchoolNotFound).
+  const [schoolMeta, setSchoolMeta] = useState<PublicSchoolMeta | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getPublicSchoolMeta().then((meta) => {
+      if (!cancelled) setSchoolMeta(meta);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Derive active page from URL path under /tenant
   const tenantPath = location.pathname.replace(/^\/tenant\/?/, '') || 'dashboard';
@@ -411,6 +426,16 @@ export default function App() {
     return pageTitles[activePage] || 'Pisairtel-Schools';
   };
 
+  // Unknown school subdomain (e.g. typo or unprovisioned slug under our root
+  // domain) gets the onboarding page instead of a confusing app shell.
+  if (schoolMeta?.notFound) {
+    return (
+      <div className="min-h-screen">
+        <SchoolNotFound subdomain={schoolMeta.subdomain} />
+      </div>
+    );
+  }
+
   const tenantShell = (
     <div className="flex h-screen bg-gray-50">
       <Sidebar
@@ -529,6 +554,7 @@ export default function App() {
         <Route path="/apply" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense></ErrorBoundary>} />
         <Route path="/inquiry" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense></ErrorBoundary>} />
         <Route path="/demo" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><DemoRequestForm /></Suspense></ErrorBoundary>} />
+        <Route path="/join/:alias" element={<JoinLinkResolver />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/tenant/*" element={<ProtectedRoute requiredRole="tenant_admin">{tenantShell}</ProtectedRoute>} />
         <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><ErrorBoundary><Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense></ErrorBoundary></ProtectedRoute>} />

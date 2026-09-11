@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchApplications, createApplication, updateApplicationStatus, type ApplicationPayload } from './_lib/applications.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT')
@@ -80,7 +81,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const payload: ApplicationPayload = {
+      // Public form — derive the school from the Host so the application feeds
+      // the right school's admissions pipeline (no auth, no client-claimed tenant).
+      const resolved = await resolveTenantFromRequest(req)
+      const payload: ApplicationPayload & { tenantId?: string | null } = {
         studentName,
         parentName,
         contactPhone,
@@ -88,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         classApplying,
         academicSession: data.academicSession,
         source: data.source,
+        tenantId: resolved.tenantId,
       }
       const created = await createApplication(payload)
       return res.status(201).json({ data: created })

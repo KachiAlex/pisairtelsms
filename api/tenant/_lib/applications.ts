@@ -71,12 +71,12 @@ export async function fetchApplications(
   }
 }
 
-export async function createApplication(payload: ApplicationPayload): Promise<ApplicationDTO> {
+export async function createApplication(payload: ApplicationPayload & { tenantId?: string | null }): Promise<ApplicationDTO> {
   try {
     const id = `app_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const row = await queryOne<any>(
-      `INSERT INTO leads (id, student_name, parent_name, contact_phone, contact_email, class_interested, source, status, academic_session)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
+      `INSERT INTO leads (id, student_name, parent_name, contact_phone, contact_email, class_interested, source, status, academic_session, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9)
        RETURNING *`,
       [
         id,
@@ -87,6 +87,7 @@ export async function createApplication(payload: ApplicationPayload): Promise<Ap
         payload.classApplying,
         payload.source || 'Online Form',
         payload.academicSession || null,
+        payload.tenantId || null,
       ]
     );
     if (!row) throw new Error('Failed to create application');

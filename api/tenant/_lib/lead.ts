@@ -19,9 +19,13 @@ export async function ensureLeadTable() {
   }
 }
 
-export async function fetchLeads(): Promise<LeadRow[]> {
+export async function fetchLeads(tenantId?: string): Promise<LeadRow[]> {
   try {
     await ensureLeadTable()
+    if (tenantId) {
+      const result = await sql`SELECT * FROM leads WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`
+      return result.rows as LeadRow[]
+    }
     const result = await sql`SELECT * FROM leads ORDER BY created_at DESC`
     return result.rows as LeadRow[]
   } catch (error) {
@@ -39,12 +43,13 @@ export async function createLead(lead: {
   classInterested: string
   source: string
   status: string
+  tenantId?: string | null
 }) {
   try {
     await ensureLeadTable()
     await sql`
-      INSERT INTO leads (id, student_name, parent_name, contact_phone, contact_email, class_interested, source, status)
-      VALUES (${lead.id}, ${lead.studentName}, ${lead.parentName}, ${lead.contactPhone}, ${lead.contactEmail}, ${lead.classInterested}, ${lead.source}, ${lead.status})
+      INSERT INTO leads (id, student_name, parent_name, contact_phone, contact_email, class_interested, source, status, tenant_id)
+      VALUES (${lead.id}, ${lead.studentName}, ${lead.parentName}, ${lead.contactPhone}, ${lead.contactEmail}, ${lead.classInterested}, ${lead.source}, ${lead.status}, ${lead.tenantId ?? null})
     `
     return { success: true, id: lead.id }
   } catch (error) {

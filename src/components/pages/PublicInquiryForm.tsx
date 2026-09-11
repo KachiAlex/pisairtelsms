@@ -1,13 +1,27 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, School } from 'lucide-react'
 import { Lead } from '../../types'
 import { createLead } from '../../lib/leadClient'
+import { getPublicSchoolMeta } from '../../lib/tenantUrlResolver'
 
 export function PublicInquiryForm() {
+  const [schoolName, setSchoolName] = useState<string | null>(null)
+  const [schoolSubdomain, setSchoolSubdomain] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getPublicSchoolMeta().then((meta) => {
+      if (cancelled || !meta || meta.notFound) return
+      if (meta.tenant?.name) setSchoolName(meta.tenant.name)
+      if (meta.subdomain) setSchoolSubdomain(meta.subdomain)
+    })
+    return () => { cancelled = true }
+  }, [])
+
   const [formData, setFormData] = useState({
     studentName: '',
     parentName: '',
@@ -80,8 +94,15 @@ export function PublicInquiryForm() {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Express Interest</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {schoolName ? `${schoolName} — Express Interest` : 'Express Interest'}
+          </h1>
           <p className="text-gray-600">Fill out this quick form to show interest in our school</p>
+          {schoolSubdomain ? (
+            <p className="inline-flex items-center gap-1.5 mt-2 text-xs text-gray-400">
+              <School className="w-3.5 h-3.5" /> <span className="font-mono">{schoolSubdomain}</span>
+            </p>
+          ) : null}
         </div>
 
         <Card>

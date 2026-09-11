@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createLead, fetchLeads } from './_lib/lead.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST')
@@ -32,7 +33,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (method === 'GET') {
     try {
-      const leads = await fetchLeads()
+      // Scope to the requesting school: prefer the tenant from the token,
+      // fall back to the Host-resolved tenant for cross-host admin views.
+      const resolved = await resolveTenantFromRequest(req)
+      const leads = await fetchLeads(decoded.tenantId || resolved.tenantId)
       return res.status(200).json({ data: leads })
     } catch (error) {
       console.error('Error fetching leads:', error)
@@ -57,6 +61,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      // Public form — derive the school from the Host so the lead feeds the
+      // right school's admissions pipeline (no auth, no client-claimed tenant).
+      const resolved = await resolveTenantFromRequest(req)
       const id = `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       const result = await createLead({
         id,
@@ -67,6 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         classInterested: classInterested || '',
         source: source || 'website',
         status: status || 'new',
+        tenantId: resolved.tenantId,
       })
       return res.status(201).json({ data: result })
     } catch (error) {

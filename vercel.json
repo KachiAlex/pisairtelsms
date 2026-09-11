@@ -937,6 +937,14 @@
       "destination": "/api/tenant/cbt/questions/[id].ts"
     },
     {
+      "source": "/api/public/meta",
+      "destination": "/api/public/meta.ts"
+    },
+    {
+      "source": "/api/public/resolve",
+      "destination": "/api/public/resolve.ts"
+    },
+    {
       "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }

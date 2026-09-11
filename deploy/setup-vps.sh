@@ -46,6 +46,33 @@ mkdir -p /var/log/pisairtel-sms
 # Configure Nginx
 echo "[6/6] Configuring Nginx..."
 cat > /etc/nginx/sites-available/pisairtel-sms << 'NGINX_EOF'
+# Per-school subdomains — <slug>.pisairtelsms.com resolves the tenant at the edge.
+# To add a root domain, extend TENANT_ROOT_DOMAINS in the app .env AND add a
+# second server_name regex here.
+server {
+    listen 8082;
+    server_name ~^(?<slug>[a-z0-9-]+)\.pisairtelsms\.com$;
+
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Trusted origin header for tenant resolution (resolver only honours it
+        # when TRUST_X_TENANT_SLUG=true — i.e. only behind this nginx).
+        proxy_set_header X-Tenant-Slug $slug;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+
 server {
     listen 8082;
     server_name _;
@@ -61,6 +88,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # Scrub any client-supplied tenant slug so it can never be spoofed here.
+        proxy_set_header X-Tenant-Slug "";
         proxy_cache_bypass $http_upgrade;
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;

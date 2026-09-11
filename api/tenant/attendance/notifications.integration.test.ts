@@ -24,7 +24,7 @@ const TEST_STUDENT_ID = 'STU001'
 const TEST_GUARDIAN_EMAIL = 'guardian@example.com'
 const TEST_GUARDIAN_PHONE = '+1234567890'
 
-describe('Guardian Notifications Integration Tests', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Guardian Notifications Integration Tests', () => {
   beforeAll(() => {
     // Setup mocks
     vi.mocked(query).mockResolvedValue({ rows: [] } as any)

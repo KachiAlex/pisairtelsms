@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../_lib/auth-middleware.js';
+import { verifyParentChildRelationship } from '../../src/lib/parentAuth';
 
 interface Assignment {
   id: string; subject: string; title: string; description: string;
@@ -14,26 +16,12 @@ interface AssignmentsResponse {
   childName: string;
 }
 
-function extractParentId(req: VercelRequest): string | null {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) return xUserId.trim();
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.substring(7);
-  if (!token) return null;
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.parentId || payload.userId || payload.sub || null;
-    }
-  } catch {}
-  return token || null;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const parentId = extractParentId(req);
-  if (!parentId) return res.status(401).json({ error: 'Unauthorized' });
+  const decoded = await requireRole(req, res, ['parent']);
+  if (!decoded) return;
+  const parentId = decoded.parentId!;
+  const childrenIds = decoded.childrenIds || [];
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -41,6 +29,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { childId, status, type } = req.query;
     if (!childId) return res.status(400).json({ error: 'childId is required' });
+
+    // Verify parent-child relationship (SEC-05)
+    if (!verifyParentChildRelationship(parentId, childId as string, childrenIds)) {
+      return res.status(403).json({ error: 'Forbidden: You do not have access to this child' });
+    }
+
     const childRes = await sql`SELECT name FROM students WHERE id = ${childId as string} AND deleted_at IS NULL LIMIT 1`;
     const childName = childRes.rows[0]?.name || '';
 

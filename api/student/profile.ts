@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import crypto from 'crypto';
 import { requireRole } from '../_lib/auth-middleware.js';
 import { rateLimit } from '../_lib/rate-limit';
 import { requireCSRF } from '../_lib/csrf';
@@ -8,17 +7,7 @@ import { logPasswordChange } from '../_lib/audit-logger';
 import { validatePassword } from '../_lib/password-validator';
 import { validate, Schemas } from '../_lib/validator';
 import { requireNotBlockedIP } from '../_lib/ip-restrictions';
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(':');
-  if (!salt || !hash) return false;
-  return crypto.createHmac('sha256', salt).update(password).digest('hex') === hash;
-}
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex');
-  return `${salt}:${crypto.createHmac('sha256', salt).update(password).digest('hex')}`;
-}
+import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../_lib/password-hashing';
 
 interface StudentProfile {
   id: string;
@@ -156,9 +145,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const row = await sql`SELECT password_hash FROM students WHERE id = ${studentId} LIMIT 1`;
         const storedHash = row.rows[0]?.password_hash;
-        if (storedHash && !verifyPassword(body.currentPassword, storedHash))
+        if (storedHash && !(await verifyPasswordAnyFormat(body.currentPassword, storedHash)))
           return res.status(401).json({ error: 'Current password is incorrect' });
-        const newHash = hashPassword(body.newPassword);
+        const newHash = await hashPasswordSecurely(body.newPassword);
         await sql`UPDATE students SET password_hash = ${newHash} WHERE id = ${studentId}`;
         await logPasswordChange(req, studentId, 'student');
         return res.status(200).json({ success: true, message: 'Password changed successfully' });

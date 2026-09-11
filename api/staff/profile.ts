@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { verifyStaffPassword, resetStaffPassword } from '../tenant/_lib/staff.js';
+import { requireRole } from '../_lib/auth-middleware.js';
+import { requireCSRF } from '../_lib/csrf.js';
+import { rateLimit } from '../_lib/rate-limit.js';
 
 interface StaffProfile {
   id: string;
@@ -25,19 +28,6 @@ interface PasswordChangeBody {
   newPassword: string;
 }
 
-function extractStaffIdFromToken(req: VercelRequest): string | null {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  try {
-    const parts = authHeader.substring(7).split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.staffId || payload.userId || payload.sub || null;
-    }
-  } catch { /* not a JWT */ }
-  return null;
-}
-
 function parseBody(req: VercelRequest): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -60,9 +50,11 @@ function isValidEmail(email: string): boolean {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const staffId = extractStaffIdFromToken(req);
+  const decoded = await requireRole(req, res, ['staff']);
+  if (!decoded) return;
+  const staffId = decoded.staffId || decoded.userId;
   if (!staffId) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+    return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
   if (req.method === 'GET') {
@@ -83,6 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to fetch profile' });
     }
   } else if (req.method === 'PUT') {
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, staffId)) return;
     try {
       const body = await parseBody(req);
       const { email, phone, address } = body as ProfileUpdateBody;
@@ -110,6 +104,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to update profile' });
     }
   } else if (req.method === 'POST') {
+    // Rate limit password changes: 5 per minute
+    if (rateLimit(req, res, 5, 60 * 1000)) return;
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, staffId)) return;
     try {
       const body = await parseBody(req);
       const { currentPassword, newPassword } = body as PasswordChangeBody;

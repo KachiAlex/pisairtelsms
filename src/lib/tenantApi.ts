@@ -34,6 +34,10 @@ export async function tenantApiFetch(
 
   return fetch(url, {
     ...options,
+    // QUAL-08/QUAL-10: include cookies so the httpOnly auth_token cookie is
+    // sent alongside the Bearer header (which keeps localStorage-based clients
+    // working while enabling cookie-based auth).
+    credentials: 'include',
     headers,
   });
 }

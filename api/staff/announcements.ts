@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../_lib/auth-middleware.js';
 
 interface Announcement {
   id: string;
@@ -14,33 +15,6 @@ interface AnnouncementsResponse {
   announcements: Announcement[];
 }
 
-function extractStaffIdFromToken(req: VercelRequest): string | null {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
-    return xUserId.trim();
-  }
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  if (!token) return null;
-
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.staffId || payload.userId || payload.sub || null;
-    }
-  } catch {
-    // not a JWT
-  }
-
-  return token || null;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -48,10 +22,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const staffId = extractStaffIdFromToken(req);
-    if (!staffId) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
-    }
+    const decoded = await requireRole(req, res, ['staff']);
+    if (!decoded) return;
 
     const { limit = '10', offset = '0' } = req.query;
 

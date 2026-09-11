@@ -201,7 +201,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               'private_lesson_request', ${id}
             )
           `
-        } catch {}
+        } catch (err) {
+          // QUAL-02: best-effort notification — log but don't fail the request
+          console.warn('Failed to insert approval notification:', err);
+        }
 
         return res.status(200).json({ data: result.rows[0] })
       }
@@ -258,7 +261,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ${request.fee_amount}, ${request.fee_currency}, ${request.payment_mode}, 'pending'
               )
             `
-          } catch {}
+          } catch (err) {
+            // QUAL-02: best-effort payment record — log but don't fail approval
+            console.warn('Failed to create private lesson payment record:', err);
+          }
         }
 
         // Notify teacher
@@ -275,7 +281,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               'private_lesson_request', ${id}
             )
           `
-        } catch {}
+        } catch (err) {
+          // QUAL-02: best-effort notification — log but don't fail approval
+          console.warn('Failed to notify teacher of parent approval:', err);
+        }
 
         return res.status(200).json({ data: result.rows[0] })
       }
@@ -311,7 +320,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               'private_lesson_request', ${id}
             )
           `
-        } catch {}
+        } catch (err) {
+          // QUAL-02: best-effort notification — log but don't fail decline
+          console.warn('Failed to notify teacher of parent decline:', err);
+        }
 
         return res.status(200).json({ data: result.rows[0] })
       }

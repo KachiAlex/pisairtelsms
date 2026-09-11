@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
-import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../../../src/lib/parentAuth'
+import { requireRole } from '../../../_lib/auth-middleware.js'
+import { requireCSRF } from '../../../_lib/csrf.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'PUT') {
@@ -9,15 +10,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, parentId)) return
 
     const { announcementId } = req.query
 
@@ -28,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const id = Array.isArray(announcementId) ? announcementId[0] : announcementId
     await sql`
       INSERT INTO parent_announcement_reads (parent_id, announcement_id, read_at)
-      VALUES (${parentInfo.parentId}, ${id}, NOW())
+      VALUES (${parentId}, ${id}, NOW())
       ON CONFLICT (parent_id, announcement_id) DO UPDATE SET read_at = NOW()
     `
     return res.status(200).json({ id, isRead: true })

@@ -14,6 +14,7 @@ import { ParentLayout } from './components/layouts/ParentLayout';
 import { ParentContextProvider } from './contexts/ParentContext'
 import { BrandingProvider } from './contexts/BrandingContext';
 import { ParentLoginPage } from './components/auth/ParentLoginPage';
+import { ParentForgotPasswordPage } from './components/auth/ParentForgotPasswordPage';
 import { clearAuthFromStorage, getAuthFromStorage } from './lib/auth';
 import { useDocumentMeta } from './hooks/useDocumentMeta';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
@@ -41,7 +42,6 @@ const StudentAttendance = lazy(() => import('./components/pages/StudentAttendanc
 const TimetableScheduling = lazy(() => import('./components/pages/TimetableScheduling'));
 const StaffHR = lazy(() => import('./components/pages/StaffHR'));
 const CommunicationHub = lazy(() => import('./components/pages/CommunicationHub'));
-const CommunicationsHub = lazy(() => import('./components/pages/CommunicationsHub'));
 
 const FinanceManagement = lazy(() => import('./components/pages/FinanceManagement'));
 const AnalyticsDashboard = lazy(() => import('./components/pages/AnalyticsDashboard'));
@@ -125,6 +125,7 @@ export default function App() {
   // Fetch notifications from API
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; createdAt: string }[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!auth) return;
@@ -439,7 +440,18 @@ export default function App() {
           <div className="flex items-center gap-3">
             <div className="hidden md:flex relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input placeholder="Search..." className="pl-10 w-64" />
+              <Input
+                placeholder="Search..."
+                className="pl-10 w-64"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  // Navigate to the students page when searching so results are actionable
+                  if (e.target.value.trim() && activePage !== 'students') {
+                    navigate('/tenant/students');
+                  }
+                }}
+              />
             </div>
 
             <DropdownMenu>
@@ -456,7 +468,11 @@ export default function App() {
                   {notifLoading && <div className="p-3 text-xs text-gray-500">Loading...</div>}
                   {!notifLoading && notifications.length === 0 && <div className="p-3 text-xs text-gray-500">No notifications</div>}
                   {notifications.map((n) => (
-                    <div key={n.id} className="p-3 hover:bg-gray-50 cursor-pointer">
+                    <div
+                      key={n.id}
+                      className="p-3 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => navigate('/tenant/notifications')}
+                    >
                       <p className="text-sm font-medium text-gray-900">{n.title}</p>
                       <p className="text-xs text-gray-600 mt-1">{n.message}</p>
                       <p className="text-xs text-gray-500 mt-1">{new Date(n.createdAt).toLocaleString()}</p>
@@ -481,9 +497,9 @@ export default function App() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Profile Settings</DropdownMenuItem>
-                <DropdownMenuItem>Change Password</DropdownMenuItem>
-                <DropdownMenuItem>Activity Log</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/tenant/system-settings')}>Profile Settings</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/tenant/system-settings')}>Change Password</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/tenant/audit-logs')}>Activity Log</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={() => {
                   clearAuthFromStorage();
@@ -519,6 +535,7 @@ export default function App() {
         <Route path="/student/*" element={<RoleBasedRoute allowedRoles={['student']}><StudentLayout /></RoleBasedRoute>} />
         <Route path="/staff/*" element={<RoleBasedRoute allowedRoles={['staff']}><StaffLayout /></RoleBasedRoute>} />
         <Route path="/parent/login" element={<ParentLoginPage />} />
+        <Route path="/parent/forgot-password" element={<ParentForgotPasswordPage />} />
         <Route path="/parent/*" element={<RoleBasedRoute allowedRoles={['parent']} redirectTo="/parent/login"><ParentContextProvider><ErrorBoundary><Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}><ParentLayout /></Suspense></ErrorBoundary></ParentContextProvider></RoleBasedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

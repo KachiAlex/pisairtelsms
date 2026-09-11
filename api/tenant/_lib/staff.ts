@@ -1,26 +1,16 @@
 import { sql } from '@vercel/postgres'
 import { poolQuery } from '../../_lib/pg-pool.js'
-import * as crypto from 'crypto'
+import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../../_lib/password-hashing.js'
 
+// SEC-08: delegate to the shared Argon2id-based hashing library.
+// hashPassword creates Argon2id hashes; verifyStaffPassword transparently
+// verifies legacy scrypt hashes so existing accounts keep working.
 export async function hashPassword(password: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const salt = crypto.randomBytes(16).toString('hex')
-    crypto.scrypt(password, salt, 64, (err, derived) => {
-      if (err) reject(err)
-      else resolve(`${salt}:${derived.toString('hex')}`)
-    })
-  })
+  return hashPasswordSecurely(password)
 }
 
 export async function verifyStaffPassword(password: string, hash: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const [salt, stored] = hash.split(':')
-    if (!salt || !stored) { resolve(false); return }
-    crypto.scrypt(password, salt, 64, (err, derived) => {
-      if (err) reject(err)
-      else resolve(derived.toString('hex') === stored)
-    })
-  })
+  return verifyPasswordAnyFormat(password, hash)
 }
 
 export interface Staff {

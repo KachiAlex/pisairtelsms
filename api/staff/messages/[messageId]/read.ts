@@ -1,36 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../../../_lib/auth-middleware.js';
+import { requireCSRF } from '../../../_lib/csrf.js';
 
 interface MarkReadResponse {
   id: string;
   isRead: boolean;
-}
-
-function extractStaffIdFromToken(req: VercelRequest): string | null {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) {
-    return xUserId.trim();
-  }
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  if (!token) return null;
-
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.staffId || payload.userId || payload.sub || null;
-    }
-  } catch {
-    // not a JWT
-  }
-
-  return token || null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -40,10 +15,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const staffId = extractStaffIdFromToken(req);
+    const decoded = await requireRole(req, res, ['staff']);
+    if (!decoded) return;
+    const staffId = decoded.staffId || decoded.userId;
     if (!staffId) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+      return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
     }
+
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, staffId)) return;
 
     const { messageId } = req.query;
     if (!messageId || typeof messageId !== 'string') {

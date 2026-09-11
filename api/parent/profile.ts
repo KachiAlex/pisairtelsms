@@ -1,18 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
-import crypto from 'crypto'
-import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../src/lib/parentAuth'
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(':')
-  if (!salt || !hash) return false
-  return crypto.createHmac('sha256', salt).update(password).digest('hex') === hash
-}
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex')
-  return `${salt}:${crypto.createHmac('sha256', salt).update(password).digest('hex')}`
-}
+import { requireRole } from '../_lib/auth-middleware.js'
+import { requireCSRF } from '../_lib/csrf.js'
+import { rateLimit } from '../_lib/rate-limit.js'
+import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../_lib/password-hashing.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
@@ -29,24 +20,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function handleGet(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
-
-    const parentResult = await sql`SELECT id, name, email, phone, address FROM parents WHERE id = ${parentInfo.parentId} LIMIT 1`
+    const parentResult = await sql`SELECT id, name, email, phone, address FROM parents WHERE id = ${parentId} LIMIT 1`
     if (!parentResult.rows[0]) return res.status(404).json({ error: 'Parent not found' })
     const p = parentResult.rows[0]
 
     const childrenResult = await sql`
       SELECT s.id, s.name, s.admission_no, s.class FROM parent_students ps
       JOIN students s ON s.id = ps.student_id AND s.deleted_at IS NULL
-      WHERE ps.parent_id = ${parentInfo.parentId} ORDER BY s.name
+      WHERE ps.parent_id = ${parentId} ORDER BY s.name
     `
     return res.status(200).json({
       id: p.id, name: p.name, email: p.email, phone: p.phone ?? '', address: p.address ?? '',
@@ -60,15 +45,12 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
 
 async function handlePut(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, parentId)) return
 
     const { email, phone, address } = req.body
 
@@ -83,14 +65,14 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
         phone   = COALESCE(${phone   ?? null}, phone),
         address = COALESCE(${address ?? null}, address),
         updated_at = NOW()
-      WHERE id = ${parentInfo.parentId}
+      WHERE id = ${parentId}
     `
-    const updated = await sql`SELECT id, name, email, phone, address FROM parents WHERE id = ${parentInfo.parentId} LIMIT 1`
+    const updated = await sql`SELECT id, name, email, phone, address FROM parents WHERE id = ${parentId} LIMIT 1`
     const u = updated.rows[0]
     const childrenResult = await sql`
       SELECT s.id, s.name, s.admission_no, s.class FROM parent_students ps
       JOIN students s ON s.id = ps.student_id AND s.deleted_at IS NULL
-      WHERE ps.parent_id = ${parentInfo.parentId} ORDER BY s.name
+      WHERE ps.parent_id = ${parentId} ORDER BY s.name
     `
     return res.status(200).json({
       id: u.id, name: u.name, email: u.email, phone: u.phone ?? '', address: u.address ?? '',
@@ -104,15 +86,15 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
 
 async function handlePost(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    // Rate limit password changes: 5 per minute
+    if (rateLimit(req, res, 5, 60 * 1000)) return
+
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, parentId)) return
 
     const { currentPassword, newPassword } = req.body
 
@@ -124,12 +106,12 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' })
     }
 
-    const row = await sql`SELECT password_hash FROM parents WHERE id = ${parentInfo.parentId} LIMIT 1`
+    const row = await sql`SELECT password_hash FROM parents WHERE id = ${parentId} LIMIT 1`
     const storedHash = row.rows[0]?.password_hash
-    if (storedHash && !verifyPassword(currentPassword, storedHash))
+    if (storedHash && !(await verifyPasswordAnyFormat(currentPassword, storedHash)))
       return res.status(401).json({ error: 'Current password is incorrect' })
-    const newHash = hashPassword(newPassword)
-    await sql`UPDATE parents SET password_hash = ${newHash} WHERE id = ${parentInfo.parentId}`
+    const newHash = await hashPasswordSecurely(newPassword)
+    await sql`UPDATE parents SET password_hash = ${newHash} WHERE id = ${parentId}`
     return res.status(200).json({ success: true })
   } catch (error) {
     console.error('Error changing password:', error)

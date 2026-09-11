@@ -13,19 +13,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = req.query['action'] as string
 
   try {
-    // Ensure schema exists (best-effort)
-    try {
-      } catch (e) { /* ignore */ }
-    try {
-      } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-  } catch (e) { console.error('Schema setup error:', e) }
-
-  try {
     if (action === 'coverage-stats' && req.method === 'GET') {
       try {
         const total = await sql`SELECT COUNT(*)::int AS n FROM teacher_allocation_slots WHERE tenant_id = ${tenantId}`

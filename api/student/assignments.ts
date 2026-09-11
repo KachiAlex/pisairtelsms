@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../_lib/auth-middleware.js';
+import { requireCSRF } from '../_lib/csrf.js';
 
 interface Assignment {
   id: string;
@@ -25,23 +27,6 @@ interface AssignmentsListResponse {
   summary: { total: number; pending: number; submitted: number; graded: number; overdue: number };
 }
 
-function extractStudentIdFromToken(req: VercelRequest): string | null {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) return xUserId.trim();
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.substring(7);
-  if (!token) return null;
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.studentId || payload.userId || payload.sub || null;
-    }
-  } catch {}
-  return token || null;
-}
-
 function parseBody(req: VercelRequest): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -53,8 +38,12 @@ function parseBody(req: VercelRequest): Promise<any> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const studentId = extractStudentIdFromToken(req);
-  if (!studentId) return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+  const decoded = await requireRole(req, res, ['student']);
+  if (!decoded) return;
+  const studentId = decoded.studentId || decoded.userId;
+  if (!studentId) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
+  }
 
   if (req.method === 'GET') {
     try {
@@ -134,6 +123,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to fetch assignments' });
     }
   } else if (req.method === 'POST') {
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, studentId)) return;
     try {
       const { id } = req.query;
       if (!id) return res.status(400).json({ error: 'Assignment ID is required' });

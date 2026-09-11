@@ -18,14 +18,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tenantId = decoded.tenantId || 'default-tenant'
 
   try {
-    // Ensure tables exist (best-effort)
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
-    try { } catch (e) { /* ignore */ }
+    // Note: "ensure tables exist" bootstrap was removed — it was an empty
+    // no-op block that only swallowed errors. Table creation is owned by the
+    // consolidated migration runner.
 
     // Get active sessions count
     let activeSessions = 0

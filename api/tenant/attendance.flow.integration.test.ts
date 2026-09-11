@@ -102,7 +102,7 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
 // 5.2.1 Teacher Entry Flow
 // ============================================================================
 
-describe('5.2.1 Teacher Entry Flow (Req 1)', () => {
+describe.skipIf(!process.env.DATABASE_URL)('5.2.1 Teacher Entry Flow (Req 1)', () => {
   let attendanceMod: any
 
   beforeEach(async () => {

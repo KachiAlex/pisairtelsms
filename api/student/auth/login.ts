@@ -8,21 +8,16 @@ import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger.js'
 import { validate, Schemas } from '../../_lib/validator.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
+import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../../_lib/password-hashing.js'
+import { needsTransparentUpgrade } from '../../_lib/password-hashing.js'
 
-async function ensureStudentAuthColumn() {
-  }
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.createHmac('sha256', salt).update(password).digest('hex')
-  return `${salt}:${hash}`
+// SEC-08: delegate to the shared Argon2id-based hashing library
+function hashPassword(password: string): Promise<string> {
+  return hashPasswordSecurely(password)
 }
 
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt, hash] = stored.split(':')
-  if (!salt || !hash) return false
-  const attempt = crypto.createHmac('sha256', salt).update(password).digest('hex')
-  return attempt === hash
+function verifyPassword(password: string, stored: string): Promise<boolean> {
+  return verifyPasswordAnyFormat(password, stored)
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -36,8 +31,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    await ensureStudentAuthColumn()
-
     const { admissionNumber, password } = req.body as { admissionNumber: string; password: string }
 
     // Validate input
@@ -49,13 +42,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const tenantId = (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
-
+    // SEC-06: Look up student by admission number — tenantId is derived from the record, not a client header
     const result = await sql`
-      SELECT id, admission_no, name, class, arm, password_hash, status
+      SELECT id, admission_no, name, class, arm, password_hash, status, tenant_id
       FROM students
       WHERE admission_no = ${admissionNumber.trim()}
-        AND tenant_id = ${tenantId}
         AND deleted_at IS NULL
       LIMIT 1
     `
@@ -66,6 +57,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await logLoginFailure(req, admissionNumber, 'Student not found')
       return res.status(401).json({ error: 'Invalid admission number or password' })
     }
+
+    const tenantId = student.tenant_id
 
     if (student.status === 'Suspended') {
       await logLoginFailure(req, admissionNumber, 'Account suspended')
@@ -79,13 +72,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(401).json({ error: 'Invalid admission number or password' })
       }
       // Auto-set the password on first use
-      const newHash = hashPassword(password)
+      const newHash = await hashPassword(password)
       await sql`UPDATE students SET password_hash = ${newHash} WHERE id = ${student.id}`
     } else {
       const valid = await verifyPassword(password, student.password_hash)
       if (!valid) {
         await logLoginFailure(req, admissionNumber, 'Invalid password')
         return res.status(401).json({ error: 'Invalid admission number or password' })
+      }
+      // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
+      if (needsTransparentUpgrade(student.password_hash)) {
+        const upgradedHash = await hashPassword(password)
+        await sql`UPDATE students SET password_hash = ${upgradedHash} WHERE id = ${student.id}`
       }
     }
 

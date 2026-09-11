@@ -7,6 +7,7 @@ import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger.js'
 import { validate, Schemas } from '../../_lib/validator.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
+import { needsTransparentUpgrade } from '../../_lib/password-hashing.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -53,12 +54,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await logLoginFailure(req, email, 'Invalid password')
         return res.status(401).json({ error: 'Invalid email or password' })
       }
+      // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
+      if (needsTransparentUpgrade(staff.passwordHash)) {
+        await resetStaffPassword(staff.id, password)
+      }
     }
 
     const jwtSecret = getJwtSecret()
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
-    const tenantId = staff.tenantId || (req.headers['x-tenant-id'] as string) || 'default-tenant'
+    const tenantId = staff.tenantId  // SEC-06: derive from staff record, not client header
+    if (!tenantId) {
+      return res.status(403).json({ error: 'No tenant associated with this account' })
+    }
 
     const token = await new SignJWT({ staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email, tenantId })
       .setProtectedHeader({ alg: 'HS256' })

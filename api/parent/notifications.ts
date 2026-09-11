@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
-import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../src/lib/parentAuth'
+import { requireRole } from '../_lib/auth-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -9,15 +9,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
-
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
     const limit = parseInt(req.query.limit as string) || 20
     const type = req.query.type as string
@@ -25,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let query = sql`
       SELECT id, type, title, message, is_read, action_url, created_at::text AS date
       FROM parent_notifications
-      WHERE parent_id = ${parentInfo.parentId}
+      WHERE parent_id = ${parentId}
       ORDER BY created_at DESC
       LIMIT ${limit}
     `
@@ -34,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       query = sql`
         SELECT id, type, title, message, is_read, action_url, created_at::text AS date
         FROM parent_notifications
-        WHERE parent_id = ${parentInfo.parentId} AND type = ${type}
+        WHERE parent_id = ${parentId} AND type = ${type}
         ORDER BY created_at DESC
         LIMIT ${limit}
       `
@@ -53,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const unreadRes = await sql`
       SELECT COUNT(*) AS count FROM parent_notifications
-      WHERE parent_id = ${parentInfo.parentId} AND is_read = FALSE
+      WHERE parent_id = ${parentId} AND is_read = FALSE
     `
     const unreadCount = parseInt(unreadRes.rows[0]?.count ?? '0')
 

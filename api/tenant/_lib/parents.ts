@@ -1,5 +1,6 @@
 import { queryOne, queryAll, query } from '../cbt/_lib/db.js';
 import crypto from 'crypto';
+import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../../_lib/password-hashing.js';
 
 interface ParentRow {
   id: string;
@@ -55,24 +56,13 @@ function generateTempPassword(): string {
   return crypto.randomBytes(8).toString('hex');
 }
 
+// SEC-08: delegate to the shared Argon2id-based hashing library
 async function hashPassword(password: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const salt = crypto.randomBytes(16).toString('hex');
-    crypto.scrypt(password, salt, 64, (err, derived) => {
-      if (err) reject(err);
-      else resolve(`${salt}:${derived.toString('hex')}`);
-    });
-  });
+  return hashPasswordSecurely(password)
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const [salt, stored] = hash.split(':');
-    crypto.scrypt(password, salt, 64, (err, derived) => {
-      if (err) reject(err);
-      else resolve(derived.toString('hex') === stored);
-    });
-  });
+  return verifyPasswordAnyFormat(password, hash)
 }
 
 export async function createOrLinkParent(payload: CreateOrLinkParentPayload): Promise<Parent> {
@@ -153,12 +143,21 @@ export async function fetchParents(tenantId: string): Promise<Parent[]> {
   }
 }
 
-export async function fetchParentByEmail(email: string, tenantId: string): Promise<ParentWithHash | null> {
+export async function fetchParentByEmail(email: string, tenantId?: string): Promise<ParentWithHash | null> {
+  // SEC-06: when called without a tenant (login flow), look up by email alone
+  // and derive the tenant from the record instead of trusting a client-supplied
+  // tenantId header.
   const row = await queryOne<ParentRow & { student_id: string }>(
-    `SELECT p.*, ps.student_id FROM parents p
-     LEFT JOIN parent_students ps ON ps.parent_id = p.id
-     WHERE p.email = $1 AND p.tenant_id = $2`,
-    [email, tenantId]
+    tenantId
+      ? `SELECT p.*, ps.student_id FROM parents p
+         LEFT JOIN parent_students ps ON ps.parent_id = p.id
+         WHERE p.email = $1 AND p.tenant_id = $2`
+      : `SELECT p.*, ps.student_id FROM parents p
+         LEFT JOIN parent_students ps ON ps.parent_id = p.id
+         WHERE p.email = $1
+         ORDER BY p.created_at ASC
+         LIMIT 1`,
+    tenantId ? [email, tenantId] : [email]
   );
   if (!row) return null;
 

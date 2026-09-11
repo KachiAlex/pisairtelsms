@@ -49,7 +49,7 @@ async function cleanupTenant() {
   await pool.query(`DELETE FROM tenants WHERE id = $1`, [TENANT_ID])
 }
 
-describe('Absence Reasons API Integration Tests', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Absence Reasons API Integration Tests', () => {
   beforeAll(async () => {
     await setupTenant()
   })

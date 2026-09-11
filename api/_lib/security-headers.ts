@@ -6,10 +6,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
  */
 export function setSecurityHeaders(res: VercelResponse): void {
   // Content Security Policy (CSP)
-  // Restricts sources from which content can be loaded
+  // Restricts sources from which content can be loaded.
+  // SEC-09: Removed 'unsafe-eval'; added Paystack script/connect/frame origins for payment flow.
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.paystack.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.paystack.co; frame-src https://standard.paystack.co; frame-ancestors 'none';"
   )
 
   // X-Frame-Options

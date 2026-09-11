@@ -4,6 +4,7 @@ import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
+import { needsTransparentUpgrade } from '../../_lib/password-hashing.js'
 import { fetchStaffByEmail, verifyStaffPassword, hashPassword } from '../../tenant/_lib/staff.js'
 import { poolQuery } from '../../_lib/pg-pool.js'
 
@@ -69,9 +70,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!valid) {
         return res.status(401).json({ error: 'Invalid email or password' })
       }
+      // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
+      if (needsTransparentUpgrade(staff.passwordHash)) {
+        const upgradedHash = await hashPassword(password)
+        await poolQuery('UPDATE staff SET password_hash = $1 WHERE id = $2', [upgradedHash, staff.id])
+      }
     }
 
-    const resolvedTenantId = staff.tenantId || staff.department || 'default-tenant'
+    const resolvedTenantId = staff.tenantId  // SEC-06: derive from staff record, not fallbacks
+    if (!resolvedTenantId) {
+      return res.status(403).json({ error: 'No tenant associated with this account' })
+    }
     const jwtSecret = getJwtSecret()
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000

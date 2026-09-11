@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../_lib/auth-middleware.js';
 
 interface ClassInfo {
   id: string;
@@ -12,19 +13,6 @@ interface StaffClassesResponse {
   classes: ClassInfo[];
 }
 
-function extractStaffIdFromToken(req: VercelRequest): string | null {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  try {
-    const parts = authHeader.substring(7).split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.staffId || payload.userId || payload.sub || null;
-    }
-  } catch { /* not a JWT */ }
-  return null;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -32,9 +20,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const staffId = extractStaffIdFromToken(req);
+    const decoded = await requireRole(req, res, ['staff']);
+    if (!decoded) return;
+    const staffId = decoded.staffId || decoded.userId;
     if (!staffId) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+      return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
     }
 
     const result = await sql`
@@ -42,7 +32,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         COUNT(s.id) AS student_count
       FROM timetable tt
       LEFT JOIN students s
-        ON s.class || s.arm = tt.class_name
+        -- QUAL-05: normalize both sides (strip spaces, lowercase) and use
+        -- CONCAT_WS so a NULL arm doesn't nullify the match.
+        ON LOWER(REPLACE(CONCAT_WS(' ', s.class, COALESCE(s.arm, '')), ' ', ''))
+           = LOWER(REPLACE(tt.class_name, ' ', ''))
         AND s.deleted_at IS NULL AND s.status = 'Active'
       WHERE tt.staff_id = ${staffId}
       GROUP BY tt.class_name

@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
-import crypto from 'crypto'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { rateLimit } from '../_lib/rate-limit'
 import { requireCSRF } from '../_lib/csrf'
@@ -8,17 +7,7 @@ import { logPasswordChange } from '../_lib/audit-logger'
 import { validatePassword } from '../_lib/password-validator'
 import { validate, Schemas } from '../_lib/validator'
 import { requireNotBlockedIP } from '../_lib/ip-restrictions'
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(':')
-  if (!salt || !hash) return false
-  return crypto.createHmac('sha256', salt).update(password).digest('hex') === hash
-}
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex')
-  return `${salt}:${crypto.createHmac('sha256', salt).update(password).digest('hex')}`
-}
+import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../_lib/password-hashing'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -65,9 +54,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const row = await sql`SELECT password_hash FROM parents WHERE id = ${parentInfo.parentId} LIMIT 1`
     const storedHash = row.rows[0]?.password_hash
-    if (storedHash && !verifyPassword(currentPassword, storedHash))
+    if (storedHash && !(await verifyPasswordAnyFormat(currentPassword, storedHash)))
       return res.status(401).json({ error: 'Current password is incorrect' })
-    const newHash = hashPassword(newPassword)
+    const newHash = await hashPasswordSecurely(newPassword)
     await sql`UPDATE parents SET password_hash = ${newHash} WHERE id = ${parentInfo.parentId}`
     if (parentInfo.parentId) {
       await logPasswordChange(req, parentInfo.parentId, 'parent')

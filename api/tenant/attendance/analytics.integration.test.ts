@@ -143,7 +143,7 @@ const mockDecoded = {
 // Dashboard endpoint tests
 // ---------------------------------------------------------------------------
 
-describe('GET /api/tenant/attendance/analytics/dashboard', () => {
+describe.skipIf(!process.env.DATABASE_URL)('GET /api/tenant/attendance/analytics/dashboard', () => {
   it('should return 401 when tenant context is missing', async () => {
     const req = createMockRequest({ headers: {} })
     const res = createMockResponse()

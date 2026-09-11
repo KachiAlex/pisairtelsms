@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { SignJWT } from 'jose'
+import { sql } from '@vercel/postgres'
 import { fetchParentByEmail, verifyPassword } from '../../tenant/_lib/parents.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
@@ -7,6 +8,7 @@ import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger.js'
 import { validate, Schemas } from '../../_lib/validator.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
+import { hashPasswordSecurely, needsTransparentUpgrade } from '../../_lib/password-hashing.js'
 
 interface LoginRequest {
   email: string
@@ -51,19 +53,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const tenantId = (req.headers['x-tenant-id'] as string) || process.env.DEFAULT_TENANT_ID || 'default-tenant'
-
-    const parent = await fetchParentByEmail(email, tenantId)
+    // SEC-06: Look up parent by email — tenantId is derived from the record,
+    // not a client-supplied x-tenant-id header.
+    const parent = await fetchParentByEmail(email.trim().toLowerCase())
 
     if (!parent) {
       await logLoginFailure(req, email, 'Parent not found')
       return res.status(401).json({ error: 'Unauthorized: Invalid email or password' })
     }
 
+    const tenantId = parent.tenantId
+
     const passwordValid = await verifyPassword(password, parent.passwordHash)
     if (!passwordValid) {
       await logLoginFailure(req, email, 'Invalid password')
       return res.status(401).json({ error: 'Unauthorized: Invalid email or password' })
+    }
+
+    // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
+    if (needsTransparentUpgrade(parent.passwordHash)) {
+      const upgradedHash = await hashPasswordSecurely(password)
+      await sql`UPDATE parents SET password_hash = ${upgradedHash} WHERE id = ${parent.id}`
     }
 
     // Generate JWT token

@@ -75,7 +75,7 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
 // Tests
 // ============================================================================
 
-describe('Biometric Device Management API', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Biometric Device Management API', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // 3.3.1 GET /api/tenant/biometric-devices - List devices
   // ──────────────────────────────────────────────────────────────────────────

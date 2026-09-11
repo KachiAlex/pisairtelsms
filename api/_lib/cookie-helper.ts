@@ -29,10 +29,24 @@ export function setCookie(
     domain,
   } = options
 
+  // QUAL-10: Secure flag should reflect the actual connection, not just NODE_ENV.
+  // Vercel terminates TLS at the edge and forwards via x-forwarded-proto.
+  // res.req is available because VercelResponse extends http.ServerResponse.
+  const forwardedProto =
+    (res.req?.headers['x-forwarded-proto'] as string | string[] | undefined)
+  const proxySaysHttps =
+    forwardedProto === 'https' ||
+    (Array.isArray(forwardedProto) && forwardedProto.includes('https'))
+  const isSecure =
+    secure === true ||
+    (secure !== false && (
+      process.env.NODE_ENV === 'production' || proxySaysHttps
+    ))
+
   let cookieString = `${name}=${value}`
 
   if (httpOnly) cookieString += '; HttpOnly'
-  if (secure) cookieString += '; Secure'
+  if (isSecure) cookieString += '; Secure'
   if (sameSite) cookieString += `; SameSite=${sameSite}`
   if (path) cookieString += `; Path=${path}`
   if (maxAge) cookieString += `; Max-Age=${maxAge}`

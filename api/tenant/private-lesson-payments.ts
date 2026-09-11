@@ -85,7 +85,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               'private_lesson_request', ${existing.rows[0].request_id}
             FROM private_lesson_requests plr WHERE plr.id = ${existing.rows[0].request_id}
           `
-        } catch {}
+        } catch (err) {
+          // QUAL-02: best-effort notification — log but don't fail the payment
+          console.warn('Failed to insert payment notification:', err);
+        }
       }
 
       return res.status(200).json({ data: result.rows[0] })

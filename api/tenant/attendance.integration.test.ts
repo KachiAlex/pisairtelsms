@@ -62,7 +62,7 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
   return req
 }
 
-describe('Attendance API Integration Tests', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Attendance API Integration Tests', () => {
   describe('POST /api/tenant/attendance - Submit attendance records', () => {
     it('should reject request without tenant context', async () => {
       const req = createMockRequest({

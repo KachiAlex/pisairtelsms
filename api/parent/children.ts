@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
-import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../src/lib/parentAuth'
+import { requireRole } from '../_lib/auth-middleware.js'
+import { requireCSRF } from '../_lib/csrf.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
@@ -15,21 +16,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function handleGet(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
-
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
+    const tenantId = decoded.tenantId
 
     const result = await sql`
       SELECT s.id, s.name, s.admission_no, s.class, s.arm
       FROM parent_students ps
       JOIN students s ON s.id = ps.student_id AND s.deleted_at IS NULL
-      WHERE ps.parent_id = ${parentInfo.parentId}
+      WHERE ps.parent_id = ${parentId}
       ORDER BY s.name
     `
     return res.status(200).json({ children: result.rows.map(r => ({ id: r.id, name: r.name, admissionNumber: r.admission_no, class: r.class, arm: r.arm })) })
@@ -41,15 +37,12 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
 
 async function handlePost(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, parentId)) return
 
     const { childAdmissionNumber, relationship } = req.body
 
@@ -65,10 +58,10 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     const s = studentResult.rows[0]
 
     // Check not already linked
-    const existing = await sql`SELECT 1 FROM parent_students WHERE parent_id = ${parentInfo.parentId} AND student_id = ${s.id}`
+    const existing = await sql`SELECT 1 FROM parent_students WHERE parent_id = ${parentId} AND student_id = ${s.id}`
     if (existing.rows[0]) return res.status(409).json({ error: 'Child already linked to your account' })
 
-    await sql`INSERT INTO parent_students (parent_id, student_id, relationship) VALUES (${parentInfo.parentId}, ${s.id}, ${relationship})`
+    await sql`INSERT INTO parent_students (parent_id, student_id, relationship) VALUES (${parentId}, ${s.id}, ${relationship})`
     return res.status(201).json({ id: s.id, name: s.name, admissionNumber: s.admission_no, class: s.class, arm: s.arm })
   } catch (error) {
     console.error('Error adding child:', error)

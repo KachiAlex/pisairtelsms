@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { FeeItemsTable } from './FeeItemsTable';
 import { financeApiGet, financeApiPost, financeApiPut } from '../../../lib/financeApi';
+import { getAuthFromStorage } from '../../../lib/auth';
 
 interface FeeItem {
   id?: string;
@@ -224,7 +225,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
           isMandatory: item.isMandatory,
           sequence: index + 1,
         })),
-        createdBy: 'current-user', // TODO: Get from auth context
+        createdBy: getAuthFromStorage()?.userId || getAuthFromStorage()?.email || 'unknown',
       };
 
       const url = structure?.id

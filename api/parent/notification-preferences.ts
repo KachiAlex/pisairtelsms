@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
-import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../src/lib/parentAuth'
+import { requireRole } from '../_lib/auth-middleware.js'
+import { requireCSRF } from '../_lib/csrf.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
@@ -15,18 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function handleGet(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
-
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
     const result = await sql`
-      SELECT * FROM parent_notification_preferences WHERE parent_id = ${parentInfo.parentId} LIMIT 1
+      SELECT * FROM parent_notification_preferences WHERE parent_id = ${parentId} LIMIT 1
     `
 
     if (result.rows[0]) {
@@ -68,15 +63,12 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
 
 async function handlePut(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization)
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing token' })
-    }
+    const decoded = await requireRole(req, res, ['parent'])
+    if (!decoded) return
+    const parentId = decoded.parentId!
 
-    const parentInfo = extractParentInfoFromJWT(token)
-    if (!parentInfo) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' })
-    }
+    // CSRF protection for state-changing request
+    if (requireCSRF(req, res, parentId)) return
 
     const { emailNotifications, inAppNotifications, smsNotifications, notificationTypes } = req.body
 
@@ -85,7 +77,7 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
         parent_id, email_notifications, in_app_notifications, sms_notifications,
         academic, attendance, behavioral, fees, communication, health
       ) VALUES (
-        ${parentInfo.parentId},
+        ${parentId},
         ${emailNotifications ?? true},
         ${inAppNotifications ?? true},
         ${smsNotifications ?? false},

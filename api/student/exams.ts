@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { requireRole } from '../_lib/auth-middleware.js';
 
 interface Exam {
   id: string;
@@ -23,26 +24,14 @@ interface ExamScheduleResponse {
   term: string;
 }
 
-function extractStudentIdFromToken(req: VercelRequest): string | null {
-  const xUserId = req.headers['x-user-id'];
-  if (xUserId && typeof xUserId === 'string' && xUserId.trim()) return xUserId.trim();
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.substring(7);
-  if (!token) return null;
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      return payload.studentId || payload.userId || payload.sub || null;
-    }
-  } catch {}
-  return token || null;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const studentId = extractStudentIdFromToken(req);
-  if (!studentId) return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+  const decoded = await requireRole(req, res, ['student']);
+  if (!decoded) return;
+  const studentId = decoded.studentId || decoded.userId;
+  if (!studentId) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
+  }
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -103,7 +92,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const year = new Date().getFullYear();
         academicSession = `${year}/${year+1}`;
       }
-    } catch {}
+    } catch (err) {
+      // QUAL-02: previously silent — log so missing/misconfigured terms table is diagnosable
+      console.warn('terms lookup failed; using fallback', err);
+    }
 
     return res.status(200).json({ exams, summary, academicSession: academicSession || '2024/2025', term: term || 'First Term' } as ExamScheduleResponse);
   } catch (error) {

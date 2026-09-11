@@ -130,8 +130,14 @@ export function DocumentUploadDialog({
           }))
           setStudents(rows)
         })
-        .catch(() => {})
-    } catch {}
+        .catch(err => {
+          // QUAL-02: previously silent — log so student-option load failures are diagnosable
+          console.warn('Failed to fetch student options for upload dialog:', err);
+        })
+    } catch (err) {
+      // QUAL-02: previously silent — log so auth-context parse failures are diagnosable
+      console.warn('Failed to read auth context for upload dialog:', err);
+    }
   }, [open])
 
   // Initialize approval workflow engine

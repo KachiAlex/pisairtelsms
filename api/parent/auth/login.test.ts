@@ -12,6 +12,12 @@ vi.mock('jose', () => ({
   }
 }))
 
+// Mock @vercel/postgres for any direct sql calls (e.g. the transparent
+// Argon2id hash upgrade after a successful legacy-hash login)
+vi.mock('@vercel/postgres', () => ({
+  sql: vi.fn(async () => ({ rows: [] })),
+}))
+
 // Mock rate-limit to avoid 429 during repeated test calls
 vi.mock('../../_lib/rate-limit', () => ({
   rateLimit: () => false,

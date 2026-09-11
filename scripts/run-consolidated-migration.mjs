@@ -9,11 +9,30 @@ import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Load .env without process.loadEnvFile (Node 18 lacks it). Values already
+// present in the real environment take precedence.
+function loadEnvFileManually(file) {
+  try {
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (m && process.env[m[1]] === undefined) {
+        let value = m[2].trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        process.env[m[1]] = value;
+      }
+    }
+  } catch {
+    // unreadable/missing .env — fall through to process env
+  }
+}
+
 if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) {
   if (existsSync('.env.local')) {
-    process.loadEnvFile('.env.local');
+    loadEnvFileManually('.env.local');
   } else if (existsSync('.env')) {
-    process.loadEnvFile('.env');
+    loadEnvFileManually('.env');
   }
 }
 

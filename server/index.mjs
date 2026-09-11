@@ -6,6 +6,26 @@ import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
+
+// Load .env manually. PM2's `env_file` key is not actually supported by PM2,
+// and Node 18 lacks `--env-file` / `process.loadEnvFile`, so this is the only
+// reliable way for the server process to see DATABASE_URL, JWT_SECRET, etc.
+// Values already present in the real environment take precedence.
+try {
+  const envFile = fs.readFileSync(path.join(ROOT, '.env'), 'utf8');
+  for (const line of envFile.split('\n')) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (m && process.env[m[1]] === undefined) {
+      let value = m[2].trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[m[1]] = value;
+    }
+  }
+} catch {
+  // .env is optional (env may come from the process environment instead)
+}
 const vercelConfig = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
 const rewrites = vercelConfig.rewrites || [];
 

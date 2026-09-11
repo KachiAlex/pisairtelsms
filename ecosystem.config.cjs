@@ -13,7 +13,8 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3001,
       },
-      env_file: '.env',
+      // NOTE: PM2 does not support `env_file`. server/index.mjs loads .env
+      // itself at boot (Node 18 has no --env-file / process.loadEnvFile).
       error_file: '/var/log/pisairtel-sms/error.log',
       out_file: '/var/log/pisairtel-sms/out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',

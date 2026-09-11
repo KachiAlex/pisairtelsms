@@ -43,15 +43,17 @@ echo "[5/6] Creating app directory..."
 mkdir -p /var/www/pisairtel-sms
 mkdir -p /var/log/pisairtel-sms
 
-# Configure Nginx
+# Configure Nginx (canonical config lives in deploy/nginx-pisairtel-sms.conf:
+# wildcard per-school subdomains + hardened catch-all with header scrubbing)
 echo "[6/6] Configuring Nginx..."
-cat > /etc/nginx/sites-available/pisairtel-sms << 'NGINX_EOF'
-# Per-school subdomains — <slug>.pisairtelsms.com resolves the tenant at the edge.
-# To add a root domain, extend TENANT_ROOT_DOMAINS in the app .env AND add a
-# second server_name regex here.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$SCRIPT_DIR/nginx-pisairtel-sms.conf" ]; then
+    cp "$SCRIPT_DIR/nginx-pisairtel-sms.conf" /etc/nginx/sites-available/pisairtel-sms
+else
+    cat > /etc/nginx/sites-available/pisairtel-sms << 'NGINX_EOF'
 server {
     listen 8082;
-    server_name ~^(?<slug>[a-z0-9-]+)\.pisairtelsms\.com$;
+    server_name ~^(?<slug>[a-z0-9-]+)[.]pisairtelsms[.]com;
 
     client_max_body_size 50M;
 
@@ -64,8 +66,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        # Trusted origin header for tenant resolution (resolver only honours it
-        # when TRUST_X_TENANT_SLUG=true — i.e. only behind this nginx).
         proxy_set_header X-Tenant-Slug $slug;
         proxy_cache_bypass $http_upgrade;
         proxy_read_timeout 300s;
@@ -74,7 +74,7 @@ server {
 }
 
 server {
-    listen 8082;
+    listen 8082 default_server;
     server_name _;
 
     client_max_body_size 50M;
@@ -88,7 +88,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        # Scrub any client-supplied tenant slug so it can never be spoofed here.
         proxy_set_header X-Tenant-Slug "";
         proxy_cache_bypass $http_upgrade;
         proxy_read_timeout 300s;
@@ -96,6 +95,7 @@ server {
     }
 }
 NGINX_EOF
+fi
 
 ln -sf /etc/nginx/sites-available/pisairtel-sms /etc/nginx/sites-enabled/pisairtel-sms
 rm -f /etc/nginx/sites-enabled/default

@@ -27,13 +27,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Unknown subdomain under one of our tenant roots = likely a typo or an
     // unprovisioned school; the SPA renders a "school not found" page with
-    // onboarding CTAs instead of a confusing 404.
+    // onboarding CTAs instead of a confusing 404. Any host that resolved to a
+    // slug but no tenant counts — including via the edge-injected header path
+    // (where rootDomain is not set).
     if (!resolved.tenantId) {
-      const notFound = resolved.slug !== null && resolved.rootDomain !== null
+      const notFound = resolved.slug !== null
       return res.status(200).json({
         notFound,
         subdomain: resolved.slug,
-        isApex: resolved.rootDomain !== null && resolved.slug === null,
+        isApex: !notFound,
         tenant: null,
       })
     }

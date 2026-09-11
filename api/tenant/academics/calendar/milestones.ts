@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { sql } from '@vercel/postgres'
+import { randomUUID } from 'crypto'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -10,39 +11,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      // In a real app, you would have a milestones table. 
-      // For now, we'll derive some from the existing timetable calendar data 
-      // or use a mock fallback if that table doesn't exist yet.
-      
       const result = await sql`
-        SELECT id, name as title, TO_CHAR(start_date, 'DD Mon') as date, 
-               'Admin' as owner, 'Live' as status
-        FROM calendar_terms
-        WHERE tenant_id = ${tenantId}
-        UNION ALL
-        SELECT id, name as title, TO_CHAR(start_date, 'DD Mon') as date, 
-               'System' as owner, 'Locked' as status
-        FROM calendar_holidays
+        SELECT id, title, date, owner, status
+        FROM academic_milestones
         WHERE tenant_id = ${tenantId}
         ORDER BY date ASC
       `
-      
       return res.status(200).json({ data: result.rows })
     } catch (error) {
-      // Fallback for demo if tables don't exist
-      return res.status(200).json({ 
-        data: [
-          { title: 'First Term Resumption', date: '01 Sep', owner: 'Principal', status: 'Live' },
-          { title: 'Mid-term Assessment', date: '15 Oct', owner: 'VP Academics', status: 'Tentative' },
-          { title: 'Inter-house Sports', date: '20 Nov', owner: 'Sports Director', status: 'High priority' },
-        ] 
-      })
+      console.error('Error loading milestones:', error)
+      return res.status(200).json({ data: [] })
     }
   }
 
   if (req.method === 'POST') {
-    // Logic to save a custom milestone could go here
-    return res.status(201).json({ success: true })
+    try {
+      const { title, date, owner, status } = req.body || {}
+      if (!title || !date) {
+        return res.status(400).json({ error: 'Title and date are required' })
+      }
+      const id = randomUUID()
+      await sql`
+        INSERT INTO academic_milestones (id, tenant_id, title, date, owner, status)
+        VALUES (${id}, ${tenantId}, ${title}, ${date}, ${owner || 'Admin'}, ${status || 'Tentative'})
+      `
+      return res.status(201).json({ success: true, id })
+    } catch (error) {
+      console.error('Error creating milestone:', error)
+      return res.status(500).json({ error: 'Failed to create milestone' })
+    }
   }
 
   res.setHeader('Allow', 'GET,POST')

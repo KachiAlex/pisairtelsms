@@ -41,6 +41,7 @@ export interface Exemption {
   approvalDate: string
   effectiveFrom: string
   effectiveTo: string | null
+  status: 'pending' | 'approved' | 'rejected'
   createdAt: string
 }
 
@@ -84,6 +85,7 @@ interface ExemptionRow {
   approval_date: Date
   effective_from: Date
   effective_to: Date | null
+  status: string
   created_at: Date
 }
 
@@ -132,18 +134,23 @@ function rowToExemption(row: ExemptionRow): Exemption {
     approvalDate: row.approval_date.toISOString(),
     effectiveFrom: row.effective_from.toISOString().split('T')[0],
     effectiveTo: row.effective_to ? row.effective_to.toISOString().split('T')[0] : null,
+    status: row.status as 'pending' | 'approved' | 'rejected',
     createdAt: row.created_at.toISOString(),
   }
 }
 
 export async function ensureFeeAssignmentTables(): Promise<void> {
   try {
-    } catch (error) {
+    await sql`
+      ALTER TABLE exemptions ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'
+    `
+  } catch (error) {
     console.error('Error ensuring fee assignment tables:', error)
   }
 }
 
 export async function createFeeAssignment(
+  tenantId: string,
   studentId: string,
   feeStructureId: string,
   academicSession: string,
@@ -156,9 +163,9 @@ export async function createFeeAssignment(
 
   const result = await sql<FeeAssignmentRow>`
     INSERT INTO fee_assignments
-      (id, student_id, fee_structure_id, academic_session, term, total_amount, total_paid, total_balance, status, due_date)
+      (id, tenant_id, student_id, fee_structure_id, academic_session, term, total_amount, total_paid, total_balance, status, due_date)
     VALUES
-      (${id}, ${studentId}, ${feeStructureId}, ${academicSession}, ${term}, ${totalAmount}, 0, ${totalAmount}, 'pending', ${dueDate})
+      (${id}, ${tenantId}, ${studentId}, ${feeStructureId}, ${academicSession}, ${term}, ${totalAmount}, 0, ${totalAmount}, 'pending', ${dueDate})
     RETURNING *
   `
 
@@ -166,27 +173,28 @@ export async function createFeeAssignment(
 }
 
 export async function getFeeAssignments(
+  tenantId: string,
   studentId?: string,
   academicSession?: string,
   term?: string
 ): Promise<FeeAssignment[]> {
   await ensureFeeAssignmentTables()
 
-  let query = sql<FeeAssignmentRow>`SELECT * FROM fee_assignments`
+  let query = sql<FeeAssignmentRow>`SELECT * FROM fee_assignments WHERE tenant_id = ${tenantId}`
 
   if (studentId && academicSession && term) {
     query = sql<FeeAssignmentRow>`
       SELECT * FROM fee_assignments
-      WHERE student_id = ${studentId} AND academic_session = ${academicSession} AND term = ${term}
+      WHERE tenant_id = ${tenantId} AND student_id = ${studentId} AND academic_session = ${academicSession} AND term = ${term}
     `
   } else if (studentId) {
     query = sql<FeeAssignmentRow>`
-      SELECT * FROM fee_assignments WHERE student_id = ${studentId}
+      SELECT * FROM fee_assignments WHERE tenant_id = ${tenantId} AND student_id = ${studentId}
     `
   } else if (academicSession && term) {
     query = sql<FeeAssignmentRow>`
       SELECT * FROM fee_assignments
-      WHERE academic_session = ${academicSession} AND term = ${term}
+      WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession} AND term = ${term}
     `
   }
 
@@ -194,16 +202,17 @@ export async function getFeeAssignments(
   return result.rows.map(rowToFeeAssignment)
 }
 
-export async function getFeeAssignmentById(id: string): Promise<FeeAssignment | null> {
+export async function getFeeAssignmentById(tenantId: string, id: string): Promise<FeeAssignment | null> {
   await ensureFeeAssignmentTables()
 
-  const result = await sql<FeeAssignmentRow>`SELECT * FROM fee_assignments WHERE id = ${id}`
+  const result = await sql<FeeAssignmentRow>`SELECT * FROM fee_assignments WHERE tenant_id = ${tenantId} AND id = ${id}`
   if (result.rows.length === 0) return null
 
   return rowToFeeAssignment(result.rows[0])
 }
 
 export async function updateFeeAssignment(
+  tenantId: string,
   id: string,
   updates: {
     totalAmount?: number
@@ -215,7 +224,7 @@ export async function updateFeeAssignment(
 ): Promise<FeeAssignment | null> {
   await ensureFeeAssignmentTables()
 
-  const current = await getFeeAssignmentById(id)
+  const current = await getFeeAssignmentById(tenantId, id)
   if (!current) return null
 
   const result = await sql<FeeAssignmentRow>`
@@ -227,7 +236,7 @@ export async function updateFeeAssignment(
       status = ${updates.status ?? current.status},
       due_date = ${updates.dueDate ?? current.dueDate},
       updated_at = NOW()
-    WHERE id = ${id}
+    WHERE tenant_id = ${tenantId} AND id = ${id}
     RETURNING *
   `
 
@@ -235,6 +244,7 @@ export async function updateFeeAssignment(
 }
 
 export async function createExemption(
+  tenantId: string,
   studentId: string,
   feeAssignmentId: string,
   exemptionType: string,
@@ -250,36 +260,117 @@ export async function createExemption(
 
   const result = await sql<ExemptionRow>`
     INSERT INTO exemptions
-      (id, student_id, fee_assignment_id, exemption_type, amount, percentage, reason, approved_by, approval_date, effective_from, effective_to)
+      (id, tenant_id, student_id, fee_assignment_id, exemption_type, amount, percentage, reason, approved_by, approval_date, effective_from, effective_to, status)
     VALUES
-      (${id}, ${studentId}, ${feeAssignmentId}, ${exemptionType}, ${amount}, ${percentage}, ${reason}, ${approvedBy}, NOW(), ${effectiveFrom}, ${effectiveTo})
+      (${id}, ${tenantId}, ${studentId}, ${feeAssignmentId}, ${exemptionType}, ${amount}, ${percentage}, ${reason}, ${approvedBy}, NOW(), ${effectiveFrom}, ${effectiveTo}, 'pending')
     RETURNING *
   `
 
   return rowToExemption(result.rows[0])
 }
 
-export async function getExemptions(feeAssignmentId: string): Promise<Exemption[]> {
+export async function getExemptions(tenantId: string, feeAssignmentId: string): Promise<Exemption[]> {
   await ensureFeeAssignmentTables()
 
   const result = await sql<ExemptionRow>`
-    SELECT * FROM exemptions WHERE fee_assignment_id = ${feeAssignmentId}
+    SELECT * FROM exemptions WHERE tenant_id = ${tenantId} AND fee_assignment_id = ${feeAssignmentId}
     ORDER BY created_at DESC
   `
 
   return result.rows.map(rowToExemption)
 }
 
-export async function getFeeAssignmentLedger(feeAssignmentId: string): Promise<{
+export async function getExemptionById(tenantId: string, exemptionId: string): Promise<Exemption | null> {
+  await ensureFeeAssignmentTables()
+
+  const result = await sql<ExemptionRow>`
+    SELECT * FROM exemptions WHERE tenant_id = ${tenantId} AND id = ${exemptionId}
+  `
+  if (result.rows.length === 0) return null
+
+  return rowToExemption(result.rows[0])
+}
+
+export async function updateExemption(
+  tenantId: string,
+  exemptionId: string,
+  updates: {
+    exemptionType?: string
+    amount?: number | null
+    percentage?: number | null
+    reason?: string
+    effectiveFrom?: string
+    effectiveTo?: string | null
+  }
+): Promise<Exemption | null> {
+  await ensureFeeAssignmentTables()
+
+  const current = await getExemptionById(tenantId, exemptionId)
+  if (!current) return null
+
+  const result = await sql<ExemptionRow>`
+    UPDATE exemptions
+    SET
+      exemption_type = ${updates.exemptionType ?? current.exemptionType},
+      amount = ${updates.amount ?? current.amount},
+      percentage = ${updates.percentage ?? current.percentage},
+      reason = ${updates.reason ?? current.reason},
+      effective_from = ${updates.effectiveFrom ?? current.effectiveFrom},
+      effective_to = ${updates.effectiveTo ?? current.effectiveTo}
+    WHERE tenant_id = ${tenantId} AND id = ${exemptionId}
+    RETURNING *
+  `
+
+  return rowToExemption(result.rows[0])
+}
+
+export async function approveExemption(tenantId: string, exemptionId: string): Promise<Exemption | null> {
+  await ensureFeeAssignmentTables()
+
+  const result = await sql<ExemptionRow>`
+    UPDATE exemptions
+    SET status = 'approved', approval_date = NOW()
+    WHERE tenant_id = ${tenantId} AND id = ${exemptionId}
+    RETURNING *
+  `
+  if (result.rows.length === 0) return null
+
+  return rowToExemption(result.rows[0])
+}
+
+export async function rejectExemption(tenantId: string, exemptionId: string): Promise<Exemption | null> {
+  await ensureFeeAssignmentTables()
+
+  const result = await sql<ExemptionRow>`
+    UPDATE exemptions
+    SET status = 'rejected', approval_date = NOW()
+    WHERE tenant_id = ${tenantId} AND id = ${exemptionId}
+    RETURNING *
+  `
+  if (result.rows.length === 0) return null
+
+  return rowToExemption(result.rows[0])
+}
+
+export async function deleteExemption(tenantId: string, exemptionId: string): Promise<boolean> {
+  await ensureFeeAssignmentTables()
+
+  const result = await sql<{ id: string }>`
+    DELETE FROM exemptions WHERE tenant_id = ${tenantId} AND id = ${exemptionId} RETURNING id
+  `
+  return result.rows.length > 0
+}
+
+export async function getFeeAssignmentLedger(tenantId: string, feeAssignmentId: string): Promise<{
   assignment: FeeAssignment
   exemptions: Exemption[]
 }> {
   await ensureFeeAssignmentTables()
 
-  const assignment = await getFeeAssignmentById(feeAssignmentId)
+  const assignment = await getFeeAssignmentById(tenantId, feeAssignmentId)
   if (!assignment) throw new Error('Fee assignment not found')
 
-  const exemptions = await getExemptions(feeAssignmentId)
+  const exemptions = await getExemptions(tenantId, feeAssignmentId)
 
   return {
     assignment,
@@ -288,6 +379,7 @@ export async function getFeeAssignmentLedger(feeAssignmentId: string): Promise<{
 }
 
 export async function createPayment(
+  tenantId: string,
   studentId: string,
   feeStructureId: string,
   amount: number,
@@ -302,9 +394,9 @@ export async function createPayment(
 
   const result = await sql<StudentPaymentRow>`
     INSERT INTO student_payments
-      (id, student_id, fee_structure_id, amount, payment_method, reference, receipt_url, recorded_by, notes)
+      (id, tenant_id, student_id, fee_structure_id, amount, payment_method, reference, receipt_url, recorded_by, notes)
     VALUES
-      (${id}, ${studentId}, ${feeStructureId}, ${amount}, ${paymentMethod}, ${reference}, ${receiptUrl}, ${recordedBy}, ${notes})
+      (${id}, ${tenantId}, ${studentId}, ${feeStructureId}, ${amount}, ${paymentMethod}, ${reference}, ${receiptUrl}, ${recordedBy}, ${notes})
     RETURNING *
   `
 
@@ -319,26 +411,27 @@ export async function createPayment(
         ELSE 'partial'
       END,
       updated_at = NOW()
-    WHERE student_id = ${studentId} AND fee_structure_id = ${feeStructureId}
+    WHERE tenant_id = ${tenantId} AND student_id = ${studentId} AND fee_structure_id = ${feeStructureId}
   `
 
   return rowToStudentPayment(result.rows[0])
 }
 
 export async function getStudentPayments(
+  tenantId: string,
   studentId: string,
   feeStructureId?: string
 ): Promise<StudentPayment[]> {
   await ensureFeeAssignmentTables()
 
   let query = sql<StudentPaymentRow>`
-    SELECT * FROM student_payments WHERE student_id = ${studentId}
+    SELECT * FROM student_payments WHERE tenant_id = ${tenantId} AND student_id = ${studentId}
   `
 
   if (feeStructureId) {
     query = sql<StudentPaymentRow>`
       SELECT * FROM student_payments
-      WHERE student_id = ${studentId} AND fee_structure_id = ${feeStructureId}
+      WHERE tenant_id = ${tenantId} AND student_id = ${studentId} AND fee_structure_id = ${feeStructureId}
     `
   }
 
@@ -346,7 +439,7 @@ export async function getStudentPayments(
   return result.rows.map(rowToStudentPayment)
 }
 
-export async function getStudentFeeSummary(studentId: string): Promise<{
+export async function getStudentFeeSummary(tenantId: string, studentId: string): Promise<{
   totalFees: number
   totalPaid: number
   totalBalance: number
@@ -365,7 +458,7 @@ export async function getStudentFeeSummary(studentId: string): Promise<{
         ELSE 'partial'
       END as status
     FROM fee_assignments
-    WHERE student_id = ${studentId}
+    WHERE tenant_id = ${tenantId} AND student_id = ${studentId}
   `
 
   const row = result.rows[0]

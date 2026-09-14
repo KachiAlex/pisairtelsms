@@ -162,6 +162,7 @@ export async function createFeeStructure(
     for (const studentId of studentIds) {
       try {
         await createFeeAssignment(
+          tenantId,
           studentId,
           id,
           academicSession,

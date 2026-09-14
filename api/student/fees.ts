@@ -46,13 +46,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   try {
 
     // Fetch fee summary from database
-    const feeSummary = await getStudentFeeSummary(studentId);
+    const feeSummary = await getStudentFeeSummary(tenantId, studentId);
 
     // Fetch fee assignments to get due date
-    const assignments = await getFeeAssignments(studentId);
+    const assignments = await getFeeAssignments(tenantId, studentId);
     const dueDate = assignments.length > 0 ? assignments[0].dueDate : '2025-03-31';
 
     const summary: FeeSummary = {
@@ -64,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Fetch payments from database
-    const studentPayments = await getStudentPayments(studentId);
+    const studentPayments = await getStudentPayments(tenantId, studentId);
     const payments: Payment[] = studentPayments.map(p => ({
       date: p.paidAt.split('T')[0],
       amount: p.amount,

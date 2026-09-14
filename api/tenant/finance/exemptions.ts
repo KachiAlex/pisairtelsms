@@ -1,5 +1,14 @@
 import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
+import {
+  createExemption,
+  getExemptions,
+  getExemptionById,
+  updateExemption,
+  approveExemption,
+  rejectExemption,
+  deleteExemption,
+} from './_lib/fee-assignments.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
@@ -18,11 +27,6 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-// Mock database for exemptions
-const exemptionsDb: Record<string, any[]> = {}
-
-
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
@@ -34,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/finance/fee-assignments/:feeAssignmentId/exemptions
   if (req.method === 'GET' && feeAssignmentId && !exemptionId && !action) {
     try {
-      const exemptions = exemptionsDb[feeAssignmentId as string] || []
+      const exemptions = await getExemptions(tenantId, feeAssignmentId as string)
       return res.status(200).json({ exemptions })
     } catch (error) {
       console.error('Error fetching exemptions:', error)
@@ -45,8 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/finance/fee-assignments/:feeAssignmentId/exemptions/:exemptionId
   if (req.method === 'GET' && feeAssignmentId && exemptionId && !action) {
     try {
-      const exemptions = exemptionsDb[feeAssignmentId as string] || []
-      const exemption = exemptions.find((e) => e.id === exemptionId)
+      const exemption = await getExemptionById(tenantId, exemptionId as string)
       if (!exemption) {
         return res.status(404).json({ error: 'Exemption not found' })
       }
@@ -87,26 +90,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const exemption = {
-        id: `exemption_${Date.now()}`,
+      const exemption = await createExemption(
+        tenantId,
         studentId,
-        feeAssignmentId,
+        feeAssignmentId as string,
         exemptionType,
-        amount: amount || null,
-        percentage: percentage || null,
+        amount ?? null,
+        percentage ?? null,
         reason,
-        approvedBy: approvedBy || 'system',
-        approvalDate: new Date().toISOString(),
+        approvedBy || 'system',
         effectiveFrom,
-        effectiveTo: effectiveTo || null,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      }
-
-      if (!exemptionsDb[feeAssignmentId as string]) {
-        exemptionsDb[feeAssignmentId as string] = []
-      }
-      exemptionsDb[feeAssignmentId as string].push(exemption)
+        effectiveTo || null
+      )
 
       return res.status(201).json({ data: exemption })
     } catch (error) {
@@ -123,19 +118,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const exemptions = exemptionsDb[feeAssignmentId as string] || []
-      const index = exemptions.findIndex((e) => e.id === exemptionId)
-      if (index === -1) {
+      const updated = await updateExemption(tenantId, exemptionId as string, {
+        exemptionType: body.exemptionType,
+        amount: body.amount,
+        percentage: body.percentage,
+        reason: body.reason,
+        effectiveFrom: body.effectiveFrom,
+        effectiveTo: body.effectiveTo,
+      })
+
+      if (!updated) {
         return res.status(404).json({ error: 'Exemption not found' })
       }
-
-      const updated = {
-        ...exemptions[index],
-        ...body,
-        id: exemptions[index].id,
-        createdAt: exemptions[index].createdAt,
-      }
-      exemptions[index] = updated
 
       return res.status(200).json({ data: updated })
     } catch (error) {
@@ -147,14 +141,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // POST /api/tenant/finance/fee-assignments/:feeAssignmentId/exemptions/:exemptionId/approve
   if (req.method === 'POST' && feeAssignmentId && exemptionId && action === 'approve') {
     try {
-      const exemptions = exemptionsDb[feeAssignmentId as string] || []
-      const exemption = exemptions.find((e) => e.id === exemptionId)
+      const exemption = await approveExemption(tenantId, exemptionId as string)
       if (!exemption) {
         return res.status(404).json({ error: 'Exemption not found' })
       }
-
-      exemption.status = 'approved'
-      exemption.approvalDate = new Date().toISOString()
 
       return res.status(200).json({ data: exemption })
     } catch (error) {
@@ -166,14 +156,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // POST /api/tenant/finance/fee-assignments/:feeAssignmentId/exemptions/:exemptionId/reject
   if (req.method === 'POST' && feeAssignmentId && exemptionId && action === 'reject') {
     try {
-      const exemptions = exemptionsDb[feeAssignmentId as string] || []
-      const exemption = exemptions.find((e) => e.id === exemptionId)
+      const exemption = await rejectExemption(tenantId, exemptionId as string)
       if (!exemption) {
         return res.status(404).json({ error: 'Exemption not found' })
       }
-
-      exemption.status = 'rejected'
-      exemption.approvalDate = new Date().toISOString()
 
       return res.status(200).json({ data: exemption })
     } catch (error) {
@@ -185,13 +171,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // DELETE /api/tenant/finance/fee-assignments/:feeAssignmentId/exemptions/:exemptionId
   if (req.method === 'DELETE' && feeAssignmentId && exemptionId && !action) {
     try {
-      const exemptions = exemptionsDb[feeAssignmentId as string] || []
-      const index = exemptions.findIndex((e) => e.id === exemptionId)
-      if (index === -1) {
+      const deleted = await deleteExemption(tenantId, exemptionId as string)
+      if (!deleted) {
         return res.status(404).json({ error: 'Exemption not found' })
       }
 
-      exemptions.splice(index, 1)
       return res.status(204).send('')
     } catch (error) {
       console.error('Error deleting exemption:', error)

@@ -16,6 +16,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     const childId = req.query.childId as string
     if (!childId) {
       return res.status(400).json({ error: 'Bad request: childId is required' })
@@ -26,10 +28,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Fetch fee summary from database
-    const feeSummary = await getStudentFeeSummary(childId)
+    const feeSummary = await getStudentFeeSummary(tenantId, childId)
 
     // Fetch fee assignments to get due date and fee structure details
-    const assignments = await getFeeAssignments(childId)
+    const assignments = await getFeeAssignments(tenantId, childId)
     const dueDate = assignments.length > 0 ? assignments[0].dueDate : '2025-02-28'
 
     // Build fee structure breakdown
@@ -54,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Fetch payments from database
-    const studentPayments = await getStudentPayments(childId)
+    const studentPayments = await getStudentPayments(tenantId, childId)
     const paymentHistory = studentPayments.map(p => ({
       id: p.id,
       date: p.paidAt.split('T')[0],

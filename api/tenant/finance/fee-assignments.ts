@@ -45,6 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
+
   const { id, action } = req.query
 
   // GET /api/tenant/finance/fee-assignments
@@ -52,6 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { studentId, academicSession, term } = req.query
     try {
       const assignments = await getFeeAssignments(
+        tenantId,
         studentId as string | undefined,
         academicSession as string | undefined,
         term as string | undefined
@@ -66,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/finance/fee-assignments/:id
   if (req.method === 'GET' && id && !action) {
     try {
-      const assignment = await getFeeAssignmentById(id as string)
+      const assignment = await getFeeAssignmentById(tenantId, id as string)
       if (!assignment) {
         return res.status(404).json({ error: 'Fee assignment not found' })
       }
@@ -80,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET /api/tenant/finance/fee-assignments/:id/ledger
   if (req.method === 'GET' && id && action === 'ledger') {
     try {
-      const ledger = await getFeeAssignmentLedger(id as string)
+      const ledger = await getFeeAssignmentLedger(tenantId, id as string)
       return res.status(200).json({ data: ledger })
     } catch (error: any) {
       if (error.message === 'Fee assignment not found') {
@@ -114,6 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const assignment = await createFeeAssignment(
+        tenantId,
         studentId,
         feeStructureId,
         academicSession,
@@ -159,6 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const result = await createFeeAssignment(
+          tenantId,
           studentId,
           feeStructureId,
           academicSession,
@@ -186,7 +191,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { totalAmount, totalPaid, totalBalance, status, dueDate } = body
 
     try {
-      const updated = await updateFeeAssignment(id as string, {
+      const updated = await updateFeeAssignment(tenantId, id as string, {
         totalAmount,
         totalPaid,
         totalBalance,

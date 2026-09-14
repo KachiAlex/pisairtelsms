@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { parseCsvContent, generateCsvTemplate } from '../_lib/csv-parser.js'
 import { upsertAttendanceBatch, type AttendancePayload } from '../_lib/attendance.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
@@ -37,9 +37,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // POST - process CSV upload
   if (req.method === 'POST') {
-    const userId = getUserId(req)
+    // Derive user ID from JWT token (authoritative), not from client-supplied headers
+    const userId = decoded.staffId || decoded.userId || decoded.sub
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'User context required (x-user-id header)' })
+      return res.status(401).json({ success: false, error: 'User identity not found in authentication token' })
     }
 
     const isPreview = req.query['preview'] === 'true'

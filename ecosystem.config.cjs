@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'pisairtel-sms',
-      script: 'server/index.mjs',
+      script: 'server.mjs',
       interpreter: 'node',
       node_args: '--import tsx',
       cwd: '/var/www/pisairtel-sms',
@@ -13,7 +13,7 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3001,
       },
-      // NOTE: PM2 does not support `env_file`. server/index.mjs loads .env
+      // NOTE: PM2 does not support `env_file`. server.mjs loads .env
       // itself at boot (Node 18 has no --env-file / process.loadEnvFile).
       error_file: '/var/log/pisairtel-sms/error.log',
       out_file: '/var/log/pisairtel-sms/out.log',

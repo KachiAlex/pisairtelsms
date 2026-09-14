@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import handler from './dashboard'
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 vi.mock('../_lib/auth-middleware.js', () => ({

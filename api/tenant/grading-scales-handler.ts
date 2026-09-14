@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 
 /**
@@ -27,10 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const tenantId = decoded.tenantId || 'default-tenant';
 
-  const userId =
-    (req.headers['x-user-id'] as string) ||
-    (req.query.userId as string) ||
-    'system';
+  const userId = decoded.staffId || decoded.userId || decoded.sub || 'system';
 
   const { id, action, bandId } = req.query;
   const idStr     = Array.isArray(id)     ? id[0]     : id;
@@ -40,6 +37,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // POST /api/tenant/grading-scales/:id/publish
     if (req.method === 'POST' && idStr && actionStr === 'publish') {
+      // Check for active grading lock period
+      const lockCheck = await sql.query(
+        `SELECT value FROM tenant_settings
+         WHERE tenant_id = $1 AND key = 'grading_lock_until'`,
+        [tenantId]
+      ).catch(() => ({ rows: [] }))
+      if (lockCheck.rows[0]?.value) {
+        const lockUntil = new Date(lockCheck.rows[0].value)
+        if (lockUntil > new Date()) {
+          return res.status(423).json({
+            success: false,
+            error: `Grading is locked until ${lockUntil.toISOString().split('T')[0]}. Cannot publish scale changes during lock period.`,
+          })
+        }
+      }
+
       const r = await sql.query(
         `UPDATE grading_scales SET status='live', published_at=NOW(), published_by=$1, updated_at=NOW()
          WHERE tenant_id=$2 AND id=$3 RETURNING *`,
@@ -50,7 +63,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `INSERT INTO grading_scale_audit(tenant_id,scale_id,action,description,performed_by) VALUES($1,$2,'published','Scale published',$3)`,
         [tenantId, idStr, userId]
       );
-      return res.status(200).json({ success: true, data: r.rows[0] });
+
+      // Mark existing compiled results as stale (require recomputation)
+      // Reset approved/published results back to 'compiled' so they can be recompiled
+      // with the new grading scale
+      const staleResult = await sql.query(
+        `UPDATE compiled_results
+         SET status = 'compiled', compiled_at = NOW()
+         WHERE tenant_id = $1
+           AND status IN ('approved', 'published')
+         RETURNING id`,
+        [tenantId]
+      ).catch(() => ({ rows: [] }))
+
+      return res.status(200).json({
+        success: true,
+        data: r.rows[0],
+        staleResults: staleResult.rows.length,
+        message: staleResult.rows.length > 0
+          ? `Scale published. ${staleResult.rows.length} compiled result(s) marked as stale and require recomputation.`
+          : 'Scale published.',
+      });
     }
 
     // POST /api/tenant/grading-scales/:id/archive
@@ -96,8 +129,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, data: r.rows });
     }
 
-    // GET /api/tenant/grading-scales/audit
-    if (req.method === 'GET' && idStr === 'audit') {
+    // GET /api/tenant/grading-scales?action=audit  (tenant-wide audit log)
+    if (req.method === 'GET' && !idStr && actionStr === 'audit') {
       const limit = parseInt((req.query.limit as string) || '20');
       const r = await sql.query(
         `SELECT * FROM grading_scale_audit WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2`,
@@ -150,7 +183,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       q += ` ORDER BY created_at DESC LIMIT $${p++} OFFSET $${p++}`;
       params.push(limit, offset);
       const r = await sql.query(q, params);
-      return res.status(200).json({ success: true, data: r.rows });
+      // Include bands for each scale so the UI can render them in the list view
+      const scalesWithBands = await Promise.all(r.rows.map(async (scale: any) => {
+        const bandsRes = await sql.query(
+          `SELECT * FROM grading_scale_bands WHERE scale_id=$1 ORDER BY min_score DESC`, [scale.id]
+        );
+        return { ...scale, bands: bandsRes.rows };
+      }));
+      return res.status(200).json({ success: true, data: scalesWithBands });
     }
 
     // POST /api/tenant/grading-scales

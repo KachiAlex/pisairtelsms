@@ -4,7 +4,7 @@
  * Destructive operation - use with caution
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
 import { query } from '../_lib/db.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'
 

@@ -10,8 +10,9 @@
  * Response: Schema verification results
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
 import { verifySchema, generateVerificationReport } from './_lib/schema-verify';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
 interface VerificationResponse {
   success: boolean;
@@ -24,6 +25,9 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  const decoded = await requireRole(req, res, ['tenant_admin'])
+  if (!decoded) return
+
   // Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({

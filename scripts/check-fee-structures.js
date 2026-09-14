@@ -1,4 +1,4 @@
-const { sql } = require('@vercel/postgres')
+const { sql } = require('../api/_lib/sql.mjs')
 
 async function checkFeeStructures() {
   const structures = await sql`

@@ -64,17 +64,17 @@ All features have been successfully implemented, tested, and are ready for produ
 - **Charts**: Recharts 2.15.2
 
 ### Backend
-- **Runtime**: Node.js (Vercel Serverless)
-- **Framework**: Vercel Functions
-- **Database**: Vercel Postgres
+- **Runtime**: Node.js (Express server)
+- **Framework**: Express API handlers
+- **Database**: Local PostgreSQL (pg pool)
 - **Authentication**: JWT
 - **API Routes**: 50+ endpoints
 
 ### Deployment
-- **Platform**: Vercel
+- **Platform**: VPS (PM2)
 - **CI/CD**: Git-based (automatic)
-- **Database**: Vercel Postgres
-- **Monitoring**: Vercel Analytics
+- **Database**: Local PostgreSQL
+- **Monitoring**: PM2 monit
 
 ---
 
@@ -150,13 +150,13 @@ All features have been successfully implemented, tested, and are ready for produ
 
 ## 🚀 Deployment Instructions
 
-### Option 1: Using Vercel CLI
+### Option 1: Using PM2
 ```bash
-# Install Vercel CLI
-npm i -g vercel
+# Install PM2
+npm i -g pm2
 
 # Deploy to production
-vercel deploy --prod
+pm2 restart pisairtel-sms
 ```
 
 ### Option 2: Using Git (Automatic)
@@ -164,14 +164,14 @@ vercel deploy --prod
 # Push to main branch
 git push origin main
 
-# Vercel will automatically deploy
+# PM2 will automatically restart on deploy
 ```
 
-### Option 3: Using Vercel Dashboard
-1. Go to https://vercel.com
-2. Select the ScholarX project
-3. Click "Deploy"
-4. Monitor deployment progress
+### Option 3: Using PM2 monit
+1. Run `pm2 monit` on the VPS
+2. Select the pisairtel-sms process
+3. Monitor deployment progress
+4. Check logs with `pm2 logs pisairtel-sms`
 
 ---
 

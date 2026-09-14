@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 
@@ -44,9 +44,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const r = await sql`
           SELECT name, level, risk_flag AS risk,
                  subjects, allocation_periods AS allocation, contract_hours AS "contractHours"
-          FROM staff WHERE tenant_id = ${tenantId} AND role ILIKE '%teacher%'
+          FROM staff
+          WHERE tenant_id = ${tenantId} AND role ILIKE '%teacher%'
           ORDER BY name ASC LIMIT 50`
-        return res.json({ success: true, data: r.rows })
+        // Normalize subjects JSONB -> string[] for the client
+        const data = r.rows.map((row: any) => ({
+          ...row,
+          subjects: Array.isArray(row.subjects) ? row.subjects : [],
+        }))
+        return res.json({ success: true, data })
       } catch (e) {
         console.error('teachers query error:', e)
         return res.json({ success: true, data: [] })
@@ -86,7 +92,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           SELECT slot, priority, action, relief, eta, impacted
           FROM teacher_substitution_log WHERE tenant_id = ${tenantId}
           ORDER BY created_at DESC LIMIT 20`
-        return res.json({ success: true, data: r.rows })
+        // impacted is TEXT in the DB; split into an array for the client.
+        const data = r.rows.map((row: any) => ({
+          ...row,
+          impacted: row.impacted
+            ? String(row.impacted).split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [],
+        }))
+        return res.json({ success: true, data })
       } catch (e) {
         console.error('substitution-log query error:', e)
         return res.json({ success: true, data: [] })
@@ -99,12 +112,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!Array.isArray(assignments) || assignments.length === 0) {
           return res.status(400).json({ success: false, error: 'No assignments provided' })
         }
+        // Validate that each teacher exists in this tenant before assigning.
+        const teacherNames = Array.from(new Set(assignments.map(a => a.teacher).filter(Boolean)))
+        if (teacherNames.length > 0) {
+          const validTeachers = await sql`
+            SELECT name FROM staff
+            WHERE tenant_id = ${tenantId} AND role ILIKE '%teacher%'
+              AND name = ANY(${teacherNames}::text[])`
+          const validSet = new Set(validTeachers.rows.map((r: any) => r.name))
+          const invalid = teacherNames.filter(n => !validSet.has(n))
+          if (invalid.length > 0) {
+            return res.status(400).json({ success: false, error: `Teacher(s) not found in this tenant: ${invalid.join(', ')}` })
+          }
+        }
         for (const a of assignments) {
           await sql`
             UPDATE teacher_allocation_slots
             SET teacher = ${a.teacher}, coverage = 'Assigned', warnings = GREATEST(warnings - 1, 0)
             WHERE tenant_id = ${tenantId} AND class = ${a.class} AND subject = ${a.subject}`
         }
+        // Recompute allocation_periods / risk_flag for affected teachers.
+        await sql`
+          UPDATE staff s SET
+            allocation_periods = COALESCE((
+              SELECT COUNT(*) FROM teacher_allocation_slots tas
+              WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+            ), 0),
+            risk_flag = CASE
+              WHEN COALESCE((
+                SELECT COUNT(*) FROM teacher_allocation_slots tas
+                WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+              ), 0) > contract_hours AND contract_hours > 0 THEN 'Overload'
+              ELSE 'Normal'
+            END
+          WHERE s.tenant_id = ${tenantId} AND s.role ILIKE '%teacher%'`
         const updated = await sql`
           SELECT class, subject, teacher, coverage, warnings
           FROM teacher_allocation_slots WHERE tenant_id = ${tenantId}
@@ -118,14 +159,119 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'auto-balance' && req.method === 'POST') {
       try {
+        // Real auto-balance: distribute Open slots among teachers who teach the
+        // slot's subject and still have spare capacity (allocation < contract).
+        const openSlots = await sql`
+          SELECT class, subject FROM teacher_allocation_slots
+          WHERE tenant_id = ${tenantId} AND coverage = 'Open'`
+        const teachers = await sql`
+          SELECT name, subjects, allocation_periods, contract_hours
+          FROM staff
+          WHERE tenant_id = ${tenantId} AND role ILIKE '%teacher%'`
+
+        let filled = 0
+        for (const slot of openSlots.rows) {
+          const candidates = teachers.rows.filter((t: any) => {
+            const subjects = Array.isArray(t.subjects) ? t.subjects : []
+            return subjects.includes(slot.subject) && t.allocation_periods < t.contract_hours
+          })
+          if (candidates.length === 0) continue
+          // Pick the teacher with the most spare capacity.
+          candidates.sort((a: any, b: any) =>
+            (b.contract_hours - b.allocation_periods) - (a.contract_hours - a.allocation_periods)
+          )
+          const chosen = candidates[0]
+          await sql`
+            UPDATE teacher_allocation_slots
+            SET teacher = ${chosen.name}, coverage = 'Assigned', warnings = GREATEST(warnings - 1, 0)
+            WHERE tenant_id = ${tenantId} AND class = ${slot.class} AND subject = ${slot.subject}`
+          chosen.allocation_periods += 1
+          filled += 1
+        }
+
+        // Recompute risk flags for all teachers.
+        await sql`
+          UPDATE staff s SET
+            allocation_periods = COALESCE((
+              SELECT COUNT(*) FROM teacher_allocation_slots tas
+              WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+            ), 0),
+            risk_flag = CASE
+              WHEN COALESCE((
+                SELECT COUNT(*) FROM teacher_allocation_slots tas
+                WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+              ), 0) > contract_hours AND contract_hours > 0 THEN 'Overload'
+              ELSE 'Normal'
+            END
+          WHERE s.tenant_id = ${tenantId} AND s.role ILIKE '%teacher%'`
+
         const updated = await sql`
           SELECT class, subject, teacher, coverage, warnings
           FROM teacher_allocation_slots WHERE tenant_id = ${tenantId}
           ORDER BY class ASC, subject ASC`
-        return res.json({ success: true, data: updated.rows, message: 'Auto-balance complete.' })
+        return res.json({
+          success: true,
+          data: updated.rows,
+          message: `Auto-balance complete. ${filled} slot(s) filled.`,
+        })
       } catch (e) {
         console.error('auto-balance error:', e)
-        return res.json({ success: true, data: [], message: 'Auto-balance complete.' })
+        return res.json({ success: true, data: [], message: 'Auto-balance failed.' })
+      }
+    }
+
+    if (action === 'generate-slots' && req.method === 'POST') {
+      try {
+        // Generate allocation slots from the cartesian product of classes and
+        // subjects, so the matrix has rows to assign against. Idempotent: skips
+        // (tenant, class, subject) combos that already exist.
+        const { body } = req
+        const classes = body?.classes
+        const subjects = body?.subjects
+        if (!Array.isArray(classes) || !Array.isArray(subjects) || classes.length === 0 || subjects.length === 0) {
+          return res.status(400).json({ success: false, error: 'classes and subjects arrays are required' })
+        }
+
+        // Validate that classes exist for this tenant (by name)
+        const validClasses = await sql`
+          SELECT DISTINCT name FROM classes
+          WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+            AND name = ANY(${classes}::text[])`
+        const validClassSet = new Set(validClasses.rows.map((r: any) => r.name))
+        const invalidClasses = classes.filter((c: string) => !validClassSet.has(c))
+        if (invalidClasses.length > 0) {
+          return res.status(400).json({ success: false, error: `Class(es) not found in this tenant: ${invalidClasses.join(', ')}` })
+        }
+
+        // Validate that subjects exist for this tenant (by name)
+        const validSubjects = await sql`
+          SELECT DISTINCT name FROM subjects
+          WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+            AND name = ANY(${subjects}::text[])`
+        const validSubjectSet = new Set(validSubjects.rows.map((r: any) => r.name))
+        const invalidSubjects = subjects.filter((s: string) => !validSubjectSet.has(s))
+        if (invalidSubjects.length > 0) {
+          return res.status(400).json({ success: false, error: `Subject(s) not found in this tenant: ${invalidSubjects.join(', ')}` })
+        }
+
+        let created = 0
+        for (const cls of classes) {
+          for (const subj of subjects) {
+            const existing = await sql`
+              SELECT 1 FROM teacher_allocation_slots
+              WHERE tenant_id = ${tenantId} AND class = ${cls} AND subject = ${subj}`
+            if (existing.rows.length === 0) {
+              await sql`
+                INSERT INTO teacher_allocation_slots (id, tenant_id, class, subject, coverage, warnings)
+                VALUES (gen_random_uuid()::text, ${tenantId}, ${cls}, ${subj}, 'Open', 0)`
+              created += 1
+            }
+          }
+        }
+        return res.json({ success: true, message: `Generated ${created} slot(s).` })
+      } catch (e) {
+        console.error('generate-slots error:', e)
+        return res.status(500).json({ success: false, error: 'Failed to generate slots' })
       }
     }
 

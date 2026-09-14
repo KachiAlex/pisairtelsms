@@ -221,6 +221,10 @@
       "destination": "/api/tenant/grading-scales-handler.ts"
     },
     {
+      "source": "/api/tenant/grading-scales",
+      "destination": "/api/tenant/grading-scales-handler.ts"
+    },
+    {
       "source": "/api/tenant/system-alerts/channels",
       "destination": "/api/tenant/system-alerts/channels.ts"
     },
@@ -319,6 +323,22 @@
     {
       "source": "/api/tenant/academics/subjects",
       "destination": "/api/tenant/academics/subjects.ts"
+    },
+    {
+      "source": "/api/tenant/academics/classes",
+      "destination": "/api/tenant/academics/classes.ts"
+    },
+    {
+      "source": "/api/tenant/academics/overview",
+      "destination": "/api/tenant/academics/overview.ts"
+    },
+    {
+      "source": "/api/tenant/academics/departments",
+      "destination": "/api/tenant/academics/departments.ts"
+    },
+    {
+      "source": "/api/tenant/academics/programs",
+      "destination": "/api/tenant/academics/programs.ts"
     },
     {
       "source": "/api/tenant/analytics/academic",

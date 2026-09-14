@@ -1,4 +1,4 @@
-import { VercelRequest, VercelResponse } from '@vercel/node'
+import { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { initializeDatabase, query, queryOne } from './cbt/_lib/db.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 

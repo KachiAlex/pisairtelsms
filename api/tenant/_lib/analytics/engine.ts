@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { sql } from '../../../_lib/sql.js'
 import { calculateSummaryStats, type SummaryStats } from '../attendance'
 
 export interface AnalyticsFilters {

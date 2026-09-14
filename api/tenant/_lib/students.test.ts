@@ -1,206 +1,273 @@
-import { describe, it, expect } from 'vitest'
-
 /**
- * Unit tests for rowToStudent conversion
- * Tests that every field maps correctly from snake_case DB row to camelCase frontend type.
- * Validates: Requirements 12.4
+ * Students Library - Unit Tests
+ * Tests for CRUD operations, admission number retry on collision,
+ * tenant isolation, dependent-data blocking on delete, and audit logging.
  */
 
-// Mirrors the StudentRow and Student types from the API layer
-interface StudentRow {
-  id: string
-  admission_no: string
-  name: string
-  class: string
-  arm: string
-  gender: string
-  status: 'Active' | 'Suspended' | 'Graduated'
-  guardian: string
-  phone: string
-  created_at?: string
-  updated_at?: string
-}
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import {
+  fetchStudents,
+  fetchStudentCount,
+  getStudent,
+  createStudent,
+  createStudents,
+  updateStudent,
+  deleteStudent,
+} from './students.js'
 
-interface Student {
-  id: string
-  admissionNo: string
-  name: string
-  class: string
-  arm: string
-  gender: string
-  status: 'Active' | 'Suspended' | 'Graduated'
-  guardian: string
-  phone: string
-  created_at?: string
-  updated_at?: string
-}
+// Mock the database module
+const mockQuery = vi.fn()
+const mockQueryOne = vi.fn()
+const mockQueryAll = vi.fn()
+vi.mock('../cbt/_lib/db.js', () => ({
+  query: (...args: any[]) => mockQuery(...args),
+  queryOne: (...args: any[]) => mockQueryOne(...args),
+  queryAll: (...args: any[]) => mockQueryAll(...args),
+  transaction: vi.fn(),
+  initializeDatabase: vi.fn(),
+  getPool: vi.fn(),
+}))
 
-// rowToStudent conversion function (mirrors api/tenant/_lib/students.ts logic)
-function rowToStudent(row: StudentRow): Student {
-  return {
-    id: row.id,
-    admissionNo: row.admission_no,
-    name: row.name,
-    class: row.class,
-    arm: row.arm,
-    gender: row.gender,
-    status: row.status,
-    guardian: row.guardian,
-    phone: row.phone,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  }
-}
+// Mock tenant-settings fetch (used by generateAdmissionNo)
+vi.mock('./tenant-settings.js', () => ({
+  fetchTenantSettings: vi.fn().mockResolvedValue({
+    admissionNoFormat: '{PREFIX}/{YEAR}/{SEQ}',
+    admissionNoDigits: 4,
+    schoolName: 'Test School',
+  }),
+}))
 
-function buildRow(overrides: Partial<StudentRow> = {}): StudentRow {
-  return {
-    id: 'student_001',
-    admission_no: 'ADM001',
-    name: 'John Doe',
-    class: 'JSS 1',
-    arm: 'A',
-    gender: 'Male',
-    status: 'Active',
-    guardian: 'Jane Doe',
-    phone: '+2348012345678',
-    created_at: '2024-01-01T00:00:00.000Z',
-    updated_at: '2024-01-02T00:00:00.000Z',
-    ...overrides,
-  }
-}
+// Mock parent provisioning (called inside createStudent)
+vi.mock('./parents.js', () => ({
+  createOrLinkParent: vi.fn().mockResolvedValue(undefined),
+}))
 
-describe('rowToStudent conversion', () => {
-  describe('Field mapping — snake_case to camelCase', () => {
-    it('should map admission_no to admissionNo', () => {
-      const row = buildRow({ admission_no: 'ADM999' })
-      const student = rowToStudent(row)
-      expect(student.admissionNo).toBe('ADM999')
-    })
+describe('Students Library', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
-    it('should preserve id unchanged', () => {
-      const row = buildRow({ id: 'student_xyz' })
-      const student = rowToStudent(row)
-      expect(student.id).toBe('student_xyz')
-    })
+  describe('fetchStudents', () => {
+    it('should return students scoped to the tenant', async () => {
+      mockQueryAll.mockResolvedValue([
+        { id: 's1', admission_no: 'SCH/2026/0001', name: 'John', class: 'JSS1', arm: 'A', gender: 'Male', status: 'Active', guardian: 'Parent', phone: '123' },
+      ])
 
-    it('should preserve name unchanged', () => {
-      const row = buildRow({ name: 'Chioma Okafor' })
-      const student = rowToStudent(row)
-      expect(student.name).toBe('Chioma Okafor')
-    })
+      const result = await fetchStudents('t1')
 
-    it('should preserve class unchanged', () => {
-      const row = buildRow({ class: 'SSS 3' })
-      const student = rowToStudent(row)
-      expect(student.class).toBe('SSS 3')
-    })
-
-    it('should preserve arm unchanged', () => {
-      const row = buildRow({ arm: 'B' })
-      const student = rowToStudent(row)
-      expect(student.arm).toBe('B')
-    })
-
-    it('should preserve gender unchanged', () => {
-      const row = buildRow({ gender: 'Female' })
-      const student = rowToStudent(row)
-      expect(student.gender).toBe('Female')
-    })
-
-    it('should preserve status unchanged', () => {
-      const statuses: Array<'Active' | 'Suspended' | 'Graduated'> = ['Active', 'Suspended', 'Graduated']
-      for (const status of statuses) {
-        const row = buildRow({ status })
-        const student = rowToStudent(row)
-        expect(student.status).toBe(status)
-      }
-    })
-
-    it('should preserve guardian unchanged', () => {
-      const row = buildRow({ guardian: 'Mr. Adewale' })
-      const student = rowToStudent(row)
-      expect(student.guardian).toBe('Mr. Adewale')
-    })
-
-    it('should preserve phone unchanged', () => {
-      const row = buildRow({ phone: '+2348099999999' })
-      const student = rowToStudent(row)
-      expect(student.phone).toBe('+2348099999999')
+      expect(result).toHaveLength(1)
+      expect(result[0].name).toBe('John')
+      expect(mockQueryAll).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE tenant_id = $1 AND deleted_at IS NULL'),
+        ['t1']
+      )
     })
   })
 
-  describe('Optional fields — created_at and updated_at', () => {
-    it('should preserve created_at when present', () => {
-      const ts = '2024-06-15T10:30:00.000Z'
-      const row = buildRow({ created_at: ts })
-      const student = rowToStudent(row)
-      expect(student.created_at).toBe(ts)
+  describe('fetchStudentCount', () => {
+    it('should return count of active students for the tenant', async () => {
+      mockQueryOne.mockResolvedValue({ count: '5' })
+      const result = await fetchStudentCount('t1')
+      expect(result).toBe(5)
     })
 
-    it('should preserve updated_at when present', () => {
-      const ts = '2024-06-20T08:00:00.000Z'
-      const row = buildRow({ updated_at: ts })
-      const student = rowToStudent(row)
-      expect(student.updated_at).toBe(ts)
-    })
-
-    it('should set created_at to undefined when not present in row', () => {
-      const row = buildRow()
-      delete row.created_at
-      const student = rowToStudent(row)
-      expect(student.created_at).toBeUndefined()
-    })
-
-    it('should set updated_at to undefined when not present in row', () => {
-      const row = buildRow()
-      delete row.updated_at
-      const student = rowToStudent(row)
-      expect(student.updated_at).toBeUndefined()
-    })
-
-    it('should handle both optional fields absent simultaneously', () => {
-      const row = buildRow()
-      delete row.created_at
-      delete row.updated_at
-      const student = rowToStudent(row)
-      expect(student.created_at).toBeUndefined()
-      expect(student.updated_at).toBeUndefined()
+    it('should return 0 on error', async () => {
+      mockQueryOne.mockRejectedValue(new Error('DB error'))
+      const result = await fetchStudentCount('t1')
+      expect(result).toBe(0)
     })
   })
 
-  describe('Complete round-trip mapping', () => {
-    it('should correctly map all fields in a full row', () => {
-      const row = buildRow()
-      const student = rowToStudent(row)
-
-      expect(student.id).toBe(row.id)
-      expect(student.admissionNo).toBe(row.admission_no)
-      expect(student.name).toBe(row.name)
-      expect(student.class).toBe(row.class)
-      expect(student.arm).toBe(row.arm)
-      expect(student.gender).toBe(row.gender)
-      expect(student.status).toBe(row.status)
-      expect(student.guardian).toBe(row.guardian)
-      expect(student.phone).toBe(row.phone)
-      expect(student.created_at).toBe(row.created_at)
-      expect(student.updated_at).toBe(row.updated_at)
+  describe('getStudent', () => {
+    it('should return null when student is not found', async () => {
+      mockQueryOne.mockResolvedValue(null)
+      const result = await getStudent('nonexistent', 't1')
+      expect(result).toBeNull()
     })
 
-    it('should not include admission_no key (only admissionNo)', () => {
-      const row = buildRow()
-      const student = rowToStudent(row) as Record<string, unknown>
-      expect('admission_no' in student).toBe(false)
-      expect('admissionNo' in student).toBe(true)
+    it('should scope by both tenant and student id', async () => {
+      mockQueryOne.mockResolvedValue(null)
+      await getStudent('s1', 't1')
+      expect(mockQueryOne).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL'),
+        ['s1', 't1']
+      )
+    })
+  })
+
+  describe('createStudent', () => {
+    it('should create a student with an explicit admission number', async () => {
+      mockQueryOne.mockResolvedValue({
+        id: 's1', admission_no: 'CUSTOM/001', name: 'John', class: 'JSS1', arm: 'A',
+        gender: 'Male', status: 'Active', guardian: 'Parent', phone: '123', guardian_email: null,
+      })
+
+      const result = await createStudent('t1', {
+        admissionNo: 'CUSTOM/001',
+        name: 'John',
+        class: 'JSS1',
+        arm: 'A',
+        gender: 'Male',
+        status: 'Active',
+        guardian: 'Parent',
+        phone: '123',
+      })
+
+      expect(result.admissionNo).toBe('CUSTOM/001')
+      // Should only call INSERT once (no retry needed for explicit admission number)
+      expect(mockQueryOne).toHaveBeenCalledTimes(1)
     })
 
-    it('should map multiple rows consistently (property-based)', () => {
-      const admissionNos = ['ADM001', 'ADM002', 'ADM003', 'ADM100', 'ADM999']
-      for (const admNo of admissionNos) {
-        const row = buildRow({ admission_no: admNo, id: `student_${admNo}` })
-        const student = rowToStudent(row)
-        expect(student.admissionNo).toBe(admNo)
-        expect(student.id).toBe(`student_${admNo}`)
+    it('should retry when admission number collides (unique violation)', async () => {
+      // generateAdmissionNo calls queryOne for the count.
+      // insertStudent calls queryOne for the INSERT.
+      // On collision, the INSERT rejects with code 23505, then we retry:
+      //   generateAdmissionNo (count) -> insertStudent (INSERT) -> success
+      const uniqueError: any = new Error('duplicate key')
+      uniqueError.code = '23505'
+
+      mockQueryOne
+        .mockResolvedValueOnce({ count: '0' })   // generateAdmissionNo count (attempt 0)
+        .mockRejectedValueOnce(uniqueError)      // insertStudent INSERT (attempt 0) - collision
+        .mockResolvedValueOnce({ count: '0' })   // generateAdmissionNo count (attempt 1)
+        .mockResolvedValueOnce({                 // insertStudent INSERT (attempt 1) - success
+          id: 's1', admission_no: 'SCH/2026/0002', name: 'John', class: 'JSS1', arm: 'A',
+          gender: 'Male', status: 'Active', guardian: 'Parent', phone: '123', guardian_email: null,
+        })
+
+      const result = await createStudent('t1', {
+        name: 'John',
+        class: 'JSS1',
+        arm: 'A',
+        gender: 'Male',
+        status: 'Active',
+        guardian: 'Parent',
+        phone: '123',
+      })
+
+      expect(result.admissionNo).toBe('SCH/2026/0002')
+    })
+
+    it('should throw after max retries when admission number keeps colliding', async () => {
+      const uniqueError: any = new Error('duplicate key')
+      uniqueError.code = '23505'
+
+      // Every INSERT fails with unique violation; count queries succeed.
+      // Pattern per attempt: generateAdmissionNo (count) -> insertStudent (INSERT reject)
+      mockQueryOne.mockReset()
+      for (let i = 0; i < 5; i++) {
+        mockQueryOne.mockResolvedValueOnce({ count: '0' }) // count
+        mockQueryOne.mockRejectedValueOnce(uniqueError)     // INSERT - collision
       }
+
+      await expect(
+        createStudent('t1', {
+          name: 'John', class: 'JSS1', arm: 'A', gender: 'Male',
+          status: 'Active', guardian: 'Parent', phone: '123',
+        })
+      ).rejects.toThrow('Unable to generate a unique admission number')
+    })
+  })
+
+  describe('updateStudent', () => {
+    it('should update student fields using !== undefined checks', async () => {
+      mockQueryOne.mockResolvedValue({
+        id: 's1', admission_no: 'SCH/001', name: 'John Updated', class: 'JSS2', arm: 'A',
+        gender: 'Male', status: 'Active', guardian: 'Parent', phone: '123', guardian_email: null,
+      })
+
+      const result = await updateStudent('s1', 't1', { name: 'John Updated', class: 'JSS2' })
+
+      expect(result!.name).toBe('John Updated')
+      // Verify the UPDATE query was called with tenant scoping
+      const updateCall = mockQueryOne.mock.calls.find(
+        (call) => typeof call[0] === 'string' && call[0].includes('UPDATE students')
+      )
+      expect(updateCall).toBeDefined()
+      expect(updateCall![0]).toContain('WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL')
+    })
+
+    it('should allow clearing fields to empty string', async () => {
+      mockQueryOne.mockResolvedValue({
+        id: 's1', admission_no: 'SCH/001', name: '', class: 'JSS1', arm: '', gender: 'Male',
+        status: 'Active', guardian: 'Parent', phone: '', guardian_email: null,
+      })
+
+      await updateStudent('s1', 't1', { name: '', arm: '', phone: '' })
+
+      // Verify the UPDATE included the empty string values (not skipped)
+      const updateCall = mockQueryOne.mock.calls.find(
+        (call) => typeof call[0] === 'string' && call[0].includes('UPDATE students')
+      )
+      expect(updateCall).toBeDefined()
+      // The values array should contain empty strings
+      expect(updateCall![1]).toContain('')
+    })
+
+    it('should return null when student is not found', async () => {
+      mockQueryOne.mockResolvedValue(null)
+      const result = await updateStudent('nonexistent', 't1', { name: 'New' })
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('deleteStudent', () => {
+    it('should block deletion when student scores exist', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ 1: 1 }] }) // score check - has scores
+
+      await expect(deleteStudent('s1', 't1')).rejects.toThrow(
+        'Cannot delete student: scores are still recorded'
+      )
+    })
+
+    it('should block deletion when attendance records exist', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // no scores
+        .mockResolvedValueOnce({ rows: [{ 1: 1 }] }) // attendance check - has records
+
+      await expect(deleteStudent('s1', 't1')).rejects.toThrow(
+        'Cannot delete student: attendance records exist'
+      )
+    })
+
+    it('should block deletion when promotion records exist', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // no scores
+        .mockResolvedValueOnce({ rows: [] }) // no attendance
+        .mockResolvedValueOnce({ rows: [{ 1: 1 }] }) // promotion check - has records
+
+      await expect(deleteStudent('s1', 't1')).rejects.toThrow(
+        'Cannot delete student: promotion records exist'
+      )
+    })
+
+    it('should soft-delete when no dependent data exists', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // no scores
+        .mockResolvedValueOnce({ rows: [] }) // no attendance
+        .mockResolvedValueOnce({ rows: [] }) // no promotions
+        .mockResolvedValueOnce({ rowCount: 1 }) // soft delete
+
+      const result = await deleteStudent('s1', 't1')
+      expect(result).toBe(true)
+
+      // Verify the soft-delete query sets deleted_at
+      const deleteCall = mockQuery.mock.calls.find(
+        (call) => typeof call[0] === 'string' && call[0].includes('SET deleted_at')
+      )
+      expect(deleteCall).toBeDefined()
+    })
+
+    it('should return false when student is not found', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // no scores
+        .mockResolvedValueOnce({ rows: [] }) // no attendance
+        .mockResolvedValueOnce({ rows: [] }) // no promotions
+        .mockResolvedValueOnce({ rowCount: 0 }) // soft delete - no row affected
+
+      const result = await deleteStudent('nonexistent', 't1')
+      expect(result).toBe(false)
     })
   })
 })

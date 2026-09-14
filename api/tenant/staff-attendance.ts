@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import {
   ensureStaffTables,
   validateGeofence,
@@ -53,12 +53,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ORDER BY name ASC
       `
 
-      // Fetch attendance records for the target date
+      // Fetch attendance records for the target date (tenant-scoped)
       const attendanceResult = await sql`
         SELECT id, staff_id, staff_name, date::text, check_in, check_out,
                status, notes, latitude, longitude, geo_verified, created_at
         FROM staff_attendance
-        WHERE date = ${targetDate}
+        WHERE date = ${targetDate} AND tenant_id = ${tenantId}
         ORDER BY staff_name ASC
       `
 
@@ -196,18 +196,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
       }
 
-      // Get staff name
+      // Validate status
+      const validStatuses = ['present', 'absent', 'late', 'half_day']
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          error: `status must be one of: ${validStatuses.join(', ')}`,
+        })
+      }
+
+      // Validate date format (YYYY-MM-DD)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({
+          success: false,
+          error: 'date must be in YYYY-MM-DD format',
+        })
+      }
+
+      // Validate date is not in the future
+      const recordDate = new Date(date)
+      const today = new Date()
+      today.setHours(23, 59, 59, 999)
+      if (recordDate > today) {
+        return res.status(400).json({
+          success: false,
+          error: 'date cannot be in the future',
+        })
+      }
+
+      // Get staff name (tenant-scoped)
       const staffResult = await sql`
-        SELECT name FROM staff WHERE id = ${staffId} LIMIT 1
+        SELECT name FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
       `
       const staffName = staffResult.rows[0]?.name || 'Unknown'
 
       const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       const result = await sql`
-        INSERT INTO staff_attendance (id, staff_id, staff_name, date, check_in, check_out, status, notes, geo_verified)
-        VALUES (${id}, ${staffId}, ${staffName}, ${date},
+        INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, check_out, status, notes, geo_verified)
+        VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${date},
                 ${checkIn || null}, ${checkOut || null}, ${status}, ${notes || 'Admin override'}, true)
-        ON CONFLICT (staff_id, date) DO UPDATE SET
+        ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
           status = EXCLUDED.status,
           check_in = COALESCE(EXCLUDED.check_in, staff_attendance.check_in),
           check_out = COALESCE(EXCLUDED.check_out, staff_attendance.check_out),

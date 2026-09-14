@@ -13,9 +13,9 @@
 - ✅ All dependencies resolved
 
 ### Production URLs
-- **Primary**: https://scholarx-app.vercel.app
-- **Vercel Inspect**: https://vercel.com/kachianietie/scholarx-app/DJifNCybfFsiCrcBzrPqiJMN22R
-- **Deployment ID**: DJifNCybfFsiCrcBzrPqiJMN22R
+- **Primary**: http://your-vps-domain:3000
+- **PM2 monit**: run `pm2 monit` on the VPS
+- **Process Name**: pisairtel-sms
 
 ### Features Deployed
 - ✅ Student Portal (8 APIs, 7 pages)
@@ -53,7 +53,7 @@
 ## Post-Deployment Checklist
 
 ### Immediate Actions
-- [ ] Verify all portals accessible at https://scholarx-app.vercel.app
+- [ ] Verify all portals accessible at http://your-vps-domain:3000
 - [ ] Test student login flow
 - [ ] Test staff login flow
 - [ ] Test admin login flow
@@ -81,7 +81,7 @@
 
 If issues occur, rollback to previous version:
 ```bash
-vercel rollback
+pm2 reload pisairtel-sms
 ```
 
 Or redeploy from git:
@@ -99,7 +99,7 @@ git push origin main
 - Check CORS configuration
 
 **Issue**: API endpoints returning 500
-- Check server logs in Vercel dashboard
+- Check server logs via `pm2 logs pisairtel-sms`
 - Verify database migrations
 - Check environment variables
 
@@ -109,8 +109,8 @@ git push origin main
 - Check database query performance
 
 ### Getting Help
-- Vercel Dashboard: https://vercel.com/kachianietie/scholarx-app
-- Check deployment logs for errors
+- PM2 monit: run `pm2 monit` on the VPS
+- Check deployment logs for errors (`pm2 logs pisairtel-sms`)
 - Review environment variables configuration
 
 ## Next Steps

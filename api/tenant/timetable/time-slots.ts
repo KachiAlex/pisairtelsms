@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot, timeSlotsOverlap } from './_lib/time-slots.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'

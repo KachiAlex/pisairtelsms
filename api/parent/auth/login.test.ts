@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import handler from './login'
 
 // Mock jose SignJWT
@@ -12,9 +12,9 @@ vi.mock('jose', () => ({
   }
 }))
 
-// Mock @vercel/postgres for any direct sql calls (e.g. the transparent
+// Mock the local SQL helper for any direct sql calls (e.g. the transparent
 // Argon2id hash upgrade after a successful legacy-hash login)
-vi.mock('@vercel/postgres', () => ({
+vi.mock('../../_lib/sql.js', () => ({
   sql: vi.fn(async () => ({ rows: [] })),
 }))
 

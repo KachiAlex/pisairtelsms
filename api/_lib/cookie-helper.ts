@@ -1,4 +1,4 @@
-import type { VercelResponse } from '@vercel/node'
+import type { VercelResponse } from './http-types.js'
 
 export interface CookieOptions {
   httpOnly?: boolean

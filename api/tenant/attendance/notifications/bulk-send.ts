@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
 import { triggerAtRiskNotifications } from '../../_lib/attendance.js'
 import { getBulkNotificationJob } from '../../_lib/guardian-notifications.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'

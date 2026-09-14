@@ -1,6 +1,7 @@
 // Re-export canonical Student type from shared types
 export type { Student } from '../types'
 import type { Student } from '../types'
+import { tenantApiFetch, tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from './tenantApi'
 
 export interface StudentPayload {
   admissionNo?: string
@@ -29,17 +30,13 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
 }
 
 export async function fetchStudents(): Promise<Student[]> {
-  const response = await fetch('/api/tenant/students')
+  const response = await tenantApiGet('/api/tenant/students')
   const result = await parseResponse<Student[]>(response)
   return result.data ?? []
 }
 
 export async function createStudent(studentData: StudentPayload): Promise<Student> {
-  const response = await fetch('/api/tenant/students', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ student: studentData }),
-  })
+  const response = await tenantApiPost('/api/tenant/students', { student: studentData })
   const result = await parseResponse<Student>(response)
   if (!result.data) {
     throw new Error('Unable to create student.')
@@ -48,11 +45,7 @@ export async function createStudent(studentData: StudentPayload): Promise<Studen
 }
 
 export async function createStudents(studentsData: StudentPayload[]): Promise<Student[]> {
-  const response = await fetch('/api/tenant/students', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ students: studentsData }),
-  })
+  const response = await tenantApiPost('/api/tenant/students', { students: studentsData })
   const result = await parseResponse<Student[]>(response)
   if (!result.data) {
     throw new Error('Unable to create students.')
@@ -61,11 +54,7 @@ export async function createStudents(studentsData: StudentPayload[]): Promise<St
 }
 
 export async function updateStudent(id: string, studentData: Partial<StudentPayload>): Promise<Student> {
-  const response = await fetch(`/api/tenant/students?id=${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(studentData),
-  })
+  const response = await tenantApiPut(`/api/tenant/students?id=${encodeURIComponent(id)}`, studentData)
   const result = await parseResponse<Student>(response)
   if (!result.data) {
     throw new Error('Unable to update student.')
@@ -74,9 +63,7 @@ export async function updateStudent(id: string, studentData: Partial<StudentPayl
 }
 
 export async function deleteStudent(id: string): Promise<void> {
-  const response = await fetch(`/api/tenant/students?id=${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  })
+  const response = await tenantApiDelete(`/api/tenant/students?id=${encodeURIComponent(id)}`)
   await parseResponse<void>(response)
 }
 

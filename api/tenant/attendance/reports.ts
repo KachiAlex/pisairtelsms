@@ -4,7 +4,7 @@
  * Validates: Requirements 21
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { getReport, generateAttendanceReport, type ReportFilter } from '../_lib/report-generator.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 

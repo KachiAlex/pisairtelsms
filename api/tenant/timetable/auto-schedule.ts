@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { sql } from './_lib/db.js'
 import { randomUUID } from 'crypto'
 import { requireRole } from '../../_lib/auth-middleware.js'

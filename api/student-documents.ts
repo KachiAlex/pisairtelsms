@@ -1,6 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from './_lib/http-types.js'
 import { runMigrations, initializeDatabase } from './tenant/cbt/_lib/db.js'
-import { fetchStudentDocuments, updateStudentDocumentStatus } from './tenant/_lib/studentDocuments.js'
+import { fetchStudentDocuments, updateStudentDocumentStatus, deleteStudentDocument } from './tenant/_lib/studentDocuments.js'
 import { requireRole } from './_lib/auth-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -45,6 +45,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error) {
       console.error('Error updating student document:', error)
       return res.status(500).json({ error: 'Failed to update student document' })
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    const { id } = req.query
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Document ID is required' })
+    }
+
+    try {
+      const deleted = await deleteStudentDocument(id, tenantId)
+      if (!deleted) {
+        return res.status(404).json({ error: 'Document not found' })
+      }
+      return res.status(204).end()
+    } catch (error) {
+      console.error('Error deleting student document:', error)
+      return res.status(500).json({ error: 'Failed to delete student document' })
     }
   }
 

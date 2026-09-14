@@ -15,7 +15,7 @@
  * All DB lookups are cached in-process with a short TTL so the hot path is a
  * hash-map hit, not a query.
  */
-import { sql } from '@vercel/postgres'
+import { sql } from './sql.js'
 
 /** Comma-separated root domains that carry `{slug}.<root>` school hosts. */
 const ROOT_DOMAINS: string[] = (process.env.TENANT_ROOT_DOMAINS || 'pisairtelsms.com')

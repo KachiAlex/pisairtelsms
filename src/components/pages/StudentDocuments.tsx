@@ -14,6 +14,7 @@ import {
   Eye,
   MailQuestion,
   XCircle,
+  Trash2,
 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -32,10 +33,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DocumentUploadDialog } from './DocumentUploadDialog'
 import {
   fetchStudentDocuments,
+  deleteStudentDocument,
   StudentDocument,
   StudentDocumentCategory,
   StudentDocumentStatus,
 } from '../../lib/studentDocumentsClient'
+import { tenantApiFetch } from '../../lib/tenantApi'
 
 const STATUS_ORDER: StudentDocumentStatus[] = ['Pending review', 'Awaiting upload', 'Escalated']
 
@@ -56,7 +59,7 @@ export function StudentDocuments() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | StudentDocumentCategory>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | StudentDocumentStatus>('all')
   const [selectedDoc, setSelectedDoc] = useState<StudentDocument | null>(null)
-  const [actionType, setActionType] = useState<'approve' | 'request' | 'reject' | null>(null)
+  const [actionType, setActionType] = useState<'approve' | 'request' | 'reject' | 'delete' | null>(null)
   const [documents, setDocuments] = useState<StudentDocument[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -242,13 +245,28 @@ export function StudentDocuments() {
 
   const handleConfirmAction = useCallback(async () => {
     if (!selectedDoc || !actionType) return
+
+    // Delete action uses a different endpoint and handler
+    if (actionType === 'delete') {
+      try {
+        await deleteStudentDocument(selectedDoc.id)
+        setActionType(null)
+        setSelectedDoc(null)
+        loadDocuments()
+      } catch (err) {
+        console.error('Error deleting document:', err)
+        setError('Failed to delete document. Please try again.')
+      }
+      return
+    }
+
     const statusMap: Record<string, string> = {
       approve: 'Pending review',
       request: 'Awaiting upload',
       reject: 'Escalated',
     }
     try {
-      const response = await fetch(`/api/student-documents?id=${encodeURIComponent(selectedDoc.student + '-' + selectedDoc.doc)}&status=${encodeURIComponent(statusMap[actionType])}`, {
+      const response = await tenantApiFetch(`/api/student-documents?id=${encodeURIComponent(selectedDoc.id)}&status=${encodeURIComponent(statusMap[actionType])}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -628,6 +646,9 @@ export function StudentDocuments() {
                 <Button variant="destructive" onClick={() => setActionType('reject')}>
                   <XCircle className="h-4 w-4 mr-2" /> Reject document
                 </Button>
+                <Button variant="ghost" className="text-red-600" onClick={() => setActionType('delete')}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                </Button>
               </div>
             </div>
           )}
@@ -641,6 +662,7 @@ export function StudentDocuments() {
               {actionType === 'approve' && 'Approve document'}
               {actionType === 'request' && 'Request new upload'}
               {actionType === 'reject' && 'Reject document'}
+              {actionType === 'delete' && 'Delete document'}
             </DialogTitle>
             <DialogDescription>
               {selectedDoc ? `${selectedDoc.doc} for ${selectedDoc.student}` : 'Select a document to proceed.'}
@@ -650,12 +672,16 @@ export function StudentDocuments() {
             {actionType === 'approve' && 'This will mark the document as reviewed and archive it.'}
             {actionType === 'request' && 'This will set the document status to awaiting upload and notify the guardian.'}
             {actionType === 'reject' && 'This will escalate the document for further action.'}
+            {actionType === 'delete' && 'This will permanently remove the document record. This action cannot be undone.'}
           </p>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setActionType(null)}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmAction}>
+            <Button
+              variant={actionType === 'delete' ? 'destructive' : 'default'}
+              onClick={handleConfirmAction}
+            >
               Confirm
             </Button>
           </div>

@@ -184,7 +184,7 @@ interface SendInvitePayload {
 async function sendParentInviteEmail(payload: SendInvitePayload): Promise<void> {
   const { email, name, tempPassword, accessToken } = payload;
 
-  const portalUrl = process.env.PARENT_PORTAL_URL || `${process.env.APP_URL || 'https://scholarx-app.vercel.app'}/parent-login`;
+  const portalUrl = process.env.PARENT_PORTAL_URL || `${process.env.APP_URL || 'http://localhost:3000'}/parent-login`;
   const loginUrl = `${portalUrl}?token=${accessToken}`;
 
   const resendApiKey = process.env.RESEND_API_KEY;

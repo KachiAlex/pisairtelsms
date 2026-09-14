@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { getDevice, updateDeviceConfig, updateDeviceStatus, deleteDevice } from '../_lib/biometric-devices.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 

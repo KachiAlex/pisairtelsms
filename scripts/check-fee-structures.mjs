@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { sql } from '../api/_lib/sql.mjs'
 
 const result = await sql`
   SELECT id, name, academic_session, term, created_at 

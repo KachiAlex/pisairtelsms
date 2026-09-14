@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { verifyParentChildRelationship } from '../../src/lib/parentAuth'
 
@@ -15,6 +15,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     const childId = req.query.childId as string
     const termId = req.query.termId as string
 
@@ -28,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const dayOrder: Record<string, number> = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 }
 
-    const childRow = await sql`SELECT class, arm FROM students WHERE id = ${childId} AND deleted_at IS NULL LIMIT 1`
+    const childRow = await sql`SELECT class, arm FROM students WHERE id = ${childId} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1`
     if (!childRow.rows[0]) return res.status(404).json({ error: 'Child not found' })
     const { class: studentClass, arm } = childRow.rows[0]
     const className = `${studentClass}${arm ?? ''}`
@@ -41,6 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       FROM timetable tt
       LEFT JOIN staff st ON st.id = tt.staff_id
       WHERE tt.class_name = ${className}
+        AND tt.tenant_id = ${tenantId}
       ORDER BY tt.day, tt.start_time
     `
 
@@ -54,7 +57,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT id::text, title AS subject, exam_date::text AS date, start_time AS time, room,
              EXTRACT(EPOCH FROM (end_time::time - start_time::time))/60 AS duration
       FROM exams
-      WHERE (student_class = ${studentClass} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
+      WHERE (student_class = ${studentClass} OR student_class IS NULL)
+        AND tenant_id = ${tenantId}
+        AND exam_date >= CURRENT_DATE
       ORDER BY exam_date, start_time
     `
 
@@ -65,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let availableTerms = [{ id: 'term1', name: 'First Term' }, { id: 'term2', name: 'Second Term' }, { id: 'term3', name: 'Third Term' }]
     try {
-      const termRows = await sql`SELECT id::text, name FROM terms ORDER BY name`
+      const termRows = await sql`SELECT id::text, name FROM terms WHERE tenant_id = ${tenantId} ORDER BY name`
       if (termRows.rows.length > 0) availableTerms = termRows.rows.map(r => ({ id: r.id, name: r.name }))
     } catch { /* terms table may not exist */ }
 

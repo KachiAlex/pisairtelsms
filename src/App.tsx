@@ -310,6 +310,7 @@ export default function App() {
       case 'academic-calendar':
         return <AcademicCalendar />;
       case 'results':
+        return <ResultComputation />;
       case 'security':
         return <SecurityCompliance />;
       case 'access-control':

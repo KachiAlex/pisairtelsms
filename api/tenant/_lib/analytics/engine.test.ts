@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { sql } from '@vercel/postgres'
+import { sql } from '../../../_lib/sql.js'
 import { getAcademicAnalytics, getFinancialAnalytics } from './engine.js'
 
-vi.mock('@vercel/postgres', () => {
+vi.mock('../../../_lib/sql.js', () => {
   const query = vi.fn()
   const sql = vi.fn()
   sql.query = query

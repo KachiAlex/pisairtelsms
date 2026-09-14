@@ -1,3 +1,7 @@
+/**
+ * ESM version of the SQL helper for standalone scripts.
+ * Backed by the local PostgreSQL pool.
+ */
 import { Pool } from 'pg';
 
 let pool = null;
@@ -20,7 +24,7 @@ function getPool() {
   return pool;
 }
 
-function sql(strings, ...values) {
+export function sql(strings, ...values) {
   let text = '';
   for (let i = 0; i < strings.length; i++) {
     text += strings[i];
@@ -35,5 +39,24 @@ sql.query = function (text, params) {
   return getPool().query(text, params);
 };
 
-export { sql };
-export default { sql };
+export const db = {
+  async transaction(callback) {
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const tx = {
+        query: (text, params) => client.query(text, params),
+      };
+      const result = await callback(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+};
+
+export default { sql, db };

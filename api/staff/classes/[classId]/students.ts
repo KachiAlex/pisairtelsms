@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js';
+import { sql } from '../../../_lib/sql.js';
 import { requireAuth } from '../../../_lib/auth-middleware.js';
 
 interface StudentInfo {

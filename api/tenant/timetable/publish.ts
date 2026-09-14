@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { getOpenConflictCount } from './_lib/conflicts.js'
 import { getClassSchedules } from './_lib/class-schedules.js'
 import { getExamSchedules } from './_lib/exam-schedules.js'

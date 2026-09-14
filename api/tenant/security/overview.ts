@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { poolQuery } from '../../_lib/pg-pool.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 

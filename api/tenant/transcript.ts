@@ -1,7 +1,8 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 import { getTenantCAConfig } from './_lib/ca-config.js';
+import { getGradeBands, assignGradeFromBands, getLevelForClass, type GradeBand } from './_lib/grade-bands.js';
 
 interface SubjectResult {
   subject: string; teacher: string; caScore: number; examScore: number;
@@ -24,72 +25,12 @@ interface CAWeights {
 }
 
 interface TranscriptResponse {
-  student: { id: string; name: string; admissionNumber: string; class: string; arm: string; gender: string };
+  student: { id: string; name: string; admissionNumber: string; class: string; arm: string; gender: string; dateOfBirth?: string };
   sessions: TermResult[];
   cumulativeGPA: number; totalSubjectsTaken: number;
   caWeights: CAWeights;
-}
-
-interface GradeBand {
-  grade: string;
-  minScore: number;
-  maxScore: number;
-  remark: string;
-  gpaWeight: number;
-}
-
-const DEFAULT_BANDS: GradeBand[] = [
-  { grade: 'A1', minScore: 80, maxScore: 100, remark: 'Distinction', gpaWeight: 4.0 },
-  { grade: 'B2', minScore: 70, maxScore: 79, remark: 'Very Good', gpaWeight: 3.5 },
-  { grade: 'B3', minScore: 65, maxScore: 69, remark: 'Good', gpaWeight: 3.0 },
-  { grade: 'C4', minScore: 60, maxScore: 64, remark: 'Credit', gpaWeight: 2.5 },
-  { grade: 'C5', minScore: 55, maxScore: 59, remark: 'Credit', gpaWeight: 2.0 },
-  { grade: 'C6', minScore: 50, maxScore: 54, remark: 'Satisfactory', gpaWeight: 1.5 },
-  { grade: 'D7', minScore: 45, maxScore: 49, remark: 'Pass', gpaWeight: 1.0 },
-  { grade: 'E8', minScore: 40, maxScore: 44, remark: 'Marginal Pass', gpaWeight: 0.5 },
-  { grade: 'F9', minScore: 0, maxScore: 39, remark: 'Fail', gpaWeight: 0.0 },
-];
-
-async function getGradeBands(tenantId: string): Promise<GradeBand[]> {
-  try {
-    const scaleRes = await sql`
-      SELECT id FROM grading_scales
-      WHERE tenant_id = ${tenantId} AND status = 'live'
-      ORDER BY updated_at DESC LIMIT 1
-    `;
-    if (!scaleRes.rows[0]) return DEFAULT_BANDS;
-    const scaleId = scaleRes.rows[0].id;
-    const bandsRes = await sql`
-      SELECT grade, min_score, max_score, remark, gpa_weight
-      FROM grading_scale_bands
-      WHERE scale_id = ${scaleId}
-      ORDER BY min_score DESC
-    `;
-    if (bandsRes.rows.length === 0) return DEFAULT_BANDS;
-    return bandsRes.rows.map((r: any) => ({
-      grade: r.grade,
-      minScore: Number(r.min_score),
-      maxScore: Number(r.max_score),
-      remark: r.remark || '',
-      gpaWeight: Number(r.gpa_weight) || 0,
-    }));
-  } catch {
-    return DEFAULT_BANDS;
-  }
-}
-
-function assignGrade(score: number, bands: GradeBand[]): { grade: string; remark: string } {
-  for (const band of bands) {
-    if (score >= band.minScore && score <= band.maxScore) {
-      return { grade: band.grade, remark: band.remark };
-    }
-  }
-  for (const band of bands) {
-    if (score >= band.minScore) {
-      return { grade: band.grade, remark: band.remark };
-    }
-  }
-  return { grade: 'F9', remark: 'Fail' };
+  academicStanding?: string;
+  verificationHash?: string;
 }
 
 function principalCommentFor(avg: number): string {
@@ -123,26 +64,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const studentRes = await sql`SELECT id, name, admission_no, class, arm, gender FROM students WHERE id = ${studentId as string} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1`;
+    const studentRes = await sql`SELECT id, name, admission_no, class, arm, gender, date_of_birth FROM students WHERE id = ${studentId as string} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1`;
     if (!studentRes.rows[0]) return res.status(404).json({ error: 'Student not found' });
 
     const s = studentRes.rows[0];
     const student = {
       id: s.id, name: s.name, admissionNumber: s.admission_no || '',
       class: s.class || '', arm: s.arm || '', gender: s.gender || '',
+      dateOfBirth: s.date_of_birth || '',
     };
 
-    const bands = await getGradeBands(tenantId);
+    // Load grade bands for this student's class level
+    const studentClassLevel = getLevelForClass(s.class || '');
+    const bands = await getGradeBands(tenantId, studentClassLevel);
 
     let caWeights: CAWeights = { tests: 20, assignments: 15, projects: 15, exams: 50 };
     try {
       const config = await getTenantCAConfig(tenantId);
-      const level = (s.class || '').toUpperCase().includes('SS') ? 'sss'
-        : (s.class || '').toUpperCase().includes('JSS') ? 'jss' : 'primary';
-      caWeights = config.published[level];
+      caWeights = config.published[studentClassLevel];
     } catch { /* use defaults */ }
 
-    const resultsRes = await sql`
+    // Fetch compiled results (any status) joined with student_scores for breakdown.
+    // Staff/admin can see all terms, including unpublished ones. We prefer
+    // compiled_results because they contain the official grades/positions from
+    // the compile → approve → publish workflow.
+    const compiledRes = await sql`
+      SELECT cr.subject, cr.class, cr.academic_session, cr.term,
+             cr.total_score, cr.grade, cr.remark,
+             cr.class_average, cr.highest_score, cr.lowest_score,
+             cr.subject_position, cr.class_position, cr.total_students,
+             cr.attendance_percent, cr.principal_comment, cr.status,
+             cr.gpa_weight, cr.credit_hours,
+             ss.ca_score, ss.exam_score,
+             ss.tests_score, ss.assignments_score, ss.projects_score, ss.exams_score,
+             ss.submitted_by_name
+      FROM compiled_results cr
+      LEFT JOIN student_scores ss
+        ON ss.student_id = cr.student_id
+        AND ss.subject = cr.subject
+        AND ss.academic_session = cr.academic_session
+        AND ss.term = cr.term
+        AND ss.tenant_id = cr.tenant_id
+      WHERE cr.tenant_id = ${tenantId}
+        AND cr.student_id = ${studentId as string}
+      ORDER BY cr.academic_session, cr.term, cr.subject
+    `;
+
+    // Also fetch raw student_scores for terms that have no compiled_results yet
+    const rawScoresRes = await sql`
       SELECT subject, ca_score, exam_score, total_score,
              tests_score, assignments_score, projects_score, exams_score,
              attendance_percentage, term, academic_session, class,
@@ -153,23 +122,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ORDER BY academic_session, term, subject
     `;
 
-    if (resultsRes.rows.length === 0) {
+    if (compiledRes.rows.length === 0 && rawScoresRes.rows.length === 0) {
       return res.status(200).json({
         data: { student, sessions: [], cumulativeGPA: 0, totalSubjectsTaken: 0, caWeights },
       });
     }
 
-    const termGroups: Record<string, { subjects: any[]; academicSession: string; term: string; class: string }> = {};
-    for (const r of resultsRes.rows) {
+    // Build term groups from compiled_results
+    const termGroups: Record<string, { subjects: any[]; academicSession: string; term: string; class: string; hasCompiled: boolean }> = {};
+    const compiledTermKeys = new Set<string>();
+    for (const r of compiledRes.rows) {
       const key = `${r.academic_session || ''}|${r.term || 'Unknown'}`;
+      compiledTermKeys.add(key);
       if (!termGroups[key]) {
-        termGroups[key] = { subjects: [], academicSession: r.academic_session || '', term: r.term || 'Unknown', class: r.class || '' };
+        termGroups[key] = { subjects: [], academicSession: r.academic_session || '', term: r.term || 'Unknown', class: r.class || '', hasCompiled: true };
       }
       termGroups[key].subjects.push({
         subject: r.subject,
-        caScore: Number(r.ca_score),
-        examScore: Number(r.exam_score),
-        totalScore: Number(r.total_score),
+        caScore: Number(r.ca_score || 0), examScore: Number(r.exam_score || 0), totalScore: Number(r.total_score),
+        testsScore: r.tests_score !== null ? Number(r.tests_score) : 0,
+        assignmentsScore: r.assignments_score !== null ? Number(r.assignments_score) : 0,
+        projectsScore: r.projects_score !== null ? Number(r.projects_score) : 0,
+        examsScore: r.exams_score !== null ? Number(r.exams_score) : 0,
+        grade: r.grade || '', remark: r.remark || '',
+        classAverage: Number(r.class_average || 0), highestScore: Number(r.highest_score || 0),
+        lowestScore: Number(r.lowest_score || 0), position: Number(r.subject_position || 0),
+        classPosition: Number(r.class_position || 0), totalStudents: Number(r.total_students || 0),
+        attendancePercent: Number(r.attendance_percent || 0),
+        principalComment: r.principal_comment || '',
+        teacher: r.submitted_by_name || '',
+      });
+    }
+
+    // Add raw scores for terms that don't have compiled_results (recompute grades)
+    for (const r of rawScoresRes.rows) {
+      const key = `${r.academic_session || ''}|${r.term || 'Unknown'}`;
+      if (compiledTermKeys.has(key)) continue; // skip terms that already have compiled results
+      if (!termGroups[key]) {
+        termGroups[key] = { subjects: [], academicSession: r.academic_session || '', term: r.term || 'Unknown', class: r.class || '', hasCompiled: false };
+      }
+      termGroups[key].subjects.push({
+        subject: r.subject,
+        caScore: Number(r.ca_score), examScore: Number(r.exam_score), totalScore: Number(r.total_score),
         testsScore: r.tests_score !== null ? Number(r.tests_score) : 0,
         assignmentsScore: r.assignments_score !== null ? Number(r.assignments_score) : 0,
         projectsScore: r.projects_score !== null ? Number(r.projects_score) : 0,
@@ -185,6 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SELECT COUNT(*) AS incident_count
         FROM behavioral_incidents
         WHERE student_id = ${studentId as string}
+          AND tenant_id = ${tenantId}
       `;
       const incidentCount = Number(conductRes.rows[0]?.incident_count || 0);
       conductGrade = incidentCount === 0 ? 'A' : incidentCount <= 2 ? 'B' : 'C';
@@ -217,62 +212,85 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sessions: TermResult[] = [];
     let cumulativeTotal = 0;
     let cumulativeSubjectCount = 0;
+    let cumulativeGpaWeighted = 0;
+    let cumulativeCreditHours = 0;
 
     for (const key of Object.keys(termGroups)) {
       const group = termGroups[key];
-      const subjects: SubjectResult[] = [];
+      let subjects: SubjectResult[];
 
-      const ourStatsRes = await sql`
-        WITH class_data AS (
-          SELECT
-            student_id,
-            subject,
-            total_score,
-            AVG(total_score) OVER (PARTITION BY subject) AS class_avg,
-            MAX(total_score) OVER (PARTITION BY subject) AS highest,
-            MIN(total_score) OVER (PARTITION BY subject) AS lowest,
-            RANK() OVER (PARTITION BY subject ORDER BY total_score DESC) AS subject_rank
-          FROM student_scores
-          WHERE academic_session = ${group.academicSession}
-            AND term = ${group.term}
-            AND class = ${group.class}
-            AND tenant_id = ${tenantId}
-        )
-        SELECT subject, class_avg, highest, lowest, subject_rank
-        FROM class_data
-        WHERE student_id = ${studentId as string}
-      `;
-
-      const ourStatsMap: Record<string, { classAvg: number; highest: number; lowest: number; position: number }> = {};
-      for (const row of ourStatsRes.rows) {
-        ourStatsMap[row.subject] = {
-          classAvg: Number(row.class_avg || 0),
-          highest: Number(row.highest || 0),
-          lowest: Number(row.lowest || 0),
-          position: Number(row.subject_rank || 1),
-        };
-      }
-
-      for (const subj of group.subjects) {
-        const { grade, remark } = assignGrade(subj.totalScore, bands);
-        const stats = ourStatsMap[subj.subject] || { classAvg: 0, highest: 0, lowest: 0, position: 1 };
-
-        subjects.push({
+      if (group.hasCompiled) {
+        // Use pre-computed values from compiled_results
+        subjects = group.subjects.map((subj: any) => ({
           subject: subj.subject,
           teacher: subj.teacher || '',
           caScore: subj.caScore,
           examScore: subj.examScore,
           totalScore: subj.totalScore,
-          grade,
-          remark,
-          classAverage: stats.classAvg,
-          highestScore: stats.highest,
-          lowestScore: stats.lowest,
-          position: stats.position,
+          grade: subj.grade,
+          remark: subj.remark,
+          classAverage: subj.classAverage,
+          highestScore: subj.highestScore,
+          lowestScore: subj.lowestScore,
+          position: subj.position,
           testsScore: subj.testsScore,
           assignmentsScore: subj.assignmentsScore,
           projectsScore: subj.projectsScore,
           examsScore: subj.examsScore,
+        }));
+      } else {
+        // Recompute grades from raw scores for terms without compiled_results
+        const ourStatsRes = await sql`
+          WITH class_data AS (
+            SELECT
+              student_id,
+              subject,
+              total_score,
+              AVG(total_score) OVER (PARTITION BY subject) AS class_avg,
+              MAX(total_score) OVER (PARTITION BY subject) AS highest,
+              MIN(total_score) OVER (PARTITION BY subject) AS lowest,
+              RANK() OVER (PARTITION BY subject ORDER BY total_score DESC) AS subject_rank
+            FROM student_scores
+            WHERE academic_session = ${group.academicSession}
+              AND term = ${group.term}
+              AND class = ${group.class}
+              AND tenant_id = ${tenantId}
+          )
+          SELECT subject, class_avg, highest, lowest, subject_rank
+          FROM class_data
+          WHERE student_id = ${studentId as string}
+        `;
+
+        const ourStatsMap: Record<string, { classAvg: number; highest: number; lowest: number; position: number }> = {};
+        for (const row of ourStatsRes.rows) {
+          ourStatsMap[row.subject] = {
+            classAvg: Number(row.class_avg || 0),
+            highest: Number(row.highest || 0),
+            lowest: Number(row.lowest || 0),
+            position: Number(row.subject_rank || 1),
+          };
+        }
+
+        subjects = group.subjects.map((subj: any) => {
+          const { grade, remark } = assignGradeFromBands(subj.totalScore, bands);
+          const stats = ourStatsMap[subj.subject] || { classAvg: 0, highest: 0, lowest: 0, position: 1 };
+          return {
+            subject: subj.subject,
+            teacher: subj.teacher || '',
+            caScore: subj.caScore,
+            examScore: subj.examScore,
+            totalScore: subj.totalScore,
+            grade,
+            remark,
+            classAverage: stats.classAvg,
+            highestScore: stats.highest,
+            lowestScore: stats.lowest,
+            position: stats.position,
+            testsScore: subj.testsScore,
+            assignmentsScore: subj.assignmentsScore,
+            projectsScore: subj.projectsScore,
+            examsScore: subj.examsScore,
+          };
         });
       }
 
@@ -281,34 +299,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       cumulativeTotal += totalScore;
       cumulativeSubjectCount += subjects.length;
 
-      const classPosRes = await sql`
-        WITH student_totals AS (
-          SELECT student_id, SUM(total_score) AS total
-          FROM student_scores
-          WHERE academic_session = ${group.academicSession}
-            AND term = ${group.term}
-            AND class = ${group.class}
-            AND tenant_id = ${tenantId}
-          GROUP BY student_id
-        ),
-        ranked AS (
-          SELECT student_id, total, RANK() OVER (ORDER BY total DESC) AS rank_pos, COUNT(*) OVER () AS total_students
-          FROM student_totals
-        )
-        SELECT rank_pos, total_students FROM ranked WHERE student_id = ${studentId as string}
-      `;
-      const classPosition = ordinalSuffix(Number(classPosRes.rows[0]?.rank_pos || 1));
-      const totalStudents = Number(classPosRes.rows[0]?.total_students || 0);
+      // Track GPA components from compiled_results
+      for (const subj of group.subjects) {
+        const ch = subj.creditHours || 1;
+        const gp = subj.gpaWeight || 0;
+        cumulativeGpaWeighted += gp * ch;
+        cumulativeCreditHours += ch;
+      }
 
-      const attRes = await sql`
-        SELECT ROUND(AVG(attendance_percentage)) AS avg_att
-        FROM student_scores
-        WHERE student_id = ${studentId as string}
-          AND academic_session = ${group.academicSession}
-          AND term = ${group.term}
-          AND tenant_id = ${tenantId}
-      `;
-      const attendancePercent = Number(attRes.rows[0]?.avg_att || 0);
+      let classPosition: string;
+      let totalStudents: number;
+      let attendancePercent: number;
+      let principalComment: string;
+
+      if (group.hasCompiled) {
+        classPosition = ordinalSuffix(Number(group.subjects[0]?.classPosition || 1));
+        totalStudents = Number(group.subjects[0]?.totalStudents || 0);
+        attendancePercent = Number(group.subjects[0]?.attendancePercent || 0);
+        principalComment = group.subjects[0]?.principalComment || principalCommentFor(avgScore);
+      } else {
+        const classPosRes = await sql`
+          WITH student_totals AS (
+            SELECT student_id, SUM(total_score) AS total
+            FROM student_scores
+            WHERE academic_session = ${group.academicSession}
+              AND term = ${group.term}
+              AND class = ${group.class}
+              AND tenant_id = ${tenantId}
+            GROUP BY student_id
+          ),
+          ranked AS (
+            SELECT student_id, total, RANK() OVER (ORDER BY total DESC) AS rank_pos, COUNT(*) OVER () AS total_students
+            FROM student_totals
+          )
+          SELECT rank_pos, total_students FROM ranked WHERE student_id = ${studentId as string}
+        `;
+        classPosition = ordinalSuffix(Number(classPosRes.rows[0]?.rank_pos || 1));
+        totalStudents = Number(classPosRes.rows[0]?.total_students || 0);
+
+        const attRes = await sql`
+          SELECT ROUND(AVG(attendance_percentage)) AS avg_att
+          FROM student_scores
+          WHERE student_id = ${studentId as string}
+            AND academic_session = ${group.academicSession}
+            AND term = ${group.term}
+            AND tenant_id = ${tenantId}
+        `;
+        attendancePercent = Number(attRes.rows[0]?.avg_att || 0);
+        principalComment = principalCommentFor(avgScore);
+      }
 
       const nextTermResumption = findNextTermResumption(group.term, group.academicSession);
 
@@ -323,17 +362,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         attendancePercent,
         conduct: conductGrade,
         nextTermResumption,
-        principalComment: principalCommentFor(avgScore),
+        principalComment,
       });
     }
 
-    const cumulativeGPA = cumulativeSubjectCount > 0
-      ? Math.round((cumulativeTotal / cumulativeSubjectCount) * 100) / 100
-      : 0;
+    // Compute proper GPA: Σ(gpa_weight × credit_hours) / Σ(credit_hours)
+    const cumulativeGPA = cumulativeCreditHours > 0
+      ? Math.round((cumulativeGpaWeighted / cumulativeCreditHours) * 100) / 100
+      : cumulativeSubjectCount > 0
+        ? Math.round((cumulativeTotal / cumulativeSubjectCount) * 100) / 100
+        : 0;
     const totalSubjectsTaken = cumulativeSubjectCount;
 
+    // Academic standing based on GPA
+    const academicStanding = cumulativeGPA >= 3.5 ? 'First Class'
+      : cumulativeGPA >= 2.5 ? 'Second Class Upper'
+      : cumulativeGPA >= 1.5 ? 'Second Class Lower'
+      : cumulativeGPA >= 1.0 ? 'Pass'
+      : cumulativeGPA > 0 ? 'Probation'
+      : '';
+
+    // Transcript verification hash
+    const crypto = await import('crypto');
+    const verificationHash = crypto
+      .createHash('sha256')
+      .update(`${studentId}|${tenantId}|${cumulativeGPA}|${totalSubjectsTaken}|${sessions.length}`)
+      .digest('hex')
+      .substring(0, 16)
+      .toUpperCase();
+
     return res.status(200).json({
-      data: { student, sessions, cumulativeGPA, totalSubjectsTaken, caWeights } as TranscriptResponse,
+      data: {
+        student, sessions, cumulativeGPA, totalSubjectsTaken, caWeights,
+        academicStanding, verificationHash,
+      } as TranscriptResponse,
     });
   } catch (error) {
     console.error('Error fetching tenant transcript:', error);

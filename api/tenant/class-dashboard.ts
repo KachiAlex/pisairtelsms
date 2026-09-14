@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { fetchStudents } from './_lib/students.js'
 import { fetchApplications } from './_lib/applications.js'
 import { requireRole } from '../_lib/auth-middleware.js'
@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     )
 
     // Fetch recent applications for this class
-    const allApplications = await fetchApplications()
+    const allApplications = await fetchApplications(tenantId)
     const classApplications = allApplications
       .filter((app: any) => app.class === className)
       .slice(0, 5)

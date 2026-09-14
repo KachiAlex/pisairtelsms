@@ -61,10 +61,10 @@ export function CAConfiguration() {
     try {
       setLoading(true)
       const [configRes, auditRes, overridesRes, classesRes, subjectsRes] = await Promise.all([
-        tenantApiGet(`/api/tenant/ca-config?tenantId=${tenantId}`),
-        tenantApiGet(`/api/tenant/ca-config?tenantId=${tenantId}&action=audit`),
-        tenantApiGet(`/api/tenant/ca-config?tenantId=${tenantId}&action=overrides`),
-        tenantApiGet('/api/tenant/cbt/classes'),
+        tenantApiGet('/api/tenant/ca-config'),
+        tenantApiGet('/api/tenant/ca-config?action=audit'),
+        tenantApiGet('/api/tenant/ca-config?action=overrides'),
+        tenantApiGet('/api/tenant/academics/classes'),
         tenantApiGet('/api/tenant/academics/subjects'),
       ])
 
@@ -139,7 +139,7 @@ export function CAConfiguration() {
   const handleSave = async () => {
     setSaveStatus('saving')
     try {
-      const response = await tenantApiPut(`/api/tenant/ca-config?tenantId=${tenantId}`, weights)
+      const response = await tenantApiPut('/api/tenant/ca-config', weights)
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || 'Failed to save CA config')
@@ -162,7 +162,7 @@ export function CAConfiguration() {
       if (hasChanges) {
         await handleSave()
       }
-      const response = await tenantApiPost(`/api/tenant/ca-config?tenantId=${tenantId}&action=publish`)
+      const response = await tenantApiPost('/api/tenant/ca-config?action=publish')
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || 'Failed to publish')
@@ -199,7 +199,7 @@ export function CAConfiguration() {
     }
     try {
       const response = await tenantApiPost(
-        `/api/tenant/ca-config?tenantId=${tenantId}&action=override`,
+        '/api/tenant/ca-config?action=override',
         {
           class_name: overrideForm.class_name,
           subject_name: overrideForm.subject_name || null,
@@ -221,7 +221,7 @@ export function CAConfiguration() {
 
   const handleDeleteOverride = async (overrideId: number) => {
     try {
-      const response = await tenantApiDelete(`/api/tenant/ca-config?tenantId=${tenantId}&action=override&id=${overrideId}`)
+      const response = await tenantApiDelete(`/api/tenant/ca-config?action=override&id=${overrideId}`)
       if (!response.ok) {
         throw new Error('Failed to delete override')
       }

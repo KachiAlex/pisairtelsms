@@ -1155,7 +1155,7 @@ The Staff Portal leverages existing implementations:
 Each staff API endpoint follows this pattern:
 
 ```typescript
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 
 function extractStaffIdFromJWT(req: VercelRequest): string | null {
   const authHeader = req.headers.authorization

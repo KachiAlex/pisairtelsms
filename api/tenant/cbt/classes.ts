@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import {
   getClasses,
@@ -8,6 +8,7 @@ import {
   deleteClass,
 } from './_lib/classes.js'
 import { initializeDatabase } from './_lib/db.js'
+import { auditAcademicChange } from '../_lib/academic-audit.js'
 
 /**
  * Classes API Endpoint
@@ -55,6 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const newClass = await createClass(tenantId, body.name, body.arm, body.level || '')
+      await auditAcademicChange(tenantId, 'class', newClass.id, 'insert', decoded.userId || decoded.staffId || 'system', decoded.email || 'system', null, { name: body.name, arm: body.arm, level: body.level || '' })
       return res.status(201).json({ success: true, data: newClass })
     } catch (error: any) {
       console.error('Error creating class:', error)
@@ -75,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const updated = await updateClass(tenantId, id, body || {})
+      await auditAcademicChange(tenantId, 'class', id, 'update', decoded.userId || decoded.staffId || 'system', decoded.email || 'system', null, body || {})
       return res.status(200).json({ success: true, data: updated })
     } catch (error: any) {
       console.error('Error updating class:', error)
@@ -90,6 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       await deleteClass(tenantId, id)
+      await auditAcademicChange(tenantId, 'class', id, 'delete', decoded.userId || decoded.staffId || 'system', decoded.email || 'system', null, null)
       return res.status(200).json({ success: true, message: 'Class deleted successfully' })
     } catch (error: any) {
       console.error('Error deleting class:', error)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { CalendarRange } from 'lucide-react'
+import { CalendarRange, Pencil, Trash2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -14,19 +14,27 @@ import {
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
+
+type Milestone = {
+  id?: string
+  title: string
+  date: string
+  owner: string
+  status: string
+}
+
+type MilestoneStatus = 'Tentative' | 'Live' | 'Locked' | 'High priority'
+
+const emptyMilestone = (): Milestone => ({ title: '', date: '', owner: '', status: 'Tentative' })
 
 export function AcademicCalendar() {
   const { toast } = useToast()
-  const [addMilestoneOpen, setAddMilestoneOpen] = useState(false)
-  const [newMilestone, setNewMilestone] = useState({
-    title: '',
-    date: '',
-    owner: '',
-    status: 'Tentative' as 'Tentative' | 'Live' | 'Locked' | 'High priority'
-  })
-  const [milestones, setMilestones] = useState<Array<{ title: string; date: string; owner: string; status: string }>>([])
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<Milestone | null>(null)
+  const [form, setForm] = useState<Milestone>(emptyMilestone())
+  const [milestones, setMilestones] = useState<Milestone[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadMilestones = useCallback(async () => {
@@ -49,26 +57,71 @@ export function AcademicCalendar() {
     loadMilestones()
   }, [loadMilestones])
 
-  const handleAddMilestone = async () => {
-    if (!newMilestone.title.trim()) {
+  const openCreate = () => {
+    setEditing(null)
+    setForm(emptyMilestone())
+    setDialogOpen(true)
+  }
+
+  const openEdit = (m: Milestone) => {
+    setEditing(m)
+    setForm({ title: m.title, date: m.date, owner: m.owner, status: m.status })
+    setDialogOpen(true)
+  }
+
+  const handleSave = async () => {
+    if (!form.title.trim()) {
       toast({ title: 'Validation error', description: 'Title is required.', variant: 'destructive' })
       return
     }
+    if (!form.date) {
+      toast({ title: 'Validation error', description: 'Date is required.', variant: 'destructive' })
+      return
+    }
     try {
-      const res = await tenantApiPost('/api/tenant/academics/calendar/milestones', newMilestone)
+      if (editing?.id) {
+        const res = await tenantApiPut(`/api/tenant/academics/calendar/milestones?id=${editing.id}`, form)
+        if (res.ok) {
+          toast({ title: 'Milestone updated', description: `${form.title} has been updated.` })
+          setDialogOpen(false)
+          loadMilestones()
+        } else {
+          const err = await res.json().catch(() => ({}))
+          toast({ title: 'Failed to update milestone', description: err.error || 'Unknown error', variant: 'destructive' })
+        }
+      } else {
+        const res = await tenantApiPost('/api/tenant/academics/calendar/milestones', form)
+        if (res.ok) {
+          toast({ title: 'Milestone added', description: `${form.title} has been created.` })
+          setDialogOpen(false)
+          loadMilestones()
+        } else {
+          const err = await res.json().catch(() => ({}))
+          toast({ title: 'Failed to add milestone', description: err.error || 'Unknown error', variant: 'destructive' })
+        }
+      }
+    } catch (error) {
+      toast({ title: 'Network error', description: 'Failed to save milestone.', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async (m: Milestone) => {
+    if (!m.id) return
+    if (!window.confirm(`Delete milestone "${m.title}"?`)) return
+    try {
+      const res = await tenantApiDelete(`/api/tenant/academics/calendar/milestones?id=${m.id}`)
       if (res.ok) {
-        toast({ title: 'Milestone added', description: `${newMilestone.title} has been created.` })
-        setNewMilestone({ title: '', date: '', owner: '', status: 'Tentative' })
-        setAddMilestoneOpen(false)
+        toast({ title: 'Milestone deleted', description: `${m.title} has been removed.` })
         loadMilestones()
       } else {
         const err = await res.json().catch(() => ({}))
-        toast({ title: 'Failed to add milestone', description: err.error || 'Unknown error', variant: 'destructive' })
+        toast({ title: 'Failed to delete milestone', description: err.error || 'Unknown error', variant: 'destructive' })
       }
     } catch (error) {
-      toast({ title: 'Network error', description: 'Failed to add milestone.', variant: 'destructive' })
+      toast({ title: 'Network error', description: 'Failed to delete milestone.', variant: 'destructive' })
     }
   }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -78,7 +131,7 @@ export function AcademicCalendar() {
           <p className="text-sm text-gray-600">Visualize term timelines, milestones, and alerts across campuses.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button onClick={() => setAddMilestoneOpen(true)}>
+          <Button onClick={openCreate}>
             <CalendarRange className="h-4 w-4 mr-2" /> Add milestone
           </Button>
         </div>
@@ -112,15 +165,23 @@ export function AcademicCalendar() {
               </div>
             ) : (
               milestones.map((item) => (
-                <div key={item.title} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-3 justify-between">
+                <div key={item.id || item.title} className="rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-3 justify-between">
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{item.title}</p>
                     <p className="text-xs text-gray-500">{item.owner}</p>
                     <p className="text-[11px] text-gray-400">{item.date}</p>
                   </div>
-                  <Badge variant={item.status === 'High priority' ? 'destructive' : 'secondary'} className="text-[11px] uppercase tracking-wide">
-                    {item.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={item.status === 'High priority' ? 'destructive' : 'secondary'} className="text-[11px] uppercase tracking-wide">
+                      {item.status}
+                    </Badge>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(item)} aria-label="Edit milestone">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(item)} aria-label="Delete milestone">
+                      <Trash2 className="h-4 w-4 text-rose-600" />
+                    </Button>
+                  </div>
                 </div>
               ))
             )}
@@ -128,11 +189,13 @@ export function AcademicCalendar() {
         </Card>
       )}
 
-      <Dialog open={addMilestoneOpen} onOpenChange={setAddMilestoneOpen}>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New Milestone</DialogTitle>
-            <DialogDescription>Create a new academic milestone for the calendar.</DialogDescription>
+            <DialogTitle>{editing ? 'Edit Milestone' : 'Add New Milestone'}</DialogTitle>
+            <DialogDescription>
+              {editing ? 'Update the academic milestone details.' : 'Create a new academic milestone for the calendar.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -140,17 +203,17 @@ export function AcademicCalendar() {
               <Input
                 id="milestone-title"
                 placeholder="e.g., Mid-term break"
-                value={newMilestone.title}
-                onChange={(e) => setNewMilestone({ ...newMilestone, title: e.target.value })}
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
             </div>
             <div>
               <Label htmlFor="milestone-date">Date</Label>
               <Input
                 id="milestone-date"
-                placeholder="e.g., 01 Mar"
-                value={newMilestone.date}
-                onChange={(e) => setNewMilestone({ ...newMilestone, date: e.target.value })}
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
               />
             </div>
             <div>
@@ -158,13 +221,13 @@ export function AcademicCalendar() {
               <Input
                 id="milestone-owner"
                 placeholder="e.g., Principal"
-                value={newMilestone.owner}
-                onChange={(e) => setNewMilestone({ ...newMilestone, owner: e.target.value })}
+                value={form.owner}
+                onChange={(e) => setForm({ ...form, owner: e.target.value })}
               />
             </div>
             <div>
               <Label htmlFor="milestone-status">Status</Label>
-              <Select value={newMilestone.status} onValueChange={(value: typeof newMilestone.status) => setNewMilestone({ ...newMilestone, status: value })}>
+              <Select value={form.status} onValueChange={(value: MilestoneStatus) => setForm({ ...form, status: value })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -178,10 +241,8 @@ export function AcademicCalendar() {
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAddMilestoneOpen(false)}>Cancel</Button>
-            <Button onClick={() => {
-              handleAddMilestone()
-            }}>Add Milestone</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave}>{editing ? 'Save Changes' : 'Add Milestone'}</Button>
           </div>
         </DialogContent>
       </Dialog>

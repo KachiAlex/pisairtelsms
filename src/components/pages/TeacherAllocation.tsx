@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { UserCheck, AlertTriangle, Clock3, CalendarCheck, Search, Shuffle, Users, BarChart3, Activity } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { UserCheck, AlertTriangle, Search, Shuffle, Users, Activity, Sparkles } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -12,16 +12,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '../ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select'
 import { useToast } from '../ui/use-toast'
+import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
 function tenantHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -39,6 +32,8 @@ function tenantHeaders(): Record<string, string> {
   return headers;
 }
 
+const BASE = '/api/tenant/teacher-allocation-handler'
+
 interface CoverageStat { label: string; value: string; detail: string; color: string }
 interface TeacherCard { name: string; level: string; risk: string; subjects: string[]; allocation: number; contractHours: number }
 interface AllocationRow { class: string; subject: string; teacher: string; coverage: string; warnings: number }
@@ -48,6 +43,7 @@ interface SubLog { slot: string; priority: string; action: string; relief: strin
 export function TeacherAllocation() {
   const { toast } = useToast()
   const [assignOpen, setAssignOpen] = useState(false)
+  const [generateOpen, setGenerateOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [coverageStats, setCoverageStats] = useState<CoverageStat[]>([])
   const [teacherCards, setTeacherCards] = useState<TeacherCard[]>([])
@@ -55,30 +51,73 @@ export function TeacherAllocation() {
   const [openPeriodTimeline, setOpenPeriodTimeline] = useState<PeriodBucket[]>([])
   const [substitutionLog, setSubstitutionLog] = useState<SubLog[]>([])
   const [editableSlots, setEditableSlots] = useState<(AllocationRow & { id: number; assignedTeacher: string })[]>([])
+  const [search, setSearch] = useState('')
+
+  const loadAll = useCallback(async () => {
+    const headers = tenantHeaders()
+    const [statsRes, teachersRes, matrixRes, periodsRes, subRes] = await Promise.all([
+      tenantApiGet(`${BASE}?action=coverage-stats`).then((r) => r.json()).catch(() => ({})),
+      tenantApiGet(`${BASE}?action=teachers`).then((r) => r.json()).catch(() => ({})),
+      tenantApiGet(`${BASE}?action=matrix`).then((r) => r.json()).catch(() => ({})),
+      tenantApiGet(`${BASE}?action=open-periods`).then((r) => r.json()).catch(() => ({})),
+      tenantApiGet(`${BASE}?action=substitution-log`).then((r) => r.json()).catch(() => ({})),
+    ])
+    if (statsRes.data) setCoverageStats(statsRes.data)
+    if (teachersRes.data) setTeacherCards(teachersRes.data)
+    if (matrixRes.data) {
+      setAllocationMatrix(matrixRes.data)
+      setEditableSlots(
+        matrixRes.data
+          .filter((row: AllocationRow) => row.coverage === 'Open')
+          .map((row: AllocationRow, index: number) => ({ ...row, id: index, assignedTeacher: '' }))
+      )
+    }
+    if (periodsRes.data) setOpenPeriodTimeline(periodsRes.data)
+    if (subRes.data) setSubstitutionLog(subRes.data)
+    setLoading(false)
+  }, [])
 
   useEffect(() => {
-    const headers = tenantHeaders()
-    Promise.all([
-      fetch('/api/tenant/teacher-allocation/coverage-stats', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/tenant/teacher-allocation/teachers', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/tenant/teacher-allocation/matrix', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/tenant/teacher-allocation/open-periods', { headers }).then((r) => r.json()).catch(() => ({})),
-      fetch('/api/tenant/teacher-allocation/substitution-log', { headers }).then((r) => r.json()).catch(() => ({})),
-    ]).then(([statsRes, teachersRes, matrixRes, periodsRes, subRes]) => {
-      if (statsRes.data) setCoverageStats(statsRes.data)
-      if (teachersRes.data) setTeacherCards(teachersRes.data)
-      if (matrixRes.data) {
-        setAllocationMatrix(matrixRes.data)
-        setEditableSlots(
-          matrixRes.data
-            .filter((row: AllocationRow) => row.coverage === 'Open')
-            .map((row: AllocationRow, index: number) => ({ ...row, id: index, assignedTeacher: '' }))
-        )
+    loadAll()
+  }, [loadAll])
+
+  const handleAutoBalance = async () => {
+    try {
+      const res = await tenantApiPost(`${BASE}?action=auto-balance`)
+      const data = await res.json()
+      if (res.ok) {
+        if (data.data) setAllocationMatrix(data.data)
+        toast({ title: 'Load balanced', description: data.message || 'Teacher assignments have been redistributed.' })
+        loadAll()
+      } else {
+        toast({ title: 'Auto-balance failed', description: data.error, variant: 'destructive' })
       }
-      if (periodsRes.data) setOpenPeriodTimeline(periodsRes.data)
-      if (subRes.data) setSubstitutionLog(subRes.data)
-    }).finally(() => setLoading(false))
-  }, [])
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' })
+    }
+  }
+
+  const handleGenerateSlots = async (classes: string[], subjects: string[]) => {
+    try {
+      const res = await tenantApiPost(`${BASE}?action=generate-slots`, { classes, subjects })
+      const data = await res.json()
+      if (res.ok) {
+        toast({ title: 'Slots generated', description: data.message })
+        setGenerateOpen(false)
+        loadAll()
+      } else {
+        toast({ title: 'Failed to generate slots', description: data.error, variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' })
+    }
+  }
+
+  const filteredMatrix = search.trim()
+    ? allocationMatrix.filter((row) =>
+        [row.class, row.subject, row.teacher].some((v) => v.toLowerCase().includes(search.trim().toLowerCase()))
+      )
+    : allocationMatrix
 
   return (
     <div className="space-y-6">
@@ -89,28 +128,23 @@ export function TeacherAllocation() {
           <p className="text-sm text-gray-600">Balance loads, fill gaps, and monitor risks across timetable slots.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={() => toast({ title: 'Search teacher', description: 'Use the search box in the Active allocations table below.' })}>
-            <Search className="h-4 w-4 mr-2" /> Search teacher
+          <Button variant="outline" onClick={() => setGenerateOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-2" /> Generate slots
           </Button>
-          <Button variant="outline" onClick={async () => {
-            try {
-              const res = await fetch('/api/tenant/teacher-allocation/auto-balance', { method: 'POST', headers: tenantHeaders() })
-              const data = await res.json()
-              if (res.ok) {
-                if (data.data) setAllocationMatrix(data.data)
-                toast({ title: 'Load balanced', description: 'Teacher assignments have been redistributed.' })
-              } else {
-                toast({ title: 'Auto-balance failed', description: data.error, variant: 'destructive' })
-              }
-            } catch { toast({ title: 'Network error', variant: 'destructive' }) }
-          }}>
+          <Button variant="outline" onClick={handleAutoBalance}>
             <Shuffle className="h-4 w-4 mr-2" /> Auto-balance load
           </Button>
           <Button onClick={() => setAssignOpen(true)}>
-            <CalendarCheck className="h-4 w-4 mr-2" /> Assign slots
+            <UserCheck className="h-4 w-4 mr-2" /> Assign slots
           </Button>
         </div>
       </div>
+
+      <GenerateSlotsDialog
+        open={generateOpen}
+        onOpenChange={setGenerateOpen}
+        onGenerate={handleGenerateSlots}
+      />
 
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="max-w-4xl">
@@ -132,6 +166,7 @@ export function TeacherAllocation() {
                     {teacher.name}
                   </div>
                 ))}
+                {teacherCards.length === 0 && <p className="text-sm text-gray-500">No teachers found.</p>}
               </div>
             </div>
             <div className="w-2/3">
@@ -152,6 +187,7 @@ export function TeacherAllocation() {
                     {row.assignedTeacher && <div className="mt-2 text-green-600 font-semibold">Assigned: {row.assignedTeacher}</div>}
                   </div>
                 ))}
+                {editableSlots.length === 0 && <p className="text-sm text-gray-500">No open slots. Generate slots first.</p>}
               </div>
             </div>
           </div>
@@ -164,16 +200,15 @@ export function TeacherAllocation() {
                 return
               }
               try {
-                const res = await fetch('/api/tenant/teacher-allocation/assign', {
-                  method: 'POST',
-                  headers: tenantHeaders(),
-                  body: JSON.stringify({ assignments: assignedSlots.map(s => ({ class: s.class, subject: s.subject, teacher: s.assignedTeacher })) }),
+                const res = await tenantApiPost(`${BASE}?action=assign`, {
+                  assignments: assignedSlots.map(s => ({ class: s.class, subject: s.subject, teacher: s.assignedTeacher })),
                 })
                 const data = await res.json()
                 if (res.ok) {
                   if (data.data) setAllocationMatrix(data.data)
                   toast({ title: `${assignedSlots.length} slot(s) assigned`, description: 'Allocation matrix updated.' })
                   setAssignOpen(false)
+                  loadAll()
                 } else {
                   toast({ title: 'Assignment failed', description: data.error, variant: 'destructive' })
                 }
@@ -230,7 +265,10 @@ export function TeacherAllocation() {
             <CardDescription>Matrix of classes vs teachers highlighting gaps.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="Search class, subject, or teacher" />
+            <div className="relative lg:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input placeholder="Search class, subject, or teacher" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            </div>
             <div className="rounded-2xl border border-gray-100 overflow-hidden">
               <Table>
                 <TableHeader>
@@ -243,11 +281,23 @@ export function TeacherAllocation() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allocationMatrix.map((row) => (
+                  {loading && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-gray-500">Loading…</TableCell>
+                    </TableRow>
+                  )}
+                  {!loading && filteredMatrix.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-gray-500">
+                        No allocation slots yet. Use “Generate slots” to create them from your classes and subjects.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {filteredMatrix.map((row) => (
                     <TableRow key={`${row.class}-${row.subject}`}>
                       <TableCell className="font-semibold text-gray-900">{row.class}</TableCell>
                       <TableCell>{row.subject}</TableCell>
-                      <TableCell className={row.teacher === 'Vacant' ? 'text-rose-600 font-semibold' : ''}>{row.teacher}</TableCell>
+                      <TableCell className={row.teacher === 'Vacant' || !row.teacher ? 'text-rose-600 font-semibold' : ''}>{row.teacher || 'Vacant'}</TableCell>
                       <TableCell>
                         <Badge variant={row.coverage === 'Assigned' ? 'secondary' : 'outline'} className="text-xs">
                           {row.coverage}
@@ -287,19 +337,20 @@ export function TeacherAllocation() {
                     {teacher.risk}
                   </Badge>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">{teacher.subjects.join(' • ')}</p>
+                <p className="text-xs text-gray-500 mt-2">{(teacher.subjects || []).join(' • ')}</p>
                 <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                   <span>Allocation: {teacher.allocation} / {teacher.contractHours} periods</span>
-                  <span>{Math.round((teacher.allocation / teacher.contractHours) * 100)}% load</span>
+                  <span>{teacher.contractHours > 0 ? Math.round((teacher.allocation / teacher.contractHours) * 100) : 0}% load</span>
                 </div>
                 <div className="mt-2 h-1.5 rounded-full bg-gray-100">
                   <div
                     className={`h-1.5 rounded-full ${teacher.risk === 'Overload' ? 'bg-rose-500' : 'bg-emerald-500'}`}
-                    style={{ width: `${Math.min((teacher.allocation / teacher.contractHours) * 100, 120)}%` }}
+                    style={{ width: `${Math.min(teacher.contractHours > 0 ? (teacher.allocation / teacher.contractHours) * 100 : 0, 120)}%` }}
                   />
                 </div>
               </div>
             ))}
+            {teacherCards.length === 0 && <p className="text-sm text-gray-500">No teachers found.</p>}
             <Button variant="outline" className="w-full" onClick={() => toast({ title: 'Allocation board', description: 'Full board view is available in the Active allocations table.' })}>
               <Users className="h-4 w-4 mr-2" /> View allocation board
             </Button>
@@ -327,12 +378,70 @@ export function TeacherAllocation() {
               </div>
             </div>
           ))}
+          {substitutionLog.length === 0 && <p className="text-sm text-gray-500">No substitution events recorded.</p>}
           <Button variant="outline" className="w-full" size="sm" onClick={() => setAssignOpen(true)}>
             <UserCheck className="h-4 w-4 mr-2" /> Assign substitute
           </Button>
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function GenerateSlotsDialog({
+  open, onOpenChange, onGenerate,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onGenerate: (classes: string[], subjects: string[]) => void
+}) {
+  const [classes, setClasses] = useState('')
+  const [subjects, setSubjects] = useState('')
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Generate allocation slots</DialogTitle>
+          <DialogDescription>
+            Create teacher allocation slots from the cartesian product of your classes and subjects.
+            Existing (class, subject) pairs are skipped.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-700">Classes (comma-separated)</label>
+            <Input
+              placeholder="e.g., JSS 1 A, JSS 1 B, SS 1 A"
+              value={classes}
+              onChange={(e) => setClasses(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Subjects (comma-separated)</label>
+            <Input
+              placeholder="e.g., Mathematics, English, Basic Science"
+              value={subjects}
+              onChange={(e) => setSubjects(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              const cls = classes.split(',').map((s) => s.trim()).filter(Boolean)
+              const subj = subjects.split(',').map((s) => s.trim()).filter(Boolean)
+              if (cls.length === 0 || subj.length === 0) return
+              onGenerate(cls, subj)
+            }}
+            disabled={!classes.trim() || !subjects.trim()}
+          >
+            Generate
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 export default TeacherAllocation;

@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { sql } from '../../_lib/sql.js'
 import { verifyParentChildRelationship } from '../../../src/lib/parentAuth'
 
 export async function getDashboardData(parentId: string, childId: string) {

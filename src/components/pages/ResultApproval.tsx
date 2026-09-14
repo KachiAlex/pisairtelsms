@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ClassArmSelect } from '../ui/class-arm-select'
 import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
-import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
+import { tenantApiGet, tenantApiPut, tenantApiPost } from '../../lib/tenantApi'
 
 interface CompiledRow {
   id: string
@@ -129,7 +129,7 @@ export function ResultApproval() {
     try {
       const params = new URLSearchParams({ action: 'publish', academicSession, term })
       if (className) params.set('class', className)
-      const res = await tenantApiPut(`/api/tenant/results?${params.toString()}`)
+      const res = await tenantApiPost(`/api/tenant/result-publishing-handler?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
         toast({

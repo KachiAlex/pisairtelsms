@@ -66,6 +66,11 @@ model Tenant {
   approvalStreams       ApprovalStream[]
   slaBreaches           SlaBreach[]
   reviewerWorkloads     ReviewerWorkload[]
+  academicDepartments    AcademicDepartment[]
+  academicPrograms       AcademicProgram[]
+  academicMilestones     AcademicMilestone[]
+  teacherAllocationSlots TeacherAllocationSlot[]
+  teacherSubstitutionLog TeacherSubstitutionLog[]
 
   @@map("tenants")
 }
@@ -152,6 +157,12 @@ model Staff {
   emergencyContact String?
   emergencyPhone   String?
   passwordHash     String?
+  // Teacher allocation fields (added via migration 018)
+  level            String?
+  riskFlag         String?  @default("Normal") // 'Normal', 'Overload', 'Underutilised', 'At risk'
+  subjects         Json     @default("[]") // Array of subject names
+  allocationPeriods Int    @default(0)
+  contractHours    Int      @default(40)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -174,36 +185,44 @@ model Class {
   id          String   @id @default(cuid())
   tenantId    String
   name        String
-  arm         String?
-  level       String? // 'JSS', 'SSS'
-  status      String   @default("active") // 'active', 'inactive'
+  arm         String
+  level       String?
   deletedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  @@unique([tenantId, name])
+  @@unique([tenantId, name, arm])
   @@index([tenantId])
   @@index([level])
   @@map("classes")
 }
 
 model Subject {
-  id          String   @id @default(cuid())
-  tenantId    String
-  code        String
-  name        String
-  description String?
-  status      String   @default("active") // 'active', 'inactive'
-  deletedAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  tenantId        String
+  code            String
+  name            String
+  levels          Json     @default("[]") // Array of class level names
+  type            String   @default("Core") // 'Core', 'Elective'
+  department      String   @default("General")
+  description     String?  @db.Text
+  version         String?
+  resourcesStatus String?  @default("Pending") // 'Complete', 'Review', 'Upload', 'Pending'
+  owner           String?
+  auditDate       DateTime? @db.Date
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([department])
+  @@index([code])
   @@map("subjects")
 }
 
@@ -1123,6 +1142,188 @@ model MaintenanceWindow {
   @@map("maintenance_windows")
 }
 
+// ============================================================================
+// Results & Assessment Models
+// ============================================================================
+
+model StudentScore {
+  id                   String   @id
+  tenantId             String
+  studentId            String
+  subject              String
+  academicSession      String
+  term                 String
+  caScore              Float    @default(0)
+  examScore            Float    @default(0)
+  totalScore           Float    @default(0)
+  attendancePercentage Float    @default(0)
+  class                String?
+  testsScore           Float    @default(0)
+  assignmentsScore     Float    @default(0)
+  projectsScore        Float    @default(0)
+  examsScore           Float    @default(0)
+  submittedBy          String?
+  submittedByName      String?
+  submissionStatus     String   @default("submitted")
+  isAbsent             Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([tenantId, studentId, subject, academicSession, term])
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([class])
+  @@index([academicSession, term])
+  @@map("student_scores")
+}
+
+model StudentScoreAudit {
+  id              Int      @id @default(autoincrement())
+  tenantId        String
+  studentId       String
+  subject         String
+  academicSession String
+  term            String
+  action          String
+  oldValues       Json?
+  newValues       Json?
+  actorId         String?
+  actorName       String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([academicSession, term])
+  @@map("student_scores_audit")
+}
+
+model CompiledResult {
+  id               String   @id
+  tenantId         String
+  studentId        String
+  subject          String
+  class            String
+  academicSession  String
+  term             String
+  totalScore       Float    @default(0)
+  grade            String?
+  remark           String?
+  classAverage     Float    @default(0)
+  highestScore     Float    @default(0)
+  lowestScore      Float    @default(0)
+  subjectPosition  Int      @default(0)
+  overallTotal     Float    @default(0)
+  overallAverage   Float    @default(0)
+  classPosition    Int      @default(0)
+  totalStudents    Int      @default(0)
+  attendancePercent Float   @default(0)
+  principalComment String?
+  gpaWeight        Float    @default(0)
+  creditHours      Int      @default(1)
+  status           String   @default("compiled")
+  compiledAt       DateTime @default(now())
+
+  @@unique([tenantId, studentId, subject, academicSession, term])
+  @@index([tenantId])
+  @@index([status])
+  @@index([academicSession, term])
+  @@index([class])
+  @@map("compiled_results")
+}
+
+model CAConfig {
+  id              Int       @id @default(autoincrement())
+  tenantId        String    @unique
+  publishedConfig Json
+  draftConfig     Json?
+  status          String    @default("published")
+  updatedAt       DateTime  @default(now()) @updatedAt
+  publishedAt     DateTime?
+
+  @@map("ca_config")
+}
+
+model CAConfigAudit {
+  id         Int      @id @default(autoincrement())
+  tenantId   String
+  action     String
+  config     Json?
+  actorId    String?
+  actorName  String?
+  summary    String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("ca_config_audit")
+}
+
+model CAConfigOverride {
+  id         Int      @id @default(autoincrement())
+  tenantId   String
+  className  String
+  subjectName String?
+  config     Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, className, subjectName])
+  @@map("ca_config_overrides")
+}
+
+model GradingScale {
+  id                    String    @id @default(cuid())
+  tenantId              String
+  name                  String
+  description           String?
+  type                  String    @default("primary")
+  status                String    @default("draft")
+  minimumPassMark       Float?
+  distinctionThreshold  Float?
+  remediationTrigger    Float?
+  createdBy             String?
+  updatedBy             String?
+  publishedBy           String?
+  publishedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  bands                 GradingScaleBand[]
+
+  @@index([tenantId, status, type])
+  @@map("grading_scales")
+}
+
+model GradingScaleBand {
+  id         String   @id @default(cuid())
+  scaleId    String
+  tenantId   String
+  grade      String
+  minScore   Float
+  maxScore   Float
+  remark     String?
+  gpaWeight  Float    @default(0)
+  color      String?
+
+  scale      GradingScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+
+  @@index([scaleId])
+  @@map("grading_scale_bands")
+}
+
+model GradingScaleAudit {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  scaleId     String?
+  action      String
+  description String?
+  performedBy String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([scaleId])
+  @@map("grading_scale_audit")
+}
+
 model EscalationChannel {
   id               String   @id @default(cuid())
   tenantId         String
@@ -1211,4 +1412,98 @@ model ReviewerWorkload {
   @@index([tenantId])
   @@index([reviewer])
   @@map("reviewer_workloads")
+}
+
+// ============================================================================
+// Academic Structure Models (raw SQL tables — see api/tenant/cbt/_migrations)
+// ============================================================================
+
+model AcademicDepartment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?  @db.Text
+  head        String?
+  status      String   @default("active") // 'active', 'inactive'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([status])
+  @@map("academic_departments")
+}
+
+model AcademicProgram {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  level       String?
+  description String?  @db.Text
+  status      String   @default("active") // 'active', 'inactive'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([status])
+  @@map("academic_programs")
+}
+
+model AcademicMilestone {
+  id        String   @id @default(cuid())
+  tenantId  String
+  title     String
+  date      String
+  owner     String   @default("Admin")
+  status    String   @default("Tentative") // 'Tentative', 'Live', 'Locked', 'High priority'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([date])
+  @@map("academic_milestones")
+}
+
+model TeacherAllocationSlot {
+  id         String   @id @default(cuid())
+  tenantId   String
+  class      String
+  subject    String
+  teacher    String?
+  coverage   String   @default("Open") // 'Open', 'Assigned'
+  warnings   Int      @default(0)
+  dayOfWeek  Int?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([coverage])
+  @@map("teacher_allocation_slots")
+}
+
+model TeacherSubstitutionLog {
+  id         String   @id @default(cuid())
+  tenantId   String
+  slot       String
+  priority   String?
+  action     String?
+  relief     String?
+  eta        String?
+  impacted   String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("teacher_substitution_log")
 }

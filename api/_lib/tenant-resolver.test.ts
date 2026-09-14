@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ sql: vi.fn() }))
 
-vi.mock('@vercel/postgres', () => ({ sql: mocks.sql }))
+vi.mock('./sql.js', () => ({ sql: mocks.sql }))
 
 /**
  * Tests for the tenant URL resolver — the engine behind per-school

@@ -1,5 +1,45 @@
 import { poolQuery } from '../../_lib/pg-pool.js'
 import { getTenantCAConfig, type CAConfig } from './ca-config.js'
+import {
+  getGradeBands,
+  assignGradeFromBands,
+  getLevelForClass,
+  type GradeBand,
+} from './grade-bands.js'
+
+/**
+ * Fetch a class/subject-specific CA config override if one exists.
+ * Returns null if no override is found.
+ */
+async function getCAConfigOverride(
+  tenantId: string,
+  className: string,
+  subject?: string
+): Promise<CAConfig | null> {
+  try {
+    // Try class+subject override first, then class-only override
+    if (subject) {
+      const result = await poolQuery(
+        `SELECT config FROM ca_config_overrides
+         WHERE tenant_id = $1 AND class_name = $2 AND subject_name = $3
+         LIMIT 1`,
+        [tenantId, className, subject]
+      )
+      if (result.rows[0]) return result.rows[0].config as CAConfig
+    }
+    // Fall back to class-level override (subject_name IS NULL)
+    const result = await poolQuery(
+      `SELECT config FROM ca_config_overrides
+       WHERE tenant_id = $1 AND class_name = $2 AND subject_name IS NULL
+       LIMIT 1`,
+      [tenantId, className]
+    )
+    if (result.rows[0]) return result.rows[0].config as CAConfig
+    return null
+  } catch {
+    return null
+  }
+}
 
 export interface StudentScore {
   id: string
@@ -59,6 +99,7 @@ interface ScoreRow {
   submitted_by: string | null
   submitted_by_name: string | null
   submission_status: string
+  is_absent: boolean | null
   created_at: Date
   updated_at: Date
 }
@@ -182,15 +223,8 @@ export async function fetchScores(
     }
   } catch (error) {
     console.error('Error fetching scores:', error)
-    return []
+    throw new Error('Failed to fetch scores')
   }
-}
-
-function getLevelForClass(className: string): 'primary' | 'jss' | 'sss' {
-  const upper = className.toUpperCase()
-  if (upper.includes('SS') || upper.includes('SENIOR') || upper.includes('SSS')) return 'sss'
-  if (upper.includes('JSS') || upper.includes('JUNIOR') || upper.includes('JS')) return 'jss'
-  return 'primary'
 }
 
 /**
@@ -269,19 +303,22 @@ export async function computeAttendanceBatch(
     return map
   } catch (error) {
     console.error('Error computing batch attendance:', error)
-    return {}
+    throw new Error('Failed to compute batch attendance')
   }
 }
 
 export async function computeWeightedTotal(
   tenantId: string,
   className: string,
-  scores: { testsScore: number; assignmentsScore: number; projectsScore: number; examsScore: number }
+  scores: { testsScore: number; assignmentsScore: number; projectsScore: number; examsScore: number },
+  subject?: string
 ): Promise<number> {
   try {
-    const config = await getTenantCAConfig(tenantId)
     const level = getLevelForClass(className)
-    const weights = config.published[level]
+
+    // Check for class/subject-specific override first
+    const override = await getCAConfigOverride(tenantId, className, subject)
+    const weights = override ? override[level] : (await getTenantCAConfig(tenantId)).published[level]
 
     const weightedTotal =
       (scores.testsScore * weights.tests +
@@ -318,7 +355,7 @@ export async function fetchScoresByClassAndSubject(
     return result.rows.map(rowToScore)
   } catch (error) {
     console.error('Error fetching scores by class/subject:', error)
-    return []
+    throw new Error('Failed to fetch scores by class/subject')
   }
 }
 
@@ -372,7 +409,7 @@ export async function fetchTeacherSubmissions(
     }
   } catch (error) {
     console.error('Error fetching teacher submissions:', error)
-    return []
+    throw new Error('Failed to fetch teacher submissions')
   }
 }
 
@@ -385,10 +422,10 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
   const projectsScore = payload.projectsScore ?? 0
   const examsScore = payload.examsScore ?? 0
 
-  // Compute weighted total using CA config, or fall back to simple sum
+  // Compute weighted total using CA config (with overrides), or fall back to simple sum
   const totalScore = await computeWeightedTotal(tenantId, payload.class, {
     testsScore, assignmentsScore, projectsScore, examsScore,
-  })
+  }, payload.subject)
 
   // caScore = aggregate of tests + assignments + projects (CA components)
   // examScore = exams_score (exam component)
@@ -438,6 +475,18 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
      testsScore, assignmentsScore, projectsScore, examsScore,
      submittedBy, submittedByName, submissionStatus]
   )
+
+  // Audit trail — log the score change (best-effort, non-blocking)
+  try {
+    await poolQuery(
+      `INSERT INTO student_scores_audit
+        (tenant_id, student_id, subject, academic_session, term, action, new_values, actor_id, actor_name)
+       VALUES ($1, $2, $3, $4, $5, 'upsert', $6::jsonb, $7, $8)`,
+      [tenantId, payload.studentId, payload.subject, payload.academicSession, payload.term,
+       JSON.stringify(result.rows[0]), submittedBy, submittedByName]
+    )
+  } catch { /* audit table may not exist yet — non-critical */ }
+
   return rowToScore(result.rows[0])
 }
 
@@ -481,7 +530,7 @@ export async function recomputeAllScores(
         assignmentsScore: row.assignments_score !== null ? parseFloat(row.assignments_score) : 0,
         projectsScore: row.projects_score !== null ? parseFloat(row.projects_score) : 0,
         examsScore: row.exams_score !== null ? parseFloat(row.exams_score) : 0,
-      })
+      }, row.subject)
 
       // Also recompute attendance from records
       const newAttendance = await computeAttendancePercentage(
@@ -526,7 +575,7 @@ export async function recomputeAllScores(
     return { recomputed, details }
   } catch (error) {
     console.error('Error recomputing scores:', error)
-    return { recomputed: 0, details: [] }
+    throw new Error('Failed to recompute scores')
   }
 }
 
@@ -549,68 +598,8 @@ interface CompiledResult {
   totalStudents: number
   attendancePercent: number
   principalComment: string
-}
-
-interface GradeBand {
-  grade: string
-  minScore: number
-  maxScore: number
-  remark: string
-}
-
-const DEFAULT_BANDS: GradeBand[] = [
-  { grade: 'A1', minScore: 80, maxScore: 100, remark: 'Distinction' },
-  { grade: 'B2', minScore: 70, maxScore: 79, remark: 'Very Good' },
-  { grade: 'B3', minScore: 65, maxScore: 69, remark: 'Good' },
-  { grade: 'C4', minScore: 60, maxScore: 64, remark: 'Credit' },
-  { grade: 'C5', minScore: 55, maxScore: 59, remark: 'Credit' },
-  { grade: 'C6', minScore: 50, maxScore: 54, remark: 'Satisfactory' },
-  { grade: 'D7', minScore: 45, maxScore: 49, remark: 'Pass' },
-  { grade: 'E8', minScore: 40, maxScore: 44, remark: 'Marginal Pass' },
-  { grade: 'F9', minScore: 0, maxScore: 39, remark: 'Fail' },
-]
-
-async function getGradeBands(tenantId: string): Promise<GradeBand[]> {
-  try {
-    const scaleRes = await poolQuery(
-      `SELECT id FROM grading_scales
-      WHERE tenant_id = $1 AND status = 'live'
-      ORDER BY updated_at DESC LIMIT 1`,
-      [tenantId]
-    )
-    if (!scaleRes.rows[0]) return DEFAULT_BANDS
-    const scaleId = scaleRes.rows[0].id
-    const bandsRes = await poolQuery(
-      `SELECT grade, min_score, max_score, remark
-      FROM grading_scale_bands
-      WHERE scale_id = $1
-      ORDER BY min_score DESC`,
-      [scaleId]
-    )
-    if (bandsRes.rows.length === 0) return DEFAULT_BANDS
-    return bandsRes.rows.map((r: any) => ({
-      grade: r.grade,
-      minScore: Number(r.min_score),
-      maxScore: Number(r.max_score),
-      remark: r.remark || '',
-    }))
-  } catch {
-    return DEFAULT_BANDS
-  }
-}
-
-function assignGradeFromBands(score: number, bands: GradeBand[]): { grade: string; remark: string } {
-  for (const band of bands) {
-    if (score >= band.minScore && score <= band.maxScore) {
-      return { grade: band.grade, remark: band.remark }
-    }
-  }
-  for (const band of bands) {
-    if (score >= band.minScore) {
-      return { grade: band.grade, remark: band.remark }
-    }
-  }
-  return { grade: 'F9', remark: 'Fail' }
+  gpaWeight: number
+  creditHours: number
 }
 
 function principalCommentFor(avg: number): string {
@@ -662,9 +651,6 @@ export async function compileResults(
   await ensureCompiledResultsTable()
 
   try {
-    // Load grade bands from DB (or fallback to defaults)
-    const bands = await getGradeBands(tenantId)
-
     // Fetch all submitted/approved scores for the scope
     let scoresQuery
     if (className) {
@@ -706,6 +692,10 @@ export async function compileResults(
     for (const cls of Object.keys(classGroups)) {
       const classRows = classGroups[cls]
 
+      // Load grade bands for this class level (or fallback to defaults)
+      const classLevel = getLevelForClass(cls)
+      const bands = await getGradeBands(tenantId, classLevel)
+
       // Group by subject for subject-level stats
       const subjectGroups: Record<string, ScoreRow[]> = {}
       for (const row of classRows) {
@@ -713,11 +703,12 @@ export async function compileResults(
         subjectGroups[row.subject].push(row)
       }
 
-      // Compute subject-level stats
+      // Compute subject-level stats (exclude absent students from averages)
       const subjectStats: Record<string, { avg: number; highest: number; lowest: number }> = {}
       for (const subject of Object.keys(subjectGroups)) {
         const subjRows = subjectGroups[subject]
-        const totals = subjRows.map(r => parseFloat(r.total_score))
+        const presentRows = subjRows.filter(r => !r.is_absent)
+        const totals = (presentRows.length > 0 ? presentRows : subjRows).map(r => parseFloat(r.total_score))
         subjectStats[subject] = {
           avg: totals.reduce((a, b) => a + b, 0) / totals.length,
           highest: Math.max(...totals),
@@ -725,9 +716,10 @@ export async function compileResults(
         }
       }
 
-      // Compute overall totals per student for class ranking
+      // Compute overall totals per student for class ranking (exclude absent from ranking)
       const studentTotals: Record<string, { total: number; attendanceSum: number; count: number }> = {}
       for (const row of classRows) {
+        if (row.is_absent) continue
         if (!studentTotals[row.student_id]) {
           studentTotals[row.student_id] = { total: 0, attendanceSum: 0, count: 0 }
         }
@@ -736,32 +728,40 @@ export async function compileResults(
         studentTotals[row.student_id].count++
       }
 
-      // Sort students by total for class position
+      // Sort students by total for class position (handle ties with proper ranking)
       const sortedStudents = Object.keys(studentTotals).sort((a, b) =>
         studentTotals[b].total - studentTotals[a].total
       )
       const classPositionMap: Record<string, number> = {}
-      sortedStudents.forEach((sid, idx) => { classPositionMap[sid] = idx + 1 })
+      sortedStudents.forEach((sid, idx) => {
+        if (idx > 0 && studentTotals[sid].total === studentTotals[sortedStudents[idx - 1]].total) {
+          classPositionMap[sid] = classPositionMap[sortedStudents[idx - 1]]
+        } else {
+          classPositionMap[sid] = idx + 1
+        }
+      })
       const totalStudents = sortedStudents.length
 
       // Build compiled results
       for (const row of classRows) {
         const totalScore = parseFloat(row.total_score)
-        const { grade, remark } = assignGradeFromBands(totalScore, bands)
+        const { grade, remark, gpaWeight } = assignGradeFromBands(totalScore, bands)
         const stats = subjectStats[row.subject] || { avg: 0, highest: 0, lowest: 0 }
+        const creditHours = 1 // Default credit hours per subject; can be extended per-subject later
 
-        // Subject position
-        const subjRows = subjectGroups[row.subject] || []
+        // Subject position (exclude absent students)
+        const subjRows = (subjectGroups[row.subject] || []).filter(r => !r.is_absent)
         const subjectPosition = subjRows
           .filter(r => parseFloat(r.total_score) > totalScore)
           .length + 1
 
-        const overallTotal = studentTotals[row.student_id].total
-        const overallAverage = studentTotals[row.student_id].count > 0
-          ? overallTotal / studentTotals[row.student_id].count
+        const studentData = studentTotals[row.student_id]
+        const overallTotal = studentData?.total ?? 0
+        const overallAverage = studentData && studentData.count > 0
+          ? overallTotal / studentData.count
           : 0
-        const attendancePercent = studentTotals[row.student_id].count > 0
-          ? studentTotals[row.student_id].attendanceSum / studentTotals[row.student_id].count
+        const attendancePercent = studentData && studentData.count > 0
+          ? studentData.attendanceSum / studentData.count
           : 0
 
         const compiled: CompiledResult = {
@@ -777,10 +777,12 @@ export async function compileResults(
           subjectPosition,
           overallTotal: Math.round(overallTotal * 100) / 100,
           overallAverage: Math.round(overallAverage * 100) / 100,
-          classPosition: classPositionMap[row.student_id],
+          classPosition: classPositionMap[row.student_id] ?? 0,
           totalStudents,
           attendancePercent: Math.round(attendancePercent * 100) / 100,
           principalComment: principalCommentFor(overallAverage),
+          gpaWeight,
+          creditHours,
         }
         allResults.push(compiled)
         compiledCount++
@@ -790,12 +792,14 @@ export async function compileResults(
             id, tenant_id, student_id, subject, class, academic_session, term,
             total_score, grade, remark, class_average, highest_score, lowest_score,
             subject_position, overall_total, overall_average, class_position,
-            total_students, attendance_percent, principal_comment, status, compiled_at
+            total_students, attendance_percent, principal_comment, gpa_weight, credit_hours,
+            status, compiled_at
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
             $8, $9, $10, $11, $12, $13,
             $14, $15, $16, $17,
-            $18, $19, $20, 'compiled', NOW()
+            $18, $19, $20, $21, $22,
+            'compiled', NOW()
           )
           ON CONFLICT (tenant_id, student_id, subject, academic_session, term)
           DO UPDATE SET
@@ -812,16 +816,24 @@ export async function compileResults(
             total_students = EXCLUDED.total_students,
             attendance_percent = EXCLUDED.attendance_percent,
             principal_comment = EXCLUDED.principal_comment,
-            status = 'compiled',
+            gpa_weight = EXCLUDED.gpa_weight,
+            credit_hours = EXCLUDED.credit_hours,
+            status = CASE
+              WHEN EXCLUDED.total_score IS DISTINCT FROM compiled_results.total_score
+                OR EXCLUDED.grade IS DISTINCT FROM compiled_results.grade
+                OR EXCLUDED.class_position IS DISTINCT FROM compiled_results.class_position
+              THEN 'compiled'
+              ELSE compiled_results.status
+            END,
             compiled_at = NOW()`,
           [id, tenantId, row.student_id, row.subject, row.class,
             academicSession, term,
             totalScore, grade, remark,
             Math.round(stats.avg * 100) / 100, stats.highest, stats.lowest,
             subjectPosition, Math.round(overallTotal * 100) / 100,
-            Math.round(overallAverage * 100) / 100, classPositionMap[row.student_id],
+            Math.round(overallAverage * 100) / 100, classPositionMap[row.student_id] ?? 0,
             totalStudents, Math.round(attendancePercent * 100) / 100,
-            principalCommentFor(overallAverage)]
+            principalCommentFor(overallAverage), gpaWeight, creditHours]
         )
       }
 
@@ -830,7 +842,7 @@ export async function compileResults(
     return { compiled: compiledCount, results: allResults }
   } catch (error) {
     console.error('Error compiling results:', error)
-    return { compiled: 0, results: [] }
+    throw new Error('Failed to compile results')
   }
 }
 
@@ -868,7 +880,7 @@ export async function fetchCompiledResults(
     return result.rows
   } catch (error) {
     console.error('Error fetching compiled results:', error)
-    return []
+    throw new Error('Failed to fetch compiled results')
   }
 }
 
@@ -951,7 +963,7 @@ export async function fetchBroadsheet(
              cr.class_position, cr.total_students, cr.attendance_percent, cr.status,
              s.name AS student_name
       FROM compiled_results cr
-      LEFT JOIN students s ON s.id::text = cr.student_id
+      LEFT JOIN students s ON s.id = cr.student_id AND s.tenant_id = $1
       WHERE cr.tenant_id = $1
         AND cr.academic_session = $2
         AND cr.term = $3

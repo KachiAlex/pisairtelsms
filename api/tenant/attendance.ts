@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { fetchAttendance, upsertAttendanceBatch, type AttendancePayload, type AttendanceFilter } from './_lib/attendance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -111,12 +111,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    // Get user ID for audit trail
-    const userId = getUserId(req)
+    // Derive user ID from JWT token (authoritative), not from client-supplied headers
+    const userId = decoded.staffId || decoded.userId || decoded.sub
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: 'User context required (x-user-id header)',
+        error: 'User identity not found in authentication token',
       })
     }
 

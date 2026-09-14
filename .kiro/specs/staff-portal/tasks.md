@@ -88,7 +88,7 @@ Build a staff portal where teachers and administrative staff can view their dash
   - [x] 2.15 Implement Staff Profile API (`api/staff/profile.ts`)
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10.1, 10.6_
 
-  - [x] 2.16 Wire all staff API routes in `vercel.json`
+  - [x] 2.16 Wire all staff API routes in `routes.json`
     - _Requirements: 10.4_
 
   - [x] 2.17 Checkpoint — Verify TypeScript build is clean
@@ -153,7 +153,7 @@ Build a staff portal where teachers and administrative staff can view their dash
 
 ## Notes
 
-- All API handlers use `VercelRequest`/`VercelResponse` from `@vercel/node`
+- All API handlers use `VercelRequest`/`VercelResponse` from local HTTP types
 - All API files live under `api/staff/` subdirectory
 - All component files live under `src/components/pages/staff/` subdirectory
 - Staff data is auto-filtered by staffId from JWT token

@@ -1,4 +1,4 @@
-import { db } from '@vercel/postgres'
+import { db } from '../api/_lib/sql.mjs'
 
 async function check() {
   // Check staff table columns

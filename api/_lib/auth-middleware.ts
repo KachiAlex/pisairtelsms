@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from './http-types.js'
 import { jwtVerify } from 'jose'
 import { getJwtSecret } from './jwt-secret.js'
 

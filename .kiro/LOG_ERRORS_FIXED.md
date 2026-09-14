@@ -3,11 +3,11 @@
 ## Errors from User's Log
 
 ```
-Dashboard-FYHUoQx8.js:1 Fetch finished loading: GET "https://scholarx-app.vercel.app/api/tenant/integrated-dashboard"
-tenantApi-BULkWaUg.js:1   GET https://scholarx-app.vercel.app/api/tenant/cbt/subjects 500 (Internal Server Error)
-tenantApi-BULkWaUg.js:1 Fetch failed loading: GET "https://scholarx-app.vercel.app/api/tenant/cbt/subjects"
-tenantApi-BULkWaUg.js:1   POST https://scholarx-app.vercel.app/api/tenant/cbt/subjects 400 (Bad Request)
-tenantApi-BULkWaUg.js:1 Fetch failed loading: POST "https://scholarx-app.vercel.app/api/tenant/cbt/subjects"
+Dashboard-FYHUoQx8.js:1 Fetch finished loading: GET "http://your-vps-domain:3000/api/tenant/integrated-dashboard"
+tenantApi-BULkWaUg.js:1   GET http://your-vps-domain:3000/api/tenant/cbt/subjects 500 (Internal Server Error)
+tenantApi-BULkWaUg.js:1 Fetch failed loading: GET "http://your-vps-domain:3000/api/tenant/cbt/subjects"
+tenantApi-BULkWaUg.js:1   POST http://your-vps-domain:3000/api/tenant/cbt/subjects 400 (Bad Request)
+tenantApi-BULkWaUg.js:1 Fetch failed loading: POST "http://your-vps-domain:3000/api/tenant/cbt/subjects"
 ```
 
 ## Error 1: GET /api/tenant/cbt/subjects 500

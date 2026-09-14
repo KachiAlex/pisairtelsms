@@ -39,7 +39,7 @@ export async function fetchStudentDocuments(tenantId: string): Promise<StudentDo
     return rows.map(rowToDTO);
   } catch (error) {
     console.error('Error fetching student documents:', error);
-    return [];
+    throw new Error('Failed to fetch student documents');
   }
 }
 
@@ -77,4 +77,19 @@ export async function updateStudentDocumentStatus(
     [status, id, tenantId]
   );
   return row ? rowToDTO(row) : null;
+}
+
+/**
+ * Soft-delete a student document record (tenant-scoped).
+ * Returns true if a row was affected, false if the document was not found.
+ */
+export async function deleteStudentDocument(
+  id: string,
+  tenantId: string
+): Promise<boolean> {
+  const row = await queryOne<any>(
+    `DELETE FROM student_documents WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+    [id, tenantId]
+  );
+  return !!row;
 }

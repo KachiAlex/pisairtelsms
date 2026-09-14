@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 
 const retentionDays = Number(process.env.VIOLATION_RETENTION_DAYS ?? 30)
 const CRON_SECRET = process.env.CRON_SECRET

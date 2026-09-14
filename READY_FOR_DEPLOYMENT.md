@@ -21,14 +21,14 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-### Option 2: Manual Deployment with Vercel CLI
+### Option 2: Manual Deployment with PM2
 
 ```bash
-# Install Vercel CLI (if not already installed)
-npm install -g vercel
+# Install PM2 (if not already installed)
+npm install -g pm2
 
 # Deploy to production
-vercel deploy --prod
+pm2 restart pisairtel-sms
 ```
 
 ### Option 3: Git-Based Deployment (Automatic)
@@ -37,7 +37,7 @@ vercel deploy --prod
 # Push to main branch
 git push origin main
 
-# Vercel will automatically deploy
+# PM2 will automatically restart on deploy
 ```
 
 ---
@@ -79,7 +79,7 @@ Before deploying, ensure you have:
 - ✅ 3 Super Admin APIs
 
 ### Database
-- ✅ Vercel Postgres
+- ✅ Local PostgreSQL (pg pool)
 - ✅ 20+ tables
 - ✅ Indexes and constraints
 - ✅ Backup strategy
@@ -122,8 +122,8 @@ npx tsc --noEmit
 ./deploy.sh  # macOS/Linux
 deploy.bat   # Windows
 
-# Option B: Using Vercel CLI
-vercel deploy --prod
+# Option B: Using PM2
+pm2 restart pisairtel-sms
 
 # Option C: Using Git
 git push origin main
@@ -142,13 +142,13 @@ git push origin main
 ## 📞 Post-Deployment Support
 
 ### Monitoring
-- **Error Logs**: Check Vercel dashboard for errors
+- **Error Logs**: Check PM2 monit for errors (`pm2 monit`)
 - **Performance**: Monitor API response times
 - **Database**: Check connection pool status
 - **Security**: Review authentication logs
 
 ### Troubleshooting
-- **Deployment Failed**: Check error logs in Vercel dashboard
+- **Deployment Failed**: Check error logs via `pm2 logs pisairtel-sms`
 - **API Not Responding**: Verify environment variables
 - **Database Connection Error**: Check POSTGRES_PRISMA_URL
 - **Authentication Issues**: Verify JWT_SECRET
@@ -157,7 +157,7 @@ git push origin main
 If issues occur:
 ```bash
 # Rollback to previous version
-vercel rollback
+pm2 reload pisairtel-sms
 
 # Or redeploy from specific commit
 git revert <commit-hash>
@@ -271,7 +271,7 @@ Before deployment, verify:
 
 **Status**: ✅ PRODUCTION READY
 
-**Next Action**: Run deployment script or use Vercel CLI
+**Next Action**: Run deployment script or use PM2
 
 **Estimated Deployment Time**: 30-35 minutes
 

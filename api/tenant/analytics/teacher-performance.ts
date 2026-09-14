@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { getTeacherPerformanceAnalytics, type AnalyticsFilters } from '../_lib/analytics/engine.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 

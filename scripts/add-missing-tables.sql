@@ -1,6 +1,6 @@
 -- Migration script to add missing tables for real data analytics
 -- This script adds: students, staff, classes, subjects, fee_structures
--- Run this using the @vercel/postgres connection
+-- Run this using the local pg pool (api/_lib/sql.mjs)
 
 -- Add students table
 CREATE TABLE IF NOT EXISTS students (

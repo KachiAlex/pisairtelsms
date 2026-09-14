@@ -39,7 +39,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - PUT: update fee structure (only if not yet applied to students)
     - POST `/copy`: copy fee structure to new term
     - GET `/history`: return version history
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 1.1, 1.2, 1.5_
 
   - [x] 1.6 Implement Fee Assignments API (`api/tenant/finance/fee-assignments.ts`)
@@ -48,7 +48,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - POST `/bulk`: bulk assign fees to all students in class
     - PUT: update assignment (recalculate balance)
     - GET `/:id/ledger`: return complete fee ledger with payments and adjustments
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 2.1, 2.2_
 
   - [x] 1.7 Implement Payments API (`api/tenant/finance/payments.ts`)
@@ -57,7 +57,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - GET: list payments with filters (student, date, method, status)
     - POST `/:id/reverse`: reverse payment with reason
     - POST `/:id/receipt`: generate receipt
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 3.1, 3.2, 3.4_
 
   - [x] 1.8 Implement Payment Plans API (`api/tenant/finance/payment-plans.ts`)
@@ -65,7 +65,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - GET: list plans filtered by student, status
     - PUT: update plan (modify installments)
     - GET `/:id/installments`: list installments with payment status
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 3.3_
 
   - [x] 1.9 Implement Reconciliation API (`api/tenant/finance/reconciliation.ts`)
@@ -73,7 +73,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - GET `/unmatched`: list unmatched transactions
     - POST `/bulk-match`: bulk match payments
     - GET `/report`: generate reconciliation report
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 4.1, 4.2, 4.3_
 
   - [x] 1.10 Implement Reports API (`api/tenant/finance/reports.ts`)
@@ -83,17 +83,17 @@ Build a comprehensive finance and fees management system with hierarchical fee c
     - GET `/revenue-forecast`: project collections based on history
     - GET `/payment-methods`: breakdown by payment method
     - GET `/financial-statement`: monthly revenue summary
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
   - [x] 1.11 Implement Audit Log API (`api/tenant/finance/audit-log.ts`)
     - GET: list audit entries with filters (entity_type, action, user, date)
     - GET `/:entity_id`: get audit history for specific entity
     - Ensure immutability (no delete operations)
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 6.1, 6.3_
 
-  - [x] 1.12 Wire all finance API routes in `vercel.json`
+  - [x] 1.12 Wire all finance API routes in `routes.json`
     - Add routes for all 7 new API endpoints under `/api/tenant/finance/*`
     - _Requirements: 10.1_
 
@@ -421,7 +421,7 @@ Build a comprehensive finance and fees management system with hierarchical fee c
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP
-- All API handlers must use `VercelRequest`/`VercelResponse` from `@vercel/node`
+- All API handlers must use `VercelRequest`/`VercelResponse` from local HTTP types
 - All new API files live under `api/tenant/finance/` subdirectory
 - All new component files live under `src/components/pages/finance/` subdirectory
 - Payment allocation uses FIFO (First In, First Out) algorithm

@@ -1,3 +1,5 @@
+import { tenantApiGet } from './tenantApi'
+
 export type SummaryStat = {
   label: string
   value: string
@@ -54,13 +56,7 @@ export type StudentHealthPayload = {
 const HEALTH_ENDPOINT = '/api/student-health'
 
 export async function fetchStudentHealth(signal?: AbortSignal): Promise<StudentHealthPayload> {
-  const response = await fetch(HEALTH_ENDPOINT, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    signal,
-  })
+  const response = await tenantApiGet(HEALTH_ENDPOINT)
 
   if (!response.ok) {
     throw new Error(`Failed to fetch student health dashboard: ${response.status}`)

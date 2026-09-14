@@ -1,7 +1,7 @@
 /**
  * Migration runner for private lessons schema (003)
  */
-import { db } from '@vercel/postgres';
+import { db } from '../api/_lib/sql.mjs';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';

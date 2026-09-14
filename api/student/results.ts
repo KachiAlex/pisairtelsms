@@ -1,7 +1,8 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 import { getTenantCAConfig } from '../tenant/_lib/ca-config.js';
+import { getLevelForClass } from '../tenant/_lib/grade-bands.js';
 
 interface CAWeights {
   tests: number;
@@ -23,66 +24,10 @@ interface StudentResult {
   grade: string;
   remark: string;
   teacher: string;
-}
-
-interface GradeBand {
-  grade: string;
-  minScore: number;
-  maxScore: number;
-  remark: string;
-}
-
-const DEFAULT_BANDS: GradeBand[] = [
-  { grade: 'A1', minScore: 80, maxScore: 100, remark: 'Distinction' },
-  { grade: 'B2', minScore: 70, maxScore: 79, remark: 'Very Good' },
-  { grade: 'B3', minScore: 65, maxScore: 69, remark: 'Good' },
-  { grade: 'C4', minScore: 60, maxScore: 64, remark: 'Credit' },
-  { grade: 'C5', minScore: 55, maxScore: 59, remark: 'Credit' },
-  { grade: 'C6', minScore: 50, maxScore: 54, remark: 'Satisfactory' },
-  { grade: 'D7', minScore: 45, maxScore: 49, remark: 'Pass' },
-  { grade: 'E8', minScore: 40, maxScore: 44, remark: 'Marginal Pass' },
-  { grade: 'F9', minScore: 0, maxScore: 39, remark: 'Fail' },
-];
-
-async function getGradeBands(tenantId: string): Promise<GradeBand[]> {
-  try {
-    const scaleRes = await sql`
-      SELECT id FROM grading_scales
-      WHERE tenant_id = ${tenantId} AND status = 'live'
-      ORDER BY updated_at DESC LIMIT 1
-    `;
-    if (!scaleRes.rows[0]) return DEFAULT_BANDS;
-    const scaleId = scaleRes.rows[0].id;
-    const bandsRes = await sql`
-      SELECT grade, min_score, max_score, remark
-      FROM grading_scale_bands
-      WHERE scale_id = ${scaleId}
-      ORDER BY min_score DESC
-    `;
-    if (bandsRes.rows.length === 0) return DEFAULT_BANDS;
-    return bandsRes.rows.map((r: any) => ({
-      grade: r.grade,
-      minScore: Number(r.min_score),
-      maxScore: Number(r.max_score),
-      remark: r.remark || '',
-    }));
-  } catch {
-    return DEFAULT_BANDS;
-  }
-}
-
-function assignGrade(score: number, bands: GradeBand[]): { grade: string; remark: string } {
-  for (const band of bands) {
-    if (score >= band.minScore && score <= band.maxScore) {
-      return { grade: band.grade, remark: band.remark };
-    }
-  }
-  for (const band of bands) {
-    if (score >= band.minScore) {
-      return { grade: band.grade, remark: band.remark };
-    }
-  }
-  return { grade: 'F9', remark: 'Fail' };
+  classAverage: number;
+  highestScore: number;
+  lowestScore: number;
+  subjectPosition: number;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -102,74 +47,110 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { academicSession = '2025/2026', term = 'First' } = req.query;
 
-    // Get tenant_id for grading scale lookup
-    const tenantRes = await sql`SELECT tenant_id, class FROM students WHERE id = ${studentId} LIMIT 1`;
+    // Get tenant_id and class for the student (scoped to JWT tenant)
+    const tenantRes = await sql`SELECT tenant_id, class FROM students WHERE id = ${studentId} AND tenant_id = ${decoded.tenantId || 'default-tenant'} LIMIT 1`;
     const tenantId = tenantRes.rows[0]?.tenant_id || 'default-tenant';
     const studentClass = tenantRes.rows[0]?.class || '';
-    const bands = await getGradeBands(tenantId);
+    const classLevel = getLevelForClass(studentClass);
+
+    // Check whether results have been published for this session/term
+    const pubCheck = await sql`
+      SELECT COUNT(*)::int AS n FROM compiled_results
+      WHERE tenant_id = ${tenantId}
+        AND student_id = ${studentId}
+        AND academic_session = ${academicSession as string}
+        AND term = ${term as string}
+        AND status = 'published'
+    `;
+    const isPublished = (pubCheck.rows[0]?.n ?? 0) > 0;
+    if (!isPublished) {
+      return res.status(200).json({
+        results: [],
+        averageScore: 0,
+        classAverage: 0,
+        classPosition: 0,
+        totalStudents: 0,
+        academicSession: academicSession as string,
+        term: term as string,
+        caWeights: { tests: 20, assignments: 15, projects: 15, exams: 50 },
+        published: false,
+      });
+    }
 
     // Get CA weights for this student's class level
     let caWeights: CAWeights = { tests: 20, assignments: 15, projects: 15, exams: 50 };
     try {
       const config = await getTenantCAConfig(tenantId);
-      const level = studentClass.toUpperCase().includes('SS') ? 'sss'
-        : studentClass.toUpperCase().includes('JSS') ? 'jss' : 'primary';
-      caWeights = config.published[level];
+      caWeights = config.published[classLevel];
     } catch { /* use defaults */ }
 
+    // Fetch compiled results (official grades, positions, class stats)
+    // joined with student_scores for component breakdown
     const dbResult = await sql`
-      SELECT subject, ca_score, exam_score, total_score,
-             tests_score, assignments_score, projects_score, exams_score,
-             attendance_percentage,
-             class, submitted_by_name
-      FROM student_scores
-      WHERE student_id = ${studentId}
-        AND academic_session = ${academicSession as string}
-        AND term = ${term as string}
-      ORDER BY subject ASC
+      SELECT cr.subject, cr.total_score, cr.grade, cr.remark,
+             cr.class_average, cr.highest_score, cr.lowest_score,
+             cr.subject_position, cr.overall_total, cr.overall_average,
+             cr.class_position, cr.total_students, cr.attendance_percent,
+             cr.principal_comment,
+             ss.ca_score, ss.exam_score, ss.tests_score, ss.assignments_score,
+             ss.projects_score, ss.exams_score, ss.submitted_by_name
+      FROM compiled_results cr
+      LEFT JOIN student_scores ss
+        ON ss.student_id = cr.student_id
+        AND ss.subject = cr.subject
+        AND ss.tenant_id = cr.tenant_id
+        AND ss.academic_session = cr.academic_session
+        AND ss.term = cr.term
+      WHERE cr.tenant_id = ${tenantId}
+        AND cr.student_id = ${studentId}
+        AND cr.academic_session = ${academicSession as string}
+        AND cr.term = ${term as string}
+        AND cr.status = 'published'
+      ORDER BY cr.subject ASC
     `;
 
-    const results: StudentResult[] = dbResult.rows.map(r => ({
+    const results: StudentResult[] = dbResult.rows.map((r: any) => ({
       subject: r.subject,
-      caScore: Number(r.ca_score),
-      examScore: Number(r.exam_score),
+      caScore: Number(r.ca_score || 0),
+      examScore: Number(r.exam_score || 0),
       totalScore: Number(r.total_score),
-      testsScore: r.tests_score !== null ? Number(r.tests_score) : 0,
-      assignmentsScore: r.assignments_score !== null ? Number(r.assignments_score) : 0,
-      projectsScore: r.projects_score !== null ? Number(r.projects_score) : 0,
-      examsScore: r.exams_score !== null ? Number(r.exams_score) : 0,
-      attendancePercent: Number(r.attendance_percentage),
-      grade: '',
-      remark: '',
+      testsScore: r.tests_score !== null && r.tests_score !== undefined ? Number(r.tests_score) : 0,
+      assignmentsScore: r.assignments_score !== null && r.assignments_score !== undefined ? Number(r.assignments_score) : 0,
+      projectsScore: r.projects_score !== null && r.projects_score !== undefined ? Number(r.projects_score) : 0,
+      examsScore: r.exams_score !== null && r.exams_score !== undefined ? Number(r.exams_score) : 0,
+      attendancePercent: Number(r.attendance_percent || 0),
+      grade: r.grade || '',
+      remark: r.remark || '',
       teacher: r.submitted_by_name || '',
+      classAverage: Number(r.class_average || 0),
+      highestScore: Number(r.highest_score || 0),
+      lowestScore: Number(r.lowest_score || 0),
+      subjectPosition: Number(r.subject_position || 0),
     }));
-
-    for (const r of results) {
-      const { grade, remark } = assignGrade(r.totalScore, bands);
-      r.grade = grade;
-      r.remark = remark;
-    }
 
     const averageScore = results.length > 0
       ? Math.round(results.reduce((sum, r) => sum + r.totalScore, 0) / results.length)
       : 0;
 
-    // Class average from student_scores
-    const studentClassFromResult = dbResult.rows[0]?.class;
-    let classAverage = 0;
-    if (studentClassFromResult) {
-      const classAvgResult = await sql`
-        SELECT ROUND(AVG(total_score)) AS avg
-        FROM student_scores
-        WHERE academic_session = ${academicSession as string}
-          AND term = ${term as string}
-          AND class = ${studentClassFromResult}
-          AND tenant_id = ${tenantId}
-      `;
-      classAverage = Number(classAvgResult.rows[0]?.avg ?? 0);
-    }
+    // Class position and total students from the first compiled result
+    // (all rows for the same student/class/term share these values)
+    const classPosition = Number(dbResult.rows[0]?.class_position || 0);
+    const totalStudents = Number(dbResult.rows[0]?.total_students || 0);
+    const classAverage = results.length > 0
+      ? Math.round(results.reduce((sum, r) => sum + r.classAverage, 0) / results.length)
+      : 0;
 
-    return res.status(200).json({ results, averageScore, classAverage, academicSession, term, caWeights });
+    return res.status(200).json({
+      results,
+      averageScore,
+      classAverage,
+      classPosition,
+      totalStudents,
+      academicSession,
+      term,
+      caWeights,
+      published: true,
+    });
   } catch (error) {
     console.error('Error fetching student results:', error);
     return res.status(500).json({ error: 'Failed to fetch results' });

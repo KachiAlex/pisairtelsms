@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { getPromotionRules, updatePromotionRule, deletePromotionRule, createPromotionRule } from './_lib/promotion-rules.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -24,11 +24,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const { tenantId, id } = req.query
-
-  if (!tenantId || typeof tenantId !== 'string') {
-    return res.status(400).json({ error: 'Tenant ID is required' })
-  }
+  // Use tenant ID from JWT token (authoritative), not from query params (client-claimable)
+  const tenantId = decoded.tenantId || 'default-tenant'
+  const { id } = req.query
 
   if (req.method === 'GET') {
     try {

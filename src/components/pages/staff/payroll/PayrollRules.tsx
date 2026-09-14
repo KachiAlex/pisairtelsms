@@ -23,7 +23,10 @@ export function PayrollRules() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    staffId: string; staffName: string; ruleType: 'earning' | 'deduction'; category: string;
+    label: string; amount: string; calculationMethod: 'fixed' | 'percentage'; percentageOf: 'basic_salary' | 'gross';
+  }>({
     staffId: '', staffName: '', ruleType: 'earning', category: 'housing_allowance',
     label: '', amount: '', calculationMethod: 'fixed', percentageOf: 'basic_salary',
   })
@@ -176,7 +179,7 @@ export function PayrollRules() {
             <div>
               <Label>Type</Label>
               <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={form.ruleType}
-                onChange={e => setForm(f => ({ ...f, ruleType: e.target.value, category: e.target.value === 'earning' ? EARNING_CATEGORIES[0] : DEDUCTION_CATEGORIES[0] }))}>
+                onChange={e => setForm(f => ({ ...f, ruleType: e.target.value as 'earning' | 'deduction', category: e.target.value === 'earning' ? EARNING_CATEGORIES[0] : DEDUCTION_CATEGORIES[0] }))}>
                 <option value="earning">Earning</option>
                 <option value="deduction">Deduction</option>
               </select>
@@ -195,7 +198,7 @@ export function PayrollRules() {
             <div>
               <Label>Calculation Method</Label>
               <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={form.calculationMethod}
-                onChange={e => setForm(f => ({ ...f, calculationMethod: e.target.value }))}>
+                onChange={e => setForm(f => ({ ...f, calculationMethod: e.target.value as 'fixed' | 'percentage' }))}>
                 <option value="fixed">Fixed Amount</option>
                 <option value="percentage">Percentage</option>
               </select>
@@ -204,7 +207,7 @@ export function PayrollRules() {
               <div>
                 <Label>Percentage Of</Label>
                 <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={form.percentageOf}
-                  onChange={e => setForm(f => ({ ...f, percentageOf: e.target.value }))}>
+                  onChange={e => setForm(f => ({ ...f, percentageOf: e.target.value as 'basic_salary' | 'gross' }))}>
                   <option value="basic_salary">Basic Salary</option>
                   <option value="gross">Gross Pay</option>
                 </select>

@@ -7,7 +7,12 @@
 
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+let prisma: any;
+try {
+  prisma = new PrismaClient();
+} catch {
+  prisma = null;
+}
 
 /**
  * Interface for schema verification results
@@ -253,10 +258,10 @@ async function verifyTables(): Promise<TableCheckResult[]> {
         ORDER BY ordinal_position
       `;
 
-      const foundColumns = columns.map(c => c.column_name);
+      const foundColumns = columns.map((c: { column_name: string }) => c.column_name);
       const expectedColumns = expectedSchema.columns;
-      const missingColumns = expectedColumns.filter(c => !foundColumns.includes(c));
-      const extraColumns = foundColumns.filter(c => !expectedColumns.includes(c));
+      const missingColumns = expectedColumns.filter((c: string) => !foundColumns.includes(c));
+      const extraColumns = foundColumns.filter((c: string) => !expectedColumns.includes(c));
 
       results.push({
         tableName,

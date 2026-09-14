@@ -8,8 +8,8 @@ All features have been completed and tested. The application is ready for produc
 
 ### ✅ Tenant Admin Dashboard
 - **Framework**: Vite + React + TypeScript
-- **API**: 30+ Vercel serverless functions
-- **Database**: Vercel Postgres
+- **API**: 30+ Express API handlers
+- **Database**: Local PostgreSQL (pg pool)
 - **Features**:
   - Student management and enrollment
   - Academic results and promotions
@@ -73,11 +73,11 @@ TWILIO_ACCOUNT_SID=your_twilio_sid
 TWILIO_AUTH_TOKEN=your_twilio_token
 ```
 
-### 3. Deploy to Vercel
+### 3. Deploy to VPS
 
 ```bash
-# Option 1: Using Vercel CLI
-vercel deploy --prod
+# Option 1: Using PM2
+pm2 restart pisairtel-sms
 
 # Option 2: Using Git (automatic deployment)
 git push origin main
@@ -153,7 +153,7 @@ git push origin main
 ## Monitoring & Logging
 
 ### Recommended Tools
-- Vercel Analytics
+- PM2 monit (`pm2 monit`)
 - Sentry for error tracking
 - LogRocket for session replay
 - New Relic for performance monitoring
@@ -171,7 +171,7 @@ If issues occur after deployment:
 
 ```bash
 # Rollback to previous version
-vercel rollback
+pm2 reload pisairtel-sms
 
 # Or redeploy from specific commit
 git revert <commit-hash>

@@ -16,26 +16,9 @@ pool.query('SELECT count(*) FROM staff').then(r => {
 " 2>&1
 
 echo ""
-echo "=== Test @vercel/postgres createClient ==="
+echo "=== Test local sql helper (sql.mjs) ==="
 docker exec pisairtel-sms node -e "
-const { createClient } = require('@vercel/postgres');
-(async () => {
-  try {
-    const client = await createClient();
-    await client.connect();
-    const r = await client.query('SELECT count(*) FROM staff');
-    console.log('createClient OK:', r.rows[0].count, 'staff');
-    await client.end();
-  } catch(e) {
-    console.log('createClient ERROR:', e.message);
-  }
-})();
-" 2>&1
-
-echo ""
-echo "=== Test @vercel/postgres sql ==="
-docker exec pisairtel-sms node -e "
-const { sql } = require('@vercel/postgres');
+const { sql } = require('./api/_lib/sql.mjs');
 (async () => {
   try {
     const r = await sql\`SELECT count(*) as count FROM staff\`;

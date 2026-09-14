@@ -79,7 +79,7 @@ async function main() {
     'package.json',
     'pnpm-lock.yaml',
     'ecosystem.config.cjs',
-    'vercel.json',
+    'routes.json',
     'tsconfig.json',
   ].filter(f => fs.existsSync(path.join(ROOT, f)));
 
@@ -114,11 +114,8 @@ fi
 # Install dependencies
 pnpm install --frozen-lockfile --prod=false 2>&1 || pnpm install 2>&1
 
-# Ensure pg is installed (needed by @vercel/postgres shim)
+# Ensure pg is installed (needed by api/_lib/sql.ts and pg-pool.ts)
 pnpm add pg 2>&1 || true
-
-# Copy shims (replaces @vercel/postgres and @vercel/node with pg-based shims)
-node server/copy-shims.mjs
 
 # Clean up tarball
 rm -f /tmp/${tarball}

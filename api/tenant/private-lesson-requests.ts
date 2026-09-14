@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { requireRole, requireAuth } from '../_lib/auth-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -233,6 +233,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (userRole !== 'parent') {
           return res.status(403).json({ error: 'Only parents can approve for their children' })
         }
+        // Verify this parent owns at least one of the students in the request
+        const parentChildren = decoded.childrenIds || []
+        const requestStudents: string[] = Array.isArray(request.student_ids) ? request.student_ids : []
+        const ownsStudent = requestStudents.some((sid: string) => parentChildren.includes(sid))
+        if (!ownsStudent) {
+          return res.status(403).json({ error: 'You can only approve requests for your own children' })
+        }
         if (request.admin_status !== 'approved') {
           return res.status(400).json({ error: 'Request must be admin-approved first' })
         }
@@ -293,6 +300,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === 'parent_decline') {
         if (userRole !== 'parent') {
           return res.status(403).json({ error: 'Only parents can decline for their children' })
+        }
+        // Verify this parent owns at least one of the students in the request
+        const parentChildren = decoded.childrenIds || []
+        const requestStudents: string[] = Array.isArray(request.student_ids) ? request.student_ids : []
+        const ownsStudent = requestStudents.some((sid: string) => parentChildren.includes(sid))
+        if (!ownsStudent) {
+          return res.status(403).json({ error: 'You can only decline requests for your own children' })
         }
         const result = await sql`
           UPDATE private_lesson_requests SET

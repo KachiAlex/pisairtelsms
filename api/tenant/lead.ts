@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { createLead, fetchLeads } from './_lib/lead.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js'

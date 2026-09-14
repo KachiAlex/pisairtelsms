@@ -1,9 +1,10 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, publishCompiledResults, computeAttendanceBatch, fetchBroadsheet, type ScorePayload } from './_lib/results.js'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
+import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, computeAttendanceBatch, fetchBroadsheet, type ScorePayload } from './_lib/results.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 function methodNotAllowed(res: VercelResponse) {
-  res.setHeader('Allow', 'GET,POST,PUT')
+  res.setHeader('Allow', 'GET,POST,PUT,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
@@ -155,9 +156,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         assignmentsScore: assignmentsScore !== undefined ? Number(assignmentsScore) : undefined,
         projectsScore: projectsScore !== undefined ? Number(projectsScore) : undefined,
         examsScore: examsScore !== undefined ? Number(examsScore) : undefined,
-        submittedBy: submittedBy ?? decoded.userId,
-        submittedByName: submittedByName ?? decoded.email,
-        submissionStatus: submissionStatus ?? 'submitted',
+        // Always derive submitter identity from JWT (authoritative), not from body
+        submittedBy: decoded.staffId || decoded.userId || decoded.sub,
+        submittedByName: decoded.email || undefined,
+        // Always set to 'submitted' — workflow transitions (approve, publish)
+        // are handled by dedicated endpoints, not by the score entry endpoint.
+        submissionStatus: 'submitted',
       }
       const score = await createScore(tenantId, payload)
       return res.status(201).json({ data: score })
@@ -231,26 +235,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    if (action === 'publish') {
-      const { academicSession, term, class: className } = req.query
-      if (!academicSession || !term) {
-        return res.status(400).json({ error: 'academicSession and term are required for publish action' })
-      }
-      try {
-        const published = await publishCompiledResults(
-          tenantId,
-          academicSession as string,
-          term as string,
-          className as string | undefined
-        )
-        return res.status(200).json({ success: true, published })
-      } catch (error) {
-        console.error('Error publishing results:', error)
-        return res.status(500).json({ error: 'Failed to publish results' })
-      }
+    // Note: Publishing is handled by the dedicated result-publishing-handler endpoint.
+    // Use POST /api/tenant/result-publishing-handler?action=publish instead.
+
+    return res.status(400).json({ error: 'Unknown PUT action. Use ?action=recompute, ?action=compile, or ?action=approve. For publishing, use /api/tenant/result-publishing-handler?action=publish' })
+  }
+
+  if (req.method === 'DELETE') {
+    const { studentId, subject, academicSession, term } = req.query
+
+    if (!studentId || !subject || !academicSession || !term) {
+      return res.status(400).json({ error: 'studentId, subject, academicSession, and term are required for score deletion' })
     }
 
-    return res.status(400).json({ error: 'Unknown PUT action. Use ?action=recompute, ?action=compile, ?action=approve, or ?action=publish' })
+    try {
+      // Only allow deleting scores that haven't been compiled yet
+      const compiledCheck = await sql`
+        SELECT COUNT(*)::int AS n FROM compiled_results
+        WHERE tenant_id = ${tenantId}
+          AND student_id = ${studentId as string}
+          AND subject = ${subject as string}
+          AND academic_session = ${academicSession as string}
+          AND term = ${term as string}
+          AND status IN ('approved', 'published')
+      `
+      if ((compiledCheck.rows[0]?.n ?? 0) > 0) {
+        return res.status(409).json({ error: 'Cannot delete a score that has been approved or published. Unpublish first.' })
+      }
+
+      const result = await sql`
+        DELETE FROM student_scores
+        WHERE tenant_id = ${tenantId}
+          AND student_id = ${studentId as string}
+          AND subject = ${subject as string}
+          AND academic_session = ${academicSession as string}
+          AND term = ${term as string}
+        RETURNING id
+      `
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Score not found' })
+      }
+
+      // Audit trail — log the deletion (best-effort)
+      try {
+        await sql`
+          INSERT INTO student_scores_audit
+            (tenant_id, student_id, subject, academic_session, term, action, actor_id, actor_name)
+          VALUES (${tenantId}, ${studentId as string}, ${subject as string},
+                  ${academicSession as string}, ${term as string}, 'delete',
+                  ${decoded.userId || ''}, ${decoded.email || ''})
+        `
+      } catch { /* audit table may not exist yet — non-critical */ }
+
+      return res.status(200).json({ success: true, deleted: result.rows.length })
+    } catch (error) {
+      console.error('Error deleting score:', error)
+      return res.status(500).json({ error: 'Failed to delete score' })
+    }
   }
 
   return methodNotAllowed(res)

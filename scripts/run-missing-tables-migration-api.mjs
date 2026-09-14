@@ -1,8 +1,8 @@
 /**
- * Migration runner using @vercel/postgres
+ * Migration runner using local PostgreSQL pool
  * Adds missing tables for real data analytics
  */
-import { sql } from '@vercel/postgres';
+import { sql } from '../api/_lib/sql.mjs';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function runMigration() {
   try {
-    console.log('Connected to database via @vercel/postgres');
+    console.log('Connected to database via local pg pool');
     
     // Check if tables already exist
     const checkResult = await sql`

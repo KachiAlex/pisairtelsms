@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import {
   ensurePayrollTables,
   // Schedules
@@ -127,12 +127,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ data: run })
       }
       if (body.action === 'approve') {
-        const result = await approveRun(id as string, decoded.userId || decoded.sub || '', decoded.name || decoded.email || '', body.approverRole || 'tenant_admin', body.comment || null, actualTenantId)
+        const result = await approveRun(id as string, decoded.userId || decoded.sub || '', decoded.email || '', body.approverRole || 'tenant_admin', body.comment || null, actualTenantId)
         if (!result.run) return res.status(400).json({ error: 'Approval failed' })
         return res.status(200).json({ data: result })
       }
       if (body.action === 'reject') {
-        const result = await rejectRun(id as string, decoded.userId || decoded.sub || '', decoded.name || decoded.email || '', body.approverRole || 'tenant_admin', body.comment || 'Rejected', actualTenantId)
+        const result = await rejectRun(id as string, decoded.userId || decoded.sub || '', decoded.email || '', body.approverRole || 'tenant_admin', body.comment || 'Rejected', actualTenantId)
         if (!result.run) return res.status(400).json({ error: 'Rejection failed' })
         return res.status(200).json({ data: result })
       }
@@ -188,7 +188,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!id) return res.status(400).json({ error: 'Advance ID is required' })
       const body = parseBody(req)
       if (body?.action === 'approve') {
-        const advance = await approveAdvance(id as string, decoded.userId || decoded.sub || '', decoded.name || decoded.email || '', actualTenantId)
+        const advance = await approveAdvance(id as string, decoded.userId || decoded.sub || '', decoded.email || '', actualTenantId)
         if (!advance) return res.status(400).json({ error: 'Advance cannot be approved' })
         return res.status(200).json({ data: advance })
       }

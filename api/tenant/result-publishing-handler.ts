@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { publishCompiledResults } from './_lib/results.js'
 
@@ -140,10 +140,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         term,
         className || undefined
       )
+
+      // Send notifications to parents of affected students
+      let studentsNotified = 0
+      try {
+        // Get distinct student IDs from the published results
+        let publishedStudents
+        if (className) {
+          publishedStudents = await sql`
+            SELECT DISTINCT student_id FROM compiled_results
+            WHERE tenant_id = ${tenantId}
+              AND academic_session = ${academicSession}
+              AND term = ${term}
+              AND class = ${className}
+              AND status = 'published'
+          `
+        } else {
+          publishedStudents = await sql`
+            SELECT DISTINCT student_id FROM compiled_results
+            WHERE tenant_id = ${tenantId}
+              AND academic_session = ${academicSession}
+              AND term = ${term}
+              AND status = 'published'
+          `
+        }
+        studentsNotified = publishedStudents.rows.length
+
+        // Insert parent notifications for each student
+        for (const row of publishedStudents.rows) {
+          await sql`
+            INSERT INTO parent_notifications (id, parent_id, student_id, type, title, message, action_url)
+            SELECT
+              'notif_' || ${row.student_id} || '_' || ${academicSession} || '_' || ${term},
+              p.parent_id,
+              ${row.student_id},
+              'academic',
+              'Results Published',
+              'Results for ' || ${term} || ' term, ' || ${academicSession} || ' session have been published. You can now view them.',
+              '/parent/transcript?childId=' || ${row.student_id}
+            FROM parent_students p
+            WHERE p.student_id = ${row.student_id}
+            ON CONFLICT (id) DO NOTHING
+          `
+        }
+      } catch (notifError) {
+        // Notification failure should not block the publish operation
+        console.error('[Result Publishing] Notification error (non-critical):', notifError)
+      }
+
       return res.json({
         success: true,
         published,
-        message: `${published} result(s) published successfully. Students and parents can now view results.`,
+        studentsNotified,
+        message: `${published} result(s) published successfully. ${studentsNotified} student(s) notified.`,
       })
     }
 

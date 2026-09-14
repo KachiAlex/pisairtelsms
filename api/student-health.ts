@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from './_lib/http-types.js'
 import { runMigrations, initializeDatabase } from './tenant/cbt/_lib/db.js'
 import { fetchStudentHealthData, createHealthRecord } from './tenant/_lib/studentHealth.js'
 import { requireRole } from './_lib/auth-middleware.js'
@@ -45,10 +45,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Request body is required' })
     }
 
+    const recordType = body.recordType || body.type || 'screening'
+    const VALID_RECORD_TYPES = ['screening', 'counseling', 'incident', 'wellness_task']
+    if (!VALID_RECORD_TYPES.includes(recordType)) {
+      return res.status(400).json({
+        error: `Invalid recordType '${recordType}'. Must be one of: ${VALID_RECORD_TYPES.join(', ')}`,
+      })
+    }
+
     try {
       const record = await createHealthRecord(tenantId, {
         studentName: body.studentName || body.student || '',
-        recordType: body.recordType || body.type || 'screening',
+        recordType,
         details: body.details || body.notes || body.topic || '',
         owner: body.owner || '',
         status: body.status || 'pending',

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide provides comprehensive instructions for deploying the CBT (Computer-Based Testing) & Examinations system to development, staging, and production environments. The system consists of a Node.js/Vercel backend API, React frontend, PostgreSQL database, and WebSocket server for real-time monitoring.
+This guide provides comprehensive instructions for deploying the CBT (Computer-Based Testing) & Examinations system to development, staging, and production environments. The system consists of a Node.js/Express backend API, React frontend, PostgreSQL database, and WebSocket server for real-time monitoring.
 
 ## Pre-Deployment Checklist
 
@@ -10,7 +10,7 @@ This guide provides comprehensive instructions for deploying the CBT (Computer-B
 - [ ] Node.js 18+ installed
 - [ ] PostgreSQL 13+ installed and running
 - [ ] Git repository access
-- [ ] Vercel CLI installed (`npm install -g vercel`)
+- [ ] PM2 installed (`npm install -g pm2`)
 - [ ] Environment variables configured
 - [ ] SSL certificates obtained (production)
 - [ ] Database backups configured
@@ -24,7 +24,7 @@ This guide provides comprehensive instructions for deploying the CBT (Computer-B
 - [ ] API keys for external services
 - [ ] Email service credentials
 - [ ] AWS/Cloud storage credentials
-- [ ] Vercel project token
+- [ ] PM2 ecosystem config (ecosystem.config.cjs)
 
 ---
 
@@ -264,9 +264,9 @@ psql -U postgres -d cbt_prod -c "SELECT tablename, pg_size_pretty(pg_total_relat
    npm run test:performance
    ```
 
-3. **Deploy to Vercel staging**
+3. **Deploy to VPS staging**
    ```bash
-   vercel --prod --env-file .env.staging
+   pm2 restart pisairtel-sms --env staging
    ```
 
 4. **Run database migrations**
@@ -310,9 +310,9 @@ psql -U postgres -d cbt_prod -c "SELECT tablename, pg_size_pretty(pg_total_relat
    pg_dump -U postgres cbt_prod > cbt_backup_pre_deploy_$(date +%Y%m%d_%H%M%S).sql
    ```
 
-5. **Deploy to Vercel production**
+5. **Deploy to VPS production**
    ```bash
-   vercel --prod --env-file .env.production
+   pm2 restart pisairtel-sms --env production
    ```
 
 6. **Run database migrations**
@@ -332,7 +332,7 @@ psql -U postgres -d cbt_prod -c "SELECT tablename, pg_size_pretty(pg_total_relat
 
 9. **Monitor logs**
    ```bash
-   vercel logs --prod
+   pm2 logs pisairtel-sms
    ```
 
 ---
@@ -499,7 +499,7 @@ git revert HEAD
 git push origin main
 
 # Redeploy previous version
-vercel --prod --env-file .env.production
+pm2 restart pisairtel-sms --env production
 ```
 
 ### Database Rollback

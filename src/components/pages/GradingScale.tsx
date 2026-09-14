@@ -7,14 +7,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Input } from '../ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { useToast } from '../ui/use-toast'
-import { getAuthFromStorage } from '../../lib/auth'
+import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../lib/tenantApi'
 
 interface GradeBand {
   id: string
   grade: string
   min_score: number
   max_score: number
-  grade_point: number
+  gpa_weight: number
   remark: string
 }
 
@@ -46,49 +46,31 @@ export function GradingScale() {
   
   const [newScaleName, setNewScaleName] = useState('')
   const [creating, setCreating] = useState(false)
-
-  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const auth = getAuthFromStorage();
-    const headers: Record<string, string> = { 
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {})
-    };
-    if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`;
-    
-    const response = await fetch(url, { ...options, headers });
-    if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
-    return response.json();
-  };
+  const [addBandFor, setAddBandFor] = useState<string | null>(null)
+  const [newBand, setNewBand] = useState({ grade: '', min_score: '', max_score: '', gpa_weight: '', remark: '' })
+  const [savingBand, setSavingBand] = useState(false)
 
   const loadData = async () => {
     try {
       setLoading(true)
       setError(null)
       const [scalesRes, auditRes] = await Promise.all([
-        fetchWithAuth('/api/tenant/grading-scales'),
-        fetchWithAuth('/api/tenant/grading-scales?id=audit'),
+        tenantApiGet('/api/tenant/grading-scales'),
+        tenantApiGet('/api/tenant/grading-scales?action=audit'),
       ])
-      setScales(scalesRes.data || [])
-      setAuditLog(auditRes.data || [])
+      if (scalesRes.ok) {
+        const sj = await scalesRes.json()
+        setScales(sj.data || [])
+      } else {
+        throw new Error('Failed to load grading scales')
+      }
+      if (auditRes.ok) {
+        const aj = await auditRes.json()
+        setAuditLog(aj.data || [])
+      }
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : 'Failed to load grading system')
-      // Mock data for UI development
-      if (scales.length === 0) {
-        setScales([
-          { 
-            id: '1', name: 'Standard WAEC Scale', type: 'secondary', version: 1, status: 'live', created_at: new Date().toISOString(),
-            minimum_pass_mark: 40, distinction_threshold: 75, remediation_trigger: 30,
-            bands: [
-              { id: 'b1', grade: 'A1', min_score: 75, max_score: 100, grade_point: 5.0, remark: 'Excellent' },
-              { id: 'b2', grade: 'B2', min_score: 70, max_score: 74, grade_point: 4.0, remark: 'Very Good' },
-              { id: 'b3', grade: 'C6', min_score: 50, max_score: 64, grade_point: 3.0, remark: 'Credit' },
-              { id: 'b4', grade: 'F9', min_score: 0, max_score: 39, grade_point: 0.0, remark: 'Fail' },
-            ]
-          },
-          { id: '2', name: 'Primary Discovery Scale', type: 'primary', version: 2, status: 'draft', created_at: new Date().toISOString() },
-        ]);
-      }
     } finally {
       setLoading(false)
     }
@@ -102,13 +84,17 @@ export function GradingScale() {
     if (!newScaleName.trim()) return
     setCreating(true)
     try {
-      const result = await fetchWithAuth('/api/tenant/grading-scales', {
-        method: 'POST',
-        body: JSON.stringify({ name: newScaleName, type: 'primary' }),
+      const res = await tenantApiPost('/api/tenant/grading-scales', {
+        name: newScaleName, type: 'primary',
       })
-      setScales(prev => [result.data, ...prev])
-      setNewScaleName('')
-      toast({ title: 'Scale created', description: `"${newScaleName}" added as a draft.` })
+      if (res.ok) {
+        const result = await res.json()
+        setScales(prev => [result.data, ...prev])
+        setNewScaleName('')
+        toast({ title: 'Scale created', description: `"${newScaleName}" added as a draft.` })
+      } else {
+        toast({ title: 'Creation failed', variant: 'destructive' })
+      }
     } catch (err) {
       toast({ title: 'Creation failed', variant: 'destructive' })
     } finally {
@@ -118,14 +104,82 @@ export function GradingScale() {
 
   const handlePublish = async (scaleId: string) => {
     try {
-      await fetchWithAuth(`/api/tenant/grading-scales?id=${scaleId}&action=publish`, {
-        method: 'POST',
-      })
-      await loadData()
-      toast({ title: 'Scale published', description: 'Now active for result computation.' })
+      const res = await tenantApiPost(`/api/tenant/grading-scales?id=${scaleId}&action=publish`)
+      if (res.ok) {
+        await loadData()
+        toast({ title: 'Scale published', description: 'Now active for result computation.' })
+      } else {
+        toast({ title: 'Publish failed', variant: 'destructive' })
+      }
     } catch (err) {
       toast({ title: 'Publish failed', variant: 'destructive' })
     }
+  }
+
+  const handleDeleteScale = async (scaleId: string) => {
+    try {
+      const res = await tenantApiDelete(`/api/tenant/grading-scales?id=${scaleId}`)
+      if (res.ok) {
+        await loadData()
+        toast({ title: 'Scale deleted' })
+      } else {
+        toast({ title: 'Delete failed', variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Delete failed', variant: 'destructive' })
+    }
+  }
+
+  const handleAddBand = async (scaleId: string) => {
+    if (!newBand.grade || !newBand.min_score || !newBand.max_score) {
+      toast({ title: 'Validation error', description: 'Grade, min score, and max score are required.', variant: 'destructive' })
+      return
+    }
+    setSavingBand(true)
+    try {
+      const res = await tenantApiPost(`/api/tenant/grading-scales?id=${scaleId}&action=bands`, {
+        grade: newBand.grade,
+        minScore: Number(newBand.min_score),
+        maxScore: Number(newBand.max_score),
+        gpaWeight: newBand.gpa_weight ? Number(newBand.gpa_weight) : 0,
+        remark: newBand.remark || null,
+      })
+      if (res.ok) {
+        setNewBand({ grade: '', min_score: '', max_score: '', gpa_weight: '', remark: '' })
+        setAddBandFor(null)
+        await loadData()
+        toast({ title: 'Band added' })
+      } else {
+        toast({ title: 'Failed to add band', variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Failed to add band', variant: 'destructive' })
+    } finally {
+      setSavingBand(false)
+    }
+  }
+
+  const handleExportScales = () => {
+    if (scales.length === 0) return
+    const rows: string[][] = [['Scale Name', 'Type', 'Status', 'Grade', 'Min Score', 'Max Score', 'GPA Weight', 'Remark']]
+    for (const scale of scales) {
+      if (scale.bands && scale.bands.length > 0) {
+        for (const band of scale.bands) {
+          rows.push([scale.name, scale.type, scale.status, band.grade, String(band.min_score), String(band.max_score), String(band.gpa_weight), band.remark || ''])
+        }
+      } else {
+        rows.push([scale.name, scale.type, scale.status, '', '', '', '', ''])
+      }
+    }
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'grading_scales_export.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+    toast({ title: 'Scales exported', description: `${scales.length} scale(s) exported to CSV.` })
   }
 
   if (loading && scales.length === 0) {
@@ -148,7 +202,7 @@ export function GradingScale() {
           <Button variant="outline" className="rounded-xl" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
           </Button>
-          <Button className="bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md">
+          <Button className="bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md" onClick={handleExportScales}>
             <ArrowUpWideNarrow className="h-4 w-4 mr-2" /> Export Scales
           </Button>
         </div>
@@ -259,7 +313,7 @@ export function GradingScale() {
                         <Badge className={`px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold border ${statusColors[scale.status] || 'bg-gray-100'}`}>
                           {scale.status}
                         </Badge>
-                        <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteScale(scale.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </div>
                     <CardContent className="p-0">
@@ -280,7 +334,7 @@ export function GradingScale() {
                                 <Badge variant="outline" className="font-mono text-[10px] rounded-md">{band.min_score}% - {band.max_score}%</Badge>
                               </TableCell>
                               <TableCell className="text-center">
-                                <span className="text-sm font-bold text-blue-600">{band.grade_point.toFixed(1)}</span>
+                                <span className="text-sm font-bold text-blue-600">{Number(band.gpa_weight).toFixed(1)}</span>
                               </TableCell>
                               <TableCell className="px-6 text-sm text-gray-500 italic">{band.remark}</TableCell>
                             </TableRow>
@@ -292,7 +346,7 @@ export function GradingScale() {
                         </TableBody>
                       </Table>
                       <div className="p-4 flex justify-between items-center bg-gray-50/20">
-                        <Button variant="ghost" size="sm" className="text-xs font-bold text-gray-500 hover:text-blue-600">
+                        <Button variant="ghost" size="sm" className="text-xs font-bold text-gray-500 hover:text-blue-600" onClick={() => { setAddBandFor(addBandFor === scale.id ? null : scale.id); setNewBand({ grade: '', min_score: '', max_score: '', gpa_weight: '', remark: '' }) }}>
                           <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Grade Band
                         </Button>
                         {scale.status === 'draft' && (
@@ -301,6 +355,34 @@ export function GradingScale() {
                           </Button>
                         )}
                       </div>
+                      {addBandFor === scale.id && (
+                        <div className="px-6 py-4 bg-blue-50/30 border-t border-gray-100 flex flex-wrap items-end gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase text-gray-400">Grade</label>
+                            <Input className="h-8 w-20" placeholder="A1" value={newBand.grade} onChange={e => setNewBand({ ...newBand, grade: e.target.value })} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase text-gray-400">Min</label>
+                            <Input className="h-8 w-20" type="number" placeholder="80" value={newBand.min_score} onChange={e => setNewBand({ ...newBand, min_score: e.target.value })} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase text-gray-400">Max</label>
+                            <Input className="h-8 w-20" type="number" placeholder="100" value={newBand.max_score} onChange={e => setNewBand({ ...newBand, max_score: e.target.value })} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase text-gray-400">GPA Wt</label>
+                            <Input className="h-8 w-20" type="number" placeholder="4.0" value={newBand.gpa_weight} onChange={e => setNewBand({ ...newBand, gpa_weight: e.target.value })} />
+                          </div>
+                          <div className="space-y-1 flex-1 min-w-[120px]">
+                            <label className="text-[10px] font-bold uppercase text-gray-400">Remark</label>
+                            <Input className="h-8" placeholder="Distinction" value={newBand.remark} onChange={e => setNewBand({ ...newBand, remark: e.target.value })} />
+                          </div>
+                          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white h-8" onClick={() => handleAddBand(scale.id)} disabled={savingBand}>
+                            {savingBand ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1" />} Add
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8" onClick={() => setAddBandFor(null)}>Cancel</Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

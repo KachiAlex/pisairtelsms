@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 
 interface TimeSlot {
@@ -34,13 +34,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   try {
 
     const { termId } = req.query;
 
     // Get student's class
     const studentResult = await sql`
-      SELECT class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1
+      SELECT class, arm FROM students WHERE id = ${studentId} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1
     `;
     if (!studentResult.rows[0]) return res.status(404).json({ error: 'Student not found' });
     const { class: studentClass, arm } = studentResult.rows[0];
@@ -53,6 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       FROM timetable tt
       LEFT JOIN staff st ON st.id = tt.staff_id
       WHERE tt.class_name = ${className}
+        AND tt.tenant_id = ${tenantId}
       ORDER BY tt.day, tt.start_time
     `;
 
@@ -72,6 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              EXTRACT(EPOCH FROM (end_time::time - start_time::time))/60 AS duration
       FROM exams
       WHERE (student_class = ${studentClass} OR student_class IS NULL)
+        AND tenant_id = ${tenantId}
         AND exam_date >= CURRENT_DATE
       ORDER BY exam_date, start_time
     `;

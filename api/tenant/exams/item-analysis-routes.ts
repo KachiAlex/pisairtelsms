@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
 import itemAnalysisApi from './item-analysis';
 import { requireRole } from '../../_lib/auth-middleware.js';
 

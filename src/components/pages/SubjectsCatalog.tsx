@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { BookOpen, GraduationCap, Layers3, Filter, Download, Sparkles, AlertTriangle, X } from 'lucide-react'
+import { BookOpen, GraduationCap, Layers3, Filter, Download, Sparkles, AlertTriangle, X, Pencil, Trash2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -10,7 +10,7 @@ import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Textarea } from '../ui/textarea'
-import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
 interface Subject {
@@ -42,6 +42,8 @@ export function SubjectsCatalog() {
     department: 'Sciences',
     description: ''
   })
+  const [departments, setDepartments] = useState<string[]>(['Sciences', 'Humanities', 'Commercial', 'Languages'])
+  const [editSubject, setEditSubject] = useState<Subject | null>(null)
 
   const departmentBreakdown = useMemo(() => {
     const counts = new Map<string, number>()
@@ -166,8 +168,22 @@ export function SubjectsCatalog() {
     }
   }
 
+  const fetchDepartments = async () => {
+    try {
+      const res = await tenantApiGet('/api/tenant/academics/departments')
+      if (res.ok) {
+        const data = await res.json()
+        const names = (data.data || []).map((d: any) => d.name).filter(Boolean)
+        if (names.length > 0) setDepartments(names)
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error)
+    }
+  }
+
   useEffect(() => {
     fetchSubjects()
+    fetchDepartments()
   }, [])
 
   const handleAddSubject = async () => {
@@ -199,6 +215,53 @@ export function SubjectsCatalog() {
     } catch (error) {
       console.error('Error adding subject:', error);
       toast({ title: 'Network error', description: 'Error adding subject. Please try again.', variant: 'destructive' });
+    }
+  }
+
+  const handleUpdateSubject = async () => {
+    if (!editSubject) return
+    if (!editSubject.code || !editSubject.name) {
+      toast({ title: 'Validation error', description: 'Code and name are required.', variant: 'destructive' });
+      return;
+    }
+    try {
+      const res = await tenantApiPut(`/api/tenant/academics/subjects?id=${editSubject.id}`, {
+        code: editSubject.code,
+        name: editSubject.name,
+        levels: editSubject.levels,
+        type: editSubject.type,
+        department: editSubject.department,
+        description: editSubject.description,
+      });
+      if (res.ok) {
+        toast({ title: 'Subject updated', description: `${editSubject.name} has been updated.` });
+        setEditSubject(null);
+        fetchSubjects();
+      } else {
+        const errorData = await res.json();
+        toast({ title: 'Error updating subject', description: errorData.error || 'Unknown error', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error updating subject:', error);
+      toast({ title: 'Network error', description: 'Error updating subject.', variant: 'destructive' });
+    }
+  }
+
+  const handleDeleteSubject = async (subject: Subject) => {
+    if (!subject.id) return
+    if (!window.confirm(`Delete subject "${subject.name}"? This cannot be undone.`)) return
+    try {
+      const res = await tenantApiDelete(`/api/tenant/academics/subjects?id=${subject.id}`)
+      if (res.ok) {
+        toast({ title: 'Subject deleted', description: `${subject.name} has been removed.` })
+        fetchSubjects()
+      } else {
+        const errorData = await res.json()
+        toast({ title: 'Error deleting subject', description: errorData.error || 'Unknown error', variant: 'destructive' })
+      }
+    } catch (error) {
+      console.error('Error deleting subject:', error)
+      toast({ title: 'Network error', description: 'Error deleting subject.', variant: 'destructive' })
     }
   }
 
@@ -327,10 +390,9 @@ export function SubjectsCatalog() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Sciences">Sciences</SelectItem>
-                        <SelectItem value="Humanities">Humanities</SelectItem>
-                        <SelectItem value="Commercial">Commercial</SelectItem>
-                        <SelectItem value="Languages">Languages</SelectItem>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -465,12 +527,13 @@ export function SubjectsCatalog() {
                   <TableHead>Owner</TableHead>
                   <TableHead>Last audit</TableHead>
                   <TableHead>Resources</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredSubjects.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-sm text-gray-500">
+                    <TableCell colSpan={9} className="text-center text-sm text-gray-500">
                       {loading ? 'Loading subjects…' : 'No subjects match the current filters.'}
                     </TableCell>
                   </TableRow>
@@ -506,6 +569,16 @@ export function SubjectsCatalog() {
                         )}
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" aria-label="Edit subject" onClick={() => setEditSubject({ ...subject })}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label="Delete subject" onClick={() => handleDeleteSubject(subject)}>
+                          <Trash2 className="h-4 w-4 text-rose-600" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -513,6 +586,78 @@ export function SubjectsCatalog() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!editSubject} onOpenChange={(open) => { if (!open) setEditSubject(null) }}>
+        <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Subject</DialogTitle>
+            <DialogDescription>Update the subject details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-subject-code">Subject Code</Label>
+              <Input id="edit-subject-code" value={editSubject?.code || ''} onChange={(e) => setEditSubject((prev) => prev ? { ...prev, code: e.target.value } : prev)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-subject-name">Subject Name</Label>
+              <Input id="edit-subject-name" value={editSubject?.name || ''} onChange={(e) => setEditSubject((prev) => prev ? { ...prev, name: e.target.value } : prev)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Levels</Label>
+              <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
+                {['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'].map((level) => (
+                  <label key={level} className="flex items-center gap-2 p-2 border rounded-md cursor-pointer hover:bg-gray-50 transition text-xs sm:text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editSubject?.levels?.includes(level) || false}
+                      onChange={(e) => setEditSubject((prev) => {
+                        if (!prev) return prev
+                        const levels = e.target.checked
+                          ? [...(prev.levels || []), level]
+                          : (prev.levels || []).filter((l) => l !== level)
+                        return { ...prev, levels }
+                      })}
+                      className="w-4 h-4 shrink-0"
+                    />
+                    <span className="truncate">{level}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={editSubject?.type || 'Core'} onValueChange={(value: 'Core' | 'Elective') => setEditSubject((prev) => prev ? { ...prev, type: value } : prev)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Core">Core</SelectItem>
+                    <SelectItem value="Elective">Elective</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select value={editSubject?.department || 'Sciences'} onValueChange={(value) => setEditSubject((prev) => prev ? { ...prev, department: value } : prev)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={editSubject?.description || ''} onChange={(e) => setEditSubject((prev) => prev ? { ...prev, description: e.target.value } : prev)} rows={3} />
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2 flex-col-reverse sm:flex-row">
+            <Button variant="outline" onClick={() => setEditSubject(null)} className="w-full sm:w-auto">Cancel</Button>
+            <Button onClick={handleUpdateSubject} className="w-full sm:w-auto">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

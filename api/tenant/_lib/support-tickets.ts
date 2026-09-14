@@ -173,8 +173,16 @@ export const supportTicketsApi = {
     return []
   },
 
+  async createAgent(_tenantId: string, _payload: any) {
+    return { id: '', name: '', role: '' }
+  },
+
   async listRules(_tenantId: string) {
     return []
+  },
+
+  async createRule(_tenantId: string, _payload: any) {
+    return { id: '', condition: '', action: '' }
   },
 }
 

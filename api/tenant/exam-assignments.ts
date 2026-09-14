@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 interface ExamAssignment {
@@ -17,13 +17,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
   const { method } = req
   const { examId } = req.query
 
   if (method === 'GET') {
     try {
       if (examId && typeof examId === 'string') {
-        const examRes = await sql`SELECT id::text, title, subject, student_class FROM exams WHERE id = ${examId} LIMIT 1`
+        const examRes = await sql`SELECT id::text, title, subject, student_class FROM exams WHERE id = ${examId} AND tenant_id = ${tenantId} LIMIT 1`
         if (!examRes.rows[0]) {
           return res.status(404).json({ error: 'Exam not found' })
         }
@@ -31,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const studentsRes = await sql`
           SELECT id, admission_no AS "admissionNo", name, class, arm, gender, status, guardian, phone
-          FROM students WHERE class = ${exam.student_class} AND status = 'Active' AND deleted_at IS NULL
+          FROM students WHERE tenant_id = ${tenantId} AND class = ${exam.student_class} AND status = 'Active' AND deleted_at IS NULL
         `
         const eligibleStudents = studentsRes.rows
 
@@ -48,8 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         return res.status(200).json({ data: assignment })
       } else {
-        const examsRes = await sql`SELECT id::text, title, subject, student_class FROM exams ORDER BY exam_date DESC`
-        const allStudentsRes = await sql`SELECT id, class, status FROM students WHERE deleted_at IS NULL`
+        const examsRes = await sql`SELECT id::text, title, subject, student_class FROM exams WHERE tenant_id = ${tenantId} ORDER BY exam_date DESC`
+        const allStudentsRes = await sql`SELECT id, class, status FROM students WHERE tenant_id = ${tenantId} AND deleted_at IS NULL`
 
         const assignments: ExamAssignment[] = examsRes.rows.map(exam => {
           const eligibleStudents = allStudentsRes.rows.filter(

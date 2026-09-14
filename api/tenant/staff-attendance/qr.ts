@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { ensureStaffTables } from '../_lib/staff.js'
 
@@ -183,18 +183,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const now = new Date()
         const time = now.toTimeString().split(' ')[0]
 
-        // Get staff record
+        // Get staff record (tenant-scoped)
         const staffResult = await sql`
-          SELECT id, name FROM staff WHERE id = ${userId} OR staff_id = ${userId} LIMIT 1
+          SELECT id, name FROM staff WHERE (id = ${userId} OR staff_id = ${userId}) AND tenant_id = ${tenantId} LIMIT 1
         `
         const staffName = staffResult.rows[0]?.name || 'Unknown'
         const staffId = staffResult.rows[0]?.id || userId
 
-        // Check if already checked in today
+        // Check if already checked in today (tenant-scoped)
         const existingResult = await sql`
           SELECT id, check_in, check_out, status
           FROM staff_attendance
-          WHERE staff_id = ${staffId} AND date = ${today}
+          WHERE staff_id = ${staffId} AND date = ${today} AND tenant_id = ${tenantId}
           LIMIT 1
         `
 
@@ -208,7 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await sql`
             INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, status, notes, geo_verified)
             VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${today}, ${time}, ${checkInStatus}, 'QR code check-in', false)
-            ON CONFLICT (staff_id, date) DO UPDATE SET
+            ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
               check_in = EXCLUDED.check_in,
               status = EXCLUDED.status,
               notes = EXCLUDED.notes
@@ -227,7 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await sql`
             UPDATE staff_attendance
             SET check_out = ${time}
-            WHERE staff_id = ${staffId} AND date = ${today}
+            WHERE staff_id = ${staffId} AND date = ${today} AND tenant_id = ${tenantId}
           `
 
           return res.status(200).json({
@@ -275,7 +275,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       for (const record of records) {
         try {
-          const staffResult = await sql`SELECT name FROM staff WHERE id = ${record.staffId} LIMIT 1`
+          const staffResult = await sql`SELECT name FROM staff WHERE id = ${record.staffId} AND tenant_id = ${tenantId} LIMIT 1`
           const staffName = staffResult.rows[0]?.name || 'Unknown'
           const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -284,7 +284,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             VALUES (${id}, ${record.staffId}, ${staffName}, ${tenantId}, ${targetDate},
                     ${record.checkIn || null}, ${record.checkOut || null}, ${record.status},
                     ${record.notes || 'Admin manual mark'}, true)
-            ON CONFLICT (staff_id, date) DO UPDATE SET
+            ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
               status = EXCLUDED.status,
               check_in = COALESCE(EXCLUDED.check_in, staff_attendance.check_in),
               check_out = COALESCE(EXCLUDED.check_out, staff_attendance.check_out),

@@ -3,7 +3,7 @@
  * Ensures database is initialized and migrations are run
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { healthCheck, getDatabaseStats, runMigrations, initializeDatabase } from './_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 

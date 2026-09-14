@@ -3,7 +3,7 @@
  * Triggers database migrations to be run
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { initializeDatabase, runMigrations } from './_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 

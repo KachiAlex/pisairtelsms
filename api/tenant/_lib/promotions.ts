@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { sql } from '../../_lib/sql.js';
 
 export interface PromotionRecord {
   id: string;

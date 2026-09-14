@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { sendEmail, sendBulkEmails, verifyEmailConnection, isEmailConfigured } from '../_lib/email.js'
 import { emailTemplates, EmailTemplateKey } from '../_lib/email-templates.js'

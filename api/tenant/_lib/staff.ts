@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { sql } from '../../_lib/sql.js'
 import { poolQuery } from '../../_lib/pg-pool.js'
 import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../../_lib/password-hashing.js'
 
@@ -380,7 +380,8 @@ export async function ensureStaffTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`.catch((e: any) => console.error('staff_payroll alter failed:', e.message))
 
     // Indexes & unique constraints needed by the app
-    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_attendance_unique ON staff_attendance(staff_id, date)`.catch((e: any) => console.error('attendance unique index failed:', e.message))
+    await sql`DROP INDEX IF EXISTS idx_staff_attendance_unique`.catch((e: any) => console.error('attendance old unique index drop failed:', e.message))
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_attendance_unique ON staff_attendance(tenant_id, staff_id, date)`.catch((e: any) => console.error('attendance unique index failed:', e.message))
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_payroll_unique ON staff_payroll(staff_id, month, year)`.catch((e: any) => console.error('payroll unique index failed:', e.message))
     await sql`CREATE INDEX IF NOT EXISTS idx_staff_tenant_id ON staff(tenant_id)`.catch((e: any) => console.error('staff tenant index failed:', e.message))
     await sql`CREATE INDEX IF NOT EXISTS idx_staff_department ON staff(department)`.catch((e: any) => console.error('staff dept index failed:', e.message))
@@ -756,7 +757,7 @@ export async function markAttendance(
     INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, check_out, status, notes)
     VALUES (${id}, ${payload.staffId}, ${payload.staffName}, ${resolvedTenantId}, ${payload.date},
             ${payload.checkIn ?? null}, ${payload.checkOut ?? null}, ${payload.status}, ${payload.notes ?? null})
-    ON CONFLICT (staff_id, date) DO UPDATE SET
+    ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
       check_in = COALESCE(EXCLUDED.check_in, staff_attendance.check_in),
       check_out = COALESCE(EXCLUDED.check_out, staff_attendance.check_out),
       status = EXCLUDED.status,

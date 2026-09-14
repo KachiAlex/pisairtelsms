@@ -4,7 +4,7 @@
 **Phase:** 1 - Database Schema and Backend Foundation  
 **Task:** 1.2 Create Question Bank API Endpoints  
 **Status:** ✅ **COMPLETE**  
-**Deployment:** ✅ **LIVE** (https://scholarx-app.vercel.app)
+**Deployment:** ✅ **LIVE** (http://your-vps-domain:3000)
 
 ---
 
@@ -198,7 +198,7 @@ Tested with first 3 sample questions:
 
 ✅ **Production Deployment Complete**
 - Vercel deployment successful
-- All changes live at https://scholarx-app.vercel.app
+- All changes live at http://your-vps-domain:3000
 - No build errors or warnings
 - Feature accessible to all users
 
@@ -290,5 +290,5 @@ The question import and sample download features are complete and ready for prod
 ---
 
 **Status:** Ready for production use  
-**Deployment URL:** https://scholarx-app.vercel.app  
+**Deployment URL:** http://your-vps-domain:3000  
 **Last Updated:** May 5, 2026

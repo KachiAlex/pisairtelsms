@@ -222,8 +222,11 @@ export async function createSubject(tenantId: string, userId: string, input: Cre
  * Update a subject
  */
 export async function updateSubject(tenantId: string, subjectId: string, input: UpdateSubjectInput): Promise<Subject> {
+  // Fetch current record for cascade update comparison
+  const current = await getSubjectById(tenantId, subjectId)
+
   // Check if code already exists (if changing code)
-  if (input.code) {
+  if (input.code !== undefined) {
     const exists = await checkSubjectCodeExists(tenantId, input.code, subjectId)
     if (exists) {
       throw new Error('Subject code already exists')
@@ -234,23 +237,23 @@ export async function updateSubject(tenantId: string, subjectId: string, input: 
   const values: any[] = []
   let paramCount = 1
 
-  if (input.code) {
+  if (input.code !== undefined) {
     updates.push(`code = $${paramCount++}`)
     values.push(input.code)
   }
-  if (input.name) {
+  if (input.name !== undefined) {
     updates.push(`name = $${paramCount++}`)
     values.push(input.name)
   }
-  if (input.levels) {
+  if (input.levels !== undefined) {
     updates.push(`levels = $${paramCount++}`)
     values.push(JSON.stringify(input.levels))
   }
-  if (input.type) {
+  if (input.type !== undefined) {
     updates.push(`type = $${paramCount++}`)
     values.push(input.type)
   }
-  if (input.department) {
+  if (input.department !== undefined) {
     updates.push(`department = $${paramCount++}`)
     values.push(input.department)
   }
@@ -306,6 +309,28 @@ export async function updateSubject(tenantId: string, subjectId: string, input: 
     throw new Error('Subject not found')
   }
 
+  // Cascade name change to dependent tables that store the subject name as text.
+  // This keeps references intact when a subject is renamed.
+  if (input.name !== undefined && current && input.name !== current.name) {
+    const oldName = current.name
+    const newName = input.name
+    // Update teacher allocation slots
+    await query(
+      `UPDATE teacher_allocation_slots SET subject = $1 WHERE tenant_id = $2 AND subject = $3`,
+      [newName, tenantId, oldName]
+    )
+    // Update student scores
+    await query(
+      `UPDATE student_scores SET subject = $1 WHERE tenant_id = $2 AND subject = $3`,
+      [newName, tenantId, oldName]
+    )
+    // Update CBT questions bank
+    await query(
+      `UPDATE questions_bank SET subject = $1 WHERE tenant_id = $2 AND subject = $3 AND deleted_at IS NULL`,
+      [newName, tenantId, oldName]
+    )
+  }
+
   const row = result.rows[0] as any
   return {
     ...row,
@@ -315,8 +340,41 @@ export async function updateSubject(tenantId: string, subjectId: string, input: 
 
 /**
  * Delete a subject (soft delete)
+ * Blocks deletion if scores or allocation slots reference this subject.
  */
 export async function deleteSubject(tenantId: string, subjectId: string): Promise<void> {
+  const subject = await getSubjectById(tenantId, subjectId)
+  if (!subject) {
+    throw new Error('Subject not found')
+  }
+
+  // Check for dependent student scores
+  const scoreCheck = await query(
+    `SELECT 1 FROM student_scores WHERE tenant_id = $1 AND subject = $2 LIMIT 1`,
+    [tenantId, subject.name]
+  )
+  if (scoreCheck.rows.length > 0) {
+    throw new Error('Cannot delete subject: scores are still recorded for this subject. Remove or archive them first.')
+  }
+
+  // Check for dependent teacher allocation slots
+  const slotCheck = await query(
+    `SELECT 1 FROM teacher_allocation_slots WHERE tenant_id = $1 AND subject = $2 LIMIT 1`,
+    [tenantId, subject.name]
+  )
+  if (slotCheck.rows.length > 0) {
+    throw new Error('Cannot delete subject: teacher allocation slots reference this subject. Remove them first.')
+  }
+
+  // Check for dependent CBT questions
+  const questionCheck = await query(
+    `SELECT 1 FROM questions_bank WHERE tenant_id = $1 AND subject = $2 AND deleted_at IS NULL LIMIT 1`,
+    [tenantId, subject.name]
+  )
+  if (questionCheck.rows.length > 0) {
+    throw new Error('Cannot delete subject: CBT questions are still linked to this subject. Remove them first.')
+  }
+
   const result = await query(
     `UPDATE subjects 
     SET deleted_at = CURRENT_TIMESTAMP 

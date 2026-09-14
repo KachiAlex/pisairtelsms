@@ -15,7 +15,8 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
-import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { Pencil, Trash2 } from 'lucide-react'
+import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../lib/tenantApi'
 
 type ClassArm = {
   id: string
@@ -37,11 +38,12 @@ export function ClassesAndArms() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({ name: '', arm: '', level: '' })
+  const [editForm, setEditForm] = useState<{ id: string; name: string; arm: string; level: string } | null>(null)
 
   const loadClasses = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await tenantApiGet('/api/tenant/cbt/classes')
+      const response = await tenantApiGet('/api/tenant/academics/classes')
       if (!response.ok) {
         const errorText = await response.text()
         throw new Error(errorText || 'Failed to fetch classes')
@@ -111,7 +113,7 @@ export function ClassesAndArms() {
     }
     setCreating(true)
     try {
-      const response = await tenantApiPost('/api/tenant/cbt/classes', {
+      const response = await tenantApiPost('/api/tenant/academics/classes', {
         name: createForm.name.trim(),
         arm: createForm.arm.trim(),
         level: createForm.level.trim(),
@@ -134,6 +136,43 @@ export function ClassesAndArms() {
     if (!value) return '—'
     const date = new Date(value)
     return Number.isNaN(date.valueOf()) ? '—' : date.toLocaleDateString()
+  }
+
+  const handleEditClass = async () => {
+    if (!editForm) return
+    if (!editForm.name.trim() || !editForm.arm.trim()) {
+      setError('Class name and arm are required')
+      return
+    }
+    try {
+      const response = await tenantApiPut(`/api/tenant/academics/classes?id=${editForm.id}`, {
+        name: editForm.name.trim(),
+        arm: editForm.arm.trim(),
+        level: editForm.level.trim(),
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to update class arm')
+      }
+      setEditForm(null)
+      loadClasses()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update class arm')
+    }
+  }
+
+  const handleDeleteClass = async (classArm: ClassArm) => {
+    if (!window.confirm(`Delete ${classArm.name} ${classArm.arm}? This cannot be undone.`)) return
+    try {
+      const response = await tenantApiDelete(`/api/tenant/academics/classes?id=${classArm.id}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to delete class arm')
+      }
+      loadClasses()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete class arm')
+    }
   }
 
   return (
@@ -297,19 +336,20 @@ export function ClassesAndArms() {
                   <TableHead>Level tag</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Updated</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-gray-500">
+                    <TableCell colSpan={6} className="text-center text-sm text-gray-500">
                       Loading classes…
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && filteredClasses.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-gray-500">
+                    <TableCell colSpan={6} className="text-center text-sm text-gray-500">
                       No classes match the current filters.
                     </TableCell>
                   </TableRow>
@@ -325,6 +365,16 @@ export function ClassesAndArms() {
                     </TableCell>
                     <TableCell>{formatDate(classArm.createdAt)}</TableCell>
                     <TableCell>{formatDate(classArm.updatedAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" aria-label="Edit class arm" onClick={() => setEditForm({ id: classArm.id, name: classArm.name, arm: classArm.arm, level: classArm.level || '' })}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label="Delete class arm" onClick={() => handleDeleteClass(classArm)}>
+                          <Trash2 className="h-4 w-4 text-rose-600" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -332,6 +382,35 @@ export function ClassesAndArms() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!editForm} onOpenChange={(open) => { if (!open) setEditForm(null) }}>
+        <DialogContent aria-describedby="edit-class-arm-description">
+          <DialogHeader>
+            <DialogTitle>Edit class arm</DialogTitle>
+            <DialogDescription id="edit-class-arm-description">
+              Update the level and arm details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-3 text-sm">
+            <label className="flex flex-col gap-1">
+              <span className="text-gray-600">Class / Level name</span>
+              <Input value={editForm?.name || ''} onChange={(e) => setEditForm((prev) => prev ? { ...prev, name: e.target.value } : prev)} placeholder="e.g., JSS 1" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-gray-600">Arm</span>
+              <Input value={editForm?.arm || ''} onChange={(e) => setEditForm((prev) => prev ? { ...prev, arm: e.target.value } : prev)} placeholder="e.g., A" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-gray-600">Level tag (optional)</span>
+              <Input value={editForm?.level || ''} onChange={(e) => setEditForm((prev) => prev ? { ...prev, level: e.target.value } : prev)} placeholder="Junior Secondary" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditForm(null)}>Cancel</Button>
+              <Button onClick={handleEditClass}>Save changes</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

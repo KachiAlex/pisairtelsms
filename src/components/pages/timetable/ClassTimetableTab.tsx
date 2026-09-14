@@ -68,7 +68,7 @@ export function ClassTimetableTab() {
         const [calRes, slotsRes, classesRes] = await Promise.all([
           tenantApiGet('/api/tenant/timetable/calendar'),
           tenantApiGet('/api/tenant/timetable/time-slots'),
-          tenantApiGet('/api/tenant/cbt/classes'),
+          tenantApiGet('/api/tenant/academics/classes'),
         ])
         const calData = await calRes.json()
         const slotsData = await slotsRes.json()

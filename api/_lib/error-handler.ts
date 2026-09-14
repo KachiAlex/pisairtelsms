@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from './http-types.js'
 
 /**
  * Secure error response that doesn't leak sensitive information.

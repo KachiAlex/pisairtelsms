@@ -3,7 +3,7 @@
  * Provides database connection and query helpers
  */
 
-import { sql } from '@vercel/postgres'
+import { sql } from './sql.js'
 
 // Legacy db stub for backward compatibility with old Express router files
 export const db = {

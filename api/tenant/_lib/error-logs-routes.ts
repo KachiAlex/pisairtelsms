@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
 import errorLogsApi from './error-logs';
 
 export default function handler(req: VercelRequest, res: VercelResponse) {

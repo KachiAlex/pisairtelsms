@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Layers, GraduationCap, Building, Sparkles } from 'lucide-react'
+import { Layers, GraduationCap, Building, Sparkles, Users, UserCheck, BookOpen, AlertTriangle } from 'lucide-react'
 
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
@@ -16,29 +16,33 @@ import { Textarea } from '../ui/textarea'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
+type OverviewData = {
+  classes: number
+  subjects: number
+  students: number
+  teacherAssignments: number
+  openSlots: number
+  departments: number
+  programs: number
+}
+
 export function AcademicStructureOverview() {
   const { toast } = useToast()
   const [addProgramOpen, setAddProgramOpen] = useState(false)
   const [addDepartmentOpen, setAddDepartmentOpen] = useState(false)
   const [newProgram, setNewProgram] = useState({ name: '', level: '', description: '' })
   const [newDepartment, setNewDepartment] = useState({ name: '', description: '' })
-  const [classArmsCount, setClassArmsCount] = useState(0)
-  const [subjectsCount, setSubjectsCount] = useState(0)
+  const [overview, setOverview] = useState<OverviewData>({
+    classes: 0, subjects: 0, students: 0, teacherAssignments: 0, openSlots: 0, departments: 0, programs: 0,
+  })
   const [loading, setLoading] = useState(true)
 
   const loadOverviewData = useCallback(async () => {
     try {
-      const [classesRes, subjectsRes] = await Promise.all([
-        tenantApiGet('/api/tenant/cbt/classes'),
-        tenantApiGet('/api/tenant/academics/subjects'),
-      ])
-      if (classesRes.ok) {
-        const data = await classesRes.json()
-        setClassArmsCount(data.data?.length || 0)
-      }
-      if (subjectsRes.ok) {
-        const data = await subjectsRes.json()
-        setSubjectsCount(data.data?.length || 0)
+      const res = await tenantApiGet('/api/tenant/academics/overview')
+      if (res.ok) {
+        const data = await res.json()
+        setOverview(data.data || overview)
       }
     } catch (error) {
       console.error('Error loading overview data:', error)
@@ -52,20 +56,12 @@ export function AcademicStructureOverview() {
   }, [loadOverviewData])
 
   const liveMetrics = [
-    {
-      label: 'Streams & Arms',
-      value: String(classArmsCount),
-      detail: 'Active class arms',
-      icon: GraduationCap,
-      color: 'text-emerald-600',
-    },
-    {
-      label: 'Subjects',
-      value: String(subjectsCount),
-      detail: 'Registered subjects',
-      icon: Layers,
-      color: 'text-red-600',
-    },
+    { label: 'Classes & Arms', value: String(overview.classes), detail: 'Active class arms', icon: GraduationCap, color: 'text-emerald-600' },
+    { label: 'Subjects', value: String(overview.subjects), detail: 'Registered subjects', icon: Layers, color: 'text-red-600' },
+    { label: 'Students', value: String(overview.students), detail: 'Enrolled students', icon: Users, color: 'text-blue-600' },
+    { label: 'Teacher Assignments', value: String(overview.teacherAssignments), detail: `${overview.openSlots} open slots`, icon: UserCheck, color: 'text-indigo-600' },
+    { label: 'Departments', value: String(overview.departments), detail: 'Academic departments', icon: Building, color: 'text-amber-600' },
+    { label: 'Programs', value: String(overview.programs), detail: 'Academic programs', icon: BookOpen, color: 'text-purple-600' },
   ]
 
   const handleAddProgram = async () => {
@@ -119,8 +115,8 @@ export function AcademicStructureOverview() {
             <p className="text-sm text-gray-600">Orchestrate levels, subjects, and policies powering Pisairtel-Schools experiences.</p>
           </div>
         </div>
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-          {[1, 2].map(i => (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map(i => (
             <Card key={i}>
               <CardContent className="p-4">
                 <div className="animate-pulse space-y-3">
@@ -154,7 +150,14 @@ export function AcademicStructureOverview() {
         </div>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      {overview.openSlots > 0 && (
+        <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{overview.openSlots} teacher allocation slot(s) are still open. Review teacher allocation to fill them.</span>
+        </div>
+      )}
+
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {liveMetrics.map((metric) => {
           const Icon = metric.icon
           return (
@@ -172,59 +175,55 @@ export function AcademicStructureOverview() {
         })}
       </div>
 
-      {addProgramOpen && (
-        <Dialog open={addProgramOpen} onOpenChange={setAddProgramOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Program</DialogTitle>
-              <DialogDescription>Create a new academic program for the structure.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="programName">Program Name</Label>
-                <Input id="programName" placeholder="e.g., Primary Education" value={newProgram.name} onChange={(e) => setNewProgram({ ...newProgram, name: e.target.value })} />
-              </div>
-              <div>
-                <Label htmlFor="level">Level</Label>
-                <Input id="level" placeholder="e.g., Primary" value={newProgram.level} onChange={(e) => setNewProgram({ ...newProgram, level: e.target.value })} />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Program description" value={newProgram.description} onChange={(e) => setNewProgram({ ...newProgram, description: e.target.value })} />
-              </div>
+      <Dialog open={addProgramOpen} onOpenChange={setAddProgramOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Program</DialogTitle>
+            <DialogDescription>Create a new academic program for the structure.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="programName">Program Name</Label>
+              <Input id="programName" placeholder="e.g., Primary Education" value={newProgram.name} onChange={(e) => setNewProgram({ ...newProgram, name: e.target.value })} />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAddProgramOpen(false)}>Cancel</Button>
-              <Button onClick={() => { handleAddProgram(); setAddProgramOpen(false) }}>Add Program</Button>
+            <div>
+              <Label htmlFor="level">Level</Label>
+              <Input id="level" placeholder="e.g., Primary" value={newProgram.level} onChange={(e) => setNewProgram({ ...newProgram, level: e.target.value })} />
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea id="description" placeholder="Program description" value={newProgram.description} onChange={(e) => setNewProgram({ ...newProgram, description: e.target.value })} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAddProgramOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddProgram}>Add Program</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      {addDepartmentOpen && (
-        <Dialog open={addDepartmentOpen} onOpenChange={setAddDepartmentOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Department</DialogTitle>
-              <DialogDescription>Create a new department for the academic structure.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="departmentName">Department Name</Label>
-                <Input id="departmentName" placeholder="e.g., Science Department" value={newDepartment.name} onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })} />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Department description" value={newDepartment.description} onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })} />
-              </div>
+      <Dialog open={addDepartmentOpen} onOpenChange={setAddDepartmentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Department</DialogTitle>
+            <DialogDescription>Create a new department for the academic structure.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="departmentName">Department Name</Label>
+              <Input id="departmentName" placeholder="e.g., Science Department" value={newDepartment.name} onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })} />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAddDepartmentOpen(false)}>Cancel</Button>
-              <Button onClick={() => { handleAddDepartment(); setAddDepartmentOpen(false) }}>Add Department</Button>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea id="description" placeholder="Department description" value={newDepartment.description} onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })} />
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAddDepartmentOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddDepartment}>Add Department</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

@@ -107,15 +107,15 @@
 ```bash
 # Test subjects endpoint
 curl -H "x-tenant-id: default-tenant-uuid" \
-  https://scholarx-app.vercel.app/api/tenant/cbt/subjects?namesOnly=true
+  http://your-vps-domain:3000/api/tenant/cbt/subjects?namesOnly=true
 
 # Test classes endpoint
 curl -H "x-tenant-id: default-tenant-uuid" \
-  https://scholarx-app.vercel.app/api/tenant/cbt/classes
+  http://your-vps-domain:3000/api/tenant/cbt/classes
 
 # Test diagnostics
 curl -H "x-tenant-id: default-tenant-uuid" \
-  https://scholarx-app.vercel.app/api/tenant/cbt/diagnostics
+  http://your-vps-domain:3000/api/tenant/cbt/diagnostics
 ```
 
 ## All Errors from Log - Status

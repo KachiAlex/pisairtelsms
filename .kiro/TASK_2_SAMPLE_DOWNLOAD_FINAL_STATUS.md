@@ -25,7 +25,7 @@ The sample question template download feature has been successfully implemented,
 - Users remain logged in after downloading the sample
 
 ### ✅ Production Deployment
-- All changes deployed to https://scholarx-app.vercel.app
+- All changes deployed to http://your-vps-domain:3000
 - Feature is live and accessible to all users
 - No build errors or warnings
 
@@ -83,5 +83,5 @@ The feature is complete and ready for production use. Users can now:
 ---
 
 **Deployment Status:** ✅ LIVE  
-**URL:** https://scholarx-app.vercel.app  
+**URL:** http://your-vps-domain:3000  
 **Ready for User Testing:** YES

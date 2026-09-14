@@ -3,7 +3,7 @@
  * Handles GET, PUT, DELETE for specific question by ID
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'
 import {
   getQuestion,

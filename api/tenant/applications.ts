@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchApplications, createApplication, updateApplicationStatus, type ApplicationPayload } from './_lib/applications.js'
 import { requireRole } from '../_lib/auth-middleware.js'
@@ -44,7 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (method === 'GET') {
     try {
       const { status, academicSession } = req.query
+      const tenantId = decoded.tenantId || 'default-tenant'
       const applications = await fetchApplications(
+        tenantId,
         typeof status === 'string' ? status : undefined,
         typeof academicSession === 'string' ? academicSession : undefined
       )
@@ -114,7 +116,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const updated = await updateApplicationStatus(id, body.status)
+      const tenantId = decoded.tenantId || 'default-tenant'
+      const updated = await updateApplicationStatus(id, tenantId, body.status)
       if (!updated) {
         return res.status(404).json({ error: 'Application not found' })
       }

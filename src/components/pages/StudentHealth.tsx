@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { fetchStudentHealth, StudentHealthPayload, SummaryStat } from '../../lib/studentHealthClient'
+import { tenantApiPost } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
 const STAT_ICON_MAP: Record<SummaryStat['icon'], React.ComponentType<{ className?: string }>> = {
@@ -96,18 +97,14 @@ export function StudentHealth() {
 
   const handleScreeningSubmit = async () => {
     try {
-      await fetch('/api/student-health', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await tenantApiPost('/api/student-health', {
           studentName: screeningForm.student,
           recordType: 'screening',
           details: screeningForm.screeningType,
           owner: screeningForm.owner,
           dueDate: screeningForm.dueDate || null,
           notes: screeningForm.notes,
-        }),
-      })
+        })
       toast({ title: 'Screening scheduled', description: 'Screening record saved successfully.' })
       loadHealthData()
     } catch {
@@ -119,16 +116,12 @@ export function StudentHealth() {
 
   const handleIncidentSubmit = async () => {
     try {
-      await fetch('/api/student-health', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentName: incidentForm.student,
-          recordType: 'incident',
-          details: incidentForm.notes,
-          severity: incidentForm.severity,
-          location: incidentForm.location,
-        }),
+      await tenantApiPost('/api/student-health', {
+        studentName: incidentForm.student,
+        recordType: 'incident',
+        details: incidentForm.notes,
+        severity: incidentForm.severity,
+        location: incidentForm.location,
       })
       toast({ title: 'Incident logged', description: 'Incident record saved successfully.' })
       loadHealthData()

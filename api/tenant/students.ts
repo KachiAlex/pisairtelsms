@@ -1,7 +1,8 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchStudents, createStudent, createStudents, updateStudent, deleteStudent, type StudentPayload } from './_lib/students.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { auditAcademicChange } from './_lib/academic-audit.js'
 
 function methodNotAllowed(res: VercelResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
@@ -88,6 +89,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }))
 
         const created = await createStudents(tenantId, studentPayloads)
+        for (const s of created) {
+          await auditAcademicChange(tenantId, 'student', s.id, 'insert', decoded.userId || decoded.staffId || 'unknown', decoded.email || 'system', null, null)
+        }
         return res.status(201).json({ data: created })
       }
 
@@ -110,6 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         phone: studentData.phone,
       }
       const created = await createStudent(tenantId, payload)
+      await auditAcademicChange(tenantId, 'student', created.id, 'insert', decoded.userId || decoded.staffId || 'unknown', decoded.email || 'system', null, payload)
       return res.status(201).json({ data: created })
     } catch (error) {
       console.error('Error creating student(s):', error)
@@ -133,6 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!updated) {
         return res.status(404).json({ error: 'Student not found' })
       }
+      await auditAcademicChange(tenantId, 'student', id, 'update', decoded.userId || decoded.staffId || 'unknown', decoded.email || 'system', null, body)
       return res.status(200).json({ data: updated })
     } catch (error) {
       console.error('Error updating student:', error)
@@ -151,9 +157,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!deleted) {
         return res.status(404).json({ error: 'Student not found' })
       }
+      await auditAcademicChange(tenantId, 'student', id, 'delete', decoded.userId || decoded.staffId || 'unknown', decoded.email || 'system', null, null)
       return res.status(204).end()
     } catch (error) {
       console.error('Error deleting student:', error)
+      const message = error instanceof Error ? error.message : 'Failed to delete student'
+      // Dependent-data checks return specific messages — send them as 409 Conflict
+      if (message.startsWith('Cannot delete student:')) {
+        return res.status(409).json({ error: message })
+      }
       return res.status(500).json({ error: 'Failed to delete student' })
     }
   }

@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest, VercelResponse } from './http-types.js'
+import { sql } from './sql.js'
 
 interface BlacklistedToken {
   token: string

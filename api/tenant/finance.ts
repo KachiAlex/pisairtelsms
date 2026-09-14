@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
 import { fetchFeeRecords, createFeeRecord, recordPayment, sendFeeReminders, generateFeeRecordsFromAssignments, type FeeRecordPayload, type PaymentPayload } from './_lib/finance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from './cbt/_lib/db.js'

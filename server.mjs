@@ -1,16 +1,38 @@
 /**
- * Express server wrapper for Pisairtel SMS
- * Replaces Vercel serverless runtime — loads all API handlers from vercel.json rewrites
- * and serves the static frontend build.
+ * Express server for Pisairtel SMS — VPS deployment
+ *
+ * Loads all API handlers from routes.json and serves the static frontend build.
+ * This is the single canonical server entry point.
  */
 import express from 'express';
+import http from 'http';
+import fs from 'fs';
 import { readFileSync } from 'fs';
 import { resolve, join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = __dirname;
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Load .env manually (PM2 env_file is not supported, Node 18 lacks --env-file).
+// Values already present in the real environment take precedence.
+try {
+  const envFile = readFileSync(join(ROOT, '.env'), 'utf8');
+  for (const line of envFile.split('\n')) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (m && process.env[m[1]] === undefined) {
+      let value = m[2].trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[m[1]] = value;
+    }
+  }
+} catch {
+  // .env is optional (env may come from the process environment instead)
+}
 
 // Trust proxy for correct IP detection behind Nginx
 app.set('trust proxy', 1);
@@ -20,45 +42,38 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.text({ limit: '50mb' }));
 
-// Load vercel.json rewrites
-const vercelConfig = JSON.parse(readFileSync(join(__dirname, 'vercel.json'), 'utf8'));
-const rewrites = vercelConfig.rewrites || [];
+app.use((req, res, next) => {
+  res.setHeader('X-Powered-By', 'Pisairtel-SMS');
+  next();
+});
+
+// Security headers on API responses
+const isProduction = process.env.NODE_ENV === 'production';
+app.use('/api', (req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.paystack.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.paystack.co; frame-src https://standard.paystack.co; frame-ancestors 'none';"
+  );
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Permissions-Policy',
+    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), unload=(self)'
+  );
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  next();
+});
+
+// Load routes.json (route map for API handlers)
+const routeConfig = JSON.parse(readFileSync(join(ROOT, 'routes.json'), 'utf8'));
+const rewrites = routeConfig.rewrites || [];
 
 // Cache for dynamically imported handler modules
 const handlerCache = new Map();
-
-/**
- * Convert a Vercel rewrite destination path to a file system path.
- * Strips query params and maps .ts extension.
- */
-function destinationToFilePath(destination) {
-  const [pathPart] = destination.split('?');
-  return join(__dirname, pathPart);
-}
-
-/**
- * Extract query params from a destination like "file.ts?id=:id&action=copy"
- * Returns { filePath, queryMapping } where queryMapping maps param names to source param names.
- */
-function parseDestination(destination) {
-  const [pathPart, queryPart] = destination.split('?');
-  const filePath = join(__dirname, pathPart);
-  const queryMapping = {};
-
-  if (queryPart) {
-    const pairs = queryPart.split('&');
-    for (const pair of pairs) {
-      const [key, value] = pair.split('=');
-      if (value && value.startsWith(':')) {
-        queryMapping[key] = value.slice(1); // e.g. { id: 'id', action: 'copy' }
-      } else {
-        queryMapping[key] = value || ''; // static value like 'copy' or 'stats'
-      }
-    }
-  }
-
-  return { filePath, queryMapping };
-}
 
 /**
  * Dynamically import a handler module (with caching).
@@ -67,10 +82,14 @@ async function getHandler(filePath) {
   if (handlerCache.has(filePath)) {
     return handlerCache.get(filePath);
   }
-  const mod = await import(filePath);
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  const fileUrl = pathToFileURL(filePath).href;
+  const mod = await import(fileUrl);
   const handler = mod.default;
   if (typeof handler !== 'function') {
-    throw new Error(`Handler at ${filePath} does not export a default function`);
+    return null;
   }
   handlerCache.set(filePath, handler);
   return handler;
@@ -78,24 +97,49 @@ async function getHandler(filePath) {
 
 /**
  * Convert a Vercel source pattern to an Express route pattern.
- * Vercel uses :param syntax same as Express, so mostly passthrough.
+ * Maps [param] syntax to :param.
  */
 function sourceToExpressPattern(source) {
-  // Vercel catch-all: /((?!assets/).*) → Express: /*
   if (source === '/((?!assets/).*)') {
-    return null; // Handle separately as SPA fallback
+    return null; // SPA fallback — handled separately
   }
-  return source;
+  return source.replace(/\[([^\]]+)\]/g, ':$1');
+}
+
+/**
+ * Parse destination into file path and query param mappings.
+ */
+function parseDestination(destination) {
+  const [pathPart, queryPart] = destination.split('?');
+  const filePath = join(ROOT, pathPart);
+  const queryMapping = {};
+
+  if (queryPart) {
+    const pairs = queryPart.split('&');
+    for (const pair of pairs) {
+      const [key, value] = pair.split('=');
+      if (value && value.startsWith(':')) {
+        queryMapping[key] = value.slice(1);
+      } else {
+        queryMapping[key] = value || '';
+      }
+    }
+  }
+
+  return { filePath, queryMapping };
 }
 
 // Register API rewrites as Express routes
+let apiRouteCount = 0;
 for (const rewrite of rewrites) {
   const expressPattern = sourceToExpressPattern(rewrite.source);
-  if (expressPattern === null) continue; // Skip SPA fallback for now
+  if (expressPattern === null) continue;
 
   const { filePath, queryMapping } = parseDestination(rewrite.destination);
 
-  // Support all HTTP methods
+  if (!filePath.endsWith('.ts')) continue;
+
+  apiRouteCount++;
   app.all(expressPattern, async (req, res, next) => {
     try {
       // Inject query params from route params or static values
@@ -107,7 +151,6 @@ for (const rewrite of rewrites) {
           } else if (source in req.params) {
             mergedQuery[key] = req.params[source];
           } else if (!source.startsWith(':')) {
-            // Static value like 'copy', 'stats', 'publish'
             mergedQuery[key] = source;
           }
         }
@@ -115,9 +158,12 @@ for (const rewrite of rewrites) {
       }
 
       const handler = await getHandler(filePath);
+      if (!handler) {
+        return res.status(404).json({ error: `Handler not found: ${filePath}` });
+      }
       await handler(req, res);
     } catch (err) {
-      console.error(`Handler error for ${req.method} ${req.path}:`, err);
+      console.error(`[API Error] ${req.method} ${req.path}:`, err);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Internal server error', message: err.message });
       }
@@ -125,23 +171,38 @@ for (const rewrite of rewrites) {
   });
 }
 
-// Serve static frontend assets
-const distDir = join(__dirname, 'dist');
-app.use('/assets', express.static(join(distDir, 'assets'), {
-  maxAge: '1y',
-  immutable: true,
-}));
-
-// Serve other static files from dist root (favicon, etc.)
-app.use(express.static(distDir, {
-  maxAge: '1d',
-  index: false,
-}));
-
-// SPA fallback — serve index.html for all non-API, non-asset routes
-app.get('*', (req, res) => {
-  res.sendFile(join(distDir, 'index.html'));
+// API 404 fallback
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
 });
+
+// Serve static frontend assets
+const distDir = join(ROOT, 'dist');
+if (fs.existsSync(distDir)) {
+  app.use('/assets', express.static(join(distDir, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+  }));
+  app.use(express.static(distDir, {
+    maxAge: '1d',
+    index: false,
+  }));
+
+  // SPA fallback — serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(join(distDir, 'index.html'));
+  });
+} else {
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.status(503).json({ error: 'Frontend not built. Run build on the VPS.' });
+  });
+}
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -151,7 +212,21 @@ app.use((err, req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Pisairtel SMS server running on port ${PORT}`);
-  console.log(`API routes: ${rewrites.filter(r => r.source !== '/((?!assets/).*)').length} registered`);
+const server = http.createServer(app);
+
+server.listen(PORT, () => {
+  console.log(`\n[Pisairtel SMS] Server running on port ${PORT}`);
+  console.log(`[Pisairtel SMS] ${apiRouteCount} API routes loaded`);
+  console.log(`[Pisairtel SMS] Frontend: ${fs.existsSync(distDir) ? 'serving from dist/' : 'not built'}`);
+  console.log(`[Pisairtel SMS] Press Ctrl+C to stop\n`);
+});
+
+process.on('SIGTERM', () => {
+  console.log('[Pisairtel SMS] SIGTERM received, shutting down...');
+  server.close(() => process.exit(0));
+});
+
+process.on('SIGINT', () => {
+  console.log('[Pisairtel SMS] SIGINT received, shutting down...');
+  server.close(() => process.exit(0));
 });

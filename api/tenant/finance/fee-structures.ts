@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import {
@@ -206,7 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // DELETE /api/tenant/finance/fee-structures/:id
   if (req.method === 'DELETE' && id && !action) {
     try {
-      const { sql } = await import('@vercel/postgres')
+      const { sql } = await import('../../_lib/sql.js')
       const idStr = id as string
       
       // Delete fee items first (due to foreign key)

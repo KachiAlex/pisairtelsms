@@ -1,4 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import {
   getTenantCAConfig,
   saveDraftCAConfig,
@@ -45,10 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const tenantId = decoded.tenantId || (req.query.tenantId as string)
-  if (!tenantId) {
-    return res.status(400).json({ error: 'Tenant ID is required' })
-  }
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   const actorId = decoded.userId || decoded.staffId || 'unknown'
   const actorName = decoded.email || actorId
@@ -117,7 +115,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'publish') {
       try {
         const published = await publishCAConfig(tenantId, actorId, actorName)
-        return res.status(200).json({ data: published })
+
+        // Mark existing compiled results as stale (require recomputation with new CA weights)
+        const staleResult = await sql.query(
+          `UPDATE compiled_results
+           SET status = 'compiled', compiled_at = NOW()
+           WHERE tenant_id = $1
+             AND status IN ('approved', 'published')
+           RETURNING id`,
+          [tenantId]
+        ).catch(() => ({ rows: [] }))
+
+        return res.status(200).json({
+          data: published,
+          staleResults: staleResult.rows.length,
+          message: staleResult.rows.length > 0
+            ? `CA config published. ${staleResult.rows.length} compiled result(s) marked as stale and require recomputation.`
+            : undefined,
+        })
       } catch (error) {
         console.error('CA Config publish error:', error)
         return res.status(500).json({ error: 'Internal server error' })

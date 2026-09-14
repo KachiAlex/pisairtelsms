@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { sql } from '../../../_lib/sql.js'
 import { v4 as uuid } from 'uuid'
 
 export type CommunicationChannel = 'email' | 'sms' | 'push' | 'in-app'

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from './http-types.js'
 import { poolQuery } from './pg-pool.js'
 import { PLAN_CONFIG, PLAN_RATES, PlanFeatures, PlanType } from '../../src/lib/plans.js'
 import { getTenantIdFromRequest } from './auth-middleware.js'

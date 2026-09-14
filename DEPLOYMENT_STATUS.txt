@@ -111,10 +111,10 @@
 │  macOS:    ./deploy.sh                                                       │
 │  Linux:    ./deploy.sh                                                       │
 │                                                                               │
-│  OPTION 2: Manual Deployment with Vercel CLI                                 │
+│  OPTION 2: Manual Deployment with PM2                                         │
 │  ──────────────────────────────────────────────                              │
-│  npm install -g vercel                                                       │
-│  vercel deploy --prod                                                        │
+│  npm install -g pm2                                                          │
+│  pm2 restart pisairtel-sms                                                   │
 │                                                                               │
 │  OPTION 3: Git-Based Deployment (Automatic)                                  │
 │  ──────────────────────────────────────────                                  │

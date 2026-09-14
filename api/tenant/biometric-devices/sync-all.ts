@@ -10,7 +10,7 @@
  * Authentication: Requires x-tenant-id header or API key
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { syncTenantDevices, formatSyncResult } from '../_lib/sync-scheduler.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 

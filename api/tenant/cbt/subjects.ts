@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import {
   getSubjects,
@@ -9,6 +9,7 @@ import {
   deleteSubject,
 } from './_lib/subjects.js'
 import { initializeDatabase } from './_lib/db.js'
+import { auditAcademicChange } from '../_lib/academic-audit.js'
 
 /**
  * Subjects API Endpoint
@@ -83,6 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const subject = await createSubject(tenantId, createdBy, input)
+      await auditAcademicChange(tenantId, 'subject', subject.id, 'insert', createdBy, decoded.email || 'system', null, input)
       return res.status(201).json({ success: true, data: subject })
     } catch (error: any) {
       console.error('Error creating subject:', error)
@@ -108,6 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const subject = await updateSubject(tenantId, id, body)
+      await auditAcademicChange(tenantId, 'subject', id, 'update', updatedBy, decoded.email || 'system', null, body)
       return res.status(200).json({ success: true, data: subject })
     } catch (error: any) {
       console.error('Error updating subject:', error)
@@ -128,6 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       await deleteSubject(tenantId, id)
+      await auditAcademicChange(tenantId, 'subject', id, 'delete', deletedBy, decoded.email || 'system', null, null)
       return res.status(200).json({ success: true, message: 'Subject deleted successfully' })
     } catch (error: any) {
       console.error('Error deleting subject:', error)

@@ -34,7 +34,7 @@ CREATE TABLE parent_child_violations (
 - **5 failed attempts** triggers a webhook alert (configurable via `VIOLATION_ALERT_THRESHOLD`)
 
 ### Automated Cleanup
-- **Daily at 3:00 AM UTC** via Vercel Cron Jobs
+- **Daily at 3:00 AM UTC** via PM2 cron / node-cron
 - **30-day retention** by default (configurable via `VIOLATION_RETENTION_DAYS`)
 - **Manual cleanup**: `npm run clean-violations` or `pnpm run clean-violations`
 
@@ -74,7 +74,7 @@ WHERE id = 'tenant-uuid-here';
 If a tenant has no webhook configured, alerts fall back to the global webhook:
 
 ```bash
-# Add to .env.local or Vercel env
+# Add to .env.local or .env.production on the VPS
 PARENT_CHILD_VIOLATION_WEBHOOK=https://hooks.slack.com/services/FALLBACK/WEBHOOK/URL
 ```
 
@@ -206,7 +206,7 @@ Errors don't leak sensitive information:
 
 ### 6. SQL Injection Prevention
 All database queries use parameterized statements:
-- `@vercel/postgres` sql template literals
+- local pg pool (`api/_lib/sql.ts`) sql template literals
 - Automatic parameter escaping
 - No string concatenation in queries
 
@@ -241,9 +241,10 @@ CI pipeline includes security auditing:
    openssl rand -base64 32
    ```
 
-2. **Add to Vercel**:
+2. **Add to VPS environment**:
    ```bash
-   vercel env add JWT_SECRET production
+   # Add to .env.production on the VPS
+   echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env.production
    ```
 
 3. **Deploy** to apply new secret

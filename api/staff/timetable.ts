@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 
 interface ScheduleEntry {
@@ -48,6 +48,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
     }
 
+    const tenantId = decoded.tenantId || 'default-tenant';
+
     const dayOrder: Record<string, number> = {
       monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7
     };
@@ -60,6 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                subject, class_name, room
         FROM timetable
         WHERE staff_id = ${staffId}
+          AND tenant_id = ${tenantId}
         ORDER BY day, start_time
       `;
       schedule = ttResult.rows.map(r => ({
@@ -87,9 +90,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                ) AS duration
         FROM exams e
         WHERE e.exam_date >= CURRENT_DATE
+          AND e.tenant_id = ${tenantId}
           AND EXISTS (
             SELECT 1 FROM timetable tt
             WHERE tt.staff_id = ${staffId}
+              AND tt.tenant_id = ${tenantId}
               AND tt.subject IS NOT NULL
               AND e.title IS NOT NULL
               AND LOWER(tt.subject) = LOWER(e.title)
@@ -107,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let availableTerms: Term[] = [];
     let currentTerm = '';
     try {
-      const termResult = await sql`SELECT id::text, name FROM terms ORDER BY name`;
+      const termResult = await sql`SELECT id::text, name FROM terms WHERE tenant_id = ${tenantId} ORDER BY name`;
       if (termResult.rows.length > 0) {
         availableTerms = termResult.rows.map(r => ({ id: r.id, name: r.name }));
         currentTerm = availableTerms[0].id;

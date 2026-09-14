@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from './http-types.js'
 import crypto from 'crypto'
 
 // In-memory store for CSRF tokens (for production, use Redis or database)

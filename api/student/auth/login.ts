@@ -1,6 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { SignJWT } from 'jose'
-import { sql } from '@vercel/postgres'
+import { sql } from '../../_lib/sql.js'
 import crypto from 'crypto'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'

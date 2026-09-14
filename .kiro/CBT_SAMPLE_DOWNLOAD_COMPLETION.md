@@ -2,7 +2,7 @@
 
 **Date:** May 5, 2026  
 **Status:** ✅ COMPLETE  
-**Deployment:** ✅ LIVE on https://scholarx-app.vercel.app
+**Deployment:** ✅ LIVE on http://your-vps-domain:3000
 
 ## Task Overview
 
@@ -108,7 +108,7 @@ Result: ✅ ALL QUESTIONS PARSED SUCCESSFULLY
 ## Deployment Status
 
 ✅ **Production Deployment Complete**
-- Vercel deployment: https://scholarx-app.vercel.app
+- Vercel deployment: http://your-vps-domain:3000
 - All changes live and accessible
 - No build errors or warnings related to this feature
 
@@ -175,5 +175,5 @@ The sample download feature is complete and ready for production use. Users can 
 ---
 
 **Verified by:** Kiro Agent  
-**Deployment URL:** https://scholarx-app.vercel.app  
+**Deployment URL:** http://your-vps-domain:3000  
 **Status:** Ready for user testing

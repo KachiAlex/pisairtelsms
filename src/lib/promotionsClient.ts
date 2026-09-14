@@ -1,3 +1,5 @@
+import { tenantApiGet, tenantApiPut, tenantApiPost, tenantApiFetch } from './tenantApi'
+
 export interface PromotionRecord {
   id: string;
   studentId: string;
@@ -67,17 +69,13 @@ export async function fetchPromotionRecords(academicSession?: string, term?: str
   if (fromClass) params.set('fromClass', fromClass)
 
   const url = `/api/tenant/promotions${params.toString() ? `?${params.toString()}` : ''}`
-  const response = await fetch(url)
+  const response = await tenantApiGet(url)
   const result = await parseResponse<PromotionRecord[]>(response)
   return result.data ?? []
 }
 
 export async function createPromotionRecord(record: PromotionPayload): Promise<PromotionRecord> {
-  const response = await fetch('/api/tenant/promotions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ record }),
-  })
+  const response = await tenantApiPost('/api/tenant/promotions', { record })
   const result = await parseResponse<PromotionRecord>(response)
   if (!result.data) {
     throw new Error('Unable to create promotion record.')
@@ -86,11 +84,7 @@ export async function createPromotionRecord(record: PromotionPayload): Promise<P
 }
 
 export async function createBulkPromotionRecords(records: PromotionPayload[]): Promise<PromotionRecord[]> {
-  const response = await fetch('/api/tenant/promotions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ records }),
-  })
+  const response = await tenantApiPost('/api/tenant/promotions', { records })
   const result = await parseResponse<PromotionRecord[]>(response)
   if (!result.data) {
     throw new Error('Unable to create promotion records.')
@@ -99,11 +93,7 @@ export async function createBulkPromotionRecords(records: PromotionPayload[]): P
 }
 
 export async function updatePromotionRecord(id: string, updates: Partial<PromotionPayload & { status: string; approvedBy?: string }>): Promise<PromotionRecord> {
-  const response = await fetch('/api/tenant/promotions', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, ...updates }),
-  })
+  const response = await tenantApiPut('/api/tenant/promotions', { id, ...updates })
   const result = await parseResponse<PromotionRecord>(response)
   if (!result.data) {
     throw new Error('Unable to update promotion record.')
@@ -120,7 +110,7 @@ export async function completePromotionRecord(id: string): Promise<PromotionReco
 }
 
 export async function deletePromotionRecord(id: string): Promise<void> {
-  const response = await fetch(`/api/tenant/promotions?id=${encodeURIComponent(id)}`, {
+  const response = await tenantApiFetch(`/api/tenant/promotions?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
   })
   if (!response.ok) {
@@ -130,18 +120,13 @@ export async function deletePromotionRecord(id: string): Promise<void> {
 }
 
 export async function fetchPromotionRules(tenantId: string): Promise<PromotionRule[]> {
-  const params = new URLSearchParams({ tenantId })
-  const response = await fetch(`/api/tenant/promotion-rules?${params.toString()}`)
+  const response = await tenantApiGet('/api/tenant/promotion-rules')
   const result = await parseResponse<PromotionRule[]>(response)
   return result.data ?? []
 }
 
 export async function updatePromotionRule(id: string, updates: Partial<PromotionRule>): Promise<PromotionRule> {
-  const response = await fetch('/api/tenant/promotion-rules', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, ...updates }),
-  })
+  const response = await tenantApiPut('/api/tenant/promotion-rules', { id, ...updates })
   const result = await parseResponse<PromotionRule>(response)
   if (!result.data) {
     throw new Error('Unable to update promotion rule.')
@@ -150,11 +135,7 @@ export async function updatePromotionRule(id: string, updates: Partial<Promotion
 }
 
 export async function createPromotionRule(rule: Omit<PromotionRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<PromotionRule> {
-  const response = await fetch('/api/tenant/promotion-rules', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rule),
-  })
+  const response = await tenantApiPost('/api/tenant/promotion-rules', rule)
   const result = await parseResponse<PromotionRule>(response)
   if (!result.data) {
     throw new Error('Unable to create promotion rule.')
@@ -163,7 +144,7 @@ export async function createPromotionRule(rule: Omit<PromotionRule, 'id' | 'crea
 }
 
 export async function deletePromotionRule(id: string, tenantId: string): Promise<void> {
-  const response = await fetch(`/api/tenant/promotion-rules?id=${encodeURIComponent(id)}&tenantId=${encodeURIComponent(tenantId)}`, {
+  const response = await tenantApiFetch(`/api/tenant/promotion-rules?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
   })
   if (!response.ok) {

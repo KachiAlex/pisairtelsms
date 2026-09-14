@@ -44,10 +44,9 @@ COPY --from=builder /app/dist ./dist
 COPY api ./api
 COPY src/lib ./src/lib
 COPY server.mjs ./
-COPY vercel.json ./
+COPY routes.json ./
 COPY scripts ./scripts
 COPY prisma ./prisma
-COPY docker ./docker
 
 # Generate Prisma client (needed by cbt/schema-verify)
 RUN npx prisma generate --schema=./prisma/schema.prisma
@@ -60,5 +59,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3000/api/tenant/system-health || exit 1
 
 # Run the Express server with tsx for TypeScript API handler support
-# --import flag loads our custom resolver that redirects @vercel/postgres to pg-based shim
-CMD ["npx", "tsx", "--import", "./docker/import-shim.mjs", "server.mjs"]
+CMD ["npx", "tsx", "server.mjs"]

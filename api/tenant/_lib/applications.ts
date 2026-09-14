@@ -42,13 +42,13 @@ function rowToDTO(row: any): ApplicationDTO {
 }
 
 export async function fetchApplications(
+  tenantId: string,
   status?: string,
   academicSession?: string
 ): Promise<ApplicationDTO[]> {
   try {
-    let sql = `SELECT * FROM leads ORDER BY created_at DESC`;
-    const values: any[] = [];
-    const conditions: string[] = [];
+    const conditions: string[] = [`tenant_id = $1`];
+    const values: any[] = [tenantId];
 
     if (status) {
       values.push(status);
@@ -59,11 +59,8 @@ export async function fetchApplications(
       conditions.push(`academic_session = $${values.length}`);
     }
 
-    if (conditions.length > 0) {
-      sql = `SELECT * FROM leads WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`;
-    }
-
-    const rows = await queryAll<any>(sql, values.length > 0 ? values : undefined);
+    const sql = `SELECT * FROM leads WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`;
+    const rows = await queryAll<any>(sql, values);
     return rows.map(rowToDTO);
   } catch (error) {
     console.error('Error fetching applications:', error);
@@ -100,12 +97,13 @@ export async function createApplication(payload: ApplicationPayload & { tenantId
 
 export async function updateApplicationStatus(
   id: string,
+  tenantId: string,
   status: ApplicationDTO['status']
 ): Promise<ApplicationDTO | null> {
   try {
     const row = await queryOne<any>(
-      `UPDATE leads SET status = $1 WHERE id = $2 RETURNING *`,
-      [status, id]
+      `UPDATE leads SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+      [status, id, tenantId]
     );
     if (!row) return null;
     return rowToDTO(row);

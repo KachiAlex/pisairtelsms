@@ -15,6 +15,7 @@ import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
 interface SubjectItem { id: string; name: string }
+interface StudentItem { id: string; name: string; admissionNo?: string }
 interface StudentScore {
   id: string; studentId: string; subject: string; academicSession: string; term: string
   caScore: number; examScore: number; totalScore: number; attendancePercentage: number
@@ -29,7 +30,7 @@ interface TeacherSubmission {
   class: string; status: string; updatedAt: string
 }
 interface ScoreInput {
-  studentId: string; testsScore: string; assignmentsScore: string
+  studentId: string; studentName: string; testsScore: string; assignmentsScore: string
   projectsScore: string; examsScore: string; attendance: string
 }
 
@@ -38,6 +39,7 @@ export function CAScoreEntry() {
   const { toast } = useToast()
 
   const [subjects, setSubjects] = useState<SubjectItem[]>([])
+  const [roster, setRoster] = useState<StudentItem[]>([])
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSubject, setSelectedSubject] = useState('')
   const [academicSession, setAcademicSession] = useState('')
@@ -74,6 +76,23 @@ export function CAScoreEntry() {
   }, [])
 
   useEffect(() => { loadMeta() }, [loadMeta])
+
+  const loadRoster = useCallback(async () => {
+    if (!selectedClass) { setRoster([]); return }
+    try {
+      const res = await tenantApiGet(`/api/tenant/students?class=${encodeURIComponent(selectedClass)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setRoster(data.data || [])
+      } else {
+        setRoster([])
+      }
+    } catch { setRoster([]) }
+  }, [selectedClass])
+
+  useEffect(() => {
+    loadRoster()
+  }, [loadRoster])
 
   const loadScores = useCallback(async () => {
     if (!selectedClass || !selectedSubject || !academicSession || !term) return
@@ -115,9 +134,19 @@ export function CAScoreEntry() {
 
   useEffect(() => {
     const inputs: Record<string, ScoreInput> = {}
+    // Start from roster so every student in the class appears
+    for (const stu of roster) {
+      inputs[stu.id] = {
+        studentId: stu.id,
+        studentName: stu.name,
+        testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '',
+      }
+    }
+    // Merge in existing scores from the database
     for (const score of existingScores) {
       inputs[score.studentId] = {
         studentId: score.studentId,
+        studentName: inputs[score.studentId]?.studentName || score.studentId,
         testsScore: score.testsScore?.toString() || '',
         assignmentsScore: score.assignmentsScore?.toString() || '',
         projectsScore: score.projectsScore?.toString() || '',
@@ -126,18 +155,18 @@ export function CAScoreEntry() {
       }
     }
     setScoreInputs(inputs)
-  }, [existingScores])
+  }, [existingScores, roster])
 
   const handleScoreChange = (studentId: string, field: keyof ScoreInput, value: string) => {
     setScoreInputs(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
   }
 
   const handleAddStudent = () => {
-    const studentId = prompt('Enter student ID:')
+    const studentId = prompt('Enter student ID (or select a class to load the full roster):')
     if (!studentId || scoreInputs[studentId]) return
     setScoreInputs(prev => ({
       ...prev,
-      [studentId]: { studentId, testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '' },
+      [studentId]: { studentId, studentName: studentId, testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '' },
     }))
   }
 
@@ -272,9 +301,9 @@ export function CAScoreEntry() {
           <p className="text-xs text-gray-500">Awaiting final submission</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 space-y-1">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Classes available</p>
+          <p className="text-xs uppercase tracking-wide text-gray-500">Subjects available</p>
           <p className="text-3xl font-semibold text-gray-900">{subjects.length}</p>
-          <p className="text-xs text-gray-500">{subjects.length} subjects</p>
+          <p className="text-xs text-gray-500">{roster.length} students in class</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 space-y-1">
           <p className="text-xs uppercase tracking-wide text-gray-500">Current term</p>
@@ -356,7 +385,7 @@ export function CAScoreEntry() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Student ID</TableHead>
+                      <TableHead>Student</TableHead>
                       <TableHead className="w-20">Tests</TableHead>
                       <TableHead className="w-20">Assignments</TableHead>
                       <TableHead className="w-20">Projects</TableHead>
@@ -371,8 +400,9 @@ export function CAScoreEntry() {
                       return (
                         <TableRow key={input.studentId}>
                           <TableCell className="font-medium text-gray-900">
-                            {input.studentId}
-                            {existing && <span className="ml-2 text-xs text-gray-400">(total: {existing.totalScore})</span>}
+                            {input.studentName || input.studentId}
+                            <p className="text-xs text-gray-400">{input.studentId}</p>
+                            {existing && <span className="text-xs text-gray-400">(total: {existing.totalScore})</span>}
                           </TableCell>
                           <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.testsScore} onChange={e => handleScoreChange(input.studentId, 'testsScore', e.target.value)} /></TableCell>
                           <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.assignmentsScore} onChange={e => handleScoreChange(input.studentId, 'assignmentsScore', e.target.value)} /></TableCell>

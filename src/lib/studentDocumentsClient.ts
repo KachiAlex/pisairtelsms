@@ -1,7 +1,10 @@
+import { tenantApiGet, tenantApiFetch } from './tenantApi'
+
 export type StudentDocumentCategory = 'Academic' | 'Medical' | 'Finance' | 'Conduct'
 export type StudentDocumentStatus = 'Pending review' | 'Escalated' | 'Awaiting upload'
 
 export interface StudentDocument {
+  id: string
   student: string
   cohort: string
   category: StudentDocumentCategory
@@ -17,13 +20,7 @@ export interface StudentDocument {
 const DOCUMENTS_ENDPOINT = '/api/student-documents'
 
 export async function fetchStudentDocuments(signal?: AbortSignal): Promise<StudentDocument[]> {
-  const response = await fetch(DOCUMENTS_ENDPOINT, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    signal,
-  })
+  const response = await tenantApiGet(DOCUMENTS_ENDPOINT)
 
   if (!response.ok) {
     throw new Error(`Failed to fetch student documents: ${response.status}`)
@@ -35,4 +32,17 @@ export async function fetchStudentDocuments(signal?: AbortSignal): Promise<Stude
   }
 
   return payload as StudentDocument[]
+}
+
+/**
+ * Delete a student document record (tenant-scoped).
+ */
+export async function deleteStudentDocument(id: string): Promise<void> {
+  const response = await tenantApiFetch(`${DOCUMENTS_ENDPOINT}?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok && response.status !== 204) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(typeof data.error === 'string' ? data.error : 'Unable to delete student document.')
+  }
 }

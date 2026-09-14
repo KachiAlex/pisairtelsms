@@ -1,5 +1,5 @@
-import type { VercelRequest } from '@vercel/node'
-import { sql } from '@vercel/postgres'
+import type { VercelRequest } from './http-types.js'
+import { sql } from './sql.js'
 
 export type AuditAction =
   | 'login_success'

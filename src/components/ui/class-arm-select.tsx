@@ -40,7 +40,7 @@ export function ClassArmSelect({
 
   const loadClasses = async () => {
     try {
-      const res = await tenantApiGet('/api/tenant/cbt/classes')
+      const res = await tenantApiGet('/api/tenant/academics/classes')
       if (res.ok) {
         const json = await res.json()
         setClasses(json.data || json.classes || [])

@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 
 interface Exam {
@@ -38,14 +38,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   try {
     const { type, status } = req.query;
-    const studentRes = await sql`SELECT class FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1`;
+    const studentRes = await sql`SELECT class FROM students WHERE id = ${studentId} AND tenant_id = ${decoded.tenantId || 'default-tenant'} AND deleted_at IS NULL LIMIT 1`;
     const studentClass = studentRes.rows[0]?.class || '';
 
     const examResult = await sql`SELECT id::text, title AS subject, COALESCE(description, '') AS paper,
       exam_date::text AS date, start_time::text AS start_time, end_time::text AS end_time,
       room AS venue, COALESCE(student_class, '') AS student_class
       FROM exams
-      WHERE student_class = ${studentClass} OR student_class IS NULL
+      WHERE tenant_id = ${decoded.tenantId || 'default-tenant'}
+        AND (student_class = ${studentClass} OR student_class IS NULL)
       ORDER BY exam_date, start_time`;
 
     const now = new Date();
@@ -86,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let academicSession = '', term = '';
     try {
-      const termRes = await sql`SELECT name FROM terms ORDER BY created_at DESC LIMIT 1`;
+      const termRes = await sql`SELECT name FROM terms WHERE tenant_id = ${decoded.tenantId || 'default-tenant'} ORDER BY created_at DESC LIMIT 1`;
       if (termRes.rows[0]) {
         term = termRes.rows[0].name;
         const year = new Date().getFullYear();

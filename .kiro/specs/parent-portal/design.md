@@ -1840,7 +1840,7 @@ The Parent Portal leverages existing implementations:
 Each parent API endpoint follows this pattern:
 
 ```typescript
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 
 function extractParentInfoFromJWT(req: VercelRequest): { parentId: string; childrenIds: string[] } | null {
   const authHeader = req.headers.authorization

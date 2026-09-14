@@ -13,7 +13,10 @@ export function PayrollSchedules() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false })
+  const [form, setForm] = useState<{
+    name: string; frequency: 'weekly' | 'monthly' | 'bi_weekly' | 'custom';
+    dayOfMonth: number; dayOfWeek: number; autoGenerate: boolean; autoDisburse: boolean;
+  }>({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false })
 
   const fetchSchedules = async () => {
     setLoading(true)
@@ -135,7 +138,7 @@ export function PayrollSchedules() {
             </div>
             <div>
               <Label>Frequency</Label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value as 'weekly' | 'monthly' | 'bi_weekly' | 'custom' }))}>
                 <option value="monthly">Monthly</option>
                 <option value="bi_weekly">Bi-Weekly</option>
                 <option value="weekly">Weekly</option>

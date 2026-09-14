@@ -16,7 +16,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - DELETE `/terms/:id`: reject if schedules exist, return 204
     - POST `/holidays`: validate dates within term, insert, return 201
     - POST `/exam-periods`: validate dates within term, insert, return 201
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 1.1–1.8_
 
   - [x] 1.2 Implement Time Slots API (`api/tenant/timetable/time-slots.ts`)
@@ -25,7 +25,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - POST: validate no overlapping slots for same day, compute `duration_minutes`, insert, return 201
     - PUT `/:id`: update slot fields, return updated record
     - DELETE `/:id`: return 204
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 2.1–2.8_
 
   - [x] 1.3 Implement Class Schedules API (`api/tenant/timetable/class-schedules.ts`)
@@ -36,7 +36,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - POST `/:id/entries`: validate teacher availability, detect conflicts, insert entry, return 201
     - PUT `/:scheduleId/entries/:entryId`: update entry, re-validate conflicts
     - DELETE `/:scheduleId/entries/:entryId`: remove entry, return 204
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 3.1–3.9_
 
   - [x] 1.4 Implement Teacher Schedules API (`api/tenant/timetable/teacher-schedules.ts`)
@@ -45,7 +45,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - GET `/:id`: return schedule with workload breakdown
     - PUT `/:id`: update `maxHoursLimit`, return updated record
     - Auto-compute `total_hours` and `total_classes` from class schedule entries
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 4.1–4.8_
 
   - [x] 1.5 Implement Exam Schedules API (`api/tenant/timetable/exam-schedules.ts`)
@@ -56,14 +56,14 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - POST `/:id/hall-assignments`: validate `studentCount` ≤ hall capacity, insert, return 201
     - POST `/:id/invigilators`: validate no overlapping invigilator assignments, insert, return 201
     - DELETE `/:id/invigilators/:invigilatorId`: remove invigilator, return 204
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 5.1–5.11_
 
   - [x] 1.6 Implement Conflicts API (`api/tenant/timetable/conflicts.ts`)
     - Auto-create `conflicts` table on startup
     - GET: return conflicts filtered by `status`, `severity`, `entityType`
     - POST `/:id/resolve`: update status to `resolved`, record `resolutionNotes` and `resolved_at`
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 6.1–6.8_
 
   - [x] 1.7 Implement Change Requests API (`api/tenant/timetable/change-requests.ts`)
@@ -71,17 +71,17 @@ Transform the existing view-only TimetableScheduling component into a full-featu
     - GET: return requests filtered by `status`
     - POST: validate entity exists, insert with status `pending`, return 201
     - PUT `/:id`: update status (`approved`/`rejected`), record reviewer and comments
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 7.1–7.10_
 
   - [x] 1.8 Implement Publish API (`api/tenant/timetable/publish.ts`)
     - POST: validate all schedules are conflict-free before publishing, mark as published, return 201
     - GET `/status`: return list of published schedules with `publishedAt` timestamps
     - Return 400 with conflict details if unresolved conflicts exist
-    - Use `VercelRequest`/`VercelResponse` from `@vercel/node`
+    - Use `VercelRequest`/`VercelResponse` from local HTTP types
     - _Requirements: 8.1–8.9_
 
-  - [x] 1.9 Wire all timetable API routes in `vercel.json`
+  - [x] 1.9 Wire all timetable API routes in `routes.json`
     - Add routes for all 8 new API endpoints under `/api/tenant/timetable/*`
     - _Requirements: 10.1_
 
@@ -264,7 +264,7 @@ Transform the existing view-only TimetableScheduling component into a full-featu
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP
-- All API handlers must use `VercelRequest`/`VercelResponse` from `@vercel/node`
+- All API handlers must use `VercelRequest`/`VercelResponse` from local HTTP types
 - All new API files live under `api/tenant/timetable/` subdirectory
 - All new component files live under `src/components/pages/timetable/` subdirectory
 - The existing `TimetableScheduling.tsx` is refactored into `TimetableHub` — not replaced

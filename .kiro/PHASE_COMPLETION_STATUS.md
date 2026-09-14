@@ -597,7 +597,7 @@
 ## Deployment Status
 
 **Current Environment**: Development  
-**Production URL**: Ready for deployment to https://scholarx-app.vercel.app  
+**Production URL**: Ready for deployment to http://your-vps-domain:3000  
 **Database**: Mock data (ready for integration with real database)  
 **Authentication**: JWT-based (24-hour expiration)  
 **Caching**: Implemented (5 min - 1 day based on endpoint)  

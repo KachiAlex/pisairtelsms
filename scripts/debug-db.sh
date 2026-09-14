@@ -20,7 +20,7 @@ pool.query('SELECT count(*) FROM staff').then(r => {
 echo ""
 echo "=== Check fetchStaffByEmail ==="
 docker exec pisairtel-sms node -e "
-const { sql } = require('@vercel/postgres');
+const { sql } = require('./api/_lib/sql.mjs');
 sql\`SELECT id, email, role, password_hash FROM staff WHERE email = 'akoma@kreatixtech.com'\`.then(r => {
   console.log('Result:', JSON.stringify(r.rows));
   process.exit(0);

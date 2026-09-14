@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { WebSocket, WebSocketServer } from 'ws'
 import handler from './monitoring'
 import * as monitoringService from './_lib/monitoring'

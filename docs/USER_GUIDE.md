@@ -15,7 +15,7 @@ The ScholarX Parent Portal gives you complete visibility into your child's acade
 
 ### Logging In
 
-1. Visit https://scholarx-app.vercel.app
+1. Visit http://your-vps-domain:3000
 2. Click "Parent Login"
 3. Enter your email and password
 4. Click "Sign In"

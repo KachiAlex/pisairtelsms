@@ -1,5 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import { sql } from '../_lib/sql.js';
 import { ensureStaffTables, validateGeofence, isWithinTimeWindow } from '../tenant/_lib/staff.js';
 import { fetchTenantSettings } from '../tenant/_lib/tenant-settings.js';
 import { requireRole } from '../_lib/auth-middleware.js';

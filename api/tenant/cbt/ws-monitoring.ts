@@ -3,7 +3,7 @@
  * Handles real-time exam progress updates via WebSocket
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { WebSocketServer, WebSocket } from 'ws'
 import { queryOne } from './_lib/db.js'

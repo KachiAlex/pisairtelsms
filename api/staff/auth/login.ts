@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 import { SignJWT } from 'jose'
 import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
 import { rateLimit } from '../../_lib/rate-limit.js'

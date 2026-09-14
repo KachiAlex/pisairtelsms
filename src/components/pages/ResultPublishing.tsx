@@ -13,6 +13,8 @@ import { ClassArmSelect } from '../ui/class-arm-select'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
+const PUB_BASE = '/api/tenant/result-publishing-handler'
+
 interface PublishingStats {
   total: number
   compiled: number
@@ -70,9 +72,9 @@ export function ResultPublishing() {
     try {
       const classParam = selectedClass ? `&class=${encodeURIComponent(selectedClass)}` : ''
       const [statsRes, classRes, pubRes] = await Promise.all([
-        tenantApiGet(`/api/tenant/result-publishing/stats?academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`),
-        tenantApiGet(`/api/tenant/result-publishing/class-summaries?academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}`),
-        tenantApiGet(`/api/tenant/result-publishing/published-list?academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`),
+        tenantApiGet(`${PUB_BASE}?action=stats&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`),
+        tenantApiGet(`${PUB_BASE}?action=class-summaries&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}`),
+        tenantApiGet(`${PUB_BASE}?action=published-list&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`),
       ])
 
       if (statsRes.ok) {
@@ -103,7 +105,7 @@ export function ResultPublishing() {
     setPublishing(true)
     try {
       const classParam = selectedClass ? `&class=${encodeURIComponent(selectedClass)}` : ''
-      const res = await tenantApiPost(`/api/tenant/result-publishing/publish?academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`)
+      const res = await tenantApiPost(`${PUB_BASE}?action=publish&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`)
       const data = await res.json()
       if (res.ok && data.success) {
         toast({ title: 'Results published', description: data.message })
@@ -123,7 +125,7 @@ export function ResultPublishing() {
     setUnpublishing(true)
     try {
       const classParam = selectedClass ? `&class=${encodeURIComponent(selectedClass)}` : ''
-      const res = await tenantApiPost(`/api/tenant/result-publishing/unpublish?academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`)
+      const res = await tenantApiPost(`${PUB_BASE}?action=unpublish&academicSession=${encodeURIComponent(academicSession)}&term=${encodeURIComponent(term)}${classParam}`)
       const data = await res.json()
       if (res.ok && data.success) {
         toast({ title: 'Results unpublished', description: data.message })

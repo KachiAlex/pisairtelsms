@@ -1,16 +1,17 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest'
 import { TeacherAttendanceEntry } from './TeacherAttendanceEntry'
 
 // Mock the useToast hook
-jest.mock('../../ui/use-toast', () => ({
+vi.mock('../../ui/use-toast', () => ({
   useToast: () => ({
-    toast: jest.fn(),
+    toast: vi.fn(),
   }),
 }))
 
 // Mock fetch
-global.fetch = jest.fn()
+global.fetch = vi.fn()
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -73,10 +74,10 @@ describe('TeacherAttendanceEntry Component', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     localStorage.clear()
     localStorage.setItem('auth', mockAuth)
-    ;(global.fetch as jest.Mock).mockClear()
+    ;(global.fetch as Mock).mockClear()
   })
 
   describe('Component Rendering', () => {
@@ -91,7 +92,7 @@ describe('TeacherAttendanceEntry Component', () => {
     })
 
     it('should render attendance entry form after loading students', async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -110,7 +111,7 @@ describe('TeacherAttendanceEntry Component', () => {
     })
 
     it('should display all students in the list', async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -130,7 +131,7 @@ describe('TeacherAttendanceEntry Component', () => {
     })
 
     it('should display total student count', async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -150,7 +151,7 @@ describe('TeacherAttendanceEntry Component', () => {
 
   describe('Status Selection', () => {
     beforeEach(async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -200,7 +201,7 @@ describe('TeacherAttendanceEntry Component', () => {
 
   describe('Bulk Actions', () => {
     beforeEach(async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -265,7 +266,7 @@ describe('TeacherAttendanceEntry Component', () => {
 
   describe('Search and Sort', () => {
     beforeEach(async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -305,7 +306,7 @@ describe('TeacherAttendanceEntry Component', () => {
 
   describe('Date Selection', () => {
     beforeEach(async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -337,7 +338,7 @@ describe('TeacherAttendanceEntry Component', () => {
 
   describe('Confirmation Dialog', () => {
     beforeEach(async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -382,7 +383,7 @@ describe('TeacherAttendanceEntry Component', () => {
 
   describe('Submission', () => {
     beforeEach(async () => {
-      ;(global.fetch as jest.Mock)
+      ;(global.fetch as Mock)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockClasses,
@@ -400,7 +401,7 @@ describe('TeacherAttendanceEntry Component', () => {
     })
 
     it('should submit attendance records successfully', async () => {
-      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ;(global.fetch as Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           success: true,
@@ -429,7 +430,7 @@ describe('TeacherAttendanceEntry Component', () => {
     })
 
     it('should handle submission errors', async () => {
-      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ;(global.fetch as Mock).mockResolvedValueOnce({
         ok: false,
         json: async () => ({
           error: 'Failed to save attendance',
@@ -454,7 +455,7 @@ describe('TeacherAttendanceEntry Component', () => {
 
   describe('Error Handling', () => {
     it('should handle fetch error when loading classes', async () => {
-      ;(global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
+      ;(global.fetch as Mock).mockRejectedValueOnce(new Error('Network error'))
 
       render(<TeacherAttendanceEntry />)
 
@@ -464,7 +465,7 @@ describe('TeacherAttendanceEntry Component', () => {
     })
 
     it('should show error when no classes assigned', async () => {
-      ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+      ;(global.fetch as Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ classes: [] }),
       })

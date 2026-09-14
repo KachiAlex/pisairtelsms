@@ -28,20 +28,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
+  // Ensure tenant_id columns exist on portal-side message tables
+  await sql`ALTER TABLE student_messages ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch(() => {})
+  await sql`ALTER TABLE student_message_replies ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch(() => {})
+
   if (req.method === 'GET') {
     try {
       const { limit = '20', offset = '0' } = req.query;
       const limitNum = Math.min(parseInt(limit as string) || 20, 100);
       const offsetNum = parseInt(offset as string) || 0;
 
-      const countResult = await sql`SELECT COUNT(*) AS total FROM student_messages WHERE student_id = ${studentId}`;
+      const countResult = await sql`SELECT COUNT(*) AS total FROM student_messages WHERE student_id = ${studentId} AND tenant_id = ${tenantId}`;
       const total = parseInt(countResult.rows[0]?.total ?? '0');
 
       const dbResult = await sql`
         SELECT id::text, sender_name AS sender, subject,
                created_at::date::text AS date, body, is_read
         FROM student_messages
-        WHERE student_id = ${studentId}
+        WHERE student_id = ${studentId} AND tenant_id = ${tenantId}
         ORDER BY created_at DESC
         LIMIT ${limitNum} OFFSET ${offsetNum}
       `;
@@ -49,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const messages: Message[] = await Promise.all(dbResult.rows.map(async r => {
         const repliesResult = await sql`
           SELECT id::text, sender_name AS sender, created_at::date::text AS date, body
-          FROM student_message_replies WHERE message_id = ${r.id} ORDER BY created_at ASC
+          FROM student_message_replies WHERE message_id = ${r.id} AND tenant_id = ${tenantId} ORDER BY created_at ASC
         `;
         return {
           id: r.id, sender: r.sender, subject: r.subject,
@@ -72,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Message ID is required' });
       }
 
-      await sql`UPDATE student_messages SET is_read = true WHERE id = ${id} AND student_id = ${studentId}`;
+      await sql`UPDATE student_messages SET is_read = true WHERE id = ${id} AND student_id = ${studentId} AND tenant_id = ${tenantId}`;
       return res.status(200).json({ success: true, message: 'Message marked as read' });
     } catch (error) {
       console.error('Error marking message as read:', error);
@@ -94,8 +100,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const replyId = `reply_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       await sql`
-        INSERT INTO student_message_replies (id, message_id, sender_name, body, created_at)
-        VALUES (${replyId}, ${id}, 'Student', ${body.reply}, NOW())
+        INSERT INTO student_message_replies (id, message_id, tenant_id, sender_name, body, created_at)
+        VALUES (${replyId}, ${id}, ${tenantId}, 'Student', ${body.reply}, NOW())
       `;
       const newReply: Reply = {
         id: replyId, sender: 'Student',

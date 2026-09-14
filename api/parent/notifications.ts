@@ -13,13 +13,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!decoded) return
     const parentId = decoded.parentId!
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
+    // Ensure tenant_id column exists
+    await sql`ALTER TABLE parent_notifications ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch(() => {})
+
     const limit = parseInt(req.query.limit as string) || 20
     const type = req.query.type as string
 
     let query = sql`
       SELECT id, type, title, message, is_read, action_url, created_at::text AS date
       FROM parent_notifications
-      WHERE parent_id = ${parentId}
+      WHERE parent_id = ${parentId} AND tenant_id = ${tenantId}
       ORDER BY created_at DESC
       LIMIT ${limit}
     `
@@ -28,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       query = sql`
         SELECT id, type, title, message, is_read, action_url, created_at::text AS date
         FROM parent_notifications
-        WHERE parent_id = ${parentId} AND type = ${type}
+        WHERE parent_id = ${parentId} AND tenant_id = ${tenantId} AND type = ${type}
         ORDER BY created_at DESC
         LIMIT ${limit}
       `
@@ -47,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const unreadRes = await sql`
       SELECT COUNT(*) AS count FROM parent_notifications
-      WHERE parent_id = ${parentId} AND is_read = FALSE
+      WHERE parent_id = ${parentId} AND tenant_id = ${tenantId} AND is_read = FALSE
     `
     const unreadCount = parseInt(unreadRes.rows[0]?.count ?? '0')
 

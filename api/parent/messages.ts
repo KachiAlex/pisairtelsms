@@ -83,6 +83,8 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
 
     const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     const childIdParam = req.query.childId
     if (Array.isArray(childIdParam)) {
       return res.status(400).json({ error: 'Bad request: childId must be a single value' })
@@ -107,21 +109,21 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
              pm.created_at::text AS last_message_date, pm.is_read,
              st.id::text AS teacher_id, st.name AS teacher_name,
              COALESCE(st.email, '') AS teacher_email,
-             COALESCE((SELECT subject FROM timetable WHERE staff_id = st.id LIMIT 1), '') AS teacher_subject
+             COALESCE((SELECT subject FROM timetable WHERE staff_id = st.id AND tenant_id = ${tenantId} LIMIT 1), '') AS teacher_subject
       FROM parent_messages pm
-      JOIN staff st ON st.id = pm.staff_id
-      WHERE pm.parent_id = ${parentInfo.parentId}
+      JOIN staff st ON st.id = pm.staff_id AND st.tenant_id = ${tenantId}
+      WHERE pm.parent_id = ${parentInfo.parentId} AND pm.tenant_id = ${tenantId}
       ORDER BY pm.created_at DESC LIMIT ${limit}
     `
 
-    const childRow = await sql`SELECT class FROM students WHERE id = ${childId} AND deleted_at IS NULL LIMIT 1`
+    const childRow = await sql`SELECT class FROM students WHERE id = ${childId} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1`
     const studentClass = childRow.rows[0]?.class ?? ''
 
     const teachersResult = await sql`
       SELECT DISTINCT st.id::text, st.name, COALESCE(st.email, '') AS email,
-             COALESCE((SELECT tt.subject FROM timetable tt WHERE tt.staff_id = st.id AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
+             COALESCE((SELECT tt.subject FROM timetable tt WHERE tt.staff_id = st.id AND tt.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
       FROM staff st
-      JOIN timetable tt ON tt.staff_id = st.id AND tt.class_name LIKE ${studentClass + '%'}
+      JOIN timetable tt ON tt.staff_id = st.id AND tt.tenant_id = ${tenantId} AND st.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'}
       ORDER BY st.name LIMIT 20
     `
 
@@ -160,6 +162,8 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
 
     const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     const { conversationId, teacherId, childId, content } = req.body
     const sanitizedChildId = typeof childId === 'string' && childId.trim() ? childId : null
     if (!sanitizedChildId || !content) {
@@ -175,7 +179,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     let targetTeacherId = teacherId
     if (conversationId) {
       const existing = await sql`
-        SELECT staff_id FROM parent_messages WHERE id = ${conversationId} LIMIT 1
+        SELECT staff_id FROM parent_messages WHERE id = ${conversationId} AND tenant_id = ${tenantId} LIMIT 1
       `
       if (!existing.rows[0]) {
         return res.status(404).json({ error: 'Conversation not found' })
@@ -188,12 +192,12 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     }
 
     const childRow = await sql`
-      SELECT class FROM students WHERE id = ${safeChildId} AND deleted_at IS NULL LIMIT 1
+      SELECT class FROM students WHERE id = ${safeChildId} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1
     `
     const studentClass = childRow.rows[0]?.class ?? ''
 
     const subjectResult = await sql`
-      SELECT COALESCE((SELECT subject FROM timetable tt WHERE tt.staff_id = ${targetTeacherId} AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
+      SELECT COALESCE((SELECT subject FROM timetable tt WHERE tt.staff_id = ${targetTeacherId} AND tt.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
     `
     const conversationSubject = subjectResult.rows[0]?.subject || 'Teacher conversation'
 
@@ -201,8 +205,8 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     const messageId = conversationId || `pm_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
 
     await sql`
-      INSERT INTO parent_messages (id, parent_id, staff_id, child_id, subject, body, is_read, created_at)
-      VALUES (${messageId}, ${parentInfo.parentId}, ${targetTeacherId}, ${safeChildId}, ${conversationSubject}, ${content}, false, ${now})
+      INSERT INTO parent_messages (id, tenant_id, parent_id, staff_id, child_id, subject, body, is_read, created_at)
+      VALUES (${messageId}, ${tenantId}, ${parentInfo.parentId}, ${targetTeacherId}, ${safeChildId}, ${conversationSubject}, ${content}, false, ${now})
       ON CONFLICT (id) DO UPDATE SET
         subject = EXCLUDED.subject,
         body = EXCLUDED.body,

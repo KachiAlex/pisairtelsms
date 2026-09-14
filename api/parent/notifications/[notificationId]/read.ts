@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
 import { sql } from '../../../_lib/sql.js'
-import { extractTokenFromHeader, extractParentInfoFromJWT } from '../../../../src/lib/parentAuth'
+import { requireRole } from '../../../_lib/auth-middleware.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'PUT') {
@@ -8,11 +8,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const token = extractTokenFromHeader(req.headers.authorization)
-  if (!token) return res.status(401).json({ error: 'Unauthorized: Missing token' })
+  const decoded = await requireRole(req, res, ['parent'])
+  if (!decoded) return
 
-  const parentInfo = extractParentInfoFromJWT(token)
-  if (!parentInfo) return res.status(401).json({ error: 'Unauthorized: Invalid token' })
+  const parentId = decoded.parentId
+  if (!parentId) return res.status(401).json({ error: 'Unauthorized: Missing parentId' })
+
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   const { notificationId } = req.query
   if (!notificationId || typeof notificationId !== 'string') {
@@ -23,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await sql`
       UPDATE parent_notifications
       SET is_read = TRUE
-      WHERE id = ${notificationId} AND parent_id = ${parentInfo.parentId}
+      WHERE id = ${notificationId} AND parent_id = ${parentId} AND tenant_id = ${tenantId}
     `
     return res.status(200).json({ id: notificationId, isRead: true })
   } catch (error) {

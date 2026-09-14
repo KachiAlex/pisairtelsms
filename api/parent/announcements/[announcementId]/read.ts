@@ -14,6 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!decoded) return
     const parentId = decoded.parentId!
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     // CSRF protection for state-changing request
     if (requireCSRF(req, res, parentId)) return
 
@@ -25,8 +27,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const id = Array.isArray(announcementId) ? announcementId[0] : announcementId
     await sql`
-      INSERT INTO parent_announcement_reads (parent_id, announcement_id, read_at)
-      VALUES (${parentId}, ${id}, NOW())
+      INSERT INTO parent_announcement_reads (parent_id, announcement_id, tenant_id, read_at)
+      VALUES (${parentId}, ${id}, ${tenantId}, NOW())
       ON CONFLICT (parent_id, announcement_id) DO UPDATE SET read_at = NOW()
     `
     return res.status(200).json({ id, isRead: true })

@@ -25,12 +25,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const decoded = await requireRole(req, res, ['staff']);
     if (!decoded) return;
 
+    const tenantId = decoded.tenantId || 'default-tenant';
+
     const { limit = '10', offset = '0' } = req.query;
 
     // Ensure announcements table exists with extra columns
     const result = await sql`
       SELECT id::text, title, body, created_at::date::text AS date, audience, sent_by
       FROM announcements
+      WHERE tenant_id = ${tenantId}
       ORDER BY created_at DESC
       LIMIT ${Math.min(parseInt(limit as string), 100)}
       OFFSET ${parseInt(offset as string)}

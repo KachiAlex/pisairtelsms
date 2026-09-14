@@ -15,6 +15,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const parentInfo = { parentId: decoded.parentId, childrenIds: decoded.childrenIds || [], role: decoded.role }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     const childId = req.query.childId as string
     const limit = parseInt(req.query.limit as string) || 10
     const category = req.query.category as string
@@ -31,13 +33,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? await sql`
           SELECT id::text, title, body, COALESCE(category, 'general') AS category,
                  created_at::date::text AS date, COALESCE(author, 'Admin') AS author
-          FROM announcements WHERE LOWER(category) = LOWER(${category})
+          FROM announcements WHERE tenant_id = ${tenantId} AND LOWER(category) = LOWER(${category})
           ORDER BY created_at DESC LIMIT ${limit}
         `
       : await sql`
           SELECT id::text, title, body, COALESCE(category, 'general') AS category,
                  created_at::date::text AS date, COALESCE(author, 'Admin') AS author
           FROM announcements
+          WHERE tenant_id = ${tenantId}
           ORDER BY created_at DESC LIMIT ${limit}
         `
 

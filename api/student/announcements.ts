@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
+import { requireRole } from '../_lib/auth-middleware.js';
 
 interface Announcement {
   id: string;
@@ -24,12 +25,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const decoded = await requireRole(req, res, ['student']);
+  if (!decoded) return;
+
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   try {
     const { limit = '10', offset = '0' } = req.query;
     const limitNum = Math.min(parseInt(limit as string) || 10, 100);
     const offsetNum = parseInt(offset as string) || 0;
 
-    const countResult = await sql`SELECT COUNT(*) AS total FROM announcements`;
+    const countResult = await sql`SELECT COUNT(*) AS total FROM announcements WHERE tenant_id = ${tenantId}`;
     const total = parseInt(countResult.rows[0]?.total ?? '0');
 
     const dbResult = await sql`
@@ -38,6 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              LEFT(body, 120) AS preview, body,
              COALESCE(audience, 'public') AS audience
       FROM announcements
+      WHERE tenant_id = ${tenantId}
       ORDER BY created_at DESC
       LIMIT ${limitNum} OFFSET ${offsetNum}
     `;

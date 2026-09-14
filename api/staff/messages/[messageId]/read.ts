@@ -22,6 +22,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
     }
 
+    const tenantId = decoded.tenantId || 'default-tenant';
+
     // CSRF protection for state-changing request
     if (requireCSRF(req, res, staffId)) return;
 
@@ -32,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Verify staff member is recipient (staff_id matches) or sender
     const msgRes = await sql`
-      SELECT staff_id, sender_id FROM staff_messages WHERE id = ${messageId} LIMIT 1
+      SELECT staff_id, sender_id FROM staff_messages WHERE id = ${messageId} AND tenant_id = ${tenantId} LIMIT 1
     `;
     if (!msgRes.rows[0]) {
       return res.status(404).json({ error: 'Message not found' });
@@ -44,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Mark message as read
     await sql`
-      UPDATE staff_messages SET is_read = TRUE WHERE id = ${messageId}
+      UPDATE staff_messages SET is_read = TRUE WHERE id = ${messageId} AND tenant_id = ${tenantId}
     `;
 
     const response: MarkReadResponse = {

@@ -32,6 +32,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   await ensureStaffTables();
 
   try {
@@ -39,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const result = await sql`
       SELECT id::text, month, year, basic_salary, allowances, deductions, net_salary, status, payment_date::text
-      FROM staff_payroll WHERE staff_id = ${staffId}
+      FROM staff_payroll WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
     `;
     let payslips = result.rows.map((r) => ({
       id: r.id,

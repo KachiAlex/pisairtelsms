@@ -6,6 +6,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const decoded = await requireRole(req, res, ['tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'Method not allowed' })
@@ -22,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Password must be at least 6 characters' })
   }
 
-  const ok = await resetStaffPassword(id, newPassword)
+  const ok = await resetStaffPassword(id, newPassword, tenantId)
   if (!ok) return res.status(404).json({ error: 'Staff member not found' })
 
   return res.status(200).json({ success: true })

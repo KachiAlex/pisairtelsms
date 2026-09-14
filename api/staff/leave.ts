@@ -48,9 +48,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   if (req.method === 'GET') {
     try {
-      const requests = await fetchLeaveRequests(staffId);
+      const requests = await fetchLeaveRequests(staffId, undefined, tenantId);
 
       const usedDays: Record<string, number> = {};
       for (const r of requests) {
@@ -86,10 +88,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-      const staffMember = await fetchStaffById(staffId);
+      const staffMember = await fetchStaffById(staffId, tenantId);
       const staffName = staffMember?.name ?? staffId;
 
-      const created = await createLeaveRequest({ staffId, staffName, leaveType, startDate, endDate, days, reason, status: 'pending' });
+      const created = await createLeaveRequest({ staffId, staffName, leaveType, startDate, endDate, days, reason, status: 'pending' }, tenantId);
       return res.status(201).json(created);
     } catch (error) {
       console.error('Error creating leave request:', error);

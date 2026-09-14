@@ -57,12 +57,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   try {
     // Ensure dependent tables exist
     // Fetch staff record
     const staffResult = await sql`
       SELECT id, staff_id, name, department, role FROM staff
-      WHERE id = ${staffId} LIMIT 1
+      WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
     `;
     if (!staffResult.rows[0]) {
       return res.status(404).json({ error: 'Staff record not found' });
@@ -76,21 +78,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              start_time, end_time,
              start_time || ' - ' || end_time AS time_slot
       FROM timetable
-      WHERE staff_id = ${staffId} AND LOWER(day) = LOWER(${dayName})
+      WHERE staff_id = ${staffId} AND tenant_id = ${tenantId} AND LOWER(day) = LOWER(${dayName})
       ORDER BY start_time ASC
     `;
 
     // Pending leave count
     const leaveResult = await sql`
       SELECT COUNT(*) AS cnt FROM staff_leave
-      WHERE staff_id = ${staffId} AND status = 'pending'
+      WHERE staff_id = ${staffId} AND tenant_id = ${tenantId} AND status = 'pending'
     `;
     const pendingLeaveCount = parseInt(leaveResult.rows[0]?.cnt ?? '0');
 
     // Recent announcements (tenant-wide)
     const annResult = await sql`
       SELECT id::text, title, created_at::date::text AS date, LEFT(body, 120) AS preview
-      FROM announcements ORDER BY created_at DESC LIMIT 5
+      FROM announcements WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT 5
     `;
 
     // Recent messages for this staff member
@@ -98,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT id::text, sender_name AS sender, subject,
              created_at::date::text AS date, is_read
       FROM staff_messages
-      WHERE staff_id = ${staffId}
+      WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
       ORDER BY created_at DESC LIMIT 5
     `;
 

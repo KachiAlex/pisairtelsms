@@ -33,6 +33,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   await ensureStaffTables();
 
   if (req.method === 'GET') {
@@ -41,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const result = await sql`
         SELECT id::text, title, description, category, file_name, file_size, file_type, uploaded_by, uploaded_at::text, updated_at::text, download_url, is_restricted, department, academic_year
-        FROM staff_documents
+        FROM staff_documents WHERE tenant_id = ${tenantId}
       `;
 
       let documents = result.rows.map(r => ({

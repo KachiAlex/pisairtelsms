@@ -73,6 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   await ensureStaffTables();
 
   if (req.method === 'GET') {
@@ -82,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const result = await sql`
         SELECT id::text, staff_id, sender_name, subject, body, sender_role, is_read, created_at::date::text AS date
         FROM staff_messages
-        WHERE staff_id = ${staffId}
+        WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
         ORDER BY created_at DESC
         LIMIT ${Math.min(parseInt(limit as string), 100)}
         OFFSET ${parseInt(offset as string)}
@@ -111,8 +113,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const senderName = await getStaffName(staffId);
 
       const result = await sql`
-        INSERT INTO staff_messages (staff_id, sender_name, subject, body, sender_role, is_read, created_at)
-        VALUES (${recipientId || staffId}, ${senderName}, ${subject}, ${messageBody || ''}, 'staff', false, NOW())
+        INSERT INTO staff_messages (staff_id, tenant_id, sender_name, subject, body, sender_role, is_read, created_at)
+        VALUES (${recipientId || staffId}, ${tenantId}, ${senderName}, ${subject}, ${messageBody || ''}, 'staff', false, NOW())
         RETURNING id::text, sender_name, subject, body, created_at::text AS date, is_read
       `;
       const r = result.rows[0];

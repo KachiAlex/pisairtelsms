@@ -57,11 +57,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   if (req.method === 'GET') {
     try {
       const result = await sql`
         SELECT id, staff_id, name, department, role, email, phone, address, qualification
-        FROM staff WHERE id = ${staffId} LIMIT 1
+        FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
       `;
       if (!result.rows[0]) return res.status(404).json({ error: 'Staff not found' });
       const r = result.rows[0];
@@ -87,11 +89,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           phone   = COALESCE(${phone   ?? null}, phone),
           address = COALESCE(${address ?? null}, address),
           updated_at = NOW()
-        WHERE id = ${staffId}
+        WHERE id = ${staffId} AND tenant_id = ${tenantId}
       `;
       const updated = await sql`
         SELECT id, staff_id, name, department, role, email, phone, address, qualification
-        FROM staff WHERE id = ${staffId} LIMIT 1
+        FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
       `;
       const r = updated.rows[0];
       return res.status(200).json({
@@ -113,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { currentPassword, newPassword } = body as PasswordChangeBody;
       if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword are required' });
       if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
-      const row = await sql`SELECT password_hash FROM staff WHERE id = ${staffId} LIMIT 1`;
+      const row = await sql`SELECT password_hash FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1`;
       const storedHash = row.rows[0]?.password_hash;
       if (storedHash && !(await verifyStaffPassword(currentPassword, storedHash)))
         return res.status(401).json({ error: 'Current password is incorrect' });

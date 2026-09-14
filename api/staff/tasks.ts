@@ -68,6 +68,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
 
+  const tenantId = decoded.tenantId || 'default-tenant';
+
   await ensureStaffTables();
 
   if (req.method === 'GET') {
@@ -76,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const result = await sql`
         SELECT id::text, staff_id, title, description, status, priority, due_date::text, assigned_by, assigned_by_role, created_at::text, updated_at::text, completed_at::text
-        FROM staff_tasks WHERE staff_id = ${staffId}
+        FROM staff_tasks WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
       `;
       let tasks: Task[] = result.rows.map(r => ({
         id: r.id,
@@ -135,8 +137,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const id = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       await sql`
-        INSERT INTO staff_tasks (id, staff_id, title, description, status, priority, due_date, assigned_by_role, created_at, updated_at)
-        VALUES (${id}, ${staffId}, ${title}, ${description || ''}, 'pending', ${priority}, ${dueDate || null}, 'self', ${now}, ${now})
+        INSERT INTO staff_tasks (id, staff_id, tenant_id, title, description, status, priority, due_date, assigned_by_role, created_at, updated_at)
+        VALUES (${id}, ${staffId}, ${tenantId}, ${title}, ${description || ''}, 'pending', ${priority}, ${dueDate || null}, 'self', ${now}, ${now})
       `;
 
       const newTask: Task = {
@@ -170,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updates = body as UpdateTaskBody;
       const now = new Date().toISOString();
 
-      const existing = await sql`SELECT * FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}`;
+      const existing = await sql`SELECT * FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId} AND tenant_id = ${tenantId}`;
       if (existing.rows.length === 0) {
         return res.status(404).json({ error: 'Task not found' });
       }
@@ -187,12 +189,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           status = COALESCE(${updates.status ?? null}, status),
           completed_at = ${completedAt},
           updated_at = ${now}
-        WHERE id = ${id as string} AND staff_id = ${staffId}
+        WHERE id = ${id as string} AND staff_id = ${staffId} AND tenant_id = ${tenantId}
       `;
 
       const updated = await sql`
         SELECT id::text, staff_id, title, description, status, priority, due_date::text, assigned_by, assigned_by_role, created_at::text, updated_at::text, completed_at::text
-        FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}
+        FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId} AND tenant_id = ${tenantId}
       `;
       const r = updated.rows[0];
 
@@ -221,7 +223,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Task ID is required' });
       }
 
-      await sql`DELETE FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId}`;
+      await sql`DELETE FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId} AND tenant_id = ${tenantId}`;
       return res.status(200).json({ success: true, message: 'Task deleted' });
     } catch (error) {
       console.error('Error deleting task:', error);

@@ -390,6 +390,14 @@ export async function ensureStaffTables(): Promise<void> {
     await sql`CREATE INDEX IF NOT EXISTS idx_leave_tenant_id ON staff_leave(tenant_id)`.catch((e: any) => console.error('leave tenant index failed:', e.message))
     await sql`CREATE INDEX IF NOT EXISTS idx_attendance_tenant_id ON staff_attendance(tenant_id)`.catch((e: any) => console.error('attendance tenant index failed:', e.message))
     await sql`CREATE INDEX IF NOT EXISTS idx_payroll_tenant_id ON staff_payroll(tenant_id)`.catch((e: any) => console.error('payroll tenant index failed:', e.message))
+
+    // Add tenant_id to portal-side staff tables for tenant isolation
+    await sql`ALTER TABLE staff_tasks ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch((e: any) => console.error('staff_tasks tenant_id alter failed:', e.message))
+    await sql`ALTER TABLE staff_documents ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch((e: any) => console.error('staff_documents tenant_id alter failed:', e.message))
+    await sql`ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch((e: any) => console.error('staff_messages tenant_id alter failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_staff_tasks_tenant_id ON staff_tasks(tenant_id)`.catch((e: any) => console.error('staff_tasks tenant index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_staff_documents_tenant_id ON staff_documents(tenant_id)`.catch((e: any) => console.error('staff_documents tenant index failed:', e.message))
+    await sql`CREATE INDEX IF NOT EXISTS idx_staff_messages_tenant_id ON staff_messages(tenant_id)`.catch((e: any) => console.error('staff_messages tenant index failed:', e.message))
   } catch (error) {
     console.error('Error ensuring staff tables:', error)
   }
@@ -651,12 +659,12 @@ export async function deleteStaffMember(id: string, tenantId?: string): Promise<
   }
 }
 
-export async function resetStaffPassword(id: string, newPassword: string): Promise<boolean> {
+export async function resetStaffPassword(id: string, newPassword: string, tenantId?: string): Promise<boolean> {
   try {
     const passwordHash = await hashPassword(newPassword)
     const result = await poolQuery(
-      'UPDATE staff SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-      [passwordHash, id]
+      'UPDATE staff SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3',
+      [passwordHash, id, tenantId || 'default-tenant']
     )
     return (result.rowCount ?? 0) > 0
   } catch (error) {

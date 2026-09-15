@@ -56,7 +56,7 @@ async function generateAdmissionNo(tenantId: string, attempt = 0): Promise<strin
   let prefix = 'SCH';
 
   try {
-    const settings = await fetchTenantSettings();
+    const settings = await fetchTenantSettings(tenantId);
     if (settings.admissionNoFormat) format = settings.admissionNoFormat;
     if (settings.admissionNoDigits) digits = settings.admissionNoDigits;
     if (settings.schoolName) {

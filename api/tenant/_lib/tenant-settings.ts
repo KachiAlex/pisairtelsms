@@ -37,37 +37,30 @@ const fallbackSettings: TenantSettingsPayload = {
 
 export async function ensureTenantSettingsTable(): Promise<void> {
   try {
-    // Create table with fixed single-row id=1 if it doesn't exist yet
-    // Migration: if existing table was SERIAL-based (multiple rows), consolidate into id=1
-    const check = await sql`
-      SELECT COUNT(*) as cnt FROM tenant_settings WHERE id != 1
-    `;
-    if (Number(check.rows[0]?.cnt) > 0) {
-      // Pick the latest non-1 row and upsert as id=1, then delete the rest
-      await sql`
-        INSERT INTO tenant_settings (id, settings, updated_at)
-        SELECT 1, settings, updated_at
-        FROM tenant_settings
-        WHERE id != 1
-        ORDER BY updated_at DESC
-        LIMIT 1
-        ON CONFLICT (id) DO UPDATE
-          SET settings = EXCLUDED.settings,
-              updated_at = EXCLUDED.updated_at
-      `;
-      await sql`DELETE FROM tenant_settings WHERE id != 1`;
-    }
+    // Migrate the legacy single-row (id=1, shared across tenants) layout to
+    // per-tenant rows keyed by tenant_id.
+    await sql`ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT`;
+    await sql`UPDATE tenant_settings SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL`;
+
+    // id has DEFAULT 1 from the legacy schema — give it a sequence so inserts
+    // for additional tenants don't collide on the primary key.
+    await sql`CREATE SEQUENCE IF NOT EXISTS tenant_settings_id_seq`;
+    await sql`ALTER TABLE tenant_settings ALTER COLUMN id SET DEFAULT nextval('tenant_settings_id_seq')`;
+    await sql`SELECT setval('tenant_settings_id_seq', COALESCE((SELECT MAX(id) FROM tenant_settings), 1))`;
+
+    // One settings row per tenant.
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS tenant_settings_tenant_id_key ON tenant_settings (tenant_id)`;
   } catch (error) {
     console.error('Error ensuring tenant settings table:', error);
   }
 }
 
-export async function fetchTenantSettings(): Promise<TenantSettingsResponse> {
+export async function fetchTenantSettings(tenantId: string = 'default-tenant'): Promise<TenantSettingsResponse> {
   try {
     await ensureTenantSettingsTable();
 
     const result = await sql<TenantSettingsRow>`
-      SELECT * FROM tenant_settings WHERE id = 1 LIMIT 1
+      SELECT * FROM tenant_settings WHERE tenant_id = ${tenantId} LIMIT 1
     `;
 
     if (result.rows.length > 0) {
@@ -78,8 +71,8 @@ export async function fetchTenantSettings(): Promise<TenantSettingsResponse> {
       };
     } else {
       await sql`
-        INSERT INTO tenant_settings (id, settings) VALUES (1, ${JSON.stringify(fallbackSettings)})
-        ON CONFLICT (id) DO NOTHING
+        INSERT INTO tenant_settings (tenant_id, settings) VALUES (${tenantId}, ${JSON.stringify(fallbackSettings)})
+        ON CONFLICT (tenant_id) DO NOTHING
       `;
       return {
         ...fallbackSettings,
@@ -96,14 +89,14 @@ export async function fetchTenantSettings(): Promise<TenantSettingsResponse> {
   }
 }
 
-export async function updateTenantSettings(settings: TenantSettingsPayload): Promise<TenantSettingsResponse> {
+export async function updateTenantSettings(tenantId: string, settings: TenantSettingsPayload): Promise<TenantSettingsResponse> {
   try {
     await ensureTenantSettingsTable();
 
     const result = await sql<TenantSettingsRow>`
-      INSERT INTO tenant_settings (id, settings, updated_at)
-      VALUES (1, ${JSON.stringify(settings)}, NOW())
-      ON CONFLICT (id) DO UPDATE
+      INSERT INTO tenant_settings (tenant_id, settings, updated_at)
+      VALUES (${tenantId}, ${JSON.stringify(settings)}, NOW())
+      ON CONFLICT (tenant_id) DO UPDATE
         SET settings = EXCLUDED.settings,
             updated_at = NOW()
       RETURNING *

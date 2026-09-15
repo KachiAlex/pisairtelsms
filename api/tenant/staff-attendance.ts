@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const targetDate = (date as string) || new Date().toISOString().split('T')[0]
 
       // Fetch tenant settings for geofence config
-      const settings = await fetchTenantSettings()
+      const settings = await fetchTenantSettings(tenantId)
 
       // Fetch all active staff for this tenant
       const staffResult = await sql`

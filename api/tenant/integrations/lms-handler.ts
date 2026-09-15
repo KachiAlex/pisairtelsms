@@ -13,8 +13,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId   = decoded.userId || decoded.staffId || 'system';
   const id       = Array.isArray(req.query.id)       ? req.query.id[0]       : req.query.id;
   const action   = Array.isArray(req.query.action)   ? req.query.action[0]   : req.query.action;
-  const syncId   = Array.isArray(req.query.syncId)   ? req.query.syncId[0]   : req.query.syncId;
-  const syncType = Array.isArray(req.query.syncType) ? req.query.syncType[0] : req.query.syncType;
+  const syncRef  = Array.isArray(req.query.syncRef)  ? req.query.syncRef[0]  : req.query.syncRef;
+  // /:id/sync/:syncRef — 'students'/'grades' start a sync (POST), any other
+  // value is a sync record id used to complete it (PUT).
+  const syncId   = syncRef && syncRef !== 'students' && syncRef !== 'grades' ? syncRef
+    : (Array.isArray(req.query.syncId)   ? req.query.syncId[0]   : req.query.syncId);
+  const syncType = (syncRef === 'students' || syncRef === 'grades') ? syncRef
+    : (Array.isArray(req.query.syncType) ? req.query.syncType[0] : req.query.syncType);
 
   try {
     await ensureTables();

@@ -37,6 +37,18 @@
       "destination": "/api/tenant/attendance/analytics/dashboard.ts"
     },
     {
+      "source": "/api/tenant/integrations/biometric-devices/:id/sync/:syncId",
+      "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id&action=sync&syncId=:syncId"
+    },
+    {
+      "source": "/api/tenant/integrations/biometric-devices/:id/:action",
+      "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/integrations/biometric-devices/:id",
+      "destination": "/api/tenant/integrations/biometric-devices-handler.ts?id=:id"
+    },
+    {
       "source": "/api/tenant/integrations/biometric-devices",
       "destination": "/api/tenant/integrations/biometric-devices-handler.ts"
     },
@@ -61,8 +73,24 @@
       "destination": "/api/tenant/attendance/analytics/heatmap.ts"
     },
     {
+      "source": "/api/tenant/integrations/payment-gateway/:id/status",
+      "destination": "/api/tenant/integrations/payment-gateway-handler.ts?id=:id&action=transaction-status"
+    },
+    {
+      "source": "/api/tenant/integrations/payment-gateway/:action",
+      "destination": "/api/tenant/integrations/payment-gateway-handler.ts?action=:action"
+    },
+    {
       "source": "/api/tenant/integrations/payment-gateway",
       "destination": "/api/tenant/integrations/payment-gateway-handler.ts"
+    },
+    {
+      "source": "/api/tenant/integrations/api-management/:id/:action",
+      "destination": "/api/tenant/integrations/api-management-handler.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/integrations/api-management/:id",
+      "destination": "/api/tenant/integrations/api-management-handler.ts?id=:id"
     },
     {
       "source": "/api/tenant/integrations/api-management",
@@ -467,6 +495,18 @@
     {
       "source": "/api/tenant/finance/payments",
       "destination": "/api/tenant/finance/payments.ts"
+    },
+    {
+      "source": "/api/tenant/integrations/lms/:id/sync/:syncRef",
+      "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=sync&syncRef=:syncRef"
+    },
+    {
+      "source": "/api/tenant/integrations/lms/:id/:action",
+      "destination": "/api/tenant/integrations/lms-handler.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/integrations/lms/:id",
+      "destination": "/api/tenant/integrations/lms-handler.ts?id=:id"
     },
     {
       "source": "/api/tenant/integrations/lms",

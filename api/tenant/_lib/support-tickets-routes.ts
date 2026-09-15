@@ -1,19 +1,19 @@
 import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
 import supportTicketsApi from './support-tickets';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  const { tenantId } = req.query;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
+  if (!decoded) return;
 
-  if (!tenantId || typeof tenantId !== 'string') {
-    return res.status(400).json({ error: 'Missing tenant ID' });
-  }
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   try {
     if (req.method === 'GET') {
       const { type, status, priority, ticketId, limit, offset } = req.query;
 
       if (type === 'tickets') {
-        const result = supportTicketsApi.listTickets(tenantId, {
+        const result = await supportTicketsApi.listTickets(tenantId, {
           status: status as string,
           priority: priority as string,
           limit: limit ? parseInt(limit as string) : 50,
@@ -23,22 +23,22 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (type === 'ticket' && ticketId) {
-        const result = supportTicketsApi.getTicketById(tenantId, ticketId as string);
+        const result = await supportTicketsApi.getTicketById(tenantId, ticketId as string);
         return res.status(200).json(result);
       }
 
       if (type === 'agents') {
-        const result = supportTicketsApi.listAgents(tenantId);
+        const result = await supportTicketsApi.listAgents(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'rules') {
-        const result = supportTicketsApi.listRules(tenantId);
+        const result = await supportTicketsApi.listRules(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'statistics') {
-        const result = supportTicketsApi.getStatistics(tenantId);
+        const result = await supportTicketsApi.getStatistics(tenantId);
         return res.status(200).json(result);
       }
 
@@ -46,30 +46,31 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      const { action, payload, ticketId, userId } = req.body;
+      const { action, payload, ticketId } = req.body;
+      const userId = decoded.userId || decoded.staffId || decoded.sub || 'unknown';
 
       if (action === 'create-ticket') {
-        const ticket = supportTicketsApi.createTicket(tenantId, payload);
+        const ticket = await supportTicketsApi.createTicket(tenantId, payload);
         return res.status(201).json(ticket);
       }
 
       if (action === 'update-ticket') {
-        const ticket = supportTicketsApi.updateTicket(tenantId, ticketId, payload);
+        const ticket = await supportTicketsApi.updateTicket(tenantId, ticketId, payload);
         return res.status(200).json(ticket);
       }
 
       if (action === 'add-comment') {
-        const comment = supportTicketsApi.addComment(tenantId, ticketId, userId, payload.text);
+        const comment = await supportTicketsApi.addComment(tenantId, ticketId, userId, payload.text);
         return res.status(201).json(comment);
       }
 
       if (action === 'create-agent') {
-        const agent = supportTicketsApi.createAgent(tenantId, payload);
+        const agent = await supportTicketsApi.createAgent(tenantId, payload);
         return res.status(201).json(agent);
       }
 
       if (action === 'create-rule') {
-        const rule = supportTicketsApi.createRule(tenantId, payload);
+        const rule = await supportTicketsApi.createRule(tenantId, payload);
         return res.status(201).json(rule);
       }
 

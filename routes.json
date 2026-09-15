@@ -225,12 +225,20 @@
       "destination": "/api/tenant/security/backup-restore.ts"
     },
     {
+      "source": "/api/tenant/support-tickets",
+      "destination": "/api/tenant/support-tickets-handler.ts"
+    },
+    {
       "source": "/api/tenant/support-tickets-handler",
       "destination": "/api/tenant/support-tickets-handler.ts"
     },
     {
       "source": "/api/tenant/timetable/auto-schedule",
       "destination": "/api/tenant/timetable/auto-schedule.ts"
+    },
+    {
+      "source": "/api/admin/support-tickets",
+      "destination": "/api/admin/support-tickets-handler.ts"
     },
     {
       "source": "/api/admin/support-tickets-handler",
@@ -271,6 +279,10 @@
     {
       "source": "/api/tenant/system-alerts/metrics",
       "destination": "/api/tenant/system-alerts/metrics.ts"
+    },
+    {
+      "source": "/api/tenant/system-health",
+      "destination": "/api/tenant/system-health-handler.ts"
     },
     {
       "source": "/api/tenant/system-health-handler",
@@ -399,6 +411,10 @@
     {
       "source": "/api/tenant/communication-logs",
       "destination": "/api/tenant/communication-logs.ts"
+    },
+    {
+      "source": "/api/tenant/error-logs",
+      "destination": "/api/tenant/error-logs-handler.ts"
     },
     {
       "source": "/api/tenant/error-logs-handler",

@@ -1,19 +1,19 @@
 import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
 import errorLogsApi from './error-logs';
+import { requireRole } from '../../_lib/auth-middleware.js';
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  const { tenantId } = req.query;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
+  if (!decoded) return;
 
-  if (!tenantId || typeof tenantId !== 'string') {
-    return res.status(400).json({ error: 'Missing tenant ID' });
-  }
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   try {
     if (req.method === 'GET') {
       const { type, severity, service, logId, limit, offset } = req.query;
 
       if (type === 'logs') {
-        const result = errorLogsApi.listLogs(tenantId, {
+        const result = await errorLogsApi.listLogs(tenantId, {
           severity: severity as string,
           service: service as string,
           limit: limit ? parseInt(limit as string) : 50,
@@ -23,22 +23,22 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (type === 'log' && logId) {
-        const result = errorLogsApi.getLogById(tenantId, logId as string);
+        const result = await errorLogsApi.getLogById(tenantId, logId as string);
         return res.status(200).json(result);
       }
 
       if (type === 'environments') {
-        const result = errorLogsApi.listEnvironments(tenantId);
+        const result = await errorLogsApi.listEnvironments(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'heatmap') {
-        const result = errorLogsApi.listHeatmap(tenantId);
+        const result = await errorLogsApi.listHeatmap(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'statistics') {
-        const result = errorLogsApi.getStatistics(tenantId);
+        const result = await errorLogsApi.getStatistics(tenantId);
         return res.status(200).json(result);
       }
 
@@ -49,22 +49,22 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       const { action, payload, logId } = req.body;
 
       if (action === 'create-log') {
-        const log = errorLogsApi.createLog(tenantId, payload);
+        const log = await errorLogsApi.createLog(tenantId, payload);
         return res.status(201).json(log);
       }
 
       if (action === 'update-log') {
-        const log = errorLogsApi.updateLog(tenantId, logId, payload);
+        const log = await errorLogsApi.updateLog(tenantId, logId, payload);
         return res.status(200).json(log);
       }
 
       if (action === 'create-environment') {
-        const env = errorLogsApi.createEnvironment(tenantId, payload);
+        const env = await errorLogsApi.createEnvironment(tenantId, payload);
         return res.status(201).json(env);
       }
 
       if (action === 'create-heatmap') {
-        const entry = errorLogsApi.createHeatmapEntry(tenantId, payload);
+        const entry = await errorLogsApi.createHeatmapEntry(tenantId, payload);
         return res.status(201).json(entry);
       }
 

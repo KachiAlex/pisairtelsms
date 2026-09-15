@@ -13,27 +13,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { type } = req.query;
 
       if (type === 'services') {
-        const result = systemHealthApi.listServices(tenantId);
+        const result = await systemHealthApi.listServices(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'vitals') {
-        const result = systemHealthApi.listVitals(tenantId);
+        const result = await systemHealthApi.listVitals(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'incidents') {
-        const result = systemHealthApi.listIncidents(tenantId);
+        const result = await systemHealthApi.listIncidents(tenantId);
         return res.status(200).json(result);
       }
 
       if (type === 'dependencies') {
-        const result = systemHealthApi.listDependencies(tenantId);
+        const result = await systemHealthApi.listDependencies(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'statistics') {
-        const result = systemHealthApi.getStatistics(tenantId);
+        const result = await systemHealthApi.getStatistics(tenantId);
         return res.status(200).json(result);
       }
 
@@ -44,27 +44,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { action, payload, serviceId } = req.body || {};
 
       if (action === 'create-service') {
-        const service = systemHealthApi.createService(tenantId, payload);
+        const service = await systemHealthApi.createService(tenantId, payload);
         return res.status(201).json(service);
       }
 
       if (action === 'update-service') {
-        const service = systemHealthApi.updateService(tenantId, serviceId, payload);
+        const service = await systemHealthApi.updateService(tenantId, serviceId, payload);
         return res.status(200).json(service);
       }
 
       if (action === 'create-vital') {
-        const vital = systemHealthApi.createVital(tenantId, payload);
+        const vital = await systemHealthApi.createVital(tenantId, payload);
         return res.status(201).json(vital);
       }
 
       if (action === 'create-incident') {
-        const incident = systemHealthApi.createIncident(tenantId, payload);
+        const incident = await systemHealthApi.createIncident(tenantId, payload);
         return res.status(201).json(incident);
       }
 
       if (action === 'create-dependency') {
-        const dependency = systemHealthApi.createDependency(tenantId, payload);
+        const dependency = await systemHealthApi.createDependency(tenantId, payload);
         return res.status(201).json(dependency);
       }
 

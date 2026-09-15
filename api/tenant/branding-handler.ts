@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
-import { requireRole } from '../_lib/auth-middleware.js';
+import { requireRole, extractToken, verifyToken } from '../_lib/auth-middleware.js';
+import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js';
 
 /**
  * Branding API Handler
@@ -17,17 +18,27 @@ async function ensureColumns() {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Require authentication for POST/PUT, but allow public GET for branding config
+  let tenantId = 'default-tenant';
+  let userId = 'system';
+
   if (req.method !== 'GET') {
     const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
     if (!decoded) return
+    tenantId = decoded.tenantId || 'default-tenant';
+    userId = decoded.userId || decoded.staffId || 'system';
+  } else {
+    // Public GET: prefer an authenticated caller's tenant, otherwise resolve
+    // the tenant from the request host (school subdomain / custom domain).
+    const token = extractToken(req);
+    const decoded = token ? await verifyToken(token) : null;
+    if (decoded?.tenantId) {
+      tenantId = decoded.tenantId;
+      userId = decoded.userId || decoded.staffId || 'system';
+    } else {
+      const resolved = await resolveTenantFromRequest(req);
+      if (resolved.tenantId) tenantId = resolved.tenantId;
+    }
   }
-
-  const tenantId = 'default-tenant';
-
-  const userId =
-    (req.headers['x-user-id'] as string) ||
-    (req.query.userId as string) ||
-    'system';
 
   const action = Array.isArray(req.query.action) ? req.query.action[0] : req.query.action;
 

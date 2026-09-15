@@ -18,10 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const tenantId = decoded.tenantId || 'default-tenant';
 
-  const userId =
-    (req.headers['x-user-id'] as string) ||
-    (req.query.userId as string) ||
-    'system';
+  const userId = decoded.userId || decoded.staffId || 'system';
 
   const { action } = req.query;
 

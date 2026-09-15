@@ -141,6 +141,10 @@
       "destination": "/api/tenant/integrations/lms-handler.ts"
     },
     {
+      "source": "/api/tenant/report-templates",
+      "destination": "/api/tenant/report-templates-handler.ts"
+    },
+    {
       "source": "/api/tenant/report-templates-handler",
       "destination": "/api/tenant/report-templates-handler.ts"
     },
@@ -439,6 +443,14 @@
     {
       "source": "/api/cron/cleanup-violations",
       "destination": "/api/cron/cleanup-violations.ts"
+    },
+    {
+      "source": "/api/tenant/branding",
+      "destination": "/api/tenant/branding-handler.ts"
+    },
+    {
+      "source": "/api/tenant/branding/:action",
+      "destination": "/api/tenant/branding-handler.ts?action=:action"
     },
     {
       "source": "/api/tenant/branding-handler",

@@ -313,6 +313,14 @@
       "destination": "/api/tenant/system-alerts/index.ts"
     },
     {
+      "source": "/api/tenant/notifications",
+      "destination": "/api/tenant/notifications.ts"
+    },
+    {
+      "source": "/api/tenant/notifications/:id",
+      "destination": "/api/tenant/notifications.ts"
+    },
+    {
       "source": "/api/tenant/tasks/notifications",
       "destination": "/api/tenant/tasks/notifications.ts"
     },

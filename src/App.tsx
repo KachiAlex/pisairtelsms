@@ -382,8 +382,6 @@ export default function App() {
         return <IntegrationsHub />;
       case 'tenant-settings':
         return <TenantSettings tenantId={auth?.tenantId || 'default'} tenantName={auth?.name || 'Default School'} />;
-      case 'digital-learning':
-        return <VirtualClassroom />;
       default:
         return (
           <div className="flex items-center justify-center h-full">

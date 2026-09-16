@@ -2,6 +2,17 @@ import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
+// staff.subjects is a TEXT column holding a JSON array — parse it safely.
+function parseSubjectList(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw as string[]
+  if (typeof raw !== 'string' || !raw.trim()) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant teacher allocation
@@ -47,10 +58,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           FROM staff
           WHERE tenant_id = ${tenantId} AND role ILIKE '%teacher%'
           ORDER BY name ASC LIMIT 50`
-        // Normalize subjects JSONB -> string[] for the client
+        // subjects column is TEXT holding a JSON array — parse it safely
         const data = r.rows.map((row: any) => ({
           ...row,
-          subjects: Array.isArray(row.subjects) ? row.subjects : [],
+          subjects: parseSubjectList(row.subjects),
         }))
         return res.json({ success: true, data })
       } catch (e) {
@@ -172,7 +183,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         let filled = 0
         for (const slot of openSlots.rows) {
           const candidates = teachers.rows.filter((t: any) => {
-            const subjects = Array.isArray(t.subjects) ? t.subjects : []
+            const subjects = parseSubjectList(t.subjects)
             return subjects.includes(slot.subject) && t.allocation_periods < t.contract_hours
           })
           if (candidates.length === 0) continue

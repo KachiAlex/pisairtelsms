@@ -50,12 +50,14 @@ const SCHOOL_NAME = 'Kreatix Academy';
 const CURRICULUM_VERSION = 'NERDC';
 const CREATED_BY = 'system-seed';
 
-const JSS = ['JSS1', 'JSS2', 'JSS3'];
-const SS = ['SS1', 'SS2', 'SS3'];
+// Level names must match the app's convention — the Subjects Catalog UI
+// hardcodes 'JSS 1'..'SS 3' (with a space), as do classes and CSV imports.
+const JSS = ['JSS 1', 'JSS 2', 'JSS 3'];
+const SS = ['SS 1', 'SS 2', 'SS 3'];
 const ALL = [...JSS, ...SS];
 
 // [code, name, levels, type, department, description]
-// Levels follow the NERDC structure: JSS1–JSS3 junior, SS1–SS3 senior.
+// Levels follow the NERDC structure: JSS 1–3 junior, SS 1–3 senior.
 const SUBJECTS = [
   // ---- Cross-level (taught JSS1 through SS3) ----
   ['ENG', 'English Language', ALL, 'Core', 'Languages', 'Compulsory language arts: grammar, comprehension, composition and oral English'],
@@ -140,9 +142,12 @@ const SUBJECTS = [
 const { Pool } = pg;
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1')
-    ? false
-    : { rejectUnauthorized: false },
+  // Same heuristic as run-consolidated-migration.mjs: self-hosted Postgres
+  // (docker 'postgres' host, localhost) has no SSL — only enable it for
+  // remote URLs that explicitly request it.
+  ssl: /sslmode=require|sslmode=verify/i.test(DATABASE_URL)
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
 async function resolveTenant(client) {

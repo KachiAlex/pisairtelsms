@@ -6,6 +6,7 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
+import { Checkbox } from '../ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -113,6 +114,21 @@ export function TeacherAllocation() {
     }
   }
 
+  const handleAutoGenerate = async () => {
+    try {
+      const res = await tenantApiPost(`${BASE}?action=auto-generate`)
+      const data = await res.json()
+      if (res.ok) {
+        toast({ title: 'Slots generated', description: data.message })
+        loadAll()
+      } else {
+        toast({ title: 'Auto-generate failed', description: data.error, variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' })
+    }
+  }
+
   const filteredMatrix = search.trim()
     ? allocationMatrix.filter((row) =>
         [row.class, row.subject, row.teacher].some((v) => v.toLowerCase().includes(search.trim().toLowerCase()))
@@ -128,13 +144,16 @@ export function TeacherAllocation() {
           <p className="text-sm text-gray-600">Balance loads, fill gaps, and monitor risks across timetable slots.</p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Button onClick={handleAutoGenerate}>
+            <Sparkles className="h-4 w-4 mr-2" /> Auto-generate slots
+          </Button>
           <Button variant="outline" onClick={() => setGenerateOpen(true)}>
-            <Sparkles className="h-4 w-4 mr-2" /> Generate slots
+            Custom selection
           </Button>
           <Button variant="outline" onClick={handleAutoBalance}>
             <Shuffle className="h-4 w-4 mr-2" /> Auto-balance load
           </Button>
-          <Button onClick={() => setAssignOpen(true)}>
+          <Button variant="outline" onClick={() => setAssignOpen(true)}>
             <UserCheck className="h-4 w-4 mr-2" /> Assign slots
           </Button>
         </div>
@@ -388,6 +407,24 @@ export function TeacherAllocation() {
   )
 }
 
+interface ClassOption { name: string; arm?: string; level?: string }
+interface SubjectOption { name: string; levels?: string[] }
+
+// Normalise a class name like "JSS1" / "SS 2" to the level token used in
+// subjects.levels ("JSS 1" / "SS 2"). Returns null for unmappable names.
+function classLevelToken(className: string): string | null {
+  const m = className.trim().match(/^(JSS|SS|JS)\s*(\d)/i)
+  if (!m) return null
+  const band = /^S/i.test(m[1]) ? 'SS' : 'JSS'
+  return `${band} ${m[2]}`
+}
+
+function subjectMatchesClass(subjectLevels: string[] | undefined, className: string): boolean {
+  const token = classLevelToken(className)
+  if (!token) return true // can't determine level — don't hide it
+  return (subjectLevels || []).includes(token)
+}
+
 function GenerateSlotsDialog({
   open, onOpenChange, onGenerate,
 }: {
@@ -395,50 +432,126 @@ function GenerateSlotsDialog({
   onOpenChange: (open: boolean) => void
   onGenerate: (classes: string[], subjects: string[]) => void
 }) {
-  const [classes, setClasses] = useState('')
-  const [subjects, setSubjects] = useState('')
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([])
+  const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([])
+  const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set())
+  const [selectedSubjects, setSelectedSubjects] = useState<Set<string>>(new Set())
+  const [fetching, setFetching] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setFetching(true)
+    Promise.all([
+      tenantApiGet('/api/tenant/academics/classes').then(r => r.json()).catch(() => ({})),
+      tenantApiGet('/api/tenant/academics/subjects').then(r => r.json()).catch(() => ({})),
+    ]).then(([clsRes, subRes]) => {
+      setClassOptions(clsRes.data || [])
+      setSubjectOptions(subRes.data || [])
+      setFetching(false)
+    })
+  }, [open])
+
+  const toggle = (set: Set<string>, value: string, setter: (s: Set<string>) => void) => {
+    const next = new Set(set)
+    if (next.has(value)) next.delete(value)
+    else next.add(value)
+    setter(next)
+  }
+
+  // Only show subjects whose levels cover at least one selected class.
+  const selectedClassList = classOptions.filter(c => selectedClasses.has(c.name))
+  const visibleSubjects = selectedClassList.length === 0
+    ? subjectOptions
+    : subjectOptions.filter(s => selectedClassList.some(c => subjectMatchesClass(s.levels, c.name)))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Generate allocation slots</DialogTitle>
           <DialogDescription>
-            Create teacher allocation slots from the cartesian product of your classes and subjects.
-            Existing (class, subject) pairs are skipped.
+            Pick the classes and subjects — a slot is created for each pair. Subjects are
+            filtered to the levels your selected classes belong to. Existing pairs are skipped.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        {fetching ? (
+          <p className="text-sm text-gray-500 py-8 text-center">Loading classes and subjects…</p>
+        ) : (
+        <div className="grid grid-cols-2 gap-6">
           <div>
-            <label className="text-sm font-medium text-gray-700">Classes (comma-separated)</label>
-            <Input
-              placeholder="e.g., JSS 1 A, JSS 1 B, SS 1 A"
-              value={classes}
-              onChange={(e) => setClasses(e.target.value)}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">Classes</label>
+              <button
+                type="button"
+                className="text-xs text-red-600 hover:underline"
+                onClick={() => setSelectedClasses(
+                  selectedClasses.size === classOptions.length
+                    ? new Set()
+                    : new Set(classOptions.map(c => c.name))
+                )}
+              >
+                {selectedClasses.size === classOptions.length ? 'Clear' : 'Select all'}
+              </button>
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1 rounded-md border p-2">
+              {classOptions.map(c => (
+                <label key={c.name} className="flex items-center gap-2 text-sm py-0.5 cursor-pointer">
+                  <Checkbox
+                    checked={selectedClasses.has(c.name)}
+                    onCheckedChange={() => toggle(selectedClasses, c.name, setSelectedClasses)}
+                  />
+                  <span>{c.name}{c.arm ? ` ${c.arm}` : ''}</span>
+                  {c.level && <span className="text-xs text-gray-400 ml-auto">{c.level}</span>}
+                </label>
+              ))}
+              {classOptions.length === 0 && <p className="text-xs text-gray-400 p-1">No classes found — create them in Classes &amp; Arms first.</p>}
+            </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700">Subjects (comma-separated)</label>
-            <Input
-              placeholder="e.g., Mathematics, English, Basic Science"
-              value={subjects}
-              onChange={(e) => setSubjects(e.target.value)}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">Subjects</label>
+              <button
+                type="button"
+                className="text-xs text-red-600 hover:underline"
+                onClick={() => setSelectedSubjects(
+                  selectedSubjects.size === visibleSubjects.length
+                    ? new Set()
+                    : new Set(visibleSubjects.map(s => s.name))
+                )}
+              >
+                {selectedSubjects.size === visibleSubjects.length ? 'Clear' : 'Select all'}
+              </button>
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1 rounded-md border p-2">
+              {visibleSubjects.map(s => (
+                <label key={s.name} className="flex items-center gap-2 text-sm py-0.5 cursor-pointer">
+                  <Checkbox
+                    checked={selectedSubjects.has(s.name)}
+                    onCheckedChange={() => toggle(selectedSubjects, s.name, setSelectedSubjects)}
+                  />
+                  <span>{s.name}</span>
+                </label>
+              ))}
+              {visibleSubjects.length === 0 && <p className="text-xs text-gray-400 p-1">No subjects match the selected classes.</p>}
+            </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => {
-              const cls = classes.split(',').map((s) => s.trim()).filter(Boolean)
-              const subj = subjects.split(',').map((s) => s.trim()).filter(Boolean)
-              if (cls.length === 0 || subj.length === 0) return
-              onGenerate(cls, subj)
-            }}
-            disabled={!classes.trim() || !subjects.trim()}
-          >
-            Generate
-          </Button>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-gray-500">
+            {selectedClasses.size * selectedSubjects.size > 0
+              ? `${selectedClasses.size * selectedSubjects.size} slot(s) will be created`
+              : 'Select at least one class and one subject'}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button
+              onClick={() => onGenerate(Array.from(selectedClasses), Array.from(selectedSubjects))}
+              disabled={selectedClasses.size === 0 || selectedSubjects.size === 0}
+            >
+              Generate
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

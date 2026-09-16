@@ -286,6 +286,51 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
+    if (action === 'auto-generate' && req.method === 'POST') {
+      try {
+        // One-click generation: match each class to the subjects whose
+        // levels cover it — e.g. class "JSS1" gets every subject whose
+        // levels array contains "JSS 1". No manual name typing needed.
+        const classRows = await sql`
+          SELECT name FROM classes
+          WHERE tenant_id = ${tenantId} AND deleted_at IS NULL ORDER BY name`
+        const subjectRows = await sql`
+          SELECT name, levels FROM subjects
+          WHERE tenant_id = ${tenantId} AND deleted_at IS NULL ORDER BY name`
+
+        // Normalize "JSS1"/"SS 2"/"jss 3" -> "JSS 1"/"SS 2"/"JSS 3"
+        const levelToken = (cls: string): string | null => {
+          const m = String(cls).trim().match(/^(JSS|SS|JS)\s*(\d)/i)
+          if (!m) return null
+          const band = /^S/i.test(m[1]) ? 'SS' : 'JSS'
+          return `${band} ${m[2]}`
+        }
+
+        let created = 0
+        for (const c of classRows.rows) {
+          const token = levelToken(c.name)
+          if (!token) continue // class name doesn't map to a JSS/SS level — skip
+          for (const s of subjectRows.rows) {
+            const levels = parseSubjectList(s.levels)
+            if (!levels.includes(token)) continue
+            const existing = await sql`
+              SELECT 1 FROM teacher_allocation_slots
+              WHERE tenant_id = ${tenantId} AND class = ${c.name} AND subject = ${s.name}`
+            if (existing.rows.length === 0) {
+              await sql`
+                INSERT INTO teacher_allocation_slots (id, tenant_id, class, subject, coverage, warnings)
+                VALUES (gen_random_uuid()::text, ${tenantId}, ${c.name}, ${s.name}, 'Open', 0)`
+              created += 1
+            }
+          }
+        }
+        return res.json({ success: true, message: `Generated ${created} slot(s) from your classes and subject levels.` })
+      } catch (e) {
+        console.error('auto-generate error:', e)
+        return res.status(500).json({ success: false, error: 'Failed to auto-generate slots' })
+      }
+    }
+
     return res.status(404).json({ success: false, error: 'Not found' })
   } catch (error) {
     console.error('teacher-allocation-handler error:', error)

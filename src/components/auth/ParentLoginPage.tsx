@@ -70,6 +70,11 @@ export function ParentLoginPage() {
 
       const data = await response.json()
 
+      if (!data.token) {
+        setError('Invalid server response. Please try again.')
+        return
+      }
+
       // Store auth data
       setAuthInStorage({
         token: data.token,

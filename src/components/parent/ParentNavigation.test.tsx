@@ -1,10 +1,14 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ParentNavigation } from './ParentNavigation'
 
 describe('ParentNavigation', () => {
   const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    mockOnNavigate.mockClear()
+  })
 
   it('should render all navigation items', () => {
     render(<ParentNavigation currentPage="dashboard" onNavigate={mockOnNavigate} />)
@@ -62,7 +66,7 @@ describe('ParentNavigation', () => {
 
     await user.click(screen.getByText('Academic Progress'))
     await user.click(screen.getByText('Attendance'))
-    await user.click(screen.getByText('Fees'))
+    await user.click(screen.getByText('Fee Management'))
 
     expect(mockOnNavigate).toHaveBeenCalledTimes(3)
     expect(mockOnNavigate).toHaveBeenNthCalledWith(1, 'academic')

@@ -1,10 +1,10 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 
 /**
  * Apply security headers to the response.
  * Call this at the end of your handler before returning.
  */
-export function setSecurityHeaders(res: VercelResponse): void {
+export function setSecurityHeaders(res: ApiResponse): void {
   // Content Security Policy (CSP)
   // Restricts sources from which content can be loaded.
   // SEC-09: Removed 'unsafe-eval'; added Paystack script/connect/frame origins for payment flow.
@@ -48,9 +48,9 @@ export function setSecurityHeaders(res: VercelResponse): void {
  * Use this to wrap your handler function.
  */
 export function withSecurityHeaders(
-  handler: (req: VercelRequest, res: VercelResponse) => Promise<void> | void
-): (req: VercelRequest, res: VercelResponse) => Promise<void> {
-  return async (req: VercelRequest, res: VercelResponse) => {
+  handler: (req: ApiRequest, res: ApiResponse) => Promise<void> | void
+): (req: ApiRequest, res: ApiResponse) => Promise<void> {
+  return async (req: ApiRequest, res: ApiResponse) => {
     await handler(req, res)
     setSecurityHeaders(res)
   }

@@ -126,11 +126,12 @@ function validateAttendanceRecord(record: AttendancePayload): string | null {
     return `status must be one of: ${validStatuses.join(', ')}`
   }
 
-  // Validate date is not in future
-  const recordDate = new Date(record.date)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  if (recordDate > today) {
+  // Validate date is not in future — compare YYYY-MM-DD strings in local time
+  // (new Date('YYYY-MM-DD') parses as UTC midnight, which is always "ahead" of
+  // local midnight in UTC+N timezones like WAT, wrongly flagging today's date)
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  if (record.date > todayStr) {
     return 'date cannot be in the future'
   }
 

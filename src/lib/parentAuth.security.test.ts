@@ -113,7 +113,9 @@ describe('Parent Portal Security Tests', () => {
     it('should escape SQL special characters', () => {
       const userInput = "'; DROP TABLE parents; --"
       const escaped = userInput.replace(/'/g, "''")
-      expect(escaped).not.toContain("DROP TABLE")
+      // Quote-escaping neutralizes the injection by doubling the quote, which
+      // keeps the payload inside the string literal — it does not strip keywords
+      expect(escaped).toBe("''; DROP TABLE parents; --")
     })
 
     it('should use parameterized queries', () => {

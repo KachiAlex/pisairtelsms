@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 
 /**
  * Integration tests for attendance analytics API endpoints
@@ -16,7 +16,7 @@ import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
 // Shared mock helpers
 // ---------------------------------------------------------------------------
 
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -25,7 +25,7 @@ function createMockResponse(): VercelResponse {
   return res
 }
 
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   const req: any = {
     method: 'GET',
     headers: { 'x-tenant-id': 'tenant-123' },
@@ -118,7 +118,7 @@ vi.mock('../../_lib/auth-middleware.js', () => ({
   requireAuth: vi.fn(),
 }));
 
-vi.mock('./cbt/_lib/db.js', () => ({
+vi.mock('../cbt/_lib/db.js', () => ({
   query: vi.fn(),
   queryOne: vi.fn(),
   queryAll: vi.fn(),
@@ -137,6 +137,22 @@ const mockDecoded = {
   childrenIds: ['child-123'],
 } as any
 
+function mockAuthenticated(tenantId = 'tenant-123') {
+  mockRequireRole.mockResolvedValue({ ...mockDecoded, tenantId })
+}
+
+function mockUnauthenticated() {
+  mockRequireRole.mockImplementation(async (_req: any, res: any) => {
+    res.status(401).json({ success: false, error: 'Tenant context required' })
+    return null
+  })
+}
+
+beforeEach(() => {
+  mockRequireRole.mockReset()
+  mockAuthenticated()
+})
+
 
 
 // ---------------------------------------------------------------------------
@@ -145,6 +161,7 @@ const mockDecoded = {
 
 describe.skipIf(!process.env.DATABASE_URL)('GET /api/tenant/attendance/analytics/dashboard', () => {
   it('should return 401 when tenant context is missing', async () => {
+    mockUnauthenticated()
     const req = createMockRequest({ headers: {} })
     const res = createMockResponse()
 
@@ -240,6 +257,7 @@ describe.skipIf(!process.env.DATABASE_URL)('GET /api/tenant/attendance/analytics
 
 describe('GET /api/tenant/attendance/analytics/heatmap', () => {
   it('should return 401 when tenant context is missing', async () => {
+    mockUnauthenticated()
     const req = createMockRequest({ headers: {} })
     const res = createMockResponse()
 
@@ -329,6 +347,7 @@ describe('GET /api/tenant/attendance/analytics/heatmap', () => {
 
 describe('GET /api/tenant/attendance/analytics/at-risk-students', () => {
   it('should return 401 when tenant context is missing', async () => {
+    mockUnauthenticated()
     const req = createMockRequest({ headers: {} })
     const res = createMockResponse()
 
@@ -428,6 +447,7 @@ describe('GET /api/tenant/attendance/analytics/at-risk-students', () => {
 
 describe('GET /api/tenant/attendance/analytics/homeroom-leaderboard', () => {
   it('should return 401 when tenant context is missing', async () => {
+    mockUnauthenticated()
     const req = createMockRequest({ headers: {} })
     const res = createMockResponse()
 
@@ -505,6 +525,7 @@ describe('GET /api/tenant/attendance/analytics/homeroom-leaderboard', () => {
 
 describe('GET /api/tenant/attendance/audit-trail', () => {
   it('should return 401 when tenant context is missing', async () => {
+    mockUnauthenticated()
     const req = createMockRequest({ headers: {} })
     const res = createMockResponse()
 

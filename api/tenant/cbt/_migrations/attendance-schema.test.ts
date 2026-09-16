@@ -10,9 +10,7 @@ let pool: Pool
 
 beforeAll(() => {
   const connectionString = process.env.DATABASE_URL
-  if (!connectionString) {
-    throw new Error('DATABASE_URL environment variable is not set')
-  }
+  if (!connectionString) return // suite is skipped below when DATABASE_URL is unset
 
   pool = new Pool({
     connectionString,
@@ -26,7 +24,7 @@ afterAll(async () => {
   }
 })
 
-describe('Attendance Schema Migration', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Attendance Schema Migration', () => {
   describe('Table Creation', () => {
     it('should create absence_reasons table', async () => {
       const result = await pool.query(`

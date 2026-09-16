@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
@@ -10,7 +10,7 @@ export const config = {
   },
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
@@ -25,15 +25,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // The recording file is sent as multipart form data
       // For now, we store the recording as a data URL or external URL
-      // In production, this would upload to Vercel Blob / S3 and return the URL
+      // In production, this would upload to object storage (e.g., S3/R2) and return the URL
 
       // Check if the request body contains a file
       const contentType = req.headers['content-type'] || ''
 
       if (contentType.includes('multipart/form-data')) {
-        // For Vercel serverless, we can't easily parse multipart without a library
-        // In production, use Vercel Blob upload from the client side directly
-        // For now, return a placeholder URL that the client can use
+        // Multipart parsing requires a library; in production, upload to
+        // object storage from the client side directly and post the URL here
         return res.status(200).json({
           data: {
             url: `https://recordings.pisairtel-school.com/${lessonId}/${Date.now()}.webm`,
@@ -43,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
       }
 
-      // If body contains a direct URL (e.g., uploaded to Vercel Blob from client)
+      // If body contains a direct URL (e.g., uploaded to object storage from client)
       const { recordingUrl, duration } = req.body || {}
       if (recordingUrl) {
         const result = await sql`

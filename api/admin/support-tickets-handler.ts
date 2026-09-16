@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { poolQuery, poolQueryOne } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -19,7 +19,7 @@ const MESSAGE_FIELDS = `
   TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS "createdAt"
 `
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['super_admin'])
   if (!decoded) return
 

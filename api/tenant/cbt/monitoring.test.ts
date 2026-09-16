@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { WebSocket, WebSocketServer } from 'ws'
 import handler from './monitoring'
 import * as monitoringService from './_lib/monitoring'
@@ -35,7 +35,7 @@ vi.mock('./_lib/monitoring')
 vi.mock('./_lib/db')
 
 // Helper to create mock request
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   return {
     method: 'GET',
     headers: {
@@ -45,17 +45,17 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
     query: {},
     body: null,
     ...overrides,
-  } as VercelRequest
+  } as ApiRequest
 }
 
 // Helper to create mock response
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
     setHeader: vi.fn().mockReturnThis(),
   }
-  return res as VercelResponse
+  return res as ApiResponse
 }
 
 describe('Live Monitoring API Endpoints', () => {
@@ -137,27 +137,15 @@ describe('Live Monitoring API Endpoints', () => {
       })
     })
 
-    it('should return 400 if x-tenant-id header missing', async () => {
+    it('should return 401 if authentication token is missing', async () => {
+      mockRequireRole.mockImplementationOnce(async (_req: any, res: any) => {
+        res.status(401).json({ error: 'Unauthorized: Missing token' })
+        return null
+      })
       const req = createMockRequest({
         method: 'GET',
         query: { id: 'exam-123' },
-        headers: { 'x-user-id': 'user-123' },
-      })
-      const res = createMockResponse()
-
-      await handler(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(400)
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'x-tenant-id header is required',
-      })
-    })
-
-    it('should return 401 if x-user-id header missing', async () => {
-      const req = createMockRequest({
-        method: 'GET',
-        query: { id: 'exam-123' },
-        headers: { 'x-tenant-id': 'tenant-123' },
+        headers: {},
       })
       const res = createMockResponse()
 
@@ -165,7 +153,7 @@ describe('Live Monitoring API Endpoints', () => {
 
       expect(res.status).toHaveBeenCalledWith(401)
       expect(res.json).toHaveBeenCalledWith({
-        error: 'x-user-id header is required',
+        error: 'Unauthorized: Missing token',
       })
     })
 

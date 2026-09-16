@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { poolQuery } from '../../_lib/pg-pool.js'
 import { fetchStaffByEmail, hashPassword } from '../../tenant/_lib/staff.js'
 import { sendEmail } from '../../_lib/email.js'
@@ -6,7 +6,7 @@ import { emailTemplates } from '../../_lib/email-templates.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   setSecurityHeaders(res)
 
   if (req.method !== 'POST') {

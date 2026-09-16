@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 import { jwtVerify } from 'jose'
 import { getJwtSecret } from './jwt-secret.js'
 
@@ -35,7 +35,7 @@ export async function verifyToken(token: string): Promise<DecodedToken | null> {
 /**
  * Extracts JWT token from cookie.
  */
-export function extractTokenFromCookie(req: VercelRequest): string | null {
+export function extractTokenFromCookie(req: ApiRequest): string | null {
   const cookieHeader = req.headers.cookie
   if (!cookieHeader) return null
   
@@ -60,7 +60,7 @@ export function extractTokenFromHeader(authHeader: string | undefined): string |
  * Extracts token from either cookie or Authorization header.
  * Cookie takes priority for httpOnly cookie auth.
  */
-export function extractToken(req: VercelRequest): string | null {
+export function extractToken(req: ApiRequest): string | null {
   // Try cookie first (httpOnly cookie auth)
   const cookieToken = extractTokenFromCookie(req)
   if (cookieToken) return cookieToken
@@ -74,8 +74,8 @@ export function extractToken(req: VercelRequest): string | null {
  * Returns decoded token if authorized, sends error response and returns null if not.
  */
 export async function requireRole(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   allowedRoles: UserRole[]
 ): Promise<DecodedToken | null> {
   const token = extractToken(req)
@@ -101,7 +101,7 @@ export async function requireRole(
 /**
  * Verifies token without role check (for endpoints where any authenticated user can access).
  */
-export async function requireAuth(req: VercelRequest, res: VercelResponse): Promise<DecodedToken | null> {
+export async function requireAuth(req: ApiRequest, res: ApiResponse): Promise<DecodedToken | null> {
   const token = extractToken(req)
   if (!token) {
     res.status(401).json({ error: 'Unauthorized: Missing token' })
@@ -124,8 +124,8 @@ export async function requireAuth(req: VercelRequest, res: VercelResponse): Prom
  * Sends appropriate error response if authentication fails.
  */
 export async function getTenantIdFromRequest(
-  req: VercelRequest,
-  res: VercelResponse
+  req: ApiRequest,
+  res: ApiResponse
 ): Promise<string | null> {
   const decoded = await requireAuth(req, res)
   if (!decoded) return null

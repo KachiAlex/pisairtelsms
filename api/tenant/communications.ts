@@ -1,4 +1,4 @@
-import { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import {
   Communication,
@@ -14,8 +14,8 @@ import {
 import { enqueueCommunication, processQueue } from './_lib/communications/queue.js'
 
 export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
+  req: ApiRequest,
+  res: ApiResponse
 ): Promise<void> {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

@@ -1,11 +1,11 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { revokeToken } from '../../_lib/token-blacklist.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { logAuditEvent, extractAuditContext } from '../../_lib/audit-logger.js'
 import { clearCookie } from '../../_lib/cookie-helper.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'Method not allowed' })

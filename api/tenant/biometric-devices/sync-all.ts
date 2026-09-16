@@ -10,7 +10,7 @@
  * Authentication: Requires x-tenant-id header or API key
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { syncTenantDevices, formatSyncResult } from '../_lib/sync-scheduler.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
@@ -20,7 +20,7 @@ import { requireRole } from '../../_lib/auth-middleware.js'
  * Verify request is authorized (basic check)
  * In production, implement proper API key validation
  */
-function isAuthorized(req: VercelRequest): boolean {
+function isAuthorized(req: ApiRequest): boolean {
   // Check for API key in header
   const apiKey = req.headers['x-api-key'] as string | undefined
   if (apiKey) {
@@ -33,7 +33,7 @@ function isAuthorized(req: VercelRequest): boolean {
   return !!tenantId
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

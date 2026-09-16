@@ -1,8 +1,8 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function getUserId(req: VercelRequest): string | null {
+function getUserId(req: ApiRequest): string | null {
   const auth = req.headers['authorization'] as string | undefined
   if (auth) {
     try {
@@ -20,7 +20,7 @@ function getUserId(req: VercelRequest): string | null {
  * GET /api/tenant/approvals/streams - List approval streams
  * POST /api/tenant/approvals/streams - Create approval stream
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

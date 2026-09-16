@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 import { sql } from './sql.js'
 
 interface BlacklistedToken {
@@ -134,8 +134,8 @@ if (typeof setInterval !== 'undefined') {
  * Returns true if blacklisted (error response already sent), false if valid.
  */
 export async function requireValidToken(
-  req: VercelRequest,
-  res: VercelResponse
+  req: ApiRequest,
+  res: ApiResponse
 ): Promise<boolean> {
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { parseCsvContent, generateCsvTemplate } from '../_lib/csv-parser.js'
 
 vi.mock('../../_lib/auth-middleware.js', () => ({
@@ -19,6 +19,17 @@ const mockDecoded = {
   childrenIds: ['child-123'],
 } as any
 
+function mockAuthenticated(tenantId = 'tenant-123') {
+  mockRequireRole.mockResolvedValue({ ...mockDecoded, tenantId })
+}
+
+function mockUnauthenticated() {
+  mockRequireRole.mockImplementation(async (_req: any, res: any) => {
+    res.status(401).json({ success: false, error: 'Unauthorized: Missing token' })
+    return null
+  })
+}
+
 
 
 /**
@@ -31,7 +42,7 @@ const mockDecoded = {
 // Helpers
 // ============================================================================
 
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -41,7 +52,7 @@ function createMockResponse(): VercelResponse {
   return res
 }
 
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   const req: any = {
     method: 'POST',
     headers: {
@@ -355,10 +366,13 @@ vi.mock('../_lib/attendance.js', () => ({
 }))
 
 describe('Batch Upload Endpoint - handler()', () => {
-  let handler: (req: VercelRequest, res: VercelResponse) => Promise<void>
+  let handler: (req: ApiRequest, res: ApiResponse) => Promise<void>
   let mockUpsert: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
+    mockRequireRole.mockReset()
+    mockAuthenticated()
+
     // Import the mocked module and reset the mock
     const attendanceMod = await import('../_lib/attendance.js')
     mockUpsert = vi.mocked(attendanceMod.upsertAttendanceBatch)
@@ -372,16 +386,18 @@ describe('Batch Upload Endpoint - handler()', () => {
 
   describe('Authentication & Authorization', () => {
     it('should reject POST without tenant context', async () => {
+      mockUnauthenticated()
       const req = createMockRequest({ headers: {}, body: { csvContent: buildCsvContent([VALID_ROW]) } })
       const res = createMockResponse()
       await handler(req, res)
       expect(res.status).toHaveBeenCalledWith(401)
       const json = res.json.mock.calls[0][0]
       expect(json.success).toBe(false)
-      expect(json.error).toContain('Tenant context required')
+      expect(json.error).toContain('Missing token')
     })
 
     it('should reject POST without user context', async () => {
+      mockUnauthenticated()
       const req = createMockRequest({
         headers: { 'x-tenant-id': 'tenant-123' },
         body: { csvContent: buildCsvContent([VALID_ROW]) },
@@ -390,7 +406,7 @@ describe('Batch Upload Endpoint - handler()', () => {
       await handler(req, res)
       expect(res.status).toHaveBeenCalledWith(401)
       const json = res.json.mock.calls[0][0]
-      expect(json.error).toContain('User context required')
+      expect(json.error).toContain('Missing token')
     })
 
     it('should accept tenant ID from query parameter', async () => {

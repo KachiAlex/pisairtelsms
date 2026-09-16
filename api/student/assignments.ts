@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 import { requireCSRF } from '../_lib/csrf.js';
@@ -27,7 +27,7 @@ interface AssignmentsListResponse {
   summary: { total: number; pending: number; submitted: number; graded: number; overdue: number };
 }
 
-function parseBody(req: VercelRequest): Promise<any> {
+function parseBody(req: ApiRequest): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => { body += chunk.toString(); });
@@ -37,7 +37,7 @@ function parseBody(req: VercelRequest): Promise<any> {
   });
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['student']);
   if (!decoded) return;
   const studentId = decoded.studentId || decoded.userId;

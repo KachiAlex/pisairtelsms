@@ -1,18 +1,18 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import {
   getAuditLogEntries,
   getAuditLogByEntityId,
 } from './_lib/adjustments-audit.js'
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
 
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

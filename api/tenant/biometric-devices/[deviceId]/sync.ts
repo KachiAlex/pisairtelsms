@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../../_lib/http-types.js'
 import { getDevice } from '../../_lib/biometric-devices.js'
 import { syncDevice } from '../../_lib/device-sync.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'
@@ -10,7 +10,7 @@ import { requireRole } from '../../../_lib/auth-middleware.js'
  * Triggers a manual sync for a biometric device.
  * Can also be called by a scheduled cron job for automatic syncing.
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

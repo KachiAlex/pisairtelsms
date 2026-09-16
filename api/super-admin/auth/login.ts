@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { SignJWT } from 'jose'
 import { verifySuperAdminCredentials } from '../../_lib/super-admin.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
@@ -6,7 +6,7 @@ import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   setSecurityHeaders(res)
 
   if (req.method !== 'POST') {

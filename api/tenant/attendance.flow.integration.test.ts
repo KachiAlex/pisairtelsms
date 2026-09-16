@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 
 vi.mock('../_lib/auth-middleware.js', () => ({
   requireRole: vi.fn(),
@@ -25,6 +25,25 @@ const mockDecoded = {
   studentId: 'test-student',
   childrenIds: ['child-123'],
 } as any
+
+/**
+ * Simulates an unauthenticated request: the real requireRole writes
+ * a 401 response and returns null, so the mock does the same.
+ */
+function mockUnauthenticated() {
+  mockRequireRole.mockImplementation(async (_req: any, res: any) => {
+    res.status(401).json({ error: 'Unauthorized: Missing token' })
+    return null
+  })
+}
+
+/**
+ * Simulates an authenticated request whose JWT carries the given tenantId.
+ * The tenantId from the token is authoritative (headers are ignored).
+ */
+function mockAuthenticated(tenantId: string = 'tenant-123') {
+  mockRequireRole.mockResolvedValue({ ...mockDecoded, tenantId })
+}
 
 
 
@@ -73,7 +92,7 @@ vi.mock('./_lib/csv-parser.js', () => ({
 // Helpers
 // ============================================================================
 
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -84,7 +103,7 @@ function createMockResponse(): VercelResponse {
   return res
 }
 
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   const req: any = {
     method: 'POST',
     headers: {
@@ -107,6 +126,7 @@ describe.skipIf(!process.env.DATABASE_URL)('5.2.1 Teacher Entry Flow (Req 1)', (
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     attendanceMod = await import('./_lib/attendance.js')
   })
 
@@ -275,6 +295,7 @@ describe('5.2.2 Device Sync Flow (Req 4)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     biometricMod = await import('./_lib/biometric-devices.js')
   })
 
@@ -391,6 +412,7 @@ describe('5.2.3 Batch Upload Flow (Req 6)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     csvParserMod = await import('./_lib/csv-parser.js')
     attendanceMod = await import('./_lib/attendance.js')
   })
@@ -499,6 +521,7 @@ describe('5.2.4 Analytics Accuracy (Req 14, 15, 16, 22)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     attendanceMod = await import('./_lib/attendance.js')
   })
 
@@ -614,6 +637,7 @@ describe('5.2.4 Analytics Accuracy (Req 14, 15, 16, 22)', () => {
   })
 
   it('GET /analytics/dashboard - returns 401 without tenant context', async () => {
+    mockUnauthenticated()
     const handler = (await import('../../api/tenant/attendance/analytics/dashboard.js')).default
     const req = createMockRequest({ method: 'GET', headers: {}, body: null })
     const res = createMockResponse()
@@ -633,6 +657,7 @@ describe('5.2.5 Audit Trail Logging (Req 19)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     attendanceMod = await import('./_lib/attendance.js')
   })
 

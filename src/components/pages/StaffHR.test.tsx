@@ -30,9 +30,9 @@ const staffRecordArbitrary = () =>
     status: fc.constantFrom('active', 'inactive', 'on-leave'),
     email: fc.emailAddress(),
     phone: fc.string({ minLength: 10, maxLength: 15 }),
-    hireDate: fc.date().map(d => d.toISOString()),
-    createdAt: fc.date().map(d => d.toISOString()),
-    updatedAt: fc.date().map(d => d.toISOString()),
+    hireDate: fc.date({ min: new Date('2020-01-01T00:00:00Z'), max: new Date('2030-12-31T00:00:00Z'), noInvalidDate: true }).map(d => d.toISOString()),
+    createdAt: fc.date({ min: new Date('2020-01-01T00:00:00Z'), max: new Date('2030-12-31T00:00:00Z'), noInvalidDate: true }).map(d => d.toISOString()),
+    updatedAt: fc.date({ min: new Date('2020-01-01T00:00:00Z'), max: new Date('2030-12-31T00:00:00Z'), noInvalidDate: true }).map(d => d.toISOString()),
   })
 
 describe('StaffHR Statistics Computation - Property Tests', () => {
@@ -149,9 +149,9 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
             expect(onLeavePercentage).toBeGreaterThanOrEqual(0)
             expect(onLeavePercentage).toBeLessThanOrEqual(100)
 
-            // Sum of percentages should equal 100
+            // Sum of percentages should equal 100 (within float tolerance)
             const totalPercentage = activePercentage + inactivePercentage + onLeavePercentage
-            expect(totalPercentage).toBe(100)
+            expect(totalPercentage).toBeCloseTo(100, 10)
           }
         })
 
@@ -165,7 +165,7 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
           const departmentPercentages = departmentCounts.map(count => (count / totalCount) * 100)
           const totalPercentage = departmentPercentages.reduce((sum, pct) => sum + pct, 0)
 
-          expect(totalPercentage).toBe(100)
+          expect(totalPercentage).toBeCloseTo(100, 10)
         })
 
     it.prop([fc.array(staffRecordArbitrary(), { minLength: 0, maxLength: 100 })])('should not use hardcoded values for statistics', staffRecords => {
@@ -180,15 +180,12 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
           // Verify they're not always the same (would indicate hardcoding)
           expect(typeof totalCount).toBe('number')
           expect(typeof activeCount).toBe('number')
-        }
-      )
-    )
+        })
 
-    it(
+    it.prop(
+      [fc.constantFrom('active', 'inactive', 'on-leave')],
       'should handle all staff in single status',
-      fc.prop(
-        fc.constantFrom('active', 'inactive', 'on-leave'),
-        status => {
+      status => {
           // Create staff records all with the same status
           const staffRecords = Array.from({ length: 10 }, (_, i) => ({
             id: `staff-${i}`,
@@ -213,15 +210,12 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
           expect(nonZeroCounts.length).toBe(1)
           expect(nonZeroCounts[0]).toBe(10)
           expect(totalCount).toBe(10)
-        }
-      )
-    )
+        })
 
-    it(
+    it.prop(
+      [fc.constantFrom('Academic', 'Administration', 'Support', 'Finance', 'HR')],
       'should handle all staff in single department',
-      fc.prop(
-        fc.constantFrom('Academic', 'Administration', 'Support', 'Finance', 'HR'),
-        department => {
+      department => {
           // Create staff records all in the same department
           const staffRecords = Array.from({ length: 10 }, (_, i) => ({
             id: `staff-${i}`,
@@ -242,8 +236,6 @@ describe('StaffHR Statistics Computation - Property Tests', () => {
 
           expect(deptCount).toBe(totalCount)
           expect(deptCount).toBe(10)
-        }
-      )
-    )
+        })
   })
 })

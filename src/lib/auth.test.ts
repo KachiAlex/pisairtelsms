@@ -222,17 +222,22 @@ describe('Auth Token Utilities', () => {
     })
 
     it('should return false when token expires exactly at current time', () => {
-      const now = Date.now()
-      const auth: AuthStorage = {
-        token: 'test-token',
-        tenantId: 'tenant-001',
-        expiresAt: now,
-      }
-      setAuthInStorage(auth)
+      // Freeze time so expiresAt is exactly Date.now() when isTokenExpired runs
+      vi.useFakeTimers()
+      try {
+        const auth: AuthStorage = {
+          token: 'test-token',
+          tenantId: 'tenant-001',
+          expiresAt: Date.now(),
+        }
+        setAuthInStorage(auth)
 
-      // Note: This is a boundary case. The implementation uses > so exact match is not expired
-      const result = isTokenExpired()
-      expect(result).toBe(false)
+        // Note: This is a boundary case. The implementation uses > so exact match is not expired
+        const result = isTokenExpired()
+        expect(result).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('should return true when token expires 1ms before current time', () => {

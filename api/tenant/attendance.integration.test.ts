@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import handler from './attendance.js'
 
 vi.mock('../_lib/auth-middleware.js', () => ({
@@ -36,7 +36,7 @@ const mockDecoded = {
  */
 
 // Mock response object
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -48,7 +48,7 @@ function createMockResponse(): VercelResponse {
 }
 
 // Mock request object
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   const req: any = {
     method: 'GET',
     headers: {
@@ -62,9 +62,34 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
   return req
 }
 
+/**
+ * Simulates an unauthenticated request: the real requireRole writes
+ * a 401 response and returns null, so the mock does the same.
+ */
+function mockUnauthenticated() {
+  mockRequireRole.mockImplementation(async (_req: any, res: any) => {
+    res.status(401).json({ success: false, error: 'Tenant context required' })
+    return null
+  })
+}
+
+/**
+ * Simulates an authenticated request whose JWT carries the given tenantId.
+ * The tenantId from the token is authoritative (headers are ignored).
+ */
+function mockAuthenticated(tenantId: string = 'tenant-123') {
+  mockRequireRole.mockResolvedValue({ ...mockDecoded, tenantId })
+}
+
 describe.skipIf(!process.env.DATABASE_URL)('Attendance API Integration Tests', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuthenticated()
+  })
+
   describe('POST /api/tenant/attendance - Submit attendance records', () => {
     it('should reject request without tenant context', async () => {
+      mockUnauthenticated()
       const req = createMockRequest({
         method: 'POST',
         headers: {},
@@ -268,15 +293,6 @@ describe.skipIf(!process.env.DATABASE_URL)('Attendance API Integration Tests', (
       })
       const res = createMockResponse()
 
-      // Mock the upsertAttendanceBatch to avoid database calls
-      vi.mock('./_lib/attendance.js', () => ({
-        upsertAttendanceBatch: vi.fn().mockResolvedValue({
-          inserted: 1,
-          updated: 0,
-          errors: [],
-        }),
-      }))
-
       // Note: This test validates the validation logic, actual DB call would be mocked in real tests
       // The validation should pass for this record
       expect(true).toBe(true)
@@ -319,6 +335,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Attendance API Integration Tests', (
 
   describe('GET /api/tenant/attendance - Fetch attendance records', () => {
     it('should reject request without tenant context', async () => {
+      mockUnauthenticated()
       const req = createMockRequest({
         method: 'GET',
         headers: {},
@@ -339,14 +356,6 @@ describe.skipIf(!process.env.DATABASE_URL)('Attendance API Integration Tests', (
         headers: { 'x-tenant-id': 'tenant-123' },
       })
       const res = createMockResponse()
-
-      // Mock the fetchAttendance to avoid database calls
-      vi.mock('./_lib/attendance.js', () => ({
-        fetchAttendance: vi.fn().mockResolvedValue({
-          records: [],
-          total: 0,
-        }),
-      }))
 
       // The request should be accepted (validation passes)
       expect(true).toBe(true)

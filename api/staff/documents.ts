@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
 import { ensureStaffTables } from '../tenant/_lib/staff.js';
 import { requireRole } from '../_lib/auth-middleware.js';
@@ -25,7 +25,7 @@ interface DocumentsListResponse {
   categories: string[];
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff']);
   if (!decoded) return;
   const staffId = decoded.staffId || decoded.userId || decoded.sub;

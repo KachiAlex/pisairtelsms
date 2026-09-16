@@ -24,6 +24,20 @@ interface FeeRecord {
   createdAt: string
 }
 
+const validDate = () => fc.date({ min: new Date('2020-01-01T00:00:00Z'), max: new Date('2030-12-31T00:00:00Z'), noInvalidDate: true })
+
+// Domain invariant: balance = amount - paid, and status derives from the split
+const consistent = (r: { amount: number; paid: number; balance: number; status: string }) => {
+  const paid = Math.min(r.paid, r.amount)
+  const balance = r.amount - paid
+  return {
+    ...r,
+    paid,
+    balance,
+    status: (balance === 0 ? 'paid' : paid === 0 ? 'pending' : 'partial') as 'pending' | 'partial' | 'paid',
+  }
+}
+
 // Generators
 const feeRecordArbitrary = () =>
   fc.record({
@@ -37,11 +51,11 @@ const feeRecordArbitrary = () =>
     paid: fc.integer({ min: 0, max: 100000 }),
     balance: fc.integer({ min: 0, max: 100000 }),
     status: fc.constantFrom('pending', 'partial', 'paid'),
-    lastPaymentDate: fc.option(fc.date().map(d => d.toISOString())),
+    lastPaymentDate: fc.option(validDate().map(d => d.toISOString())),
     academicSession: fc.constantFrom('2024/2025', '2025/2026'),
     term: fc.constantFrom('First Term', 'Second Term', 'Third Term'),
-    createdAt: fc.date().map(d => d.toISOString()),
-  })
+    createdAt: validDate().map(d => d.toISOString()),
+  }).map(consistent)
 
 describe('Finance Total Computation - Property Tests', () => {
   describe('Property 14: Finance Total Computation', () => {
@@ -116,11 +130,11 @@ describe('Finance Total Computation - Property Tests', () => {
             paid: fc.integer({ min: 1000, max: 100000 }),
             balance: fc.integer({ min: 0, max: 0 }), // Fully paid
             status: fc.constant('paid'),
-            lastPaymentDate: fc.option(fc.date().map(d => d.toISOString())),
+            lastPaymentDate: fc.option(validDate().map(d => d.toISOString())),
             academicSession: fc.constantFrom('2024/2025', '2025/2026'),
             term: fc.constantFrom('First Term', 'Second Term', 'Third Term'),
-            createdAt: fc.date().map(d => d.toISOString()),
-          }),
+            createdAt: validDate().map(d => d.toISOString()),
+          }).map(r => ({ ...r, paid: r.amount, balance: 0, status: 'paid' as const })),
           { minLength: 0, maxLength: 50 }
         )])('should maintain equation for fully paid records', records => {
           // Property: For fully paid records, balance should be 0
@@ -145,11 +159,11 @@ describe('Finance Total Computation - Property Tests', () => {
             paid: fc.constant(0), // Unpaid
             balance: fc.integer({ min: 1000, max: 100000 }),
             status: fc.constant('pending'),
-            lastPaymentDate: fc.option(fc.date().map(d => d.toISOString())),
+            lastPaymentDate: fc.option(validDate().map(d => d.toISOString())),
             academicSession: fc.constantFrom('2024/2025', '2025/2026'),
             term: fc.constantFrom('First Term', 'Second Term', 'Third Term'),
-            createdAt: fc.date().map(d => d.toISOString()),
-          }),
+            createdAt: validDate().map(d => d.toISOString()),
+          }).map(r => ({ ...r, balance: r.amount, status: 'pending' as const })),
           { minLength: 0, maxLength: 50 }
         )])('should maintain equation for unpaid records', records => {
           // Property: For unpaid records, collected should be 0
@@ -207,11 +221,11 @@ describe('Finance Total Computation - Property Tests', () => {
             paid: fc.integer({ min: 0, max: 10000000 }),
             balance: fc.integer({ min: 0, max: 10000000 }),
             status: fc.constantFrom('pending', 'partial', 'paid'),
-            lastPaymentDate: fc.option(fc.date().map(d => d.toISOString())),
+            lastPaymentDate: fc.option(validDate().map(d => d.toISOString())),
             academicSession: fc.constantFrom('2024/2025', '2025/2026'),
             term: fc.constantFrom('First Term', 'Second Term', 'Third Term'),
-            createdAt: fc.date().map(d => d.toISOString()),
-          }),
+            createdAt: validDate().map(d => d.toISOString()),
+          }).map(consistent),
           { minLength: 0, maxLength: 50 }
         )])('should handle large numbers correctly', records => {
           // Property: Equation should hold even with large numbers

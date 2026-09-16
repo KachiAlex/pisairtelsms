@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { poolQuery, poolQueryOne } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { PLAN_CONFIG, PLAN_RATES, PlanType, PlanFeatures } from '../../src/lib/plans.js'
@@ -26,7 +26,7 @@ async function ensurePlanConfigTable() {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET is read-only, allow any authenticated user
   if (req.method === 'GET') {
     const decoded = await requireRole(req, res, ['super_admin', 'tenant_admin', 'staff', 'parent'])

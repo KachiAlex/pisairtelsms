@@ -1,9 +1,9 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 
 /**
  * Get client IP address from request.
  */
-export function getClientIP(req: VercelRequest): string {
+export function getClientIP(req: ApiRequest): string {
   return (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim()
     || (req.headers['x-real-ip'] as string)
     || 'unknown'
@@ -29,8 +29,8 @@ export function isIPBlocked(ip: string, blockedIPs: string[]): boolean {
  * Returns true if access denied (error response already sent), false if allowed.
  */
 export function requireAllowedIP(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   allowedIPs: string[] = []
 ): boolean {
   if (allowedIPs.length === 0) return false // No restrictions
@@ -49,8 +49,8 @@ export function requireAllowedIP(
  * Returns true if access denied (error response already sent), false if allowed.
  */
 export function requireNotBlockedIP(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   blockedIPs: string[] = []
 ): boolean {
   if (blockedIPs.length === 0) return false // No blocks

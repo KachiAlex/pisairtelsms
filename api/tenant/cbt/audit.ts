@@ -3,7 +3,7 @@
  * Handles audit log retrieval and analysis
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import {
   getAuditLogs,
@@ -15,7 +15,7 @@ import {
 /**
  * Method not allowed response
  */
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET')
   return res.status(405).json({ error: 'Method not allowed' })
 }
@@ -23,7 +23,7 @@ function methodNotAllowed(res: VercelResponse) {
 /**
  * Validate tenant ID
  */
-function validateTenantId(tenantId: string | undefined, res: VercelResponse): boolean {
+function validateTenantId(tenantId: string | undefined, res: ApiResponse): boolean {
   if (!tenantId) {
     res.status(400).json({ error: 'x-tenant-id header is required' })
     return false
@@ -34,7 +34,7 @@ function validateTenantId(tenantId: string | undefined, res: VercelResponse): bo
 /**
  * Main handler
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

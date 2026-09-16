@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
 import { ensureStaffTables } from '../tenant/_lib/staff.js';
 import { requireRole } from '../_lib/auth-middleware.js';
@@ -44,7 +44,7 @@ interface UpdateTaskBody {
   dueDate?: string | null;
 }
 
-function parseBody(req: VercelRequest): Promise<any> {
+function parseBody(req: ApiRequest): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
@@ -60,7 +60,7 @@ function parseBody(req: VercelRequest): Promise<any> {
   });
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff']);
   if (!decoded) return;
   const staffId = decoded.staffId || decoded.userId || decoded.sub;

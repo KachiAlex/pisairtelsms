@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import handler from './sync'
 import * as syncService from './_lib/sync'
 import * as db from './_lib/db'
@@ -33,7 +33,7 @@ vi.mock('./_lib/sync')
 vi.mock('./_lib/db')
 
 // Helper to create mock request
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   return {
     method: 'POST',
     headers: {
@@ -43,17 +43,17 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
     query: {},
     body: null,
     ...overrides,
-  } as VercelRequest
+  } as ApiRequest
 }
 
 // Helper to create mock response
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
     setHeader: vi.fn().mockReturnThis(),
   }
-  return res as VercelResponse
+  return res as ApiResponse
 }
 
 describe('Offline Sync API Routes', () => {
@@ -504,31 +504,14 @@ describe('Offline Sync API Routes', () => {
       })
     })
 
-    it('should return 400 if x-tenant-id header missing', async () => {
+    it('should return 401 if authentication token is missing', async () => {
+      mockRequireRole.mockImplementationOnce(async (_req: any, res: any) => {
+        res.status(401).json({ error: 'Unauthorized: Missing token' })
+        return null
+      })
       const req = createMockRequest({
         method: 'POST',
-        headers: { 'x-user-id': 'user-123' },
-        body: {
-          studentId: 'student-123',
-          examId: 'exam-123',
-          answers: [],
-          timestamp: new Date().toISOString(),
-        },
-      })
-      const res = createMockResponse()
-
-      await handler(req, res)
-
-      expect(res.status).toHaveBeenCalledWith(400)
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'x-tenant-id header is required',
-      })
-    })
-
-    it('should return 401 if x-user-id header missing', async () => {
-      const req = createMockRequest({
-        method: 'POST',
-        headers: { 'x-tenant-id': 'tenant-123' },
+        headers: {},
         body: {
           studentId: 'student-123',
           examId: 'exam-123',
@@ -542,7 +525,7 @@ describe('Offline Sync API Routes', () => {
 
       expect(res.status).toHaveBeenCalledWith(401)
       expect(res.json).toHaveBeenCalledWith({
-        error: 'x-user-id header is required',
+        error: 'Unauthorized: Missing token',
       })
     })
 

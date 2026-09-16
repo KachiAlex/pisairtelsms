@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { ParentDashboard } from './ParentDashboard'
-import { ParentContextProvider } from '../../contexts/ParentContext'
+import { ParentContextProvider } from '../../../contexts/ParentContext'
 
 const mockDashboardData = {
   child: { id: 'child-1', name: 'John Doe', admissionNumber: 'ADM-001', class: 'JSS 1', arm: 'A' },
@@ -65,6 +65,7 @@ describe('ParentDashboard', () => {
 
   it('should show loading state while fetching', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    localStorage.setItem('selectedChild', JSON.stringify({ id: 'child-1', name: 'John Doe', admissionNumber: 'ADM-001' }))
     renderWithProviders(<ParentDashboard />)
     // Loading skeletons should be present initially
     expect(document.querySelector('.animate-pulse')).toBeTruthy()

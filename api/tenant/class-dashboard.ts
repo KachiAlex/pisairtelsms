@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { fetchStudents } from './_lib/students.js'
 import { fetchApplications } from './_lib/applications.js'
@@ -14,7 +14,7 @@ interface ClassDashboard {
   recentApplications: any[]
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

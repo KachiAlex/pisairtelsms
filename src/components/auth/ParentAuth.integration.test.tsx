@@ -236,13 +236,14 @@ describe('Parent Authentication Integration', () => {
       const submitButton = screen.getByRole('button', { name: /sign in/i })
       fireEvent.click(submitButton)
 
+      // Missing token must not store a broken session or navigate
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+        expect(screen.getByText(/invalid server response/i)).toBeInTheDocument()
       })
+      expect(mockNavigate).not.toHaveBeenCalledWith('/parent/dashboard')
 
-      // Verify auth was stored even with missing token
       const auth = getAuthFromStorage()
-      expect(auth).not.toBeNull()
+      expect(auth).toBeNull()
     })
   })
 })

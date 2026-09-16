@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
 import { ensureStaffTables, validateGeofence, isWithinTimeWindow } from '../tenant/_lib/staff.js';
 import { fetchTenantSettings } from '../tenant/_lib/tenant-settings.js';
@@ -55,7 +55,7 @@ async function getStaffName(staffId: string): Promise<string> {
   return 'Unknown';
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff']);
   if (!decoded) return;
   const staffId = decoded.staffId || decoded.userId || decoded.sub;

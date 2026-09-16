@@ -4,11 +4,11 @@
  * Destructive operation - use with caution
  */
 
-import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../../_lib/http-types.js'
 import { query } from '../_lib/db.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['tenant_admin'])
   if (!decoded) return
 

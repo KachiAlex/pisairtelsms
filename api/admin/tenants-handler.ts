@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { poolQuery, poolQueryOne } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { ensureStaffTables, hashPassword } from '../tenant/_lib/staff.js'
@@ -40,7 +40,7 @@ const TENANT_FIELDS = `
   TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS "createdAt"
 `
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET: list tenants or single tenant by id
   if (req.method === 'GET') {
     const decoded = await requireRole(req, res, ['super_admin', 'tenant_admin'])

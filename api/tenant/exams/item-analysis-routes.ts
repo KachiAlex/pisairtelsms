@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js';
 import itemAnalysisApi from './item-analysis';
 import { requireRole } from '../../_lib/auth-middleware.js';
 
@@ -8,7 +8,7 @@ import { requireRole } from '../../_lib/auth-middleware.js';
  *   GET  /api/tenant/exams/item-analysis?type=items|distractors|blueprint|anchors|performance|statistics&examId=...
  *   POST /api/tenant/exams/item-analysis  (action: create-item|create-distractor|create-blueprint|create-anchor|track-performance)
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
 

@@ -10,7 +10,7 @@
  * Response: Schema verification results
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js';
 import { verifySchema, generateVerificationReport } from './_lib/schema-verify';
 import { requireRole } from '../../_lib/auth-middleware.js';
 
@@ -22,8 +22,8 @@ interface VerificationResponse {
 }
 
 export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
+  req: ApiRequest,
+  res: ApiResponse
 ) {
   const decoded = await requireRole(req, res, ['tenant_admin'])
   if (!decoded) return

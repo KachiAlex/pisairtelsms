@@ -1,17 +1,17 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { fetchAttendance, upsertAttendanceBatch, type AttendancePayload, type AttendanceFilter } from './_lib/attendance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
-function getUserId(req: VercelRequest): string | undefined {
+function getUserId(req: ApiRequest): string | undefined {
   return (req.headers['x-user-id'] as string) || (req.query.userId as string) || undefined
 }
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST')
   return res.status(405).json({ success: false, error: 'Method not allowed' })
 }
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try { return JSON.parse(req.body) } catch { return null }
@@ -26,7 +26,7 @@ function isFutureDate(dateStr: string): boolean {
   return date > today
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant attendance
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

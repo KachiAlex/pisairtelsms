@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { fetchFeeRecords, createFeeRecord, recordPayment, sendFeeReminders, generateFeeRecordsFromAssignments, type FeeRecordPayload, type PaymentPayload } from './_lib/finance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from './cbt/_lib/db.js'
@@ -16,12 +16,12 @@ async function ensureMigrations() {
   }
 }
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try { return JSON.parse(req.body) } catch { return null }
@@ -31,7 +31,7 @@ function parseBody(req: VercelRequest) {
 
 
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   await ensureMigrations()
 
   // Require authentication - only staff or tenant_admin can access tenant finance

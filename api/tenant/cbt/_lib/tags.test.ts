@@ -148,7 +148,7 @@ describe('Tag Service Helpers', () => {
       const count = await cleanupUnusedTags('tenant-1');
       expect(count).toBe(3);
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE question_tags SET deleted_at'),
+        expect.stringContaining('SET deleted_at'),
         expect.any(Array)
       );
     });

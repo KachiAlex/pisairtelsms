@@ -1,4 +1,4 @@
-import type { VercelRequest } from './http-types.js'
+import type { ApiRequest } from './http-types.js'
 import { sql } from './sql.js'
 
 export type AuditAction =
@@ -61,7 +61,7 @@ export async function logAuditEvent(
 /**
  * Extract audit context from a request.
  */
-export function extractAuditContext(req: VercelRequest, userId?: string, role?: string): AuditContext {
+export function extractAuditContext(req: ApiRequest, userId?: string, role?: string): AuditContext {
   return {
     userId,
     role,
@@ -73,7 +73,7 @@ export function extractAuditContext(req: VercelRequest, userId?: string, role?: 
 /**
  * Log a successful login.
  */
-export async function logLoginSuccess(req: VercelRequest, userId: string, role: string): Promise<void> {
+export async function logLoginSuccess(req: ApiRequest, userId: string, role: string): Promise<void> {
   await logAuditEvent('login_success', {
     userId,
     role,
@@ -84,7 +84,7 @@ export async function logLoginSuccess(req: VercelRequest, userId: string, role: 
 /**
  * Log a failed login attempt.
  */
-export async function logLoginFailure(req: VercelRequest, email: string, reason: string): Promise<void> {
+export async function logLoginFailure(req: ApiRequest, email: string, reason: string): Promise<void> {
   await logAuditEvent('login_failure', {
     ...extractAuditContext(req),
     details: { email, reason },
@@ -94,7 +94,7 @@ export async function logLoginFailure(req: VercelRequest, email: string, reason:
 /**
  * Log a password change.
  */
-export async function logPasswordChange(req: VercelRequest, userId: string, role: string): Promise<void> {
+export async function logPasswordChange(req: ApiRequest, userId: string, role: string): Promise<void> {
   await logAuditEvent('password_change', {
     userId,
     role,
@@ -106,7 +106,7 @@ export async function logPasswordChange(req: VercelRequest, userId: string, role
  * Log a permission denied event.
  */
 export async function logPermissionDenied(
-  req: VercelRequest,
+  req: ApiRequest,
   userId: string | undefined,
   role: string | undefined,
   resource: string
@@ -122,7 +122,7 @@ export async function logPermissionDenied(
 /**
  * Log a rate limit exceeded event.
  */
-export async function logRateLimitExceeded(req: VercelRequest, identifier: string): Promise<void> {
+export async function logRateLimitExceeded(req: ApiRequest, identifier: string): Promise<void> {
   await logAuditEvent('rate_limit_exceeded', {
     ...extractAuditContext(req),
     details: { identifier },
@@ -132,7 +132,7 @@ export async function logRateLimitExceeded(req: VercelRequest, identifier: strin
 /**
  * Log a CSRF failure event.
  */
-export async function logCSRFFailure(req: VercelRequest, userId: string | undefined): Promise<void> {
+export async function logCSRFFailure(req: ApiRequest, userId: string | undefined): Promise<void> {
   await logAuditEvent('csrf_failure', {
     userId,
     ...extractAuditContext(req, userId),

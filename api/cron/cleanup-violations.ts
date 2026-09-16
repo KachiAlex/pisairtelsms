@@ -1,10 +1,10 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 
 const retentionDays = Number(process.env.VIOLATION_RETENTION_DAYS ?? 30)
 const CRON_SECRET = process.env.CRON_SECRET
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Verify cron secret to prevent unauthorized access
   const authHeader = req.headers.authorization
   if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {

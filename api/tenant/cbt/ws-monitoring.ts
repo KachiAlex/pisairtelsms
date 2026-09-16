@@ -3,7 +3,7 @@
  * Handles real-time exam progress updates via WebSocket
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { WebSocketServer, WebSocket } from 'ws'
 import { queryOne } from './_lib/db.js'
@@ -26,7 +26,7 @@ const connectionMetadata = new WeakMap<WebSocket, ConnectionMetadata>()
  */
 let wss: WebSocketServer | null = null
 
-function getWebSocketServer(req: VercelRequest, res: VercelResponse): WebSocketServer {
+function getWebSocketServer(req: ApiRequest, res: ApiResponse): WebSocketServer {
   if (wss) {
     return wss
   }
@@ -210,7 +210,7 @@ export function closeExamConnections(examId: string) {
 /**
  * Main WebSocket handler
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

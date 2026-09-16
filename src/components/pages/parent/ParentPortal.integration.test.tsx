@@ -25,14 +25,59 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 })
 
+const mockChildren = [
+  { id: 'child-1', name: 'John Doe', admissionNumber: 'ADM-001', class: 'JSS1', arm: 'A' },
+  { id: 'child-2', name: 'Jane Doe', admissionNumber: 'ADM-002', class: 'JSS2', arm: 'B' },
+]
+
+const mockDashboardData = {
+  parent: { id: 'parent-123', name: 'Test Parent', email: 'parent@example.com' },
+  child: mockChildren[0],
+  metrics: { attendancePercent: 95, gpa: 3.5, outstandingFees: 0, nextExamDate: 'N/A' },
+  recentGrades: [],
+  recentAnnouncements: [],
+  upcomingEvents: [],
+  alerts: [],
+}
+
+const mockAcademicData = {
+  currentTerm: 'term-1',
+  availableTerms: [{ id: 'term-1', name: 'First Term' }],
+  subjects: [],
+  overallGPA: 0,
+  classAverage: 0,
+  performanceTrend: [],
+  upcomingAssessments: [],
+}
+
+function mockFetchResponse(url: string) {
+  let body: any = {}
+  if (url.startsWith('/api/parent/children')) {
+    body = { children: mockChildren }
+  } else if (url.startsWith('/api/parent/dashboard')) {
+    body = mockDashboardData
+  } else if (url.startsWith('/api/parent/academic')) {
+    body = mockAcademicData
+  } else if (url.startsWith('/api/parent/notifications')) {
+    body = { unreadCount: 0 }
+  }
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(body),
+  } as Response)
+}
+
 describe('Parent Portal Integration Tests', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.stubGlobal('fetch', vi.fn((url: any) => mockFetchResponse(String(url))))
     // Set up mock auth
     localStorage.setItem(
       'auth',
       JSON.stringify({
         token: 'mock-token',
+        tenantId: 'tenant-1',
+        expiresAt: Date.now() + 3600000,
         role: 'parent',
         parentId: 'parent-123',
         childrenIds: ['child-1', 'child-2'],
@@ -50,8 +95,8 @@ describe('Parent Portal Integration Tests', () => {
       </BrowserRouter>
     )
 
-    expect(screen.getByText('ScholarX')).toBeInTheDocument()
-    expect(screen.getByText('Parent Portal')).toBeInTheDocument()
+    expect(screen.getByText('Pisairtel-Schools')).toBeInTheDocument()
+    expect(screen.getAllByText('Parent Portal').length).toBeGreaterThan(0)
   })
 
   it('should display child selector with linked children', async () => {
@@ -63,9 +108,9 @@ describe('Parent Portal Integration Tests', () => {
       </BrowserRouter>
     )
 
+    // First linked child is auto-selected once /api/parent/children resolves
     await waitFor(() => {
-      const childSelector = screen.getByRole('button', { name: /child/i })
-      expect(childSelector).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
     })
   })
 
@@ -79,13 +124,16 @@ describe('Parent Portal Integration Tests', () => {
     )
 
     await waitFor(() => {
-      const childSelector = screen.getByRole('button', { name: /child/i })
-      fireEvent.click(childSelector)
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
     })
 
-    // Verify dropdown appears
+    const selectorName = screen.getAllByText('John Doe').find(el => el.closest('button'))
+    expect(selectorName).toBeTruthy()
+    fireEvent.click(selectorName!.closest('button')!)
+
+    // Verify dropdown appears (ADM numbers also render on the dashboard card)
     await waitFor(() => {
-      expect(screen.getByText(/ADM-/)).toBeInTheDocument()
+      expect(screen.getAllByText(/ADM-/).length).toBeGreaterThanOrEqual(2)
     })
   })
 
@@ -98,8 +146,7 @@ describe('Parent Portal Integration Tests', () => {
       </BrowserRouter>
     )
 
-    const notificationBell = screen.getByRole('button', { name: '' })
-    expect(notificationBell).toBeInTheDocument()
+    expect(document.querySelector('.lucide-bell')).toBeTruthy()
   })
 
   it('should display sign out button', () => {
@@ -125,14 +172,14 @@ describe('Parent Portal Integration Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
-      expect(screen.getByText('Academic')).toBeInTheDocument()
+      expect(screen.getByText('Academic Progress')).toBeInTheDocument()
       expect(screen.getByText('Attendance')).toBeInTheDocument()
-      expect(screen.getByText('Behavioral')).toBeInTheDocument()
+      expect(screen.getByText('Behavioral Reports')).toBeInTheDocument()
       expect(screen.getByText('Communications')).toBeInTheDocument()
-      expect(screen.getByText('Messages')).toBeInTheDocument()
-      expect(screen.getByText('Fees')).toBeInTheDocument()
+      expect(screen.getByText('Teacher Messages')).toBeInTheDocument()
+      expect(screen.getByText('Fee Management')).toBeInTheDocument()
       expect(screen.getByText('Timetable')).toBeInTheDocument()
-      expect(screen.getByText('Health')).toBeInTheDocument()
+      expect(screen.getByText('Health & Wellness')).toBeInTheDocument()
       expect(screen.getByText('Notifications')).toBeInTheDocument()
       expect(screen.getByText('Profile')).toBeInTheDocument()
     })
@@ -148,8 +195,9 @@ describe('Parent Portal Integration Tests', () => {
     )
 
     await waitFor(() => {
-      const selectedChildId = localStorage.getItem('selectedChildId')
-      expect(selectedChildId).toBeTruthy()
+      const stored = localStorage.getItem('selectedChild')
+      expect(stored).toBeTruthy()
+      expect(JSON.parse(stored!).id).toBe('child-1')
     })
   })
 
@@ -197,7 +245,7 @@ describe('Parent Portal Integration Tests', () => {
 
     await waitFor(() => {
       // Dashboard should be rendered
-      expect(screen.getByText('Parent Portal')).toBeInTheDocument()
+      expect(screen.getAllByText('Parent Portal').length).toBeGreaterThan(0)
     })
   })
 
@@ -211,13 +259,13 @@ describe('Parent Portal Integration Tests', () => {
     )
 
     await waitFor(() => {
-      const academicLink = screen.getByText('Academic')
+      const academicLink = screen.getByText('Academic Progress')
       fireEvent.click(academicLink)
     })
 
     // Verify navigation occurred
     await waitFor(() => {
-      expect(screen.getByText('Academic')).toBeInTheDocument()
+      expect(screen.getByText('Academic Progress')).toBeInTheDocument()
     })
   })
 
@@ -234,7 +282,7 @@ describe('Parent Portal Integration Tests', () => {
       </BrowserRouter>
     )
 
-    expect(screen.getByText('ScholarX')).toBeInTheDocument()
+    expect(screen.getByText('Pisairtel-Schools')).toBeInTheDocument()
   })
 
   it('should maintain responsive design on tablet', () => {
@@ -250,7 +298,7 @@ describe('Parent Portal Integration Tests', () => {
       </BrowserRouter>
     )
 
-    expect(screen.getByText('ScholarX')).toBeInTheDocument()
+    expect(screen.getByText('Pisairtel-Schools')).toBeInTheDocument()
   })
 
   it('should maintain responsive design on desktop', () => {
@@ -266,6 +314,6 @@ describe('Parent Portal Integration Tests', () => {
       </BrowserRouter>
     )
 
-    expect(screen.getByText('ScholarX')).toBeInTheDocument()
+    expect(screen.getByText('Pisairtel-Schools')).toBeInTheDocument()
   })
 })

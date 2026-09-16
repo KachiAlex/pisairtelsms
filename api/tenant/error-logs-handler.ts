@@ -1,8 +1,8 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import errorLogsApi from './_lib/error-logs';
 import { requireRole } from '../_lib/auth-middleware.js';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Authentication check
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;

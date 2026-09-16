@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 
 vi.mock('../../_lib/auth-middleware.js', () => ({
   requireRole: vi.fn(),
@@ -42,11 +42,20 @@ vi.mock('../cbt/_lib/db.js', () => ({
   transaction: vi.fn(),
 }))
 
+vi.mock('../_lib/biometric-devices.js', () => ({
+  getDevice: vi.fn(),
+  getEnrollments: vi.fn(),
+  logSync: vi.fn(),
+  resetConsecutiveFailures: vi.fn(),
+  incrementConsecutiveFailures: vi.fn(),
+  findStudentByBiometricId: vi.fn(),
+}))
+
 // ============================================================================
 // Helpers
 // ============================================================================
 
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -57,7 +66,7 @@ function createMockResponse(): VercelResponse {
   return res
 }
 
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   const req: any = {
     method: 'GET',
     headers: {
@@ -81,6 +90,11 @@ describe('5.3.1 Teacher Attendance Entry Workflow', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     db = await import('../cbt/_lib/db.js')
+    // mockClear doesn't flush leftover mockResolvedValueOnce values — reset fully
+    db.query.mockReset()
+    db.queryOne.mockReset()
+    db.queryAll.mockReset()
+    db.transaction.mockReset()
     // Default transaction mock
     db.transaction.mockImplementation(async (fn: any) => fn({ query: vi.fn() }))
   })
@@ -195,6 +209,10 @@ describe('5.3.2 Admin Analytics Dashboard Workflow', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     db = await import('../cbt/_lib/db.js')
+    db.query.mockReset()
+    db.queryOne.mockReset()
+    db.queryAll.mockReset()
+    db.transaction.mockReset()
     const { invalidateAnalyticsCache } = await import('../_lib/attendance.js')
     invalidateAnalyticsCache('tenant-e2e')
   })
@@ -297,10 +315,15 @@ describe('5.3.2 Admin Analytics Dashboard Workflow', () => {
 // ============================================================================
 
 describe('5.3.3 Device Management Workflow', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const db = await import('../cbt/_lib/db.js')
+    db.query.mockReset()
+    db.queryOne.mockReset()
+    db.queryAll.mockReset()
+    db.transaction.mockReset()
     mockRequireRole.mockReset()
     mockRequireRole.mockResolvedValue(mockDecoded)
-    vi.clearAllMocks()
   })
 
   it('workflow: sync with no enrollments returns success with 0 records', async () => {
@@ -357,8 +380,8 @@ describe('5.3.3 Device Management Workflow', () => {
     expect(result.errorDetails).toContain('maintenance')
   })
 
-  it('workflow: next sync time calculated correctly for each frequency', () => {
-    const { getNextSyncTime } = require('../_lib/device-sync.js')
+  it('workflow: next sync time calculated correctly for each frequency', async () => {
+    const { getNextSyncTime } = await import('../_lib/device-sync.js')
     const base = '2024-05-04T10:00:00Z'
 
     const hourly = getNextSyncTime(base, 'hourly')
@@ -377,8 +400,8 @@ describe('5.3.3 Device Management Workflow', () => {
 // ============================================================================
 
 describe('5.3.4 Batch Upload Workflow', () => {
-  it('workflow: CSV template is parseable', () => {
-    const { generateCsvTemplate, parseCsvContent } = require('../_lib/csv-parser.js')
+  it('workflow: CSV template is parseable', async () => {
+    const { generateCsvTemplate, parseCsvContent } = await import('../_lib/csv-parser.js')
     const template = generateCsvTemplate()
     const result = parseCsvContent(template)
 
@@ -386,8 +409,8 @@ describe('5.3.4 Batch Upload Workflow', () => {
     expect(result.valid).toHaveLength(1)
   })
 
-  it('workflow: valid CSV rows are parsed and validated', () => {
-    const { parseCsvContent } = require('../_lib/csv-parser.js')
+  it('workflow: valid CSV rows are parsed and validated', async () => {
+    const { parseCsvContent } = await import('../_lib/csv-parser.js')
     const csv = [
       'studentId,class,date,status,academicSession,term',
       'STU001,JSS 1,2024-05-04,present,2024/2025,1',
@@ -402,8 +425,8 @@ describe('5.3.4 Batch Upload Workflow', () => {
     expect(result.totalRows).toBe(3)
   })
 
-  it('workflow: invalid rows are separated from valid rows', () => {
-    const { parseCsvContent } = require('../_lib/csv-parser.js')
+  it('workflow: invalid rows are separated from valid rows', async () => {
+    const { parseCsvContent } = await import('../_lib/csv-parser.js')
     const csv = [
       'studentId,class,date,status,academicSession,term',
       'STU001,JSS 1,2024-05-04,present,2024/2025,1',
@@ -418,8 +441,8 @@ describe('5.3.4 Batch Upload Workflow', () => {
     expect(result.totalRows).toBe(3)
   })
 
-  it('workflow: future dates are rejected in batch upload', () => {
-    const { parseCsvContent } = require('../_lib/csv-parser.js')
+  it('workflow: future dates are rejected in batch upload', async () => {
+    const { parseCsvContent } = await import('../_lib/csv-parser.js')
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     const futureDate = tomorrow.toISOString().split('T')[0]
@@ -436,8 +459,8 @@ describe('5.3.4 Batch Upload Workflow', () => {
     expect(result.errors[0].message).toContain('future')
   })
 
-  it('workflow: report generation produces valid CSV output', () => {
-    const { generateCSVContent } = require('../_lib/report-generator.js')
+  it('workflow: report generation produces valid CSV output', async () => {
+    const { generateCSVContent } = await import('../_lib/report-generator.js')
     const reportData = {
       records: [
         {

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import { ParentLayout } from './ParentLayout'
 import { ParentContextProvider } from '../../contexts/ParentContext'
@@ -111,8 +110,9 @@ describe('ParentLayout', () => {
   it('should render layout with sidebar and header', () => {
     renderLayout()
 
-    expect(screen.getByText('ScholarX')).toBeInTheDocument()
-    expect(screen.getByText('Parent Portal')).toBeInTheDocument()
+    expect(screen.getByText('Pisairtel-Schools')).toBeInTheDocument()
+    // "Parent Portal" appears in the sidebar subtitle and as the header fallback title
+    expect(screen.getAllByText('Parent Portal').length).toBeGreaterThanOrEqual(1)
   })
 
   it('should display parent name in header', async () => {
@@ -140,12 +140,14 @@ describe('ParentLayout', () => {
   })
 
   it('should toggle sidebar on mobile', async () => {
-    const user = userEvent.setup()
     const { container } = renderLayout()
 
-    const menuButton = screen.getAllByRole('button').find((btn) => btn.querySelector('svg'))
+    // The header hamburger button carries the lucide-menu icon
+    const menuButton = screen
+      .getAllByRole('button')
+      .find((btn) => btn.querySelector('.lucide-menu'))
     if (menuButton) {
-      await user.click(menuButton)
+      fireEvent.click(menuButton)
       // Sidebar should be visible after click
       expect(container.querySelector('aside')).toHaveClass('translate-x-0')
     }
@@ -176,11 +178,11 @@ describe('ParentLayout', () => {
   })
 
   it('should handle child selection', async () => {
-    const user = userEvent.setup()
     renderLayout()
 
+    // "John Doe" appears in both the header title and the child-selector button
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -188,7 +190,7 @@ describe('ParentLayout', () => {
     renderLayout()
 
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThanOrEqual(1)
       expect(screen.getByText(/Class JSS1A/)).toBeInTheDocument()
     })
   })
@@ -215,7 +217,6 @@ describe('ParentLayout', () => {
   })
 
   it('should handle navigation to different pages', async () => {
-    const user = userEvent.setup()
     renderLayout()
 
     await waitFor(() => {
@@ -223,7 +224,7 @@ describe('ParentLayout', () => {
     })
 
     const academicButton = screen.getByText('Academic Progress')
-    await user.click(academicButton)
+    fireEvent.click(academicButton)
 
     await waitFor(() => {
       expect(screen.getByText('Academic Page')).toBeInTheDocument()
@@ -234,8 +235,7 @@ describe('ParentLayout', () => {
     renderLayout()
 
     await waitFor(() => {
-      const childSelector = screen.getByText('John Doe')
-      expect(childSelector).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -250,6 +250,6 @@ describe('ParentLayout', () => {
     renderLayout()
 
     // Component should render without errors
-    expect(screen.getByText('ScholarX')).toBeInTheDocument()
+    expect(screen.getByText('Pisairtel-Schools')).toBeInTheDocument()
   })
 })

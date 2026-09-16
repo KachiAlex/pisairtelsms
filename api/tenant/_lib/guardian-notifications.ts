@@ -1,5 +1,5 @@
 import { queryAll, queryOne, query } from '../cbt/_lib/db.js'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 
 export interface GuardianNotification {
   id: string

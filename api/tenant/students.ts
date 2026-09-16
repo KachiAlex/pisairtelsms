@@ -1,15 +1,15 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchStudents, createStudent, createStudents, updateStudent, deleteStudent, type StudentPayload } from './_lib/students.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { auditAcademicChange } from './_lib/academic-audit.js'
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try {
@@ -21,7 +21,7 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant student management
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

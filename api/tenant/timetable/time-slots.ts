@@ -1,17 +1,17 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot, timeSlotsOverlap } from './_lib/time-slots.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 let migrationsInitialized = false
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
   return req.body
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant timetable
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

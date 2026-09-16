@@ -57,7 +57,7 @@ describe('AttendanceTracking', () => {
   it('should render attendance tracking header', async () => {
     renderWithProviders(<AttendanceTracking />)
     await waitFor(() => {
-      expect(screen.getByText('Attendance Tracking')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Attendance' })).toBeInTheDocument()
     })
   })
 

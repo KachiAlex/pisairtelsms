@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js';
 import riskAlertsApi from './risk-alerts';
 import { requireRole } from '../../_lib/auth-middleware.js';
 
@@ -8,7 +8,7 @@ import { requireRole } from '../../_lib/auth-middleware.js';
  *   GET  /api/tenant/students/risk-alerts?type=alerts|models|playbooks|clusters|statistics
  *   POST /api/tenant/students/risk-alerts  (action: create-alert|create-model|create-playbook|create-cluster|create-intervention)
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

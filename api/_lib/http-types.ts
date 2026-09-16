@@ -8,14 +8,14 @@
 
 import type { IncomingMessage, ServerResponse, OutgoingHttpHeaders } from 'http';
 
-export interface VercelRequest extends IncomingMessage {
+export interface ApiRequest extends IncomingMessage {
   query: Record<string, any>;
   body: any;
   cookies: Record<string, string>;
   [key: string]: any;
 }
 
-export interface VercelResponse extends ServerResponse {
+export interface ApiResponse extends ServerResponse {
   status(code: number): this;
   json(body: any): void;
   send(body: any): void;

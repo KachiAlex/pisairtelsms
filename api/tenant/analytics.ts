@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import academicHandler from './analytics/academic.js'
 import performanceHandler from './analytics/performance.js'
 import studentProgressHandler from './analytics/student-progress.js'
@@ -6,7 +6,7 @@ import teacherPerformanceHandler from './analytics/teacher-performance.js'
 import financialHandler from './analytics/financial.js'
 import attendanceDashboardHandler from './attendance/analytics/dashboard.js'
 
-const METRIC_HANDLERS: Record<string, (req: VercelRequest, res: VercelResponse) => Promise<void | VercelResponse>> = {
+const METRIC_HANDLERS: Record<string, (req: ApiRequest, res: ApiResponse) => Promise<void | ApiResponse>> = {
   academic: academicHandler,
   performance: performanceHandler,
   'student-progress': studentProgressHandler,
@@ -44,7 +44,7 @@ function createMockRes(): MockResponse {
  * Unified analytics gateway. Delegates to the correct sub-handler and
  * returns the captured response, preserving auth, filters, and errors.
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ success: false, error: 'Method not allowed' })
@@ -63,11 +63,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const selectedHandler = METRIC_HANDLERS[metric]
-    const result = await selectedHandler(req, mockRes as unknown as VercelResponse)
+    const result = await selectedHandler(req, mockRes as unknown as ApiResponse)
 
     // If the handler returned a response explicitly, prefer that
     if (result && typeof (result as any).status === 'function' && typeof (result as any).json === 'function') {
-      return result as unknown as VercelResponse
+      return result as unknown as ApiResponse
     }
 
     return res.status(mockRes.statusCode).json(mockRes.body ?? { success: false, error: 'No response from metric handler' })

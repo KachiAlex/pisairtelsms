@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -11,7 +11,7 @@ function getUserId(decoded: any): string {
  * PATCH /api/tenant/notifications/:id - Mark a notification as read
  * DELETE /api/tenant/notifications/:id - Delete a notification
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

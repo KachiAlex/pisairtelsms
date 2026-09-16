@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { WebSocket, WebSocketServer } from 'ws'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import * as db from './_lib/db'
 
 // Mock database module
@@ -103,7 +103,7 @@ describe('WebSocket Real-Time Monitoring Integration Tests', () => {
         socket: { writable: true },
       } as any
 
-      const res = {} as VercelResponse
+      const res = {} as ApiResponse
 
       // Simulate connection establishment
       expect(mockWs1.readyState).toBe(WebSocket.OPEN)

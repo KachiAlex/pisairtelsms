@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { Timetable } from './Timetable'
-import { ParentContextProvider } from '../../contexts/ParentContext'
+import { ParentContextProvider } from '../../../contexts/ParentContext'
 
 const mockTimetableData = {
   classSchedule: [
@@ -87,7 +87,7 @@ describe('Timetable', () => {
     })
     await user.click(screen.getByRole('button', { name: /exam/i }))
     await waitFor(() => {
-      expect(screen.getByText('Hall A')).toBeInTheDocument()
+      expect(screen.getByText(/Hall A/)).toBeInTheDocument()
     })
   })
 

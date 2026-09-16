@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { getFinancialAnalytics, type AnalyticsFilters } from '../_lib/analytics/engine.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
@@ -6,7 +6,7 @@ import { requireRole } from '../../_lib/auth-middleware.js'
  * GET /api/tenant/analytics/financial
  * Returns financial analytics including revenue, collections, and payment methods
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

@@ -1,10 +1,10 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { registerDevice, listDevices } from './_lib/biometric-devices.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try { return JSON.parse(req.body) } catch { return null }
@@ -22,7 +22,7 @@ function isValidIpAddress(ip: string): boolean {
  * GET  /api/tenant/biometric-devices  — list devices
  * POST /api/tenant/biometric-devices  — register new device
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { TeacherMessages } from './TeacherMessages'
-import { ParentContextProvider } from '../../contexts/ParentContext'
+import { ParentContextProvider } from '../../../contexts/ParentContext'
 
 const mockMessagesData = {
   conversations: [
@@ -16,7 +16,7 @@ const mockMessagesData = {
       lastMessageTime: '2024-04-01T10:00:00Z',
       unreadCount: 2,
       messages: [
-        { id: 'm1', senderId: 'teacher-1', senderName: 'Mr. Smith', content: 'Please review the homework.', timestamp: '2024-04-01T10:00:00Z', isRead: false },
+        { id: 'm1', senderId: 'teacher-1', senderName: 'Mr. Smith', content: 'The homework is due Friday.', timestamp: '2024-04-01T10:00:00Z', isRead: false },
       ],
     },
     {
@@ -100,7 +100,7 @@ describe('TeacherMessages', () => {
     })
     await user.click(screen.getByText('Mr. Smith'))
     await waitFor(() => {
-      expect(screen.getByText('Please review the homework.')).toBeInTheDocument()
+      expect(screen.getByText('The homework is due Friday.')).toBeInTheDocument()
     })
   })
 

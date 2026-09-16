@@ -39,7 +39,7 @@ const applicationArbitrary = () =>
     status: fc.constantFrom('pending', 'reviewing', 'approved', 'rejected'),
     academicSession: fc.constantFrom('2024/2025', '2025/2026'),
     source: fc.constantFrom('website', 'referral', 'walk-in', 'social-media'),
-    createdAt: fc.date().map(d => d.toISOString()),
+    createdAt: fc.date({ min: new Date('2020-01-01T00:00:00Z'), max: new Date('2030-12-31T00:00:00Z'), noInvalidDate: true }).map(d => d.toISOString()),
   })
 
 describe('StudentEnrollment Pipeline - Property Tests', () => {

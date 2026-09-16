@@ -78,6 +78,11 @@ describe('TeacherAttendanceEntry Component', () => {
     localStorage.clear()
     localStorage.setItem('auth', mockAuth)
     ;(global.fetch as Mock).mockClear()
+    // Default fallback for any unmocked fetch (e.g. the absence-reasons call)
+    ;(global.fetch as Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [] }),
+    } as Response)
   })
 
   describe('Component Rendering', () => {

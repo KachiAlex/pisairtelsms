@@ -1,11 +1,11 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { poolQuery } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 async function ensureAdminTables() {
   }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }

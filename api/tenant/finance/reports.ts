@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import {
@@ -10,7 +10,7 @@ import {
   generateFinancialStatement,
 } from './_lib/reports.js'
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET')
   return res.status(405).json({ error: 'Method not allowed' })
 }
@@ -28,7 +28,7 @@ async function ensureMigrations() {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   await ensureMigrations()
 
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])

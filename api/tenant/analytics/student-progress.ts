@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { getStudentProgressAnalytics, type AnalyticsFilters } from '../_lib/analytics/engine.js'
 
@@ -6,7 +6,7 @@ import { getStudentProgressAnalytics, type AnalyticsFilters } from '../_lib/anal
  * GET /api/tenant/analytics/student-progress
  * Returns student progress analytics including improvement tracking and risk categories
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

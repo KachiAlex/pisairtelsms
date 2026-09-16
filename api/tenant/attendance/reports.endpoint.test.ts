@@ -3,8 +3,8 @@
  * Tests the HTTP endpoint without database dependencies
  */
 
-import { describe, it, expect, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import handler from './reports.js'
 
 vi.mock('../../_lib/auth-middleware.js', () => ({
@@ -24,13 +24,29 @@ const mockDecoded = {
   childrenIds: ['child-123'],
 } as any
 
+function mockAuthenticated(tenantId = 'test-tenant') {
+  mockRequireRole.mockResolvedValue({ ...mockDecoded, tenantId })
+}
+
+function mockUnauthenticated() {
+  mockRequireRole.mockImplementation(async (_req: any, res: any) => {
+    res.status(401).json({ success: false, error: 'Unauthorized: Missing token' })
+    return null
+  })
+}
+
+beforeEach(() => {
+  mockRequireRole.mockReset()
+  mockAuthenticated()
+})
+
 
 
 // ============================================================================
 // Mock Setup
 // ============================================================================
 
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   return {
     method: 'POST',
     headers: {
@@ -40,17 +56,17 @@ function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelReques
     query: {},
     body: {},
     ...overrides,
-  } as VercelRequest
+  } as ApiRequest
 }
 
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const response: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
     send: vi.fn().mockReturnThis(),
     setHeader: vi.fn().mockReturnThis(),
   }
-  return response as VercelResponse
+  return response as ApiResponse
 }
 
 // ============================================================================
@@ -60,6 +76,7 @@ function createMockResponse(): VercelResponse {
 describe('Report Endpoint', () => {
   describe('Authentication', () => {
     it('should reject requests without tenant ID', async () => {
+      mockUnauthenticated()
       const req = createMockRequest({
         headers: {},
       })
@@ -71,7 +88,7 @@ describe('Report Endpoint', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: expect.stringContaining('Tenant context required'),
+          error: expect.stringContaining('Missing token'),
         })
       )
     })
@@ -86,11 +103,6 @@ describe('Report Endpoint', () => {
         },
       })
       const res = createMockResponse()
-
-      // Mock the getReport function to avoid database calls
-      vi.mock('../_lib/report-generator.js', () => ({
-        getReport: vi.fn().mockResolvedValue('CSV content'),
-      }))
 
       // This will fail due to mocking, but we're testing the auth part
       // In a real scenario, this would work
@@ -161,7 +173,7 @@ describe('Report Endpoint', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: expect.stringContaining('csv" or "pdf'),
+          error: expect.stringContaining('"csv", "pdf", or "json"'),
         })
       )
     })

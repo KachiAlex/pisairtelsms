@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../../_lib/http-types.js'
 import { triggerAtRiskNotifications } from '../../_lib/attendance.js'
 import { getBulkNotificationJob } from '../../_lib/guardian-notifications.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'
@@ -10,7 +10,7 @@ import { requireRole } from '../../../_lib/auth-middleware.js'
  * Send bulk notifications to guardians of at-risk students
  * Validates: Requirements 18
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

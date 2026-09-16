@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { sendEmail, sendBulkEmails, verifyEmailConnection, isEmailConfigured } from '../_lib/email.js'
 import { emailTemplates, EmailTemplateKey } from '../_lib/email-templates.js'
@@ -25,7 +25,7 @@ import { emailTemplates, EmailTemplateKey } from '../_lib/email-templates.js'
  *   → Send bulk custom emails
  */
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['tenant_admin', 'super_admin', 'staff'])
   if (!decoded) return
 

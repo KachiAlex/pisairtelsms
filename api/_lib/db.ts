@@ -8,9 +8,9 @@ import { sql } from './sql.js'
 // Legacy db stub for backward compatibility with old Express router files
 export const db = {
   prepare: (queryText: string) => ({
-    all: (...params: any[]) => { throw new Error('Legacy db.prepare().all() not supported in Vercel environment') },
-    get: (...params: any[]) => { throw new Error('Legacy db.prepare().get() not supported in Vercel environment') },
-    run: (...params: any[]) => { throw new Error('Legacy db.prepare().run() not supported in Vercel environment') },
+    all: (...params: any[]) => { throw new Error('Legacy db.prepare().all() is not supported — use sql tagged templates') },
+    get: (...params: any[]) => { throw new Error('Legacy db.prepare().get() is not supported — use sql tagged templates') },
+    run: (...params: any[]) => { throw new Error('Legacy db.prepare().run() is not supported — use sql tagged templates') },
   })
 }
 

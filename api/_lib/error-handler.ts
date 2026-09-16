@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 
 /**
  * Secure error response that doesn't leak sensitive information.
@@ -6,8 +6,8 @@ import type { VercelRequest, VercelResponse } from './http-types.js'
  */
 export function handleError(
   error: unknown,
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   context?: string
 ): void {
   const isProduction = process.env.NODE_ENV === 'production'
@@ -50,10 +50,10 @@ export function handleError(
  * Async handler wrapper that catches errors and applies secure handling.
  */
 export function withErrorHandling(
-  handler: (req: VercelRequest, res: VercelResponse) => Promise<void> | void,
+  handler: (req: ApiRequest, res: ApiResponse) => Promise<void> | void,
   context?: string
-): (req: VercelRequest, res: VercelResponse) => Promise<void> {
-  return async (req: VercelRequest, res: VercelResponse) => {
+): (req: ApiRequest, res: ApiResponse) => Promise<void> {
+  return async (req: ApiRequest, res: ApiResponse) => {
     try {
       await handler(req, res)
     } catch (error) {

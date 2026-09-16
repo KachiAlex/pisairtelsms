@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 import crypto from 'crypto'
 
 // In-memory store for CSRF tokens (for production, use Redis or database)
@@ -45,7 +45,7 @@ export function verifyCSRFToken(sessionId: string, token: string): boolean {
  * Extract CSRF token from request.
  * Checks both header (X-CSRF-Token) and body (csrfToken).
  */
-export function extractCSRFToken(req: VercelRequest): string | null {
+export function extractCSRFToken(req: ApiRequest): string | null {
   // Check header first
   const headerToken = req.headers['x-csrf-token'] as string
   if (headerToken) return headerToken
@@ -62,7 +62,7 @@ export function extractCSRFToken(req: VercelRequest): string | null {
  * Verifies CSRF token for state-changing requests (POST, PUT, DELETE, PATCH).
  * Returns true if verification fails (error response already sent), false if valid.
  */
-export function requireCSRF(req: VercelRequest, res: VercelResponse, sessionId: string): boolean {
+export function requireCSRF(req: ApiRequest, res: ApiResponse, sessionId: string): boolean {
   // Skip CSRF for GET, HEAD, OPTIONS requests
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
     return false

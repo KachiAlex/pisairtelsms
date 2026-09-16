@@ -1,11 +1,11 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { requireCSRF } from '../_lib/csrf.js'
 import { rateLimit } from '../_lib/rate-limit.js'
 import { hashPasswordSecurely, verifyPasswordAnyFormat } from '../_lib/password-hashing.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'GET') {
     return handleGet(req, res)
   } else if (req.method === 'PUT') {
@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function handleGet(req: VercelRequest, res: VercelResponse) {
+async function handleGet(req: ApiRequest, res: ApiResponse) {
   try {
     const decoded = await requireRole(req, res, ['parent'])
     if (!decoded) return
@@ -43,7 +43,7 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function handlePut(req: VercelRequest, res: VercelResponse) {
+async function handlePut(req: ApiRequest, res: ApiResponse) {
   try {
     const decoded = await requireRole(req, res, ['parent'])
     if (!decoded) return
@@ -84,7 +84,7 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function handlePost(req: VercelRequest, res: VercelResponse) {
+async function handlePost(req: ApiRequest, res: ApiResponse) {
   try {
     const decoded = await requireRole(req, res, ['parent'])
     if (!decoded) return

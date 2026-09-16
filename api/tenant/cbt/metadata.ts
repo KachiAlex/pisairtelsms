@@ -3,7 +3,7 @@
  * Provides metadata for exam creation (subjects, classes, tags, etc.)
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { getSubjectNames } from './_lib/subjects.js'
 import { initializeDatabase } from './_lib/db.js'
@@ -54,7 +54,7 @@ async function getAvailableClasses(): Promise<Array<{ id: string; name: string; 
 /**
  * Main handler
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

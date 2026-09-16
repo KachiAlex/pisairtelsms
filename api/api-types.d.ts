@@ -22,7 +22,7 @@ declare module 'express' {
 }
 
 // Legacy db module stubs — these files use a better-sqlite3 style API
-// that doesn't exist in the Vercel/postgres architecture. They are unused
+// that doesn't exist in the Express/Postgres architecture. They are unused
 // legacy code; these stubs just satisfy the type checker.
 declare module '*/_lib/db' {
   export const db: {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import handler from './login'
 
 // Mock jose SignJWT
@@ -63,8 +63,8 @@ vi.mock('../../_lib/jwt-secret', () => ({
 }))
 
 describe('Parent Login API Endpoint', () => {
-  let mockReq: Partial<VercelRequest>
-  let mockRes: Partial<VercelResponse>
+  let mockReq: Partial<ApiRequest>
+  let mockRes: Partial<ApiResponse>
   let statusCode: number
   let responseData: any
 
@@ -95,7 +95,7 @@ describe('Parent Login API Endpoint', () => {
     it('should reject non-POST requests', async () => {
       mockReq.method = 'GET'
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(405)
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Method not allowed' })
@@ -106,7 +106,7 @@ describe('Parent Login API Endpoint', () => {
     it('should reject missing email', async () => {
       mockReq.body = { password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(400)
       expect(responseData.error).toBe('Validation failed')
@@ -115,7 +115,7 @@ describe('Parent Login API Endpoint', () => {
     it('should reject missing password', async () => {
       mockReq.body = { email: 'parent@example.com' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(400)
       expect(responseData.error).toBe('Validation failed')
@@ -124,7 +124,7 @@ describe('Parent Login API Endpoint', () => {
     it('should reject invalid email format', async () => {
       mockReq.body = { email: 'invalid-email', password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(400)
       expect(responseData.error).toBe('Validation failed')
@@ -133,7 +133,7 @@ describe('Parent Login API Endpoint', () => {
     it('should accept valid email formats', async () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       // Should not return 400 for validation
       expect(mockRes.status).not.toHaveBeenCalledWith(400)
@@ -144,7 +144,7 @@ describe('Parent Login API Endpoint', () => {
     it('should reject invalid credentials', async () => {
       mockReq.body = { email: 'wrong@example.com', password: 'wrongpassword' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(401)
       expect(responseData.error).toContain('Invalid email or password')
@@ -153,7 +153,7 @@ describe('Parent Login API Endpoint', () => {
     it('should accept valid credentials', async () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(200)
       expect(responseData.token).toBeDefined()
@@ -169,7 +169,7 @@ describe('Parent Login API Endpoint', () => {
     it('should return JWT token with correct payload', async () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(responseData.token).toBeDefined()
       expect(responseData.token).toContain('mock-token')
@@ -178,7 +178,7 @@ describe('Parent Login API Endpoint', () => {
     it('should return parentId and childrenIds', async () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(responseData.parentId).toBe('parent-001')
       expect(responseData.childrenIds).toEqual(['student-001', 'student-002'])
@@ -188,7 +188,7 @@ describe('Parent Login API Endpoint', () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
       const beforeTime = Date.now()
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
       const afterTime = Date.now()
 
       expect(responseData.expiresAt).toBeDefined()
@@ -200,7 +200,7 @@ describe('Parent Login API Endpoint', () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
       const beforeTime = Date.now()
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       const expiresIn = responseData.expiresAt - beforeTime
       const expectedExpiresIn = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
@@ -215,7 +215,7 @@ describe('Parent Login API Endpoint', () => {
     it('should return 200 status on success', async () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(200)
     })
@@ -223,7 +223,7 @@ describe('Parent Login API Endpoint', () => {
     it('should return JSON response', async () => {
       mockReq.body = { email: 'parent@example.com', password: 'password123' }
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.json).toHaveBeenCalled()
       expect(responseData).toHaveProperty('token')
@@ -240,7 +240,7 @@ describe('Parent Login API Endpoint', () => {
     it('should handle server errors gracefully', async () => {
       mockReq.body = null // This will cause a TypeError caught by the handler
 
-      await handler(mockReq as VercelRequest, mockRes as VercelResponse)
+      await handler(mockReq as ApiRequest, mockRes as ApiResponse)
 
       expect(mockRes.status).toHaveBeenCalledWith(500)
     })

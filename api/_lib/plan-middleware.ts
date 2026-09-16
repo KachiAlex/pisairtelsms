@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 import { poolQuery } from './pg-pool.js'
 import { PLAN_CONFIG, PLAN_RATES, PlanFeatures, PlanType } from '../../src/lib/plans.js'
 import { getTenantIdFromRequest } from './auth-middleware.js'
@@ -36,8 +36,8 @@ async function getPlanConfigFromDB(): Promise<Record<string, any> | null> {
  * @param feature The specific feature within that category
  */
 export async function enforcePlan(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   category: keyof PlanFeatures,
   feature: string
 ): Promise<boolean> {

@@ -92,7 +92,7 @@ ${timetable?.holidays.map(h => `${h.date}: ${h.name}`).join('\n')}
     a.click()
   }
 
-  if (isLoading) {
+  if (isLoading && !timetable) {
     return (
       <div className="space-y-4">
         <div className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>

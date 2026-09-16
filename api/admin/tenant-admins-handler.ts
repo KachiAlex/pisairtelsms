@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { poolQuery } from '../_lib/pg-pool.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import {
@@ -8,7 +8,7 @@ import {
 
 const ADMIN_ROLES = ['tenant_admin', 'Admin', 'Principal', 'admin', 'principal']
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['super_admin'])
   if (!decoded) return
 

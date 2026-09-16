@@ -1,8 +1,8 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { extractTokenFromHeader, extractParentInfoFromJWT, verifyParentChildRelationship } from '../../../src/lib/parentAuth'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'DELETE') {
     res.setHeader('Allow', 'DELETE')
     return res.status(405).json({ error: 'Method not allowed' })

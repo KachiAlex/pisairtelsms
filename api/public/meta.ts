@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { resolveTenantFromRequest, rootDomainFor } from '../_lib/tenant-resolver.js'
 
@@ -19,7 +19,7 @@ function parseSettings(value: unknown): Record<string, unknown> {
  * brand-aware /apply, /inquiry, login pages and the "school not found"
  * fallback. No authentication required.
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300')
 
   try {

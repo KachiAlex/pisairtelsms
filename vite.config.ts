@@ -27,6 +27,19 @@ export default defineConfig({
   },
 
   build: {
-    chunkSizeWarningLimit: 900,
+    // The Cloudflare RealtimeKit SDK (~2.5 MB) is lazy-loaded only when a user
+    // joins a live class, so a large vendor chunk is expected and acceptable.
+    chunkSizeWarningLimit: 3000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Keep the RealtimeKit SDK in its own long-lived cacheable chunk
+          realtimekit: [
+            '@cloudflare/realtimekit-react',
+            '@cloudflare/realtimekit-react-ui',
+          ],
+        },
+      },
+    },
   },
 })

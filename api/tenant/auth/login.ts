@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { SignJWT } from 'jose'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
@@ -10,7 +10,7 @@ import { poolQuery } from '../../_lib/pg-pool.js'
 
 const ADMIN_ROLES = new Set(['tenant_admin', 'Admin', 'Principal', 'admin', 'principal'])
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   setSecurityHeaders(res)
 
   if (req.method !== 'POST') {

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
 import { requireRole, extractToken, verifyToken } from '../_lib/auth-middleware.js';
 import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js';
@@ -16,7 +16,7 @@ import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js';
 async function ensureColumns() {
   }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication for POST/PUT, but allow public GET for branding config
   let tenantId = 'default-tenant';
   let userId = 'system';

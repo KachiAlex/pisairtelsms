@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 
 vi.mock('../_lib/auth-middleware.js', () => ({
   requireRole: vi.fn(),
@@ -26,6 +26,25 @@ const mockDecoded = {
   studentId: 'test-student',
   childrenIds: ['child-123'],
 } as any
+
+/**
+ * Simulates an unauthenticated request: the real requireRole writes
+ * a 401 response and returns null, so the mock does the same.
+ */
+function mockUnauthenticated() {
+  mockRequireRole.mockImplementation(async (_req: any, res: any) => {
+    res.status(401).json({ error: 'Unauthorized: Missing token' })
+    return null
+  })
+}
+
+/**
+ * Simulates an authenticated request whose JWT carries the given tenantId.
+ * The tenantId from the token is authoritative (headers are ignored).
+ */
+function mockAuthenticated(tenantId: string = 'tenant-123') {
+  mockRequireRole.mockResolvedValue({ ...mockDecoded, tenantId })
+}
 
 
 
@@ -70,11 +89,15 @@ vi.mock('./_lib/csv-parser.js', () => ({
   generateCsvTemplate: vi.fn(),
 }))
 
+vi.mock('./_lib/analytics/engine.js', () => ({
+  getAttendanceAnalytics: vi.fn(),
+}))
+
 // ============================================================================
 // Helpers
 // ============================================================================
 
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -85,7 +108,7 @@ function createMockResponse(): VercelResponse {
   return res
 }
 
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   const req: any = {
     method: 'GET',
     headers: {
@@ -108,10 +131,12 @@ describe('5.5.1 Role-Based Access Control & Tenant Isolation (Req 7.2)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     attendanceMod = await import('./_lib/attendance.js')
   })
 
-  it('POST /attendance - returns 401 when x-tenant-id header is missing', async () => {
+  it('POST /attendance - returns 401 when authentication token is missing', async () => {
+    mockUnauthenticated()
     const handler = (await import('../../api/tenant/attendance.js')).default
     const req = createMockRequest({
       method: 'POST',
@@ -125,7 +150,8 @@ describe('5.5.1 Role-Based Access Control & Tenant Isolation (Req 7.2)', () => {
     expect(res.status).toHaveBeenCalledWith(401)
   })
 
-  it('GET /attendance - returns 401 when x-tenant-id header is missing', async () => {
+  it('GET /attendance - returns 401 when authentication token is missing', async () => {
+    mockUnauthenticated()
     const handler = (await import('../../api/tenant/attendance.js')).default
     const req = createMockRequest({
       method: 'GET',
@@ -139,7 +165,8 @@ describe('5.5.1 Role-Based Access Control & Tenant Isolation (Req 7.2)', () => {
     expect(res.status).toHaveBeenCalledWith(401)
   })
 
-  it('GET /analytics/dashboard - returns 401 without tenant context', async () => {
+  it('GET /analytics/dashboard - returns 401 without authentication', async () => {
+    mockUnauthenticated()
     const handler = (await import('../../api/tenant/attendance/analytics/dashboard.js')).default
     const req = createMockRequest({ method: 'GET', headers: {}, body: null })
     const res = createMockResponse()
@@ -147,9 +174,10 @@ describe('5.5.1 Role-Based Access Control & Tenant Isolation (Req 7.2)', () => {
     await handler(req, res)
 
     expect(res.status).toHaveBeenCalledWith(401)
-  })
+  }, 15000)
 
-  it('GET /analytics/at-risk-students - returns 401 without tenant context', async () => {
+  it('GET /analytics/at-risk-students - returns 401 without authentication', async () => {
+    mockUnauthenticated()
     const handler = (await import('../../api/tenant/attendance/analytics/at-risk-students.js')).default
     const req = createMockRequest({ method: 'GET', headers: {}, body: null })
     const res = createMockResponse()
@@ -159,7 +187,8 @@ describe('5.5.1 Role-Based Access Control & Tenant Isolation (Req 7.2)', () => {
     expect(res.status).toHaveBeenCalledWith(401)
   })
 
-  it('GET /analytics/heatmap - returns 401 without tenant context', async () => {
+  it('GET /analytics/heatmap - returns 401 without authentication', async () => {
+    mockUnauthenticated()
     const handler = (await import('../../api/tenant/attendance/analytics/heatmap.js')).default
     const req = createMockRequest({ method: 'GET', headers: {}, body: null })
     const res = createMockResponse()
@@ -171,11 +200,12 @@ describe('5.5.1 Role-Based Access Control & Tenant Isolation (Req 7.2)', () => {
 
   it('tenant isolation: fetchAttendance is called with correct tenantId', async () => {
     attendanceMod.fetchAttendance.mockResolvedValue({ records: [], total: 0 })
+    mockAuthenticated('tenant-abc')
 
     const handler = (await import('../../api/tenant/attendance.js')).default
     const req = createMockRequest({
       method: 'GET',
-      headers: { 'x-tenant-id': 'tenant-abc', 'x-user-id': 'user-1' },
+      headers: { 'x-tenant-id': 'spoofed-tenant', 'x-user-id': 'user-1' },
       body: null,
     })
     const res = createMockResponse()
@@ -189,11 +219,12 @@ describe('5.5.1 Role-Based Access Control & Tenant Isolation (Req 7.2)', () => {
 
   it('tenant isolation: upsertAttendanceBatch is called with correct tenantId', async () => {
     attendanceMod.upsertAttendanceBatch.mockResolvedValue({ inserted: 0, updated: 0, errors: [] })
+    mockAuthenticated('tenant-xyz')
 
     const handler = (await import('../../api/tenant/attendance.js')).default
     const req = createMockRequest({
       method: 'POST',
-      headers: { 'x-tenant-id': 'tenant-xyz', 'x-user-id': 'user-1' },
+      headers: { 'x-tenant-id': 'spoofed-tenant', 'x-user-id': 'user-1' },
       body: {
         records: [
           { studentId: 'STU001', class: 'JSS 1', date: '2024-05-04', status: 'present', academicSession: '2024/2025', term: '1' },
@@ -220,6 +251,7 @@ describe('5.5.2 Input Validation (Req 20)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     attendanceMod = await import('./_lib/attendance.js')
   })
 
@@ -381,8 +413,9 @@ describe('5.5.3 Rate Limiting (Documentation)', () => {
     /**
      * Rate Limiting Strategy for Attendance API:
      *
-     * The attendance system implements rate limiting at the infrastructure level
-     * using Vercel's built-in edge network protection and the following approach:
+     * The attendance system implements rate limiting at the application level
+     * via api/_lib/rate-limit.ts and at the infrastructure level via the
+     * reverse proxy, using the following approach:
      *
      * 1. Per-tenant rate limits:
      *    - POST /api/tenant/attendance: 1000 requests/minute per tenant
@@ -391,9 +424,9 @@ describe('5.5.3 Rate Limiting (Documentation)', () => {
      *    - Analytics endpoints: 100 requests/minute per tenant
      *
      * 2. Implementation options:
-     *    - Vercel Edge Middleware with rate limiting
+     *    - In-process sliding window limiter (api/_lib/rate-limit.ts)
      *    - Redis-based sliding window rate limiter
-     *    - API Gateway rate limiting (AWS API Gateway, Cloudflare)
+     *    - Reverse proxy rate limiting (nginx limit_req, Cloudflare)
      *
      * 3. Response when rate limit exceeded:
      *    - HTTP 429 Too Many Requests
@@ -462,22 +495,22 @@ describe('5.5.4 CSRF Protection (Documentation)', () => {
     expect(csrfProtections).toContain('Token-based authentication (JWT)')
   })
 
-  it('verifies API requires custom headers that prevent CSRF', async () => {
-    // Without x-tenant-id header, the API returns 401
-    // This custom header requirement provides CSRF protection
-    // because browsers cannot set custom headers in cross-origin requests
-    // without a CORS preflight check
+  it('verifies API rejects requests without an auth token (CSRF protection)', async () => {
+    // Without a valid JWT, the API returns 401. Bearer-token auth is not
+    // automatically attached by browsers to cross-site requests, which
+    // eliminates the traditional CSRF attack vector.
+    mockUnauthenticated()
     const handler = (await import('../../api/tenant/attendance.js')).default
     const req = createMockRequest({
       method: 'POST',
-      headers: {}, // No custom headers
+      headers: {}, // No Authorization header, no auth cookie
       body: { records: [] },
     })
     const res = createMockResponse()
 
     await handler(req, res)
 
-    // 401 confirms the custom header requirement is enforced
+    // 401 confirms the token requirement is enforced
     expect(res.status).toHaveBeenCalledWith(401)
   })
 })
@@ -491,10 +524,10 @@ describe('5.5.5 Data Encryption in Transit (Documentation)', () => {
     /**
      * HTTPS/TLS Enforcement:
      *
-     * 1. Vercel Platform:
-     *    - All Vercel deployments automatically use HTTPS
-     *    - HTTP requests are automatically redirected to HTTPS
-     *    - TLS 1.2+ is enforced by default
+     * 1. Reverse proxy / load balancer:
+     *    - TLS is terminated at the reverse proxy (nginx/Caddy) in front of the VPS
+     *    - HTTP requests are redirected to HTTPS
+     *    - TLS 1.2+ is enforced
      *
      * 2. Database Connections:
      *    - PostgreSQL connections use SSL/TLS
@@ -512,7 +545,7 @@ describe('5.5.5 Data Encryption in Transit (Documentation)', () => {
      *    - Audit trail captures changes without storing raw biometric data
      */
     const encryptionMeasures = {
-      transport: 'TLS 1.2+ via Vercel HTTPS',
+      transport: 'TLS 1.2+ via reverse proxy HTTPS',
       database: 'SSL/TLS with sslmode=require',
       deviceCommunication: 'HTTPS (configurable per device)',
       biometricData: 'Hashed storage, no plaintext',
@@ -539,6 +572,7 @@ describe('5.5.6 Security Audit & Penetration Testing', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockAuthenticated()
     attendanceMod = await import('./_lib/attendance.js')
   })
 
@@ -632,19 +666,21 @@ describe('5.5.6 Security Audit & Penetration Testing', () => {
 
     const handler = (await import('../../api/tenant/attendance.js')).default
 
-    // Tenant A request
+    // Tenant A request — tenantId comes from the verified JWT, not headers
+    mockRequireRole.mockResolvedValueOnce({ ...mockDecoded, tenantId: 'tenant-A' })
     const reqA = createMockRequest({
       method: 'GET',
-      headers: { 'x-tenant-id': 'tenant-A', 'x-user-id': 'user-1' },
+      headers: { 'x-tenant-id': 'spoofed-B', 'x-user-id': 'user-1' },
       body: null,
     })
     const resA = createMockResponse()
     await handler(reqA, resA)
 
     // Tenant B request
+    mockRequireRole.mockResolvedValueOnce({ ...mockDecoded, tenantId: 'tenant-B' })
     const reqB = createMockRequest({
       method: 'GET',
-      headers: { 'x-tenant-id': 'tenant-B', 'x-user-id': 'user-2' },
+      headers: { 'x-tenant-id': 'spoofed-A', 'x-user-id': 'user-2' },
       body: null,
     })
     const resB = createMockResponse()

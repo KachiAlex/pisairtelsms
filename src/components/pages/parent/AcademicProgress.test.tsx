@@ -5,17 +5,19 @@ import { AcademicProgress } from './AcademicProgress'
 import { ParentContextProvider } from '../../../contexts/ParentContext'
 
 const mockAcademicData = {
-  subjects: [
-    { subject: 'Mathematics', ca: 15, exam: 65, total: 80, grade: 'A', feedback: 'Excellent performance' },
-    { subject: 'English', ca: 12, exam: 58, total: 70, grade: 'B', feedback: 'Good progress' },
-  ],
-  gpa: 3.8,
-  classAverage: 3.5,
-  upcomingAssessments: [
-    { subject: 'Physics', date: '2024-04-15', type: 'Test' },
-  ],
-  terms: [
+  currentTerm: 'term-1',
+  availableTerms: [
     { id: 'term-1', name: 'First Term' },
+  ],
+  subjects: [
+    { id: 'sub-1', subject: 'Mathematics', caScore: 15, examScore: 65, totalScore: 80, grade: 'A', classAverage: 72, teacherFeedback: 'Excellent performance', trend: 'up' },
+    { id: 'sub-2', subject: 'English', caScore: 12, examScore: 58, totalScore: 70, grade: 'B', classAverage: 68, teacherFeedback: 'Good progress', trend: 'stable' },
+  ],
+  overallGPA: 3.8,
+  classAverage: 3.5,
+  performanceTrend: [],
+  upcomingAssessments: [
+    { id: 'assess-1', subject: 'Physics', type: 'Test', date: '2024-04-15', weightage: 20 },
   ],
 }
 
@@ -78,14 +80,15 @@ describe('AcademicProgress', () => {
   it('should render term selector', async () => {
     renderWithProviders(<AcademicProgress />)
     await waitFor(() => {
-      expect(screen.getByText('Select Term')).toBeInTheDocument()
+      expect(screen.getByRole('combobox')).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'First Term' })).toBeInTheDocument()
     })
   })
 
   it('should display upcoming assessments', async () => {
     renderWithProviders(<AcademicProgress />)
     await waitFor(() => {
-      expect(screen.getByText('Physics')).toBeInTheDocument()
+      expect(screen.getByText(/Physics/)).toBeInTheDocument()
     })
   })
 

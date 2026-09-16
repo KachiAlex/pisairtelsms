@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import {
   fetchStaff, fetchStaffById, createStaffMember, updateStaffMember, deleteStaffMember,
   fetchLeaveRequests, createLeaveRequest, updateLeaveStatus,
@@ -8,12 +8,12 @@ import {
 } from './_lib/staff.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try { return JSON.parse(req.body) } catch { return null }
@@ -21,7 +21,7 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant staff management
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

@@ -3,7 +3,7 @@
  * Tests CSV and PDF export functionality with various filters
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { query, queryOne, queryAll } from '../cbt/_lib/db.js'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -14,12 +14,6 @@ import {
   generatePDFContent,
   type ReportFilter,
 } from '../_lib/report-generator.js'
-
-vi.mock('../cbt/_lib/db.js', () => ({
-  query: vi.fn(),
-  queryOne: vi.fn(),
-  queryAll: vi.fn(),
-}))
 
 // ============================================================================
 // Test Setup
@@ -122,7 +116,7 @@ async function cleanupTestData() {
 // Tests
 // ============================================================================
 
-describe('Attendance Report Generation', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Attendance Report Generation', () => {
   beforeAll(async () => {
     await setupTestData()
   })

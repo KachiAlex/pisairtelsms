@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { HealthWellness } from './HealthWellness'
-import { ParentContextProvider } from '../../contexts/ParentContext'
+import { ParentContextProvider } from '../../../contexts/ParentContext'
 
 const mockHealthData = {
   medicalHistory: [

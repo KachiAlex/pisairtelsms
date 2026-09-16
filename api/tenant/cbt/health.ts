@@ -3,14 +3,14 @@
  * Ensures database is initialized and migrations are run
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { healthCheck, getDatabaseStats, runMigrations, initializeDatabase } from './_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 /**
  * Main handler
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

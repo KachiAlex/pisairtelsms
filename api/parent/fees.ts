@@ -1,10 +1,10 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { verifyParentChildRelationship } from '../../src/lib/parentAuth'
 import { getStudentFeeSummary, getStudentPayments, getFeeAssignments } from '../../api/tenant/finance/_lib/fee-assignments.js'
 import { getFeeStructureWithItems } from '../../api/tenant/finance/_lib/fee-structures.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ error: 'Method not allowed' })

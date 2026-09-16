@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 
 vi.mock('../_lib/auth-middleware.js', () => ({
   requireRole: vi.fn(),
@@ -43,7 +43,7 @@ const TEST_USER_ID = 'user-456'
 /**
  * Mock response object
  */
-function createMockResponse(): VercelResponse {
+function createMockResponse(): ApiResponse {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
@@ -57,7 +57,7 @@ function createMockResponse(): VercelResponse {
 /**
  * Mock request object
  */
-function createMockRequest(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function createMockRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   const req: any = {
     method: 'GET',
     headers: {

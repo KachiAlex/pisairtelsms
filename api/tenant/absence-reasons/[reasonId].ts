@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import {
   getAbsenceReasonById,
   updateAbsenceReason,
@@ -7,12 +7,12 @@ import {
 } from '../_lib/absence-reasons.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function methodNotAllowed(res: VercelResponse, allowed: string[]) {
+function methodNotAllowed(res: ApiResponse, allowed: string[]) {
   res.setHeader('Allow', allowed.join(','))
   return res.status(405).json({ success: false, error: 'Method not allowed' })
 }
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try {
@@ -26,7 +26,7 @@ function parseBody(req: VercelRequest) {
 
 
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant absence reasons
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

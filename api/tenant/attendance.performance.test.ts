@@ -70,6 +70,11 @@ function generateLargeCsvContent(rowCount: number): string {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // mockClear doesn't flush leftover mockResolvedValueOnce values — reset fully
+  vi.mocked(db.query).mockReset()
+  vi.mocked(db.queryOne).mockReset()
+  vi.mocked(db.queryAll).mockReset()
+  vi.mocked(db.transaction).mockReset()
   invalidateAnalyticsCache('tenant-perf')
 })
 
@@ -229,7 +234,8 @@ describe('5.4.3 Analytics Calculation Optimization', () => {
     const cachedCallsMs = Date.now() - start2
 
     // 100 cached calls should be faster than 100x the first call
-    expect(cachedCallsMs).toBeLessThan(firstCallMs * 100)
+    // (floor of 50ms guards against timer granularity when both measure ~0ms)
+    expect(cachedCallsMs).toBeLessThan(Math.max(firstCallMs * 100, 50))
     expect(db.queryOne).toHaveBeenCalledTimes(1)
   })
 

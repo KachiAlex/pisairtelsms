@@ -1,4 +1,4 @@
-import { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { initializeDatabase, query, queryOne } from './cbt/_lib/db.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -73,9 +73,9 @@ async function initializeTable() {
 }
 
 export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-): Promise<void | VercelResponse> {
+  req: ApiRequest,
+  res: ApiResponse
+): Promise<void | ApiResponse> {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

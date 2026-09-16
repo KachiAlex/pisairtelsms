@@ -99,17 +99,19 @@ describe('Results and Scoring - Property-Based Tests', () => {
             const totalMarks = answers.reduce((sum, answer) => sum + answer.totalMarks, 0)
 
             // Create result
+            // getResult maps a snake_case DB row — mock must match that shape
             const result = {
               id: fc.sample(fc.uuid(), 1)[0],
-              examId,
-              studentId,
-              score: expectedScore,
-              totalMarks,
-              percentage: (expectedScore / totalMarks) * 100,
+              exam_id: examId,
+              student_id: studentId,
+              score: String(expectedScore),
+              total_marks: String(totalMarks),
+              percentage: String((expectedScore / totalMarks) * 100),
               status: 'Passed',
-              timeSpent: 60,
-              submittedAt: new Date(),
-              createdAt: new Date(),
+              time_spent: '60',
+              submitted_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              student_name: 'Test Student',
             }
 
             vi.mocked(db.queryOne).mockResolvedValueOnce(result)
@@ -139,17 +141,19 @@ describe('Results and Scoring - Property-Based Tests', () => {
 
             const totalMarks = answers.reduce((sum, answer) => sum + answer.totalMarks, 0)
 
+            // getResult maps a snake_case DB row — mock must match that shape
             const result = {
               id: fc.sample(fc.uuid(), 1)[0],
-              examId,
-              studentId,
-              score: expectedScore,
-              totalMarks,
-              percentage: (expectedScore / totalMarks) * 100,
+              exam_id: examId,
+              student_id: studentId,
+              score: String(expectedScore),
+              total_marks: String(totalMarks),
+              percentage: String((expectedScore / totalMarks) * 100),
               status: 'Passed',
-              timeSpent: 60,
-              submittedAt: new Date(),
-              createdAt: new Date(),
+              time_spent: '60',
+              submitted_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              student_name: 'Test Student',
             }
 
             vi.mocked(db.queryOne).mockResolvedValueOnce(result)
@@ -181,17 +185,19 @@ describe('Results and Scoring - Property-Based Tests', () => {
           async (tenantId, examId, studentId, score, totalMarks) => {
             const passMark = Math.floor(totalMarks / 2)
 
+            // getResult maps a snake_case DB row — mock must match that shape
             const result = {
               id: fc.sample(fc.uuid(), 1)[0],
-              examId,
-              studentId,
-              score,
-              totalMarks,
-              percentage: (score / totalMarks) * 100,
+              exam_id: examId,
+              student_id: studentId,
+              score: String(score),
+              total_marks: String(totalMarks),
+              percentage: String((score / totalMarks) * 100),
               status: score >= passMark ? 'Passed' : 'Failed',
-              timeSpent: 60,
-              submittedAt: new Date(),
-              createdAt: new Date(),
+              time_spent: '60',
+              submitted_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              student_name: 'Test Student',
             }
 
             vi.mocked(db.queryOne).mockResolvedValueOnce(result)
@@ -217,17 +223,19 @@ describe('Results and Scoring - Property-Based Tests', () => {
           async (tenantId, examId, studentId, score, totalMarks) => {
             const passMark = Math.floor(totalMarks / 2)
 
+            // getResult maps a snake_case DB row — mock must match that shape
             const result = {
               id: fc.sample(fc.uuid(), 1)[0],
-              examId,
-              studentId,
-              score,
-              totalMarks,
-              percentage: (score / totalMarks) * 100,
+              exam_id: examId,
+              student_id: studentId,
+              score: String(score),
+              total_marks: String(totalMarks),
+              percentage: String((score / totalMarks) * 100),
               status: score >= passMark ? 'Passed' : 'Failed',
-              timeSpent: 60,
-              submittedAt: new Date(),
-              createdAt: new Date(),
+              time_spent: '60',
+              submitted_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              student_name: 'Test Student',
             }
 
             vi.mocked(db.queryOne).mockResolvedValueOnce(result)
@@ -316,17 +324,19 @@ describe('Results and Scoring - Property-Based Tests', () => {
           studentIdArb,
           fc.integer({ min: 1, max: 100 }),
           async (tenantId, examId, studentId, totalMarks) => {
+            // getResult maps a snake_case DB row — mock must match that shape
             const result = {
               id: fc.sample(fc.uuid(), 1)[0],
-              examId,
-              studentId,
-              score: 0,
-              totalMarks,
-              percentage: 0,
+              exam_id: examId,
+              student_id: studentId,
+              score: String(0),
+              total_marks: String(totalMarks),
+              percentage: String(0),
               status: 'Failed',
-              timeSpent: 60,
-              submittedAt: new Date(),
-              createdAt: new Date(),
+              time_spent: '60',
+              submitted_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              student_name: 'Test Student',
             }
 
             vi.mocked(db.queryOne).mockResolvedValueOnce(result)
@@ -348,17 +358,19 @@ describe('Results and Scoring - Property-Based Tests', () => {
           studentIdArb,
           fc.integer({ min: 1, max: 100 }),
           async (tenantId, examId, studentId, totalMarks) => {
+            // getResult maps a snake_case DB row — mock must match that shape
             const result = {
               id: fc.sample(fc.uuid(), 1)[0],
-              examId,
-              studentId,
-              score: totalMarks,
-              totalMarks,
-              percentage: 100,
+              exam_id: examId,
+              student_id: studentId,
+              score: String(totalMarks),
+              total_marks: String(totalMarks),
+              percentage: String(100),
               status: 'Passed',
-              timeSpent: 60,
-              submittedAt: new Date(),
-              createdAt: new Date(),
+              time_spent: '60',
+              submitted_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              student_name: 'Test Student',
             }
 
             vi.mocked(db.queryOne).mockResolvedValueOnce(result)
@@ -383,17 +395,19 @@ describe('Results and Scoring - Property-Based Tests', () => {
           async (tenantId, examId, studentId, score, totalMarks) => {
             const expectedPercentage = (score / totalMarks) * 100
 
+            // getResult maps a snake_case DB row — mock must match that shape
             const result = {
               id: fc.sample(fc.uuid(), 1)[0],
-              examId,
-              studentId,
-              score,
-              totalMarks,
-              percentage: expectedPercentage,
+              exam_id: examId,
+              student_id: studentId,
+              score: String(score),
+              total_marks: String(totalMarks),
+              percentage: String(expectedPercentage),
               status: 'Passed',
-              timeSpent: 60,
-              submittedAt: new Date(),
-              createdAt: new Date(),
+              time_spent: '60',
+              submitted_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              student_name: 'Test Student',
             }
 
             vi.mocked(db.queryOne).mockResolvedValueOnce(result)

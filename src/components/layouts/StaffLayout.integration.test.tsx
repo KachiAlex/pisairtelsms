@@ -1,17 +1,18 @@
 import React from 'react'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { BrowserRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { StaffLayout } from './StaffLayout'
 
 // Mock the useToast hook
-jest.mock('../ui/use-toast', () => ({
+vi.mock('../ui/use-toast', () => ({
   useToast: () => ({
-    toast: jest.fn(),
+    toast: vi.fn(),
   }),
 }))
 
 // Mock fetch
-global.fetch = jest.fn()
+global.fetch = vi.fn()
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -39,9 +40,29 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
   const mockToken = 'mock-token'
   const mockAuth = JSON.stringify({
     token: mockToken,
+    tenantId: 'tenant-1',
+    expiresAt: Date.now() + 3600000,
     role: 'staff',
     userId: 'staff-123',
   })
+
+  const mockDashboard = {
+    staff: { name: 'Test Teacher', staffId: 'STF-001', department: 'Academic', role: 'Teacher' },
+    todaySchedule: [],
+    pendingLeaveCount: 0,
+    recentAnnouncements: [],
+    recentMessages: [],
+  }
+
+  const mockApiResponse = (url: string) => {
+    let body: any = {}
+    if (url.includes('/api/staff/classes') && url.includes('/students')) body = mockStudents
+    else if (url.includes('/api/staff/classes')) body = mockClasses
+    else if (url.includes('absence-reasons')) body = { data: [] }
+    else if (url.includes('/api/staff/dashboard')) body = mockDashboard
+    else if (url.includes('/api/tenant/attendance')) body = { success: true }
+    return Promise.resolve({ ok: true, json: async () => body } as Response)
+  }
 
   const mockClasses = {
     classes: [
@@ -72,29 +93,28 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     localStorage.clear()
     localStorage.setItem('auth', mockAuth)
-    ;(global.fetch as jest.Mock).mockClear()
+    ;(global.fetch as Mock).mockClear()
+    ;(global.fetch as Mock).mockImplementation((url: any) => mockApiResponse(String(url)))
   })
 
   describe('Navigation Integration', () => {
     it('should render StaffLayout with navigation items', () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
+      
 
       render(
-        <BrowserRouter>
+        <MemoryRouter>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
-      expect(screen.getByText('Dashboard')).toBeInTheDocument()
+      // "Dashboard" appears in both the nav and the header page title
+      expect(screen.getAllByText('Dashboard').length).toBeGreaterThanOrEqual(1)
       expect(screen.getByText('My Timetable')).toBeInTheDocument()
-      expect(screen.getByText('Attendance')).toBeInTheDocument()
+      expect(screen.getByText('My Attendance')).toBeInTheDocument()
+      expect(screen.getByText('Mark Attendance')).toBeInTheDocument()
       expect(screen.getByText('Leave')).toBeInTheDocument()
       expect(screen.getByText('Payslips')).toBeInTheDocument()
       expect(screen.getByText('Communications')).toBeInTheDocument()
@@ -103,36 +123,13 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
     })
 
     it('should highlight Attendance menu item when on attendance page', () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
-
-      // Mock window.location.pathname
-      Object.defineProperty(window, 'location', {
-        value: {
-          pathname: '/staff/attendance',
-          href: 'http://localhost/staff/attendance',
-        },
-        writable: true,
-      })
-
       render(
-        <BrowserRouter initialEntries={['/staff/attendance']}>
+        <MemoryRouter initialEntries={['/staff/attendance']}>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
-      const attendanceButton = screen.getByRole('button', { name: /Attendance/i })
+      const attendanceButton = screen.getByRole('button', { name: 'Mark Attendance' })
       expect(attendanceButton).toHaveClass('bg-blue-50')
       expect(attendanceButton).toHaveClass('text-blue-700')
     })
@@ -140,51 +137,28 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
 
   describe('Attendance Page Rendering', () => {
     it('should render TeacherAttendanceEntry component when attendance route is active', async () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
+      
 
       render(
-        <BrowserRouter initialEntries={['/staff/attendance']}>
+        <MemoryRouter initialEntries={['/staff/attendance']}>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       await waitFor(() => {
         expect(screen.getByText(/Attendance Date/i)).toBeInTheDocument()
-        expect(screen.getByText(/Mark Attendance/i)).toBeInTheDocument()
+        // "Mark Attendance" appears in both the nav and the page title
+        expect(screen.getAllByText(/Mark Attendance/i).length).toBeGreaterThanOrEqual(2)
       })
     })
 
     it('should display students from teacher homeroom', async () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
+      
 
       render(
-        <BrowserRouter initialEntries={['/staff/attendance']}>
+        <MemoryRouter initialEntries={['/staff/attendance']}>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       await waitFor(() => {
@@ -194,24 +168,12 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
     })
 
     it('should display total student count', async () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
+      
 
       render(
-        <BrowserRouter initialEntries={['/staff/attendance']}>
+        <MemoryRouter initialEntries={['/staff/attendance']}>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       await waitFor(() => {
@@ -222,24 +184,12 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
 
   describe('End-to-End Teacher Entry Flow', () => {
     it('should complete full attendance entry workflow', async () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
+      
 
       render(
-        <BrowserRouter initialEntries={['/staff/attendance']}>
+        <MemoryRouter initialEntries={['/staff/attendance']}>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       // Wait for students to load
@@ -269,30 +219,18 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
         expect(screen.getByText(/Confirm Attendance Submission/i)).toBeInTheDocument()
       })
 
-      // Verify summary shows correct counts
-      expect(screen.getByText(/Present/i)).toBeInTheDocument()
-      expect(screen.getByText(/Absent/i)).toBeInTheDocument()
+      // Verify summary shows correct counts (Present/Absent appear per-student too)
+      expect(screen.getAllByText(/Present/i).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Absent/i).length).toBeGreaterThan(0)
     })
 
     it('should navigate between pages without losing state', async () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
+      
 
       const { rerender } = render(
-        <BrowserRouter initialEntries={['/staff/attendance']}>
+        <MemoryRouter initialEntries={['/staff/attendance']}>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       // Wait for attendance page to load
@@ -304,23 +242,13 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
       const dashboardButton = screen.getByRole('button', { name: /Dashboard/i })
       fireEvent.click(dashboardButton)
 
-      // Verify dashboard is shown
+      // Verify dashboard is shown ("Staff Portal" appears in sidebar + header)
       await waitFor(() => {
-        expect(screen.getByText(/Staff Portal/i)).toBeInTheDocument()
+        expect(screen.getAllByText(/Staff Portal/i).length).toBeGreaterThanOrEqual(1)
       })
 
       // Navigate back to attendance
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
-
-      const attendanceButton = screen.getByRole('button', { name: /Attendance/i })
+      const attendanceButton = screen.getByRole('button', { name: 'Mark Attendance' })
       fireEvent.click(attendanceButton)
 
       // Verify attendance page is shown again
@@ -332,37 +260,29 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
 
   describe('Access Control', () => {
     it('should display attendance menu item for staff users', () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
+      
 
       render(
-        <BrowserRouter>
+        <MemoryRouter>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
-      const attendanceItem = screen.getByRole('button', { name: /Attendance/i })
+      const attendanceItem = screen.getByRole('button', { name: 'Mark Attendance' })
       expect(attendanceItem).toBeInTheDocument()
     })
 
     it('should have correct icon for attendance menu item', () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
+
 
       render(
-        <BrowserRouter>
+        <MemoryRouter>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       // The CalendarCheck icon should be rendered for attendance
-      const attendanceButton = screen.getByRole('button', { name: /Attendance/i })
+      const attendanceButton = screen.getByRole('button', { name: 'Mark Attendance' })
       expect(attendanceButton).toBeInTheDocument()
       // Icon is rendered as SVG, we can verify the button exists
       expect(attendanceButton.querySelector('svg')).toBeInTheDocument()
@@ -371,42 +291,27 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
 
   describe('Header Display', () => {
     it('should display correct page title in header when on attendance page', async () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockClasses,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockStudents,
-        })
+      
 
       render(
-        <BrowserRouter initialEntries={['/staff/attendance']}>
+        <MemoryRouter initialEntries={['/staff/attendance']}>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       await waitFor(() => {
-        expect(screen.getByText('Attendance')).toBeInTheDocument()
+        // Header shows the current nav item's label for /staff/attendance
+        expect(screen.getAllByText('Mark Attendance').length).toBeGreaterThanOrEqual(2)
       })
     })
 
     it('should display academic session in header', () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
+      
 
       render(
-        <BrowserRouter>
+        <MemoryRouter>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       expect(screen.getByText(/2024\/2025 Academic Session/i)).toBeInTheDocument()
@@ -415,16 +320,12 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
 
   describe('Sidebar Functionality', () => {
     it('should toggle sidebar on mobile', () => {
-      ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ staff: { name: 'Test Teacher' } }),
-        })
+      
 
       render(
-        <BrowserRouter>
+        <MemoryRouter>
           <StaffLayout />
-        </BrowserRouter>
+        </MemoryRouter>
       )
 
       // Find the menu button (visible on mobile)
@@ -434,7 +335,7 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
       if (menuButton) {
         fireEvent.click(menuButton)
         // Sidebar should be visible after clicking menu
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getAllByText('Dashboard').length).toBeGreaterThanOrEqual(1)
       }
     })
   })

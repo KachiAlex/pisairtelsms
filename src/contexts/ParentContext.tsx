@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
 interface Child {
   id: string
@@ -34,19 +34,23 @@ export function ParentContextProvider({ children: childrenProp }: { children: Re
   }, [])
 
   // Persist selected child to localStorage
-  const setSelectedChild = (child: Child) => {
+  const setSelectedChild = useCallback((child: Child) => {
     setSelectedChildState(child)
     localStorage.setItem('selectedChild', JSON.stringify(child))
-  }
+  }, [])
 
   // Persist children list
-  const setChildren = (newChildren: Child[]) => {
+  const setChildren = useCallback((newChildren: Child[]) => {
     setChildrenState(newChildren)
     // If no child is selected and we have children, select the first one
-    if (!selectedChild && newChildren.length > 0) {
-      setSelectedChild(newChildren[0])
-    }
-  }
+    setSelectedChildState((prev) => {
+      if (!prev && newChildren.length > 0) {
+        localStorage.setItem('selectedChild', JSON.stringify(newChildren[0]))
+        return newChildren[0]
+      }
+      return prev
+    })
+  }, [])
 
   return (
     <ParentContext.Provider value={{ selectedChild, setSelectedChild, children, setChildren }}>

@@ -1,9 +1,9 @@
-import type { VercelRequest, VercelResponse } from './_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from './_lib/http-types.js'
 import { runMigrations, initializeDatabase } from './tenant/cbt/_lib/db.js'
 import { fetchStudentHealthData, createHealthRecord } from './tenant/_lib/studentHealth.js'
 import { requireRole } from './_lib/auth-middleware.js'
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try {
@@ -15,7 +15,7 @@ function parseBody(req: VercelRequest) {
   return req.body
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

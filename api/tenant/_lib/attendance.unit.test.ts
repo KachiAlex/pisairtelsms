@@ -47,6 +47,11 @@ function setupStudentAndClassExists() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // mockClear doesn't flush leftover mockResolvedValueOnce values — reset fully
+  vi.mocked(db.query).mockReset()
+  vi.mocked(db.queryOne).mockReset()
+  vi.mocked(db.queryAll).mockReset()
+  vi.mocked(db.transaction).mockReset()
   invalidateAnalyticsCache('tenant-1')
   // Default transaction mock: execute the callback immediately
   vi.mocked(db.transaction).mockImplementation(async (fn: any) => fn({ query: vi.fn() }))

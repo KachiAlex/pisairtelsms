@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -32,7 +32,7 @@ async function seedDefaultRoles(tenantId: string) {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant roles
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

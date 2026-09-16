@@ -3,7 +3,7 @@
  * REST API for managing question tags catalog
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase } from './_lib/db.js'
 import {
@@ -23,7 +23,7 @@ import {
 // Helper Functions
 // ============================================================================
 
-function validateUserId(userId: string | undefined, res: VercelResponse): boolean {
+function validateUserId(userId: string | undefined, res: ApiResponse): boolean {
   if (!userId) {
     res.status(401).json({ success: false, error: 'Unauthorized' })
     return false
@@ -31,7 +31,7 @@ function validateUserId(userId: string | undefined, res: VercelResponse): boolea
   return true
 }
 
-function parseBody(req: VercelRequest): any {
+function parseBody(req: ApiRequest): any {
   let body = req.body
   if (typeof body === 'string') {
     try { body = JSON.parse(body) } catch { body = null }
@@ -43,7 +43,7 @@ function parseBody(req: VercelRequest): any {
 // Main Handler
 // ============================================================================
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

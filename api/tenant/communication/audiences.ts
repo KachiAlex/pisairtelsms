@@ -1,11 +1,11 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { initializeDatabase } from '../cbt/_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { fetchStudentCount } from '../_lib/students.js'
 import { fetchParentCount } from '../_lib/parents.js'
 import { fetchStaffCount } from '../_lib/staff.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<VercelResponse | void> {
+export default async function handler(req: ApiRequest, res: ApiResponse): Promise<ApiResponse | void> {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Video } from 'lucide-react'
-import { CloudflareLiveClassRoom } from '../CloudflareLiveClassRoom'
+// Lazy-loaded: the RealtimeKit SDK is ~2.4 MB — only fetch when a lesson is joined
+const CloudflareLiveClassRoom = lazy(() =>
+  import('../CloudflareLiveClassRoom').then(m => ({ default: m.CloudflareLiveClassRoom }))
+)
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { getAuthFromStorage } from '../../../lib/auth'
@@ -54,14 +57,16 @@ export function StudentLiveClass() {
 
   if (lesson) {
     return (
-      <CloudflareLiveClassRoom
-        lesson={lesson}
-        classroomName={classroomName}
-        onBack={() => {
-          setLesson(null)
-          setSearchParams({})
-        }}
-      />
+      <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading live class…</div>}>
+        <CloudflareLiveClassRoom
+          lesson={lesson}
+          classroomName={classroomName}
+          onBack={() => {
+            setLesson(null)
+            setSearchParams({})
+          }}
+        />
+      </Suspense>
     )
   }
 

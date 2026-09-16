@@ -1,4 +1,4 @@
-import type { VercelResponse } from './http-types.js'
+import type { ApiResponse } from './http-types.js'
 
 export interface CookieOptions {
   httpOnly?: boolean
@@ -14,7 +14,7 @@ export interface CookieOptions {
  * Set an httpOnly cookie on the response.
  */
 export function setCookie(
-  res: VercelResponse,
+  res: ApiResponse,
   name: string,
   value: string,
   options: CookieOptions = {}
@@ -30,8 +30,8 @@ export function setCookie(
   } = options
 
   // QUAL-10: Secure flag should reflect the actual connection, not just NODE_ENV.
-  // Vercel terminates TLS at the edge and forwards via x-forwarded-proto.
-  // res.req is available because VercelResponse extends http.ServerResponse.
+  // The reverse proxy terminates TLS and forwards via x-forwarded-proto.
+  // res.req is available because ApiResponse extends http.ServerResponse.
   const forwardedProto =
     (res.req?.headers['x-forwarded-proto'] as string | string[] | undefined)
   const proxySaysHttps =
@@ -68,7 +68,7 @@ export function setCookie(
 /**
  * Clear a cookie by setting it to expire in the past.
  */
-export function clearCookie(res: VercelResponse, name: string, options: CookieOptions = {}): void {
+export function clearCookie(res: ApiResponse, name: string, options: CookieOptions = {}): void {
   const { path = '/', domain } = options
   const cookieString = `${name}=; Path=${path}; Expires=Thu, 01 Jan 1970 00:00:00 GMT${domain ? `; Domain=${domain}` : ''}`
   

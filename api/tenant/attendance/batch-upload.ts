@@ -1,11 +1,11 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { parseCsvContent, generateCsvTemplate } from '../_lib/csv-parser.js'
 import { upsertAttendanceBatch, type AttendancePayload } from '../_lib/attendance.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 
 
-function getUserId(req: VercelRequest): string | null {
+function getUserId(req: ApiRequest): string | null {
   return (req.headers['x-user-id'] as string | undefined) || null
 }
 
@@ -21,7 +21,7 @@ function getUserId(req: VercelRequest): string | null {
  *
  * Validates: Requirements 6 (Manual Batch Upload)
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

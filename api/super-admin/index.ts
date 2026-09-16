@@ -1,20 +1,20 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 
 import {
   createOrUpdateSuperAdmin,
   fetchSuperAdmin,
 } from '../_lib/super-admin.js'
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-function badRequest(res: VercelResponse, message: string) {
+function badRequest(res: ApiResponse, message: string) {
   return res.status(400).json({ error: message })
 }
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try {
@@ -31,7 +31,7 @@ function sanitizeString(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     if (req.method === 'GET') {
       const account = await fetchSuperAdmin()

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import tasksApi from './_lib/tasks';
 import { requireRole } from '../_lib/auth-middleware.js';
 
@@ -14,7 +14,7 @@ import { requireRole } from '../_lib/auth-middleware.js';
  *   GET    /api/tenant/tasks/:id/comments           - Get task comments
  *   POST   /api/tenant/tasks/:id/comments           - Add comment
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant tasks
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

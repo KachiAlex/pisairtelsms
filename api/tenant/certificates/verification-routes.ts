@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js';
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js';
 import { requireRole } from '../../_lib/auth-middleware.js';
 import certificateVerificationApi from './verification';
 
@@ -8,7 +8,7 @@ import certificateVerificationApi from './verification';
  *   GET  /api/tenant/certificates/verification?type=verify|verifications|registries|fraud-signals|audit-logs|statistics
  *   POST /api/tenant/certificates/verification  (action: create-verification|create-registry|create-fraud-signal|issue-certificate|revoke-certificate)
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
   const tenantId = decoded.tenantId || 'default-tenant';

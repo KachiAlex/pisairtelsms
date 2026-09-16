@@ -14,6 +14,11 @@ import * as db from './db'
 // Mock database module
 vi.mock('./db')
 
+// Stub tag syncing — tag upserts need real DB rows; tag logic is covered in tags.test.ts
+vi.mock('./tags', () => ({
+  syncQuestionTags: vi.fn().mockResolvedValue(undefined),
+}))
+
 // ============================================================================
 // GENERATORS FOR PROPERTY-BASED TESTING
 // ============================================================================

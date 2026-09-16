@@ -3,7 +3,7 @@
  * Handles GET, PUT, DELETE for specific question by ID
  */
 
-import type { VercelRequest, VercelResponse } from '../../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../../_lib/http-types.js'
 import { requireRole } from '../../../_lib/auth-middleware.js'
 import {
   getQuestion,
@@ -15,7 +15,7 @@ import type { UpdateQuestionInput } from '../_lib/types.js'
 /**
  * Parse request body
  */
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try {
@@ -30,7 +30,7 @@ function parseBody(req: VercelRequest) {
 /**
  * Validate tenant ID
  */
-function validateTenantId(tenantId: string | undefined, res: VercelResponse): boolean {
+function validateTenantId(tenantId: string | undefined, res: ApiResponse): boolean {
   if (!tenantId) {
     res.status(400).json({ error: 'x-tenant-id header is required' })
     return false
@@ -41,7 +41,7 @@ function validateTenantId(tenantId: string | undefined, res: VercelResponse): bo
 /**
  * Validate user ID
  */
-function validateUserId(userId: string | undefined, res: VercelResponse): boolean {
+function validateUserId(userId: string | undefined, res: ApiResponse): boolean {
   if (!userId) {
     res.status(401).json({ error: 'x-user-id header is required' })
     return false
@@ -49,7 +49,7 @@ function validateUserId(userId: string | undefined, res: VercelResponse): boolea
   return true
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

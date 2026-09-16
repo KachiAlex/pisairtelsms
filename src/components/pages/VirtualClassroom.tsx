@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import {
   Video, BookOpen, FileText, ClipboardList, Plus, Search, MoreVertical,
   Users, Calendar, Trash2, Edit, Eye, ArrowLeft, Upload, Link2, Download,
@@ -17,7 +17,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '../ui/select'
-import { CloudflareLiveClassRoom as LiveClassRoom } from './CloudflareLiveClassRoom'
+// Lazy-loaded: the RealtimeKit SDK is ~2.4 MB — only fetch when a live class is joined
+const LiveClassRoom = lazy(() =>
+  import('./CloudflareLiveClassRoom').then(m => ({ default: m.CloudflareLiveClassRoom }))
+)
 import { VirtualClassroomSettings } from './VirtualClassroomSettings'
 import { VirtualClassroomDiscussions } from './VirtualClassroomDiscussions'
 import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../lib/tenantApi'
@@ -232,17 +235,19 @@ export function VirtualClassroom() {
   // Live class view
   if (liveLesson && selectedClassroom) {
     return (
-      <LiveClassRoom
-        lesson={liveLesson}
-        classroomName={selectedClassroom.name}
-        onBack={() => setLiveLesson(null)}
-        onRecordingSaved={(url) => {
-          // Update lesson in state with recording URL
-          setLessons(prev => prev.map(l =>
-            l.id === liveLesson.id ? { ...l, recording_url: url, status: 'completed' } : l
-          ))
-        }}
-      />
+      <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading live class…</div>}>
+        <LiveClassRoom
+          lesson={liveLesson}
+          classroomName={selectedClassroom.name}
+          onBack={() => setLiveLesson(null)}
+          onRecordingSaved={(url) => {
+            // Update lesson in state with recording URL
+            setLessons(prev => prev.map(l =>
+              l.id === liveLesson.id ? { ...l, recording_url: url, status: 'completed' } : l
+            ))
+          }}
+        />
+      </Suspense>
     )
   }
 

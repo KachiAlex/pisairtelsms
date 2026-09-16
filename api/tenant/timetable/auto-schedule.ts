@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from './_lib/db.js'
 import { randomUUID } from 'crypto'
 import { requireRole } from '../../_lib/auth-middleware.js'
@@ -10,7 +10,7 @@ interface SubjectConfig {
   periodsPerWeek: number
 }
 
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
   return req.body
@@ -30,7 +30,7 @@ function rowToEntry(r: any) {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Require authentication - only staff or tenant_admin can access tenant timetable
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return

@@ -2,8 +2,8 @@
  * Device Sync Scheduler
  * Manages automatic syncing of biometric devices at configured intervals
  * 
- * In a Vercel environment, this can be triggered by:
- * 1. External cron service (e.g., EasyCron, AWS EventBridge)
+ * On the VPS, this can be triggered by:
+ * 1. A cron job (system cron, node-cron, or PM2 cron_restart)
  * 2. Scheduled function calls from a separate service
  * 3. Manual triggers via API endpoint
  * 

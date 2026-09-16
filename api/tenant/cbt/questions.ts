@@ -3,7 +3,7 @@
  * Handles CRUD operations for questions, CSV import/export, and filtering
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import {
   createQuestion,
@@ -24,7 +24,7 @@ import type { QuestionFilter, CreateQuestionInput, UpdateQuestionInput } from '.
 /**
  * Parse request body
  */
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try {
@@ -39,7 +39,7 @@ function parseBody(req: VercelRequest) {
 /**
  * Method not allowed response
  */
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST,DELETE')
   return res.status(405).json({ error: 'Method not allowed' })
 }
@@ -47,7 +47,7 @@ function methodNotAllowed(res: VercelResponse) {
 /**
  * Validate tenant ID
  */
-function validateTenantId(tenantId: string | undefined, res: VercelResponse): boolean {
+function validateTenantId(tenantId: string | undefined, res: ApiResponse): boolean {
   if (!tenantId) {
     res.status(400).json({ error: 'x-tenant-id header is required' })
     return false
@@ -58,7 +58,7 @@ function validateTenantId(tenantId: string | undefined, res: VercelResponse): bo
 /**
  * Validate user ID
  */
-function validateUserId(userId: string | undefined, res: VercelResponse): boolean {
+function validateUserId(userId: string | undefined, res: ApiResponse): boolean {
   if (!userId) {
     res.status(401).json({ error: 'x-user-id header is required' })
     return false
@@ -351,7 +351,7 @@ function generateCSV(questions: any[]): string {
  */
 const QUESTION_ACTIONS = new Set(['stats', 'tags', 'subjects', 'export', 'import', 'tag', 'clear'])
 
-function extractQuestionPathParams(req: VercelRequest): { pathId?: string; pathAction?: string } {
+function extractQuestionPathParams(req: ApiRequest): { pathId?: string; pathAction?: string } {
   if (!req.url) return {}
   const pathname = req.url.split('?')[0]
   const segments = pathname.split('/').filter(Boolean)
@@ -364,7 +364,7 @@ function extractQuestionPathParams(req: VercelRequest): { pathId?: string; pathA
   return { pathId: after[0], pathAction: QUESTION_ACTIONS.has(after[1]) ? after[1] : undefined }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 

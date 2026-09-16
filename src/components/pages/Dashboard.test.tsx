@@ -7,6 +7,8 @@ import { it, fc } from '@fast-check/vitest'
  * Property 3: Empty State Display
  */
 
+const validDate = () => fc.date({ min: new Date('2020-01-01T00:00:00Z'), max: new Date('2030-12-31T00:00:00Z'), noInvalidDate: true })
+
 // Generators for DashboardStats
 const dashboardStatsArbitrary = () =>
   fc.record({
@@ -19,7 +21,7 @@ const dashboardStatsArbitrary = () =>
       fc.record({
         type: fc.constantFrom('student_added', 'exam_created', 'attendance_marked'),
         message: fc.string({ minLength: 5, maxLength: 100 }),
-        timestamp: fc.date().map(d => d.toISOString()),
+        timestamp: validDate().map(d => d.toISOString()),
       }),
       { maxLength: 10 }
     ),
@@ -27,9 +29,9 @@ const dashboardStatsArbitrary = () =>
       fc.record({
         className: fc.string({ minLength: 2, maxLength: 10 }),
         studentCount: fc.integer({ min: 0, max: 100 }),
-        teacherCount: fc.option(fc.integer({ min: 1, max: 10 })),
-        examCount: fc.option(fc.integer({ min: 0, max: 20 })),
-        avgScore: fc.option(fc.integer({ min: 0, max: 100 })),
+        teacherCount: fc.option(fc.integer({ min: 1, max: 10 }), { nil: undefined }),
+        examCount: fc.option(fc.integer({ min: 0, max: 20 }), { nil: undefined }),
+        avgScore: fc.option(fc.integer({ min: 0, max: 100 }), { nil: undefined }),
       }),
       { maxLength: 20 }
     ),
@@ -48,7 +50,11 @@ const dashboardStatsArbitrary = () =>
         { maxLength: 12 }
       )
     ),
-  })
+  }).map(stats => ({
+    ...stats,
+    // Domain invariant: active exams are a subset of total exams
+    activeExams: Math.min(stats.activeExams, stats.totalExams),
+  }))
 
 describe('Dashboard Data Rendering - Property Tests', () => {
   describe('Property 2: Dashboard Section Rendering', () => {

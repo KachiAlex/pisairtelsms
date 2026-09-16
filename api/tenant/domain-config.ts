@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { rootDomainFor } from '../_lib/tenant-resolver.js'
@@ -60,12 +60,12 @@ function buildResponse(
   }
 }
 
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,PUT')
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-function parseBody(req: VercelRequest): Partial<TenantDomainPayload> | null {
+function parseBody(req: ApiRequest): Partial<TenantDomainPayload> | null {
   const raw = req.body
   if (!raw) return null
   if (typeof raw === 'string') {
@@ -78,7 +78,7 @@ function parseBody(req: VercelRequest): Partial<TenantDomainPayload> | null {
   return raw as Partial<TenantDomainPayload>
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
   const tenantId = decoded.tenantId
@@ -120,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return methodNotAllowed(res)
 }
 
-async function handlePut(tenantId: string, req: VercelRequest, res: VercelResponse) {
+async function handlePut(tenantId: string, req: ApiRequest, res: ApiResponse) {
   const body = parseBody(req)
   if (!body) {
     return res.status(400).json({ error: 'A JSON body is required.' })

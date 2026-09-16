@@ -3,7 +3,7 @@
  * Handles synchronization of offline exam answers
  */
 
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -14,12 +14,12 @@ import {
   retryFailedSyncs,
 } from './_lib/sync.js'
 import { queryOne } from './_lib/db.js'
-import type { ApiResponse } from './_lib/types.js'
+import type { ApiResponse as ApiResult } from './_lib/types.js'
 
 /**
  * Parse request body
  */
-function parseBody(req: VercelRequest) {
+function parseBody(req: ApiRequest) {
   if (!req.body) return null
   if (typeof req.body === 'string') {
     try {
@@ -34,7 +34,7 @@ function parseBody(req: VercelRequest) {
 /**
  * Method not allowed response
  */
-function methodNotAllowed(res: VercelResponse) {
+function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST')
   return res.status(405).json({ error: 'Method not allowed' })
 }
@@ -42,7 +42,7 @@ function methodNotAllowed(res: VercelResponse) {
 /**
  * Validate tenant ID
  */
-function validateTenantId(tenantId: string | undefined, res: VercelResponse): boolean {
+function validateTenantId(tenantId: string | undefined, res: ApiResponse): boolean {
   if (!tenantId) {
     res.status(400).json({ error: 'x-tenant-id header is required' })
     return false
@@ -53,7 +53,7 @@ function validateTenantId(tenantId: string | undefined, res: VercelResponse): bo
 /**
  * Validate user ID
  */
-function validateUserId(userId: string | undefined, res: VercelResponse): boolean {
+function validateUserId(userId: string | undefined, res: ApiResponse): boolean {
   if (!userId) {
     res.status(401).json({ error: 'x-user-id header is required' })
     return false
@@ -64,7 +64,7 @@ function validateUserId(userId: string | undefined, res: VercelResponse): boolea
 /**
  * Main handler
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
@@ -198,7 +198,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         new Date(timestamp)
       )
 
-      const response: ApiResponse<any> = {
+      const response: ApiResult<any> = {
         success: result.success,
         data: {
           synced: result.synced,
@@ -276,7 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Create queue entry
       const entry = await createSyncQueueEntry(bodyStudentId, bodyExamId, answers)
 
-      const response: ApiResponse<any> = {
+      const response: ApiResult<any> = {
         success: true,
         data: {
           id: entry.id,
@@ -331,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
       }
 
-      const response: ApiResponse<any> = {
+      const response: ApiResult<any> = {
         success: true,
         data: {
           id: entry.id,
@@ -359,7 +359,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const stats = await getSyncStatistics()
 
-      const response: ApiResponse<any> = {
+      const response: ApiResult<any> = {
         success: true,
         data: stats,
         requestId: uuidv4(),
@@ -380,7 +380,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const result = await retryFailedSyncs(tenantId)
 
-      const response: ApiResponse<any> = {
+      const response: ApiResult<any> = {
         success: true,
         data: result,
         requestId: uuidv4(),

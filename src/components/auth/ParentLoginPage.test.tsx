@@ -50,12 +50,11 @@ describe('ParentLoginPage', () => {
       expect(screen.getByRole('button', { name: /forgot password/i })).toBeInTheDocument()
     })
 
-    it('should render demo credentials section', () => {
+    it('should render support footer', () => {
       renderComponent()
 
-      expect(screen.getByText(/demo credentials/i)).toBeInTheDocument()
-      expect(screen.getByText(/parent@example.com/)).toBeInTheDocument()
-      expect(screen.getByText(/password123/)).toBeInTheDocument()
+      expect(screen.getByText(/need help/i)).toBeInTheDocument()
+      expect(screen.getByText(/contact support/i)).toBeInTheDocument()
     })
 
     it('should render page title and description', () => {
@@ -84,8 +83,10 @@ describe('ParentLoginPage', () => {
       const emailInput = screen.getByLabelText(/email address/i)
       fireEvent.change(emailInput, { target: { value: 'invalid-email' } })
 
-      const submitButton = screen.getByRole('button', { name: /sign in/i })
-      fireEvent.click(submitButton)
+      // fireEvent.submit bypasses native type="email" constraint validation,
+      // which would otherwise swallow the submit event before onSubmit runs
+      const form = emailInput.closest('form')!
+      fireEvent.submit(form)
 
       await waitFor(() => {
         expect(screen.getByText(/please enter a valid email address/i)).toBeInTheDocument()

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '../../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { SignJWT } from 'jose'
 import { sql } from '../../_lib/sql.js'
 import crypto from 'crypto'
@@ -20,7 +20,7 @@ function verifyPassword(password: string, stored: string): Promise<boolean> {
   return verifyPasswordAnyFormat(password, stored)
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }

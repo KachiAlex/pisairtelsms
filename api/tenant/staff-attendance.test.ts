@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { VercelRequest, VercelResponse } from '../_lib/http-types.js'
+import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -46,16 +46,16 @@ vi.mock('../_lib/auth-middleware.js', () => ({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function makeReq(method: string, opts: { query?: any; body?: any; headers?: any } = {}): VercelRequest {
+function makeReq(method: string, opts: { query?: any; body?: any; headers?: any } = {}): ApiRequest {
   return {
     method,
     query: opts.query || {},
     body: opts.body || {},
     headers: opts.headers || {},
-  } as unknown as VercelRequest
+  } as unknown as ApiRequest
 }
 
-function makeRes(): VercelResponse & { _status: number; _json: any; _sent: any } {
+function makeRes(): ApiResponse & { _status: number; _json: any; _sent: any } {
   const r: any = {
     _status: 0,
     _json: null,

@@ -1,26 +1,26 @@
-import type { VercelRequest, VercelResponse } from './http-types.js'
+import type { ApiRequest, ApiResponse } from './http-types.js'
 
 interface RateLimitEntry {
   count: number
   resetAt: number
 }
 
-// In-memory store (for production, use Redis or Vercel KV)
+// In-memory store (for production, use Redis)
 const rateLimitStore = new Map<string, RateLimitEntry>()
 
 /**
  * Rate limiting middleware.
  * Limits requests per IP address within a time window.
  *
- * @param req - Vercel request
- * @param res - Vercel response
+ * @param req - API request
+ * @param res - API response
  * @param maxRequests - Maximum requests allowed in the window
  * @param windowMs - Time window in milliseconds
  * @returns true if rate limit exceeded, false otherwise
  */
 export function rateLimit(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   maxRequests: number = 10,
   windowMs: number = 60 * 1000 // 1 minute default
 ): boolean {
@@ -57,7 +57,7 @@ export function rateLimit(
 /**
  * Get identifier for rate limiting (IP address or user ID from token).
  */
-function getIdentifier(req: VercelRequest): string {
+function getIdentifier(req: ApiRequest): string {
   // Try to get user ID from token for authenticated requests
   const authHeader = req.headers.authorization
   if (authHeader && authHeader.startsWith('Bearer ')) {

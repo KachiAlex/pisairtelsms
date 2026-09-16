@@ -142,7 +142,7 @@ export async function resolveTenantFromRequest(
     }
   }
 
-  // 2) Host-derived subdomain — `lincolnhigh.<root-domain>` (Vercel + VPS).
+  // 2) Host-derived subdomain — `lincolnhigh.<root-domain>` (VPS behind a reverse proxy).
   const { slug, rootDomain } = slugFromHost(host)
   if (slug) {
     const found = await findTenantByAlias(slug)

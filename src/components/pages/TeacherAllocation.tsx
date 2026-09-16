@@ -8,6 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Input } from '../ui/input'
 import { Checkbox } from '../ui/checkbox'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -53,6 +60,7 @@ export function TeacherAllocation() {
   const [substitutionLog, setSubstitutionLog] = useState<SubLog[]>([])
   const [editableSlots, setEditableSlots] = useState<(AllocationRow & { id: number; assignedTeacher: string })[]>([])
   const [search, setSearch] = useState('')
+  const [savingRow, setSavingRow] = useState<string | null>(null)
 
   const loadAll = useCallback(async () => {
     const headers = tenantHeaders()
@@ -95,6 +103,30 @@ export function TeacherAllocation() {
       }
     } catch {
       toast({ title: 'Network error', variant: 'destructive' })
+    }
+  }
+
+  const handleAssignRow = async (row: AllocationRow, teacher: string) => {
+    const key = `${row.class}::${row.subject}`
+    setSavingRow(key)
+    try {
+      const res = await tenantApiPost(`${BASE}?action=assign`, {
+        assignments: [{ class: row.class, subject: row.subject, teacher }],
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast({
+          title: teacher ? `${row.class} / ${row.subject} assigned` : 'Slot opened',
+          description: teacher ? `Teacher: ${teacher}` : 'No teacher assigned.',
+        })
+        loadAll()
+      } else {
+        toast({ title: 'Assignment failed', description: data.error, variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' })
+    } finally {
+      setSavingRow(null)
     }
   }
 
@@ -316,7 +348,29 @@ export function TeacherAllocation() {
                     <TableRow key={`${row.class}-${row.subject}`}>
                       <TableCell className="font-semibold text-gray-900">{row.class}</TableCell>
                       <TableCell>{row.subject}</TableCell>
-                      <TableCell className={row.teacher === 'Vacant' || !row.teacher ? 'text-rose-600 font-semibold' : ''}>{row.teacher || 'Vacant'}</TableCell>
+                      <TableCell>
+                        <Select
+                          value={row.teacher || ''}
+                          onValueChange={(teacher) => handleAssignRow(row, teacher)}
+                          disabled={savingRow === `${row.class}::${row.subject}`}
+                        >
+                          <SelectTrigger className="w-44">
+                            <SelectValue placeholder="Vacant" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Vacant</SelectItem>
+                            {teacherCards
+                              .sort((a, b) => {
+                                const aMatch = (a.subjects || []).includes(row.subject) ? -1 : 0
+                                const bMatch = (b.subjects || []).includes(row.subject) ? -1 : 0
+                                return aMatch - bMatch || a.name.localeCompare(b.name)
+                              })
+                              .map((t) => (
+                                <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={row.coverage === 'Assigned' ? 'secondary' : 'outline'} className="text-xs">
                           {row.coverage}

@@ -137,9 +137,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           }
         }
         for (const a of assignments) {
+          const teacherName = a.teacher || ''
           await sql`
             UPDATE teacher_allocation_slots
-            SET teacher = ${a.teacher}, coverage = 'Assigned', warnings = GREATEST(warnings - 1, 0)
+            SET teacher = NULLIF(${teacherName}, ''),
+                coverage = CASE WHEN ${teacherName} = '' THEN 'Open' ELSE 'Assigned' END,
+                warnings = GREATEST(warnings - 1, 0)
             WHERE tenant_id = ${tenantId} AND class = ${a.class} AND subject = ${a.subject}`
         }
         // Recompute allocation_periods / risk_flag for affected teachers.

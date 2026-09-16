@@ -79,7 +79,7 @@ const SUBJECTS = [
   ['CCA', 'Cultural and Creative Arts', JSS, 'Core', 'Arts', 'Visual arts, music, drama and cultural appreciation'],
   ['PHE', 'Physical and Health Education', JSS, 'Core', 'Vocational & Technical', 'Physical fitness, sports, hygiene and health education'],
   ['HEC', 'Home Economics', JSS, 'Core', 'Vocational & Technical', 'Food and nutrition, clothing, home management and family living'],
-  ['ICT', 'Computer Studies / ICT', JSS, 'Core', 'ICT', 'Computer fundamentals, word processing, internet and digital literacy'],
+  ['ICT', 'Computer Studies', JSS, 'Core', 'ICT', 'Computer fundamentals, word processing, internet and digital literacy'],
 
   // ---- Senior secondary: Sciences ----
   ['BIO', 'Biology', SS, 'Core', 'Sciences', 'Living organisms, ecology, genetics and human physiology'],

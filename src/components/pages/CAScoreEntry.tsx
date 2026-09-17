@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Save, Send, CheckCircle2, AlertCircle, RefreshCw, Users, Loader2, CalendarCheck } from 'lucide-react'
+import { Save, Send, CheckCircle2, AlertCircle, RefreshCw, Users, Loader2, CalendarCheck, Search } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -9,6 +9,8 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Checkbox } from '../ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
 import { ClassArmSelect } from '../ui/class-arm-select'
 import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
@@ -57,6 +59,7 @@ export function CAScoreEntry() {
   const [loadingSubmissions, setLoadingSubmissions] = useState(false)
   const [autoFillingAttendance, setAutoFillingAttendance] = useState(false)
   const [autoFilledStudents, setAutoFilledStudents] = useState<Set<string>>(new Set())
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [caConfig, setCaConfig] = useState<CAConfigShape | null>(null)
   // "Marked out of" per component — defaults to 100 (i.e. raw = percentage,
   // same as before). Change to e.g. 20 when the test was marked out of 20.
@@ -210,13 +213,19 @@ export function CAScoreEntry() {
     setScoreInputs(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
   }
 
-  const handleAddStudent = () => {
-    const studentId = prompt('Enter student ID (or select a class to load the full roster):')
-    if (!studentId || scoreInputs[studentId]) return
-    setScoreInputs(prev => ({
-      ...prev,
-      [studentId]: { studentId, studentName: studentId, testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '' },
-    }))
+  const handleAddStudents = (students: { id: string; name: string }[]) => {
+    setScoreInputs(prev => {
+      const next = { ...prev }
+      for (const s of students) {
+        if (!next[s.id]) {
+          next[s.id] = {
+            studentId: s.id, studentName: s.name || s.id,
+            testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '',
+          }
+        }
+      }
+      return next
+    })
   }
 
   // Client-side guard: a raw mark can't exceed its component's "marked out of".
@@ -468,7 +477,7 @@ export function CAScoreEntry() {
                   {loadingScores ? 'Loading scores...' : `${Object.keys(scoreInputs).length} students`}
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleAddStudent}>Add student</Button>
+                  <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>Add student</Button>
                   <Button variant="outline" size="sm" onClick={handleAutoFillAttendance} disabled={autoFillingAttendance || !selectedClass || !academicSession || !term}>
                     {autoFillingAttendance ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CalendarCheck className="h-4 w-4 mr-2" />}
                     Auto-fill Attendance
@@ -541,6 +550,14 @@ export function CAScoreEntry() {
         </CardContent>
       </Card>
 
+      <StudentPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        existingIds={new Set(Object.keys(scoreInputs))}
+        defaultClass={selectedClass}
+        onAdd={handleAddStudents}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Teacher Submission Feed</CardTitle>
@@ -587,4 +604,164 @@ export function CAScoreEntry() {
     </div>
   )
 }
+interface PickerStudent { id: string; name: string; class?: string; admissionNo?: string }
+
+function StudentPickerDialog({
+  open, onOpenChange, existingIds, defaultClass, onAdd,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  existingIds: Set<string>
+  defaultClass: string
+  onAdd: (students: { id: string; name: string }[]) => void
+}) {
+  const [students, setStudents] = useState<PickerStudent[]>([])
+  const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const [classFilter, setClassFilter] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!open) return
+    setSearch('')
+    setSelected(new Set())
+    setClassFilter(defaultClass || '__all__')
+    setLoading(true)
+    tenantApiGet('/api/tenant/students')
+      .then(r => r.json())
+      .then(data => {
+        const list: PickerStudent[] = (data.data || []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          class: s.class,
+          admissionNo: s.admissionNo || s.admission_number || s.admission_no || '',
+        }))
+        setStudents(list)
+      })
+      .catch(() => setStudents([]))
+      .finally(() => setLoading(false))
+  }, [open, defaultClass])
+
+  const classOptions = Array.from(new Set(students.map(s => s.class).filter(Boolean) as string[])).sort()
+
+  const filtered = students.filter(s => {
+    if (classFilter && classFilter !== '__all__' && s.class !== classFilter) return false
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    return (s.name || '').toLowerCase().includes(q)
+      || (s.id || '').toLowerCase().includes(q)
+      || (s.admissionNo || '').toLowerCase().includes(q)
+  })
+
+  const addable = filtered.filter(s => !existingIds.has(s.id))
+  const allFilteredSelected = addable.length > 0 && addable.every(s => selected.has(s.id))
+
+  const toggleAll = () => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allFilteredSelected) {
+        for (const s of addable) next.delete(s.id)
+      } else {
+        for (const s of addable) next.add(s.id)
+      }
+      return next
+    })
+  }
+
+  const toggleOne = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add students</DialogTitle>
+          <DialogDescription>
+            Pick individual students, or filter by class and select all. Students already in the grid are skipped.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search name, ID, or admission no"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={classFilter} onValueChange={setClassFilter}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="All classes" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All classes</SelectItem>
+              {classOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="rounded-lg border border-gray-100">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={allFilteredSelected}
+                onCheckedChange={toggleAll}
+                disabled={addable.length === 0}
+              />
+              <span className="font-medium">Select all</span>
+            </label>
+            <span className="text-xs text-gray-400">{filtered.length} shown · {selected.size} selected</span>
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {loading && <p className="text-sm text-gray-500 text-center py-8">Loading students…</p>}
+            {!loading && filtered.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-8">No students match this filter.</p>
+            )}
+            {!loading && filtered.map(s => {
+              const already = existingIds.has(s.id)
+              return (
+                <label
+                  key={s.id}
+                  className={`flex items-center gap-3 px-3 py-2 border-b border-gray-50 text-sm ${already ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
+                >
+                  <Checkbox
+                    checked={already || selected.has(s.id)}
+                    disabled={already}
+                    onCheckedChange={() => toggleOne(s.id)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-gray-900 truncate">{s.name || s.id}</p>
+                    <p className="text-xs text-gray-400">{s.id}{s.admissionNo ? ` · ${s.admissionNo}` : ''}</p>
+                  </div>
+                  <span className="text-xs text-gray-500 shrink-0">{s.class}{already ? ' · added' : ''}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            disabled={selected.size === 0}
+            onClick={() => {
+              const chosen = students.filter(s => selected.has(s.id) && !existingIds.has(s.id))
+              onAdd(chosen)
+              onOpenChange(false)
+            }}
+          >
+            Add {selected.size > 0 ? `${selected.size} ` : ''}student{selected.size === 1 ? '' : 's'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default CAScoreEntry;

@@ -350,16 +350,17 @@ export function TeacherAllocation() {
                       <TableCell>{row.subject}</TableCell>
                       <TableCell>
                         <Select
-                          value={row.teacher || ''}
-                          onValueChange={(teacher) => handleAssignRow(row, teacher)}
+                          value={row.teacher || '__vacant__'}
+                          onValueChange={(v) => handleAssignRow(row, v === '__vacant__' ? '' : v)}
                           disabled={savingRow === `${row.class}::${row.subject}`}
                         >
                           <SelectTrigger className="w-44">
                             <SelectValue placeholder="Vacant" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Vacant</SelectItem>
+                            <SelectItem value="__vacant__">Vacant</SelectItem>
                             {teacherCards
+                              .filter((t) => t.name)
                               .sort((a, b) => {
                                 const aMatch = (a.subjects || []).includes(row.subject) ? -1 : 0
                                 const bMatch = (b.subjects || []).includes(row.subject) ? -1 : 0

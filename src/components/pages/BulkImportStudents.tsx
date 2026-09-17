@@ -76,7 +76,7 @@ export function BulkImportStudents({ open, onClose, onImport, currentStudentCoun
               .map((row, index) => {
               const student: Student = {
                 id: (currentStudentCount + index + 1).toString(),
-                admissionNo: `SCH/2024/${String(currentStudentCount + index + 1).padStart(3, '0')}`,
+                admissionNo: '',
                 name: row['Name'] || row['name'] || '',
                 class: row['Class'] || row['class'] || '',
                 arm: row['Arm'] || row['arm'] || 'A',
@@ -117,7 +117,7 @@ export function BulkImportStudents({ open, onClose, onImport, currentStudentCoun
             headers.forEach((h, i) => obj[h] = row[i] || '')
             const student: Student = {
               id: (currentStudentCount + index + 1).toString(),
-              admissionNo: `SCH/2024/${String(currentStudentCount + index + 1).padStart(3, '0')}`,
+              admissionNo: '',
               name: obj['Name'] || obj['name'] || '',
               class: obj['Class'] || obj['class'] || '',
               arm: obj['Arm'] || obj['arm'] || 'A',
@@ -247,7 +247,7 @@ export function BulkImportStudents({ open, onClose, onImport, currentStudentCoun
                   <TableBody>
                     {parsedData.map((student, index) => (
                       <TableRow key={index} className={errors.some(e => e.row === index + 1) ? 'bg-red-50' : ''}>
-                        <TableCell>{student.admissionNo}</TableCell>
+                        <TableCell className="text-gray-400 italic">{student.admissionNo || 'Auto-assigned'}</TableCell>
                         <TableCell>{student.name}</TableCell>
                         <TableCell>{student.class}</TableCell>
                         <TableCell>{student.arm}</TableCell>

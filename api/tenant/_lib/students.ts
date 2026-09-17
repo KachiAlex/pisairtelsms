@@ -39,17 +39,16 @@ export interface StudentPayload {
  * Generate a unique admission number for a tenant using their configured format.
  * Tokens: {PREFIX} = first 3 letters of school name, {YEAR} = current year, {SEQ} = padded count
  *
+ * The sequence is per prefix+year: the first student registered in 2027 gets
+ * .../2027/001, not a continuation of the all-time student count. The next
+ * sequence is derived from the highest existing suffix under the resolved
+ * prefix (soft-deleted students included — issued numbers are never reused).
+ *
  * `attempt` is used by the retry loop in createStudent to bump the sequence
  * when a concurrent insert has already claimed the calculated number.
  */
 async function generateAdmissionNo(tenantId: string, attempt = 0): Promise<string> {
   const year = new Date().getFullYear();
-
-  const row = await queryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1`,
-    [tenantId]
-  );
-  const next = parseInt(row?.count || '0') + 1 + attempt;
 
   let format = '{PREFIX}/{YEAR}/{SEQ}';
   let digits = 4;
@@ -64,6 +63,30 @@ async function generateAdmissionNo(tenantId: string, attempt = 0): Promise<strin
     }
   } catch {
     // fall back to defaults if settings fetch fails
+  }
+
+  let next: number;
+  const seqIdx = format.indexOf('{SEQ}');
+  if (seqIdx >= 0) {
+    // Resolve everything before {SEQ} (e.g. 'KTX/2026/') and take the max
+    // numeric suffix among admission numbers under that prefix.
+    const prefixPart = format.slice(0, seqIdx)
+      .replace('{PREFIX}', prefix)
+      .replace('{YEAR}', String(year));
+    const likePattern = prefixPart.replace(/[%_\\]/g, (m) => `\\${m}`) + '%';
+    const row = await queryOne<{ max: number | null }>(
+      `SELECT MAX(CAST(NULLIF(regexp_replace(substr(admission_no, $2), '\\D', '', 'g'), '') AS INTEGER)) AS max
+       FROM students
+       WHERE tenant_id = $1 AND admission_no LIKE $3`,
+      [tenantId, prefixPart.length + 1, likePattern]
+    );
+    next = (row?.max ?? 0) + 1 + attempt;
+  } else {
+    const row = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1`,
+      [tenantId]
+    );
+    next = parseInt(row?.count || '0') + 1 + attempt;
   }
 
   const seq = String(next).padStart(digits, '0');

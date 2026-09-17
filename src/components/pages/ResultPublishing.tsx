@@ -35,6 +35,8 @@ interface ClassSummary {
 interface PublishedResult {
   class: string
   student_id: string
+  student_name?: string
+  admission_no?: string
   published_at: string
   subjects: number
   overall_total: number
@@ -323,7 +325,7 @@ export function ResultPublishing() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Class</TableHead>
-                  <TableHead>Student ID</TableHead>
+                  <TableHead>Student</TableHead>
                   <TableHead>Subjects</TableHead>
                   <TableHead>Overall total</TableHead>
                   <TableHead>Average</TableHead>
@@ -336,7 +338,12 @@ export function ResultPublishing() {
                 {publishedList.map((r, i) => (
                   <TableRow key={`${r.class}-${r.student_id}-${i}`}>
                     <TableCell className="font-medium text-gray-900">{r.class}</TableCell>
-                    <TableCell className="text-gray-600">{r.student_id}</TableCell>
+                    <TableCell className="font-medium text-gray-900">
+                      {r.student_name || r.student_id}
+                      {(r.admission_no || r.student_name) && (
+                        <p className="text-xs text-gray-400 font-normal">{r.admission_no || r.student_id}</p>
+                      )}
+                    </TableCell>
                     <TableCell>{r.subjects}</TableCell>
                     <TableCell>{Number(r.overall_total).toFixed(2)}</TableCell>
                     <TableCell>{Number(r.overall_average).toFixed(2)}%</TableCell>

@@ -26,14 +26,14 @@ export function getPool(): Pool {
 
 export async function poolQuery<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: (string | number | boolean | null | Date | undefined)[]
+  params?: (string | number | boolean | null | Date | undefined | string[])[]
 ): Promise<QueryResult<T>> {
   return getPool().query<T>(text, params);
 }
 
 export async function poolQueryOne<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: (string | number | boolean | null | Date | undefined)[]
+  params?: (string | number | boolean | null | Date | undefined | string[])[]
 ): Promise<T | null> {
   const result = await poolQuery<T>(text, params);
   return result.rows[0] || null;

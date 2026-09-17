@@ -16,6 +16,7 @@ import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
 
 interface RecomputeDetail {
   studentId: string
+  studentName?: string
   subject: string
   class: string
   oldTotal: number
@@ -24,6 +25,8 @@ interface RecomputeDetail {
 
 interface CompiledResultRow {
   student_id: string
+  student_name?: string
+  admission_no?: string
   subject: string
   class: string
   total_score: number
@@ -46,6 +49,8 @@ interface CompiledResultRow {
 interface ScoreSummary {
   id: string
   studentId: string
+  studentName?: string
+  admissionNo?: string
   subject: string
   class: string
   totalScore: number
@@ -308,7 +313,10 @@ export function ResultComputation() {
                   const isPositive = d.newTotal > d.oldTotal
                   return (
                     <TableRow key={i}>
-                      <TableCell className="font-medium text-gray-900">{d.studentId}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        {d.studentName || d.studentId}
+                        {d.studentName && <p className="text-xs text-gray-400 font-normal">{d.studentId}</p>}
+                      </TableCell>
                       <TableCell>{d.subject}</TableCell>
                       <TableCell>{d.class}</TableCell>
                       <TableCell>{d.oldTotal}</TableCell>
@@ -366,7 +374,12 @@ export function ResultComputation() {
               <TableBody>
                 {compiledResults.slice(0, 50).map((r, i) => (
                   <TableRow key={i}>
-                    <TableCell className="font-medium text-gray-900">{r.student_id}</TableCell>
+                    <TableCell className="font-medium text-gray-900">
+                      {r.student_name || r.student_id}
+                      {(r.admission_no || r.student_name) && (
+                        <p className="text-xs text-gray-400 font-normal">{r.admission_no || r.student_id}</p>
+                      )}
+                    </TableCell>
                     <TableCell>{r.subject}</TableCell>
                     <TableCell>{r.class}</TableCell>
                     <TableCell className="font-medium">{Number(r.total_score)}</TableCell>
@@ -410,7 +423,7 @@ export function ResultComputation() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student ID</TableHead>
+                  <TableHead>Student</TableHead>
                   <TableHead>Subject</TableHead>
                   <TableHead>Class</TableHead>
                   <TableHead>Total Score</TableHead>
@@ -421,7 +434,12 @@ export function ResultComputation() {
               <TableBody>
                 {allScores.slice(0, 50).map((score) => (
                   <TableRow key={score.id}>
-                    <TableCell className="font-medium text-gray-900">{score.studentId}</TableCell>
+                    <TableCell className="font-medium text-gray-900">
+                      {score.studentName || score.studentId}
+                      {(score.admissionNo || score.studentName) && (
+                        <p className="text-xs text-gray-400 font-normal">{score.admissionNo || score.studentId}</p>
+                      )}
+                    </TableCell>
                     <TableCell>{score.subject}</TableCell>
                     <TableCell>{score.class}</TableCell>
                     <TableCell className="font-medium">{score.totalScore}</TableCell>

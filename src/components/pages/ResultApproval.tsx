@@ -17,6 +17,8 @@ import { tenantApiGet, tenantApiPut, tenantApiPost } from '../../lib/tenantApi'
 interface CompiledRow {
   id: string
   student_id: string
+  student_name?: string
+  admission_no?: string
   subject: string
   class: string
   academic_session: string
@@ -317,7 +319,12 @@ export function ResultApproval() {
               <TableBody>
                 {compiled.slice(0, 100).map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="font-medium text-gray-900">{r.student_id}</TableCell>
+                    <TableCell className="font-medium text-gray-900">
+                      {r.student_name || r.student_id}
+                      {(r.admission_no || r.student_name) && (
+                        <p className="text-xs text-gray-400 font-normal">{r.admission_no || r.student_id}</p>
+                      )}
+                    </TableCell>
                     <TableCell>{r.subject}</TableCell>
                     <TableCell>{r.class}</TableCell>
                     <TableCell className="font-medium">{Number(r.total_score)}</TableCell>

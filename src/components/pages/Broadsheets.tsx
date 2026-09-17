@@ -23,6 +23,7 @@ interface SubjectEntry {
 interface BroadsheetStudent {
   studentId: string
   studentName: string
+  admissionNo: string
   classPosition: number
   totalStudents: number
   overallTotal: number
@@ -113,7 +114,7 @@ export function Broadsheets() {
         const entry = s.subjects[subj]
         return entry ? String(entry.score) : '-'
       })
-      return [String(s.classPosition), s.studentId, s.studentName, ...scores, String(s.overallTotal), String(s.overallAverage), String(s.attendancePercent)]
+      return [String(s.classPosition), s.admissionNo || s.studentId, s.studentName, ...scores, String(s.overallTotal), String(s.overallAverage), String(s.attendancePercent)]
     })
     const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -129,7 +130,8 @@ export function Broadsheets() {
   const filteredStudents = data
     ? data.students.filter(s =>
         s.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.studentId.toLowerCase().includes(searchQuery.toLowerCase())
+        s.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.admissionNo || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     : []
 
@@ -309,7 +311,7 @@ export function Broadsheets() {
                         <TableCell className="font-medium text-gray-900 sticky left-0 bg-white">{student.classPosition}</TableCell>
                         <TableCell className="font-medium text-gray-900 sticky left-0 bg-white">
                           {student.studentName}
-                          <p className="text-xs text-gray-400">{student.studentId}</p>
+                          <p className="text-xs text-gray-400">{student.admissionNo || student.studentId}</p>
                         </TableCell>
                         {data.subjects.map(subj => {
                           const entry = student.subjects[subj]

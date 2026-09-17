@@ -92,38 +92,44 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       let result
       if (className) {
         result = await sql`
-          SELECT DISTINCT class, student_id,
-            MAX(compiled_at) AS published_at,
+          SELECT cr.class, cr.student_id,
+            MAX(s.name) AS student_name,
+            MAX(s.admission_no) AS admission_no,
+            MAX(cr.compiled_at) AS published_at,
             COUNT(*)::int AS subjects,
-            MAX(overall_total) AS overall_total,
-            MAX(overall_average) AS overall_average,
-            MAX(class_position) AS class_position,
-            MAX(attendance_percent) AS attendance_percent
-          FROM compiled_results
-          WHERE tenant_id = ${tenantId}
-            AND academic_session = ${academicSession}
-            AND term = ${term}
-            AND class = ${className}
-            AND status = 'published'
-          GROUP BY class, student_id
-          ORDER BY class, class_position
+            MAX(cr.overall_total) AS overall_total,
+            MAX(cr.overall_average) AS overall_average,
+            MAX(cr.class_position) AS class_position,
+            MAX(cr.attendance_percent) AS attendance_percent
+          FROM compiled_results cr
+          LEFT JOIN students s ON s.id::text = cr.student_id AND s.tenant_id = ${tenantId}
+          WHERE cr.tenant_id = ${tenantId}
+            AND cr.academic_session = ${academicSession}
+            AND cr.term = ${term}
+            AND cr.class = ${className}
+            AND cr.status = 'published'
+          GROUP BY cr.class, cr.student_id
+          ORDER BY cr.class, class_position
         `
       } else {
         result = await sql`
-          SELECT DISTINCT class, student_id,
-            MAX(compiled_at) AS published_at,
+          SELECT cr.class, cr.student_id,
+            MAX(s.name) AS student_name,
+            MAX(s.admission_no) AS admission_no,
+            MAX(cr.compiled_at) AS published_at,
             COUNT(*)::int AS subjects,
-            MAX(overall_total) AS overall_total,
-            MAX(overall_average) AS overall_average,
-            MAX(class_position) AS class_position,
-            MAX(attendance_percent) AS attendance_percent
-          FROM compiled_results
-          WHERE tenant_id = ${tenantId}
-            AND academic_session = ${academicSession}
-            AND term = ${term}
-            AND status = 'published'
-          GROUP BY class, student_id
-          ORDER BY class, class_position
+            MAX(cr.overall_total) AS overall_total,
+            MAX(cr.overall_average) AS overall_average,
+            MAX(cr.class_position) AS class_position,
+            MAX(cr.attendance_percent) AS attendance_percent
+          FROM compiled_results cr
+          LEFT JOIN students s ON s.id::text = cr.student_id AND s.tenant_id = ${tenantId}
+          WHERE cr.tenant_id = ${tenantId}
+            AND cr.academic_session = ${academicSession}
+            AND cr.term = ${term}
+            AND cr.status = 'published'
+          GROUP BY cr.class, cr.student_id
+          ORDER BY cr.class, class_position
         `
       }
       return res.json({ success: true, data: result.rows })

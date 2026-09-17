@@ -44,6 +44,8 @@ async function getCAConfigOverride(
 export interface StudentScore {
   id: string
   studentId: string
+  studentName?: string
+  admissionNo?: string
   subject: string
   academicSession: string
   term: string
@@ -181,6 +183,34 @@ export async function ensureResultsTable(): Promise<void> {
   }
 }
 
+/**
+ * Attach student name + admission number to score rows in one lookup.
+ * Matches students by id within the tenant; leaves fields undefined when no match.
+ */
+async function enrichScoresWithStudents(tenantId: string, scores: StudentScore[]): Promise<StudentScore[]> {
+  const ids = Array.from(new Set(scores.map(s => s.studentId)))
+  if (ids.length === 0) return scores
+  try {
+    const result = await poolQuery<{ id: string; name: string; admission_no: string | null }>(
+      `SELECT id::text AS id, name, admission_no FROM students
+       WHERE tenant_id = $1 AND id::text = ANY($2)`,
+      [tenantId, ids]
+    )
+    const byId: Record<string, { name: string; admission_no: string | null }> = {}
+    for (const row of result.rows) byId[row.id] = row
+    for (const score of scores) {
+      const student = byId[score.studentId]
+      if (student) {
+        score.studentName = student.name
+        score.admissionNo = student.admission_no || undefined
+      }
+    }
+  } catch (error) {
+    console.error('Error enriching scores with student names:', error)
+  }
+  return scores
+}
+
 export async function fetchScores(
   tenantId: string,
   studentId?: string,
@@ -199,7 +229,7 @@ export async function fetchScores(
         ORDER BY created_at DESC`,
         [tenantId, studentId, academicSession, term]
       )
-      return result.rows.map(rowToScore)
+      return enrichScoresWithStudents(tenantId, result.rows.map(rowToScore))
     } else if (studentId && academicSession) {
       const result = await poolQuery<ScoreRow>(
         `SELECT * FROM student_scores
@@ -208,7 +238,7 @@ export async function fetchScores(
         ORDER BY created_at DESC`,
         [tenantId, studentId, academicSession]
       )
-      return result.rows.map(rowToScore)
+      return enrichScoresWithStudents(tenantId, result.rows.map(rowToScore))
     } else if (studentId) {
       const result = await poolQuery<ScoreRow>(
         `SELECT * FROM student_scores
@@ -216,7 +246,7 @@ export async function fetchScores(
         ORDER BY created_at DESC`,
         [tenantId, studentId]
       )
-      return result.rows.map(rowToScore)
+      return enrichScoresWithStudents(tenantId, result.rows.map(rowToScore))
     } else if (academicSession && term && className) {
       const result = await poolQuery<ScoreRow>(
         `SELECT * FROM student_scores
@@ -226,7 +256,7 @@ export async function fetchScores(
         ORDER BY created_at DESC`,
         [tenantId, academicSession, term, className]
       )
-      return result.rows.map(rowToScore)
+      return enrichScoresWithStudents(tenantId, result.rows.map(rowToScore))
     } else if (academicSession && term) {
       const result = await poolQuery<ScoreRow>(
         `SELECT * FROM student_scores
@@ -235,13 +265,13 @@ export async function fetchScores(
         ORDER BY created_at DESC`,
         [tenantId, academicSession, term]
       )
-      return result.rows.map(rowToScore)
+      return enrichScoresWithStudents(tenantId, result.rows.map(rowToScore))
     } else {
       const result = await poolQuery<ScoreRow>(
         `SELECT * FROM student_scores WHERE tenant_id = $1 ORDER BY created_at DESC`,
         [tenantId]
       )
-      return result.rows.map(rowToScore)
+      return enrichScoresWithStudents(tenantId, result.rows.map(rowToScore))
     }
   } catch (error) {
     console.error('Error fetching scores:', error)
@@ -541,7 +571,7 @@ export async function recomputeAllScores(
   academicSession?: string,
   term?: string,
   className?: string
-): Promise<{ recomputed: number; details: { studentId: string; subject: string; class: string; oldTotal: number; newTotal: number }[] }> {
+): Promise<{ recomputed: number; details: { studentId: string; studentName?: string; subject: string; class: string; oldTotal: number; newTotal: number }[] }> {
   await ensureResultsTable()
   try {
     let query
@@ -566,7 +596,7 @@ export async function recomputeAllScores(
       )
     }
 
-    const details: { studentId: string; subject: string; class: string; oldTotal: number; newTotal: number }[] = []
+    const details: { studentId: string; studentName?: string; subject: string; class: string; oldTotal: number; newTotal: number }[] = []
     let recomputed = 0
 
     for (const row of query.rows) {
@@ -616,6 +646,20 @@ export async function recomputeAllScores(
           newTotal,
         })
       }
+    }
+
+    // Attach student names to the change log
+    const detailIds = Array.from(new Set(details.map(d => d.studentId)))
+    if (detailIds.length > 0) {
+      try {
+        const names = await poolQuery<{ id: string; name: string }>(
+          `SELECT id::text AS id, name FROM students WHERE tenant_id = $1 AND id::text = ANY($2)`,
+          [tenantId, detailIds]
+        )
+        const nameById: Record<string, string> = {}
+        for (const row of names.rows) nameById[row.id] = row.name
+        for (const d of details) d.studentName = nameById[d.studentId]
+      } catch { /* names are cosmetic — don't fail the recompute */ }
     }
 
     return { recomputed, details }
@@ -905,21 +949,25 @@ export async function fetchCompiledResults(
     let result
     if (className) {
       result = await poolQuery(
-        `SELECT * FROM compiled_results
-        WHERE tenant_id = $1
-          AND academic_session = $2
-          AND term = $3
-          AND class = $4
-        ORDER BY class, class_position, subject`,
+        `SELECT cr.*, s.name AS student_name, s.admission_no
+        FROM compiled_results cr
+        LEFT JOIN students s ON s.id::text = cr.student_id AND s.tenant_id = $1
+        WHERE cr.tenant_id = $1
+          AND cr.academic_session = $2
+          AND cr.term = $3
+          AND cr.class = $4
+        ORDER BY cr.class, cr.class_position, cr.subject`,
         [tenantId, academicSession, term, className]
       )
     } else {
       result = await poolQuery(
-        `SELECT * FROM compiled_results
-        WHERE tenant_id = $1
-          AND academic_session = $2
-          AND term = $3
-        ORDER BY class, class_position, subject`,
+        `SELECT cr.*, s.name AS student_name, s.admission_no
+        FROM compiled_results cr
+        LEFT JOIN students s ON s.id::text = cr.student_id AND s.tenant_id = $1
+        WHERE cr.tenant_id = $1
+          AND cr.academic_session = $2
+          AND cr.term = $3
+        ORDER BY cr.class, cr.class_position, cr.subject`,
         [tenantId, academicSession, term]
       )
     }
@@ -977,6 +1025,7 @@ export async function approveCompiledResults(
 export interface BroadsheetStudent {
   studentId: string
   studentName: string
+  admissionNo: string
   classPosition: number
   totalStudents: number
   overallTotal: number
@@ -1007,9 +1056,9 @@ export async function fetchBroadsheet(
       `SELECT cr.student_id, cr.subject, cr.class, cr.total_score, cr.grade,
              cr.remark, cr.subject_position, cr.overall_total, cr.overall_average,
              cr.class_position, cr.total_students, cr.attendance_percent, cr.status,
-             s.name AS student_name
+             s.name AS student_name, s.admission_no
       FROM compiled_results cr
-      LEFT JOIN students s ON s.id = cr.student_id AND s.tenant_id = $1
+      LEFT JOIN students s ON s.id::text = cr.student_id AND s.tenant_id = $1
       WHERE cr.tenant_id = $1
         AND cr.academic_session = $2
         AND cr.term = $3
@@ -1033,6 +1082,7 @@ export async function fetchBroadsheet(
         studentMap[sid] = {
           studentId: sid,
           studentName: row.student_name || sid,
+          admissionNo: row.admission_no || '',
           classPosition: Number(row.class_position) || 0,
           totalStudents: Number(row.total_students) || 0,
           overallTotal: Number(row.overall_total) || 0,

@@ -171,6 +171,88 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
+    if (action === 'substitute' && req.method === 'POST') {
+      try {
+        // Cover an absent teacher: reassign their slots to substitutes and
+        // record each cover in teacher_substitution_log.
+        const { absentTeacher, covers } = req.body as {
+          absentTeacher: string
+          covers: { class: string; subject: string; substitute: string }[]
+        }
+        if (!absentTeacher || !Array.isArray(covers) || covers.length === 0) {
+          return res.status(400).json({ success: false, error: 'absentTeacher and covers are required' })
+        }
+
+        const names = Array.from(new Set([absentTeacher, ...covers.map(c => c.substitute).filter(Boolean)]))
+        const validTeachers = await sql`
+          SELECT name FROM staff
+          WHERE tenant_id = ${tenantId} AND role ILIKE '%teacher%'
+            AND name = ANY(${names}::text[])`
+        const validSet = new Set(validTeachers.rows.map((r: any) => r.name))
+        const invalid = names.filter(n => !validSet.has(n))
+        if (invalid.length > 0) {
+          return res.status(400).json({ success: false, error: `Teacher(s) not found in this tenant: ${invalid.join(', ')}` })
+        }
+
+        let covered = 0
+        let skipped = 0
+        for (const c of covers) {
+          // Guard: only cover slots the absent teacher still holds.
+          const upd = await sql`
+            UPDATE teacher_allocation_slots
+            SET teacher = ${c.substitute}, coverage = 'Assigned'
+            WHERE tenant_id = ${tenantId} AND class = ${c.class} AND subject = ${c.subject}
+              AND teacher = ${absentTeacher}`
+          if ((upd.rowCount ?? 0) === 0) { skipped += 1; continue }
+
+          // Flag the log entry High when the substitute is already at/over contract.
+          const load = await sql`
+            SELECT s.contract_hours,
+              (SELECT COUNT(*) FROM teacher_allocation_slots tas
+               WHERE tas.tenant_id = ${tenantId} AND tas.teacher = s.name AND tas.coverage = 'Assigned') AS periods
+            FROM staff s
+            WHERE s.tenant_id = ${tenantId} AND s.name = ${c.substitute} LIMIT 1`
+          const overloaded = load.rows[0] && load.rows[0].contract_hours > 0 && Number(load.rows[0].periods) > Number(load.rows[0].contract_hours)
+
+          await sql`
+            INSERT INTO teacher_substitution_log (id, tenant_id, slot, priority, action, relief, eta, impacted)
+            VALUES (gen_random_uuid()::text, ${tenantId}, ${`${c.class} · ${c.subject}`},
+                    ${overloaded ? 'High' : 'Normal'}, ${`Cover for ${absentTeacher}`},
+                    ${c.substitute}, 'Immediate', ${c.class})`
+          covered += 1
+        }
+
+        // Recompute allocation_periods / risk_flag for all teachers.
+        await sql`
+          UPDATE staff s SET
+            allocation_periods = COALESCE((
+              SELECT COUNT(*) FROM teacher_allocation_slots tas
+              WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+            ), 0),
+            risk_flag = CASE
+              WHEN COALESCE((
+                SELECT COUNT(*) FROM teacher_allocation_slots tas
+                WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+              ), 0) > contract_hours AND contract_hours > 0 THEN 'Overload'
+              ELSE 'Normal'
+            END
+          WHERE s.tenant_id = ${tenantId} AND s.role ILIKE '%teacher%'`
+
+        const updated = await sql`
+          SELECT class, subject, teacher, coverage, warnings
+          FROM teacher_allocation_slots WHERE tenant_id = ${tenantId}
+          ORDER BY class ASC, subject ASC`
+        return res.json({
+          success: true,
+          data: updated.rows,
+          message: `${covered} slot(s) covered${skipped ? `, ${skipped} skipped (no longer held by ${absentTeacher})` : ''}.`,
+        })
+      } catch (e) {
+        console.error('substitute error:', e)
+        return res.status(500).json({ success: false, error: 'Failed to assign substitutes' })
+      }
+    }
+
     if (action === 'auto-balance' && req.method === 'POST') {
       try {
         // Real auto-balance: distribute Open slots among teachers who teach the

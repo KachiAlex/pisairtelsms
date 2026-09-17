@@ -58,7 +58,9 @@ export function TeacherAllocation() {
   const [allocationMatrix, setAllocationMatrix] = useState<AllocationRow[]>([])
   const [openPeriodTimeline, setOpenPeriodTimeline] = useState<PeriodBucket[]>([])
   const [substitutionLog, setSubstitutionLog] = useState<SubLog[]>([])
-  const [editableSlots, setEditableSlots] = useState<(AllocationRow & { id: number; assignedTeacher: string })[]>([])
+  const [absentTeacher, setAbsentTeacher] = useState('')
+  const [coverSelections, setCoverSelections] = useState<Record<string, string>>({})
+  const [submittingCovers, setSubmittingCovers] = useState(false)
   const [search, setSearch] = useState('')
   const [savingRow, setSavingRow] = useState<string | null>(null)
 
@@ -73,14 +75,7 @@ export function TeacherAllocation() {
     ])
     if (statsRes.data) setCoverageStats(statsRes.data)
     if (teachersRes.data) setTeacherCards(teachersRes.data)
-    if (matrixRes.data) {
-      setAllocationMatrix(matrixRes.data)
-      setEditableSlots(
-        matrixRes.data
-          .filter((row: AllocationRow) => row.coverage === 'Open')
-          .map((row: AllocationRow, index: number) => ({ ...row, id: index, assignedTeacher: '' }))
-      )
-    }
+    if (matrixRes.data) setAllocationMatrix(matrixRes.data)
     if (periodsRes.data) setOpenPeriodTimeline(periodsRes.data)
     if (subRes.data) setSubstitutionLog(subRes.data)
     setLoading(false)
@@ -185,8 +180,8 @@ export function TeacherAllocation() {
           <Button variant="outline" onClick={handleAutoBalance}>
             <Shuffle className="h-4 w-4 mr-2" /> Auto-balance load
           </Button>
-          <Button variant="outline" onClick={() => setAssignOpen(true)}>
-            <UserCheck className="h-4 w-4 mr-2" /> Assign slots
+          <Button variant="outline" onClick={() => { setAbsentTeacher(''); setCoverSelections({}); setAssignOpen(true) }}>
+            <UserCheck className="h-4 w-4 mr-2" /> Cover a teacher
           </Button>
         </div>
       </div>
@@ -198,75 +193,113 @@ export function TeacherAllocation() {
       />
 
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Assign Teacher Slots</DialogTitle>
-            <DialogDescription>Drag teachers to open slots to assign to classes and students.</DialogDescription>
+            <DialogTitle>Cover a teacher</DialogTitle>
+            <DialogDescription>
+              Pick the teacher who needs cover, then choose a substitute for each of their slots.
+              Covers are recorded in the substitution log.
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex gap-6 h-96">
-            <div className="w-1/3">
-              <h3 className="text-lg font-semibold mb-4">Teachers</h3>
-              <div className="space-y-2 overflow-y-auto h-full">
-                {teacherCards.map(teacher => (
-                  <div
-                    key={teacher.name}
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData('text/plain', teacher.name)}
-                    className="p-3 bg-red-50 rounded-lg cursor-grab"
-                  >
-                    {teacher.name}
-                  </div>
-                ))}
-                {teacherCards.length === 0 && <p className="text-sm text-gray-500">No teachers found.</p>}
-              </div>
+          <div className="space-y-4">
+            <div className="max-w-xs">
+              <Select value={absentTeacher} onValueChange={(v) => { setAbsentTeacher(v); setCoverSelections({}) }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select teacher needing cover" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teacherCards
+                    .filter(t => t.name && allocationMatrix.some(r => r.teacher === t.name))
+                    .map(t => (
+                      <SelectItem key={t.name} value={t.name}>
+                        {t.name} ({allocationMatrix.filter(r => r.teacher === t.name).length} slots)
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="w-2/3">
-              <h3 className="text-lg font-semibold mb-4">Open Slots</h3>
-              <div className="grid gap-2 overflow-y-auto h-full">
-                {editableSlots.map(row => (
-                  <div
-                    key={row.id}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      const teacher = e.dataTransfer.getData('text/plain')
-                      setEditableSlots(prev => prev.map(r => r.id === row.id ? { ...r, assignedTeacher: teacher } : r))
-                    }}
-                    className="p-3 border rounded-lg bg-gray-50 hover:bg-green-50"
-                  >
-                    {row.class} - {row.subject}
-                    {row.assignedTeacher && <div className="mt-2 text-green-600 font-semibold">Assigned: {row.assignedTeacher}</div>}
-                  </div>
-                ))}
-                {editableSlots.length === 0 && <p className="text-sm text-gray-500">No open slots. Generate slots first.</p>}
-              </div>
+
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {!absentTeacher && (
+                <p className="text-sm text-gray-500 py-6 text-center">Select a teacher to see the slots they hold.</p>
+              )}
+              {absentTeacher && allocationMatrix.filter(r => r.teacher === absentTeacher).length === 0 && (
+                <p className="text-sm text-gray-500 py-6 text-center">{absentTeacher} holds no assigned slots.</p>
+              )}
+              {absentTeacher && allocationMatrix
+                .filter(r => r.teacher === absentTeacher)
+                .map(row => {
+                  const key = `${row.class}::${row.subject}`
+                  return (
+                    <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 p-3">
+                      <div className="text-sm">
+                        <span className="font-semibold text-gray-900">{row.class}</span>
+                        <span className="text-gray-400 mx-1">·</span>
+                        <span className="text-gray-700">{row.subject}</span>
+                      </div>
+                      <Select
+                        value={coverSelections[key] || ''}
+                        onValueChange={(v) => setCoverSelections(prev => ({ ...prev, [key]: v }))}
+                      >
+                        <SelectTrigger className="w-52 h-9">
+                          <SelectValue placeholder="Choose substitute" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teacherCards
+                            .filter(t => t.name && t.name !== absentTeacher)
+                            .sort((a, b) => {
+                              const aMatch = (a.subjects || []).includes(row.subject) ? -1 : 0
+                              const bMatch = (b.subjects || []).includes(row.subject) ? -1 : 0
+                              return aMatch - bMatch || a.name.localeCompare(b.name)
+                            })
+                            .map(t => (
+                              <SelectItem key={t.name} value={t.name}>
+                                {t.name}
+                                {(t.subjects || []).includes(row.subject) ? ' · qualified' : ''}
+                                {t.risk === 'Overload' ? ' (overloaded)' : ''}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )
+                })}
             </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
-            <Button onClick={async () => {
-              const assignedSlots = editableSlots.filter(slot => slot.assignedTeacher)
-              if (assignedSlots.length === 0) {
-                toast({ title: 'No slots assigned', description: 'Drag a teacher onto a slot first.', variant: 'destructive' })
-                return
-              }
-              try {
-                const res = await tenantApiPost(`${BASE}?action=assign`, {
-                  assignments: assignedSlots.map(s => ({ class: s.class, subject: s.subject, teacher: s.assignedTeacher })),
-                })
-                const data = await res.json()
-                if (res.ok) {
-                  if (data.data) setAllocationMatrix(data.data)
-                  toast({ title: `${assignedSlots.length} slot(s) assigned`, description: 'Allocation matrix updated.' })
-                  setAssignOpen(false)
-                  loadAll()
-                } else {
-                  toast({ title: 'Assignment failed', description: data.error, variant: 'destructive' })
-                }
-              } catch { toast({ title: 'Network error', variant: 'destructive' }) }
-            }}>
-              Assign Slots ({editableSlots.filter(slot => slot.assignedTeacher).length})
-            </Button>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
+              <Button
+                disabled={!absentTeacher || Object.keys(coverSelections).length === 0 || submittingCovers}
+                onClick={async () => {
+                  const covers = Object.entries(coverSelections)
+                    .filter(([, substitute]) => substitute)
+                    .map(([key, substitute]) => {
+                      const [cls, subject] = key.split('::')
+                      return { class: cls, subject, substitute }
+                    })
+                  if (covers.length === 0) return
+                  setSubmittingCovers(true)
+                  try {
+                    const res = await tenantApiPost(`${BASE}?action=substitute`, { absentTeacher, covers })
+                    const data = await res.json()
+                    if (res.ok) {
+                      if (data.data) setAllocationMatrix(data.data)
+                      toast({ title: 'Cover assigned', description: data.message })
+                      setAssignOpen(false)
+                      loadAll()
+                    } else {
+                      toast({ title: 'Cover failed', description: data.error, variant: 'destructive' })
+                    }
+                  } catch {
+                    toast({ title: 'Network error', variant: 'destructive' })
+                  } finally {
+                    setSubmittingCovers(false)
+                  }
+                }}
+              >
+                {submittingCovers ? 'Assigning…' : `Assign cover (${Object.keys(coverSelections).length})`}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -453,7 +486,7 @@ export function TeacherAllocation() {
             </div>
           ))}
           {substitutionLog.length === 0 && <p className="text-sm text-gray-500">No substitution events recorded.</p>}
-          <Button variant="outline" className="w-full" size="sm" onClick={() => setAssignOpen(true)}>
+          <Button variant="outline" className="w-full" size="sm" onClick={() => { setAbsentTeacher(''); setCoverSelections({}); setAssignOpen(true) }}>
             <UserCheck className="h-4 w-4 mr-2" /> Assign substitute
           </Button>
         </CardContent>

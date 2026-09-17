@@ -171,6 +171,24 @@ for (const rewrite of rewrites) {
   });
 }
 
+// Unauthenticated liveness/readiness probe for the Docker healthcheck.
+// Verifies the process is up and Postgres is reachable.
+app.get('/api/health', async (_req, res) => {
+  try {
+    const { default: pg } = await import('pg');
+    const client = new pg.Client({
+      connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+      connectionTimeoutMillis: 5000,
+    });
+    await client.connect();
+    await client.query('SELECT 1');
+    await client.end();
+    res.json({ status: 'ok', db: 'ok' });
+  } catch (e) {
+    res.status(503).json({ status: 'degraded', db: 'unreachable' });
+  }
+});
+
 // API 404 fallback
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'API endpoint not found' });

@@ -5,6 +5,7 @@ import { requireRole } from '../../_lib/auth-middleware.js'
 
 interface SubjectConfig {
   subjectName: string
+  subjectId?: string
   teacherId: string
   teacherName: string
   periodsPerWeek: number
@@ -77,7 +78,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const existingEntries = existingResult.rows.map(rowToEntry)
 
     // 4. Get available time slots (non-break, ordered by sequence)
-    const slotsResult = await sql`SELECT * FROM timetable_time_slots WHERE is_break = false ORDER BY sequence`
+    const slotsResult = await sql`SELECT * FROM timetable_time_slots WHERE is_break = false AND tenant_id = ${tenantId} ORDER BY sequence`
     const timeSlots = slotsResult.rows.map((r: any) => ({
       id: r.id,
       name: r.name,
@@ -87,8 +88,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       dayOfWeek: Number(r.day_of_week),
     }))
 
-    // 5. Get all teacher assignments to check conflicts
-    const teacherAssignmentsResult = await sql`SELECT teacher_id, time_slot_id, day_of_week FROM timetable_class_schedule_entries`
+    // 5. Get all teacher assignments to check conflicts (scoped to this tenant
+    // via the parent schedule — entries table has no tenant_id column)
+    const teacherAssignmentsResult = await sql`
+      SELECT e.teacher_id, e.time_slot_id, e.day_of_week
+      FROM timetable_class_schedule_entries e
+      JOIN timetable_class_schedules s ON s.id = e.schedule_id
+      WHERE s.tenant_id = ${tenantId}`
     const teacherAssignments = teacherAssignmentsResult.rows.map((r: any) => ({
       teacherId: r.teacher_id,
       timeSlotId: r.time_slot_id,
@@ -147,7 +153,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           (id, schedule_id, time_slot_id, subject_id, subject_name, teacher_id, teacher_name, room_id, day_of_week)
           VALUES (
             ${entryId}, ${scheduleId}, ${slot.slotId},
-            ${subject.teacherId}, ${subject.subjectName},
+            ${subject.subjectId || subject.subjectName}, ${subject.subjectName},
             ${subject.teacherId}, ${subject.teacherName},
             NULL, ${slot.dayOfWeek}
           )

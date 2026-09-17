@@ -163,7 +163,7 @@ export function TeacherAllocation() {
 
   const filteredMatrix = search.trim()
     ? allocationMatrix.filter((row) =>
-        [row.class, row.subject, row.teacher].some((v) => v.toLowerCase().includes(search.trim().toLowerCase()))
+        [row.class, row.subject, row.teacher].some((v) => (v || '').toLowerCase().includes(search.trim().toLowerCase()))
       )
     : allocationMatrix
 

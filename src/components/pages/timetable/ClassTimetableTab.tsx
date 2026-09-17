@@ -165,7 +165,7 @@ export function ClassTimetableTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{selectedClass} — Weekly Timetable</CardTitle>
+          <CardTitle>{classes.find(c => c.id === selectedClass)?.name || selectedClass} — Weekly Timetable</CardTitle>
           <CardDescription>Click any empty cell to assign a subject and teacher</CardDescription>
         </CardHeader>
         <CardContent>
@@ -241,6 +241,7 @@ export function ClassTimetableTab() {
 
       <AutoScheduleDialog
         classId={selectedClass}
+        className={classes.find(c => c.id === selectedClass)?.name}
         termId={selectedTerm}
         open={showAutoSchedule}
         onClose={() => setShowAutoSchedule(false)}

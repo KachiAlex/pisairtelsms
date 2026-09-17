@@ -13,6 +13,14 @@ interface StaffMember {
   name: string
   role: string
   department?: string
+  subjects?: string[] | string
+}
+
+interface AllocationSlot {
+  class: string
+  subject: string
+  teacher: string | null
+  coverage: string
 }
 
 interface Subject {
@@ -31,20 +39,23 @@ interface SubjectRow {
   periodsPerWeek: number
   suggested?: boolean
   subjectCode?: string
+  subjectId?: string
 }
 
 interface Props {
   classId: string
+  className?: string
   termId: string
   open: boolean
   onClose: () => void
   onScheduled: () => void
 }
 
-export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled }: Props) {
+export function AutoScheduleDialog({ classId, className, termId, open, onClose, onScheduled }: Props) {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [subjects, setSubjects] = useState<SubjectRow[]>([])
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([])
+  const [allocations, setAllocations] = useState<AllocationSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [scheduling, setScheduling] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -52,15 +63,42 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
   const [result, setResult] = useState<{ created: number; failed: { subjectName: string; reason: string }[] } | null>(null)
   const [clearExisting, setClearExisting] = useState(false)
 
-  // Extract class level from classId (e.g., "JSS 1A" -> "JSS 1")
-  function getClassLevel(classId: string): string {
-    const match = classId.match(/^(JSS|SS)\s*(\d+)/i)
-    return match ? `${match[1].toUpperCase()} ${match[2]}` : classId
+  // staff.subjects may arrive as a JSON string or already-parsed array
+  function parseTeacherSubjects(raw: string[] | string | undefined): string[] {
+    if (Array.isArray(raw)) return raw
+    if (typeof raw !== 'string' || !raw.trim()) return []
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
   }
 
-  // Match teacher to subject based on department/role
+  // Extract class level from the class name (e.g., "JSS 1A" -> "JSS 1").
+  // classId is a UUID so the name must be used for level/subject matching.
+  const displayName = className || classId
+  function getClassLevel(): string {
+    const match = displayName.match(/^(JSS|SS)\s*(\d+)/i)
+    return match ? `${match[1].toUpperCase()} ${match[2]}` : displayName
+  }
+
+  // Match teacher to subject: allocation matrix first (the admin's actual
+  // assignment), then the teacher's declared subject list, then fuzzy role match.
   function findBestTeacher(subject: Subject): string {
-    const classLevel = getClassLevel(classId)
+    const allocated = allocations.find(
+      a => a.teacher && a.subject === subject.name &&
+        (a.class === displayName || a.class === classId || displayName.startsWith(a.class))
+    )
+    if (allocated?.teacher) {
+      const member = staff.find(s => s.name === allocated.teacher)
+      if (member) return member.id
+    }
+
+    const qualified = staff.filter(s => parseTeacherSubjects(s.subjects).includes(subject.name))
+    if (qualified.length > 0) return qualified[0].id
+
+    const classLevel = getClassLevel()
     
     // Priority matching:
     // 1. Teacher role contains subject name
@@ -68,7 +106,7 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
     // 3. Teacher role contains class level (e.g., "JSS 1 Teacher")
     
     const subjectKeywords = subject.name.toLowerCase().split(' ')
-    const deptKeyword = subject.department.toLowerCase()
+    const deptKeyword = (subject.department || '').toLowerCase()
     
     let bestMatch = ''
     let bestScore = 0
@@ -103,8 +141,8 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
   function autoGenerateSubjects() {
     setGenerating(true)
     setError(null)
-    
-    const classLevel = getClassLevel(classId)
+
+    const classLevel = getClassLevel()
     
     // Filter subjects applicable to this class level
     const applicableSubjects = availableSubjects.filter(s => 
@@ -117,7 +155,7 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
       setGenerating(false)
       return
     }
-    
+
     // Create subject rows with suggested teachers
     const generatedRows: SubjectRow[] = applicableSubjects.map(subject => {
       const suggestedTeacherId = findBestTeacher(subject)
@@ -125,6 +163,7 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
         id: crypto.randomUUID(),
         subjectName: subject.name,
         subjectCode: subject.code,
+        subjectId: subject.id,
         teacherId: suggestedTeacherId,
         periodsPerWeek: subject.type === 'Core' ? 5 : 3,
         suggested: !!suggestedTeacherId
@@ -142,12 +181,14 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
     Promise.all([
       tenantApiGet('/api/tenant/staff').then(r => r.json()),
       tenantApiGet('/api/tenant/academics/subjects').then(r => r.json()),
+      tenantApiGet('/api/tenant/teacher-allocation-handler?action=matrix').then(r => r.json()).catch(() => ({})),
     ])
-      .then(([staffData, subjectsData]) => {
+      .then(([staffData, subjectsData, allocData]) => {
         const members = Array.isArray(staffData.data) ? staffData.data : []
         const subjects = Array.isArray(subjectsData.data) ? subjectsData.data : []
         setStaff(members)
         setAvailableSubjects(subjects)
+        setAllocations(Array.isArray(allocData.data) ? allocData.data : [])
       })
       .catch(() => setError('Failed to load data'))
       .finally(() => setLoading(false))
@@ -193,6 +234,7 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
         clearExisting,
         subjects: subjects.map(s => ({
           subjectName: s.subjectName.trim(),
+          subjectId: s.subjectId,
           teacherId: s.teacherId,
           teacherName: staff.find(t => t.id === s.teacherId)?.name || s.teacherId,
           periodsPerWeek: Number(s.periodsPerWeek) || 1,
@@ -229,7 +271,7 @@ export function AutoScheduleDialog({ classId, termId, open, onClose, onScheduled
             <Wand2 className="h-5 w-5 text-blue-600" />
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Auto-Schedule Subjects</h3>
-              <p className="text-xs text-gray-500">Automatically assign subjects to time slots for {classId}</p>
+              <p className="text-xs text-gray-500">Automatically assign subjects to time slots for {displayName}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">

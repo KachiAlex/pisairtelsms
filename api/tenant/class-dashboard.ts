@@ -43,23 +43,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       .filter((app: any) => app.class === className)
       .slice(0, 5)
 
-    // Count teachers assigned to this class from timetable
+    // Count teachers assigned to this class from teacher allocations
     const teachersRes = await sql`
-      SELECT DISTINCT staff_id FROM timetable
-      WHERE class_name = ${className} OR class_name LIKE ${className + '%'}
+      SELECT COUNT(DISTINCT teacher)::int AS n FROM teacher_allocation_slots
+      WHERE tenant_id = ${tenantId} AND teacher IS NOT NULL
+        AND (class = ${className} OR class LIKE ${className + '%'})
     `
 
     // Count exams for this class
     const examsRes = await sql`
       SELECT id::text, title, exam_date::text AS date, status FROM exams
-      WHERE student_class = ${className} OR student_class LIKE ${className + '%'}
+      WHERE tenant_id = ${tenantId}
+        AND (student_class = ${className} OR student_class LIKE ${className + '%'})
       ORDER BY exam_date ASC
     `
 
     const dashboardData: ClassDashboard = {
       className,
       studentCount: classStudents.length,
-      teacherCount: teachersRes.rows.length,
+      teacherCount: teachersRes.rows[0]?.n ?? 0,
       examCount: examsRes.rows.length,
       students: classStudents,
       upcomingExams: examsRes.rows.filter((exam: any) => exam.status === 'Scheduled'),

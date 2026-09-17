@@ -18,6 +18,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff']);
   if (!decoded) return;
   const staffId = decoded.staffId || decoded.userId;
+  const tenantId = decoded.tenantId || 'default-tenant';
   if (!staffId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
@@ -72,12 +73,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (arm) {
         studentsRes = await sql`
           SELECT id, name FROM students
-          WHERE class = ${className} AND arm = ${arm} AND deleted_at IS NULL AND status = 'Active'
+          WHERE tenant_id = ${tenantId} AND class = ${className} AND arm = ${arm}
+            AND deleted_at IS NULL AND status = 'Active'
         `;
       } else {
         studentsRes = await sql`
           SELECT id, name FROM students
-          WHERE (class || COALESCE(arm, '') = ${className} OR class = ${className})
+          WHERE tenant_id = ${tenantId}
+            AND (class || COALESCE(arm, '') = ${className} OR class = ${className})
             AND deleted_at IS NULL AND status = 'Active'
         `;
       }
@@ -110,7 +113,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       let notifiedCount = 0;
       for (const student of students) {
         const parentsRes = await sql`
-          SELECT parent_id FROM parent_students WHERE student_id = ${student.id}
+          SELECT parent_id FROM parent_students
+          WHERE student_id = ${student.id} AND tenant_id = ${tenantId}
         `;
         for (const parent of parentsRes.rows) {
           const notifId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

@@ -45,7 +45,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       let filtered = students
       if (classFilter && typeof classFilter === 'string') {
-        filtered = filtered.filter(s => s.class === classFilter)
+        const f = classFilter.trim()
+        filtered = filtered.filter(s => {
+          const full = s.arm ? `${s.class} ${s.arm}` : s.class
+          return s.class === f || full === f
+        })
       }
       if (statusFilter && typeof statusFilter === 'string') {
         filtered = filtered.filter(s => s.status === statusFilter)

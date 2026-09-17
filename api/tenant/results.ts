@@ -102,6 +102,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       studentId, subject, academicSession, term, class: className,
       caScore, examScore, attendancePercentage,
       testsScore, assignmentsScore, projectsScore, examsScore,
+      testsMax, assignmentsMax, projectsMax, examsMax,
       submittedBy, submittedByName, submissionStatus,
     } = body
 
@@ -124,19 +125,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Missing required fields', details: missing })
     }
 
-    // Validate score ranges
-    const validateScore = (val: any, name: string) => {
-      if (val !== undefined && val !== null && (Number(val) < 0 || Number(val) > 100)) {
-        return `${name} must be between 0 and 100`
+    // Validate score ranges. When a "marked out of" max is supplied the value
+    // is a raw mark and is validated against that max; otherwise the legacy
+    // 0-100 normalized range applies.
+    const scoreErrors: string[] = []
+    const validateScore = (val: any, name: string, max?: any) => {
+      if (val === undefined || val === null) return
+      const hasMax = max !== undefined && max !== null
+      if (hasMax && !(Number(max) > 0)) {
+        scoreErrors.push(`${name}Max must be a positive number`)
+        return
       }
-      return null
+      const limit = hasMax ? Number(max) : 100
+      if (Number(val) < 0 || Number(val) > limit) {
+        scoreErrors.push(`${name} must be between 0 and ${limit}`)
+      }
     }
 
-    const scoreErrors: string[] = []
-    for (const [val, name] of [[caScore, 'caScore'], [examScore, 'examScore'], [testsScore, 'testsScore'], [assignmentsScore, 'assignmentsScore'], [projectsScore, 'projectsScore'], [examsScore, 'examsScore'], [attendancePercentage, 'attendancePercentage']] as [any, string][]) {
-      const err = validateScore(val, name)
-      if (err) scoreErrors.push(err)
-    }
+    validateScore(caScore, 'caScore')
+    validateScore(examScore, 'examScore')
+    validateScore(testsScore, 'testsScore', testsMax)
+    validateScore(assignmentsScore, 'assignmentsScore', assignmentsMax)
+    validateScore(projectsScore, 'projectsScore', projectsMax)
+    validateScore(examsScore, 'examsScore', examsMax)
+    validateScore(attendancePercentage, 'attendancePercentage')
 
     if (scoreErrors.length > 0) {
       return res.status(400).json({ error: 'Score validation failed', details: scoreErrors })
@@ -156,6 +168,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         assignmentsScore: assignmentsScore !== undefined ? Number(assignmentsScore) : undefined,
         projectsScore: projectsScore !== undefined ? Number(projectsScore) : undefined,
         examsScore: examsScore !== undefined ? Number(examsScore) : undefined,
+        testsMax: testsMax !== undefined && testsMax !== null ? Number(testsMax) : undefined,
+        assignmentsMax: assignmentsMax !== undefined && assignmentsMax !== null ? Number(assignmentsMax) : undefined,
+        projectsMax: projectsMax !== undefined && projectsMax !== null ? Number(projectsMax) : undefined,
+        examsMax: examsMax !== undefined && examsMax !== null ? Number(examsMax) : undefined,
         // Always derive submitter identity from JWT (authoritative), not from body
         submittedBy: decoded.staffId || decoded.userId || decoded.sub,
         submittedByName: decoded.email || undefined,

@@ -56,6 +56,10 @@ export interface StudentScore {
   assignmentsScore: number | null
   projectsScore: number | null
   examsScore: number | null
+  testsMax: number | null
+  assignmentsMax: number | null
+  projectsMax: number | null
+  examsMax: number | null
   submittedBy: string | null
   submittedByName: string | null
   submissionStatus: 'draft' | 'submitted' | 'approved'
@@ -76,6 +80,10 @@ export interface ScorePayload {
   assignmentsScore?: number
   projectsScore?: number
   examsScore?: number
+  testsMax?: number
+  assignmentsMax?: number
+  projectsMax?: number
+  examsMax?: number
   submittedBy?: string
   submittedByName?: string
   submissionStatus?: 'draft' | 'submitted' | 'approved'
@@ -96,6 +104,10 @@ interface ScoreRow {
   assignments_score: string | null
   projects_score: string | null
   exams_score: string | null
+  tests_max: string | null
+  assignments_max: string | null
+  projects_max: string | null
+  exams_max: string | null
   submitted_by: string | null
   submitted_by_name: string | null
   submission_status: string
@@ -120,6 +132,10 @@ function rowToScore(row: ScoreRow): StudentScore {
     assignmentsScore: row.assignments_score !== null ? parseFloat(row.assignments_score) : null,
     projectsScore: row.projects_score !== null ? parseFloat(row.projects_score) : null,
     examsScore: row.exams_score !== null ? parseFloat(row.exams_score) : null,
+    testsMax: row.tests_max !== null && row.tests_max !== undefined ? parseFloat(row.tests_max) : null,
+    assignmentsMax: row.assignments_max !== null && row.assignments_max !== undefined ? parseFloat(row.assignments_max) : null,
+    projectsMax: row.projects_max !== null && row.projects_max !== undefined ? parseFloat(row.projects_max) : null,
+    examsMax: row.exams_max !== null && row.exams_max !== undefined ? parseFloat(row.exams_max) : null,
     submittedBy: row.submitted_by,
     submittedByName: row.submitted_by_name,
     submissionStatus: (row.submission_status as 'draft' | 'submitted' | 'approved') || 'submitted',
@@ -134,6 +150,12 @@ export async function ensureResultsTable(): Promise<void> {
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS assignments_score NUMERIC DEFAULT 0`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS projects_score NUMERIC DEFAULT 0`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS exams_score NUMERIC DEFAULT 0`, [])
+    // "Marked out of" per component — when set, the *_score column holds the
+    // score normalized to 0-100 (raw/max*100) and *_max records the raw scale.
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS tests_max NUMERIC`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS assignments_max NUMERIC`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS projects_max NUMERIC`, [])
+    await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS exams_max NUMERIC`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by TEXT`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submitted_by_name TEXT`, [])
     await poolQuery(`ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS submission_status TEXT DEFAULT 'submitted'`, [])
@@ -417,10 +439,27 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
   await ensureResultsTable()
   const id = `score_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-  const testsScore = payload.testsScore ?? 0
-  const assignmentsScore = payload.assignmentsScore ?? 0
-  const projectsScore = payload.projectsScore ?? 0
-  const examsScore = payload.examsScore ?? 0
+  // Normalize each component: when a "marked out of" max is supplied the
+  // payload carries the raw mark (e.g. 10 out of 20) and we store the
+  // normalized 0-100 value so weighted totals stay consistent. Rows saved
+  // without a max keep the legacy behaviour (value already normalized).
+  const normalize = (raw: number | undefined, max: number | undefined): { score: number; max: number | null } => {
+    const r = raw ?? 0
+    if (max !== undefined && max !== null && max > 0) {
+      return { score: Math.min(100, Math.round((r / max) * 10000) / 100), max }
+    }
+    return { score: r, max: null }
+  }
+
+  const tests = normalize(payload.testsScore, payload.testsMax)
+  const assignments = normalize(payload.assignmentsScore, payload.assignmentsMax)
+  const projects = normalize(payload.projectsScore, payload.projectsMax)
+  const exams = normalize(payload.examsScore, payload.examsMax)
+
+  const testsScore = tests.score
+  const assignmentsScore = assignments.score
+  const projectsScore = projects.score
+  const examsScore = exams.score
 
   // Compute weighted total using CA config (with overrides), or fall back to simple sum
   const totalScore = await computeWeightedTotal(tenantId, payload.class, {
@@ -449,12 +488,14 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
       (id, tenant_id, student_id, subject, academic_session, term,
        ca_score, exam_score, total_score, attendance_percentage, class,
        tests_score, assignments_score, projects_score, exams_score,
+       tests_max, assignments_max, projects_max, exams_max,
        submitted_by, submitted_by_name, submission_status)
     VALUES
       ($1, $2, $3, $4, $5, $6,
        $7, $8, $9, $10, $11,
        $12, $13, $14, $15,
-       $16, $17, $18)
+       $16, $17, $18, $19,
+       $20, $21, $22)
     ON CONFLICT (tenant_id, student_id, subject, academic_session, term)
     DO UPDATE SET
       ca_score = EXCLUDED.ca_score,
@@ -465,6 +506,10 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
       assignments_score = EXCLUDED.assignments_score,
       projects_score = EXCLUDED.projects_score,
       exams_score = EXCLUDED.exams_score,
+      tests_max = EXCLUDED.tests_max,
+      assignments_max = EXCLUDED.assignments_max,
+      projects_max = EXCLUDED.projects_max,
+      exams_max = EXCLUDED.exams_max,
       submitted_by = EXCLUDED.submitted_by,
       submitted_by_name = EXCLUDED.submitted_by_name,
       submission_status = EXCLUDED.submission_status,
@@ -473,6 +518,7 @@ export async function createScore(tenantId: string, payload: ScorePayload): Prom
     [id, tenantId, payload.studentId, payload.subject, payload.academicSession, payload.term,
      caScore, examScore, totalScore, attendancePercentage, payload.class,
      testsScore, assignmentsScore, projectsScore, examsScore,
+     tests.max, assignments.max, projects.max, exams.max,
      submittedBy, submittedByName, submissionStatus]
   )
 

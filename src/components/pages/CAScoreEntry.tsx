@@ -21,10 +21,14 @@ interface StudentScore {
   caScore: number; examScore: number; totalScore: number; attendancePercentage: number
   class: string; testsScore: number | null; assignmentsScore: number | null
   projectsScore: number | null; examsScore: number | null
+  testsMax: number | null; assignmentsMax: number | null
+  projectsMax: number | null; examsMax: number | null
   submittedBy: string | null; submittedByName: string | null
   submissionStatus: 'draft' | 'submitted' | 'approved'
   createdAt: string; updatedAt: string
 }
+interface CAWeights { tests: number; assignments: number; projects: number; exams: number }
+interface CAConfigShape { primary: CAWeights; jss: CAWeights; sss: CAWeights }
 interface TeacherSubmission {
   submittedBy: string; submittedByName: string; subject: string
   class: string; status: string; updatedAt: string
@@ -53,6 +57,10 @@ export function CAScoreEntry() {
   const [loadingSubmissions, setLoadingSubmissions] = useState(false)
   const [autoFillingAttendance, setAutoFillingAttendance] = useState(false)
   const [autoFilledStudents, setAutoFilledStudents] = useState<Set<string>>(new Set())
+  const [caConfig, setCaConfig] = useState<CAConfigShape | null>(null)
+  // "Marked out of" per component — defaults to 100 (i.e. raw = percentage,
+  // same as before). Change to e.g. 20 when the test was marked out of 20.
+  const [colMaxes, setColMaxes] = useState<CAWeights>({ tests: 100, assignments: 100, projects: 100, exams: 100 })
 
   const currentYear = new Date().getFullYear()
   const defaultSession = `${currentYear}/${currentYear + 1}`
@@ -65,10 +73,17 @@ export function CAScoreEntry() {
   const loadMeta = useCallback(async () => {
     setLoadingMeta(true)
     try {
-      const subjectRes = await tenantApiGet('/api/tenant/academics/subjects')
+      const [subjectRes, caRes] = await Promise.all([
+        tenantApiGet('/api/tenant/academics/subjects'),
+        tenantApiGet('/api/tenant/ca-config').catch(() => null),
+      ])
       if (subjectRes.ok) {
         const data = await subjectRes.json()
         setSubjects(data.data || data.subjects || [])
+      }
+      if (caRes && caRes.ok) {
+        const data = await caRes.json()
+        if (data.data?.published) setCaConfig(data.data.published)
       }
     } catch { /* silent */ } finally {
       setLoadingMeta(false)
@@ -76,6 +91,18 @@ export function CAScoreEntry() {
   }, [])
 
   useEffect(() => { loadMeta() }, [loadMeta])
+
+  // Mirrors api/tenant/_lib/grade-bands.ts getLevelForClass
+  const levelForClass = (name: string): keyof CAConfigShape => {
+    const upper = name.toUpperCase()
+    if (upper.includes('JSS') || upper.includes('JUNIOR') || upper.includes('JS')) return 'jss'
+    if (upper.includes('SSS') || upper.includes('SENIOR') || upper.includes('SS')) return 'sss'
+    return 'primary'
+  }
+
+  const weights: CAWeights = caConfig
+    ? caConfig[levelForClass(selectedClass || '')]
+    : { tests: 30, assignments: 20, projects: 10, exams: 40 }
 
   const loadRoster = useCallback(async () => {
     if (!selectedClass) { setRoster([]); return }
@@ -133,6 +160,28 @@ export function CAScoreEntry() {
   useEffect(() => { loadSubmissions() }, [loadSubmissions])
 
   useEffect(() => {
+    // If existing scores carry "marked out of" values, adopt them as the
+    // column defaults so re-saving keeps the same raw scale.
+    const adoptMax = (key: keyof CAWeights, stored: number | null) => {
+      if (stored && stored > 0) {
+        setColMaxes(prev => (prev[key] === 100 ? { ...prev, [key]: stored } : prev))
+      }
+    }
+    const first = existingScores[0]
+    if (first) {
+      adoptMax('tests', first.testsMax)
+      adoptMax('assignments', first.assignmentsMax)
+      adoptMax('projects', first.projectsMax)
+      adoptMax('exams', first.examsMax)
+    }
+
+    // Convert a stored normalized score back to the raw mark for display.
+    const toRaw = (score: number | null, max: number | null): string => {
+      if (score === null || score === undefined) return ''
+      if (max && max > 0) return String(Math.round(score * max / 100 * 100) / 100)
+      return String(score)
+    }
+
     const inputs: Record<string, ScoreInput> = {}
     // Start from roster so every student in the class appears
     for (const stu of roster) {
@@ -147,10 +196,10 @@ export function CAScoreEntry() {
       inputs[score.studentId] = {
         studentId: score.studentId,
         studentName: inputs[score.studentId]?.studentName || score.studentId,
-        testsScore: score.testsScore?.toString() || '',
-        assignmentsScore: score.assignmentsScore?.toString() || '',
-        projectsScore: score.projectsScore?.toString() || '',
-        examsScore: score.examsScore?.toString() || '',
+        testsScore: toRaw(score.testsScore, score.testsMax),
+        assignmentsScore: toRaw(score.assignmentsScore, score.assignmentsMax),
+        projectsScore: toRaw(score.projectsScore, score.projectsMax),
+        examsScore: toRaw(score.examsScore, score.examsMax),
         attendance: score.attendancePercentage?.toString() || '',
       }
     }
@@ -170,20 +219,45 @@ export function CAScoreEntry() {
     }))
   }
 
+  // Client-side guard: a raw mark can't exceed its component's "marked out of".
+  const exceedsMax = (input: ScoreInput): string | null => {
+    const checks: [string, string, number][] = [
+      [input.testsScore, 'Tests', colMaxes.tests],
+      [input.assignmentsScore, 'Assignments', colMaxes.assignments],
+      [input.projectsScore, 'Projects', colMaxes.projects],
+      [input.examsScore, 'Exams', colMaxes.exams],
+    ]
+    for (const [raw, label, max] of checks) {
+      if (raw !== '' && Number(raw) > max) return `${label}: ${raw} exceeds the "out of ${max}" maximum`
+    }
+    return null
+  }
+
+  const scorePayload = (input: ScoreInput, status: 'draft' | 'submitted') => ({
+    studentId: input.studentId, subject: selectedSubject, academicSession, term, class: selectedClass,
+    attendancePercentage: input.attendance ? Number(input.attendance) : 0,
+    testsScore: input.testsScore ? Number(input.testsScore) : 0,
+    assignmentsScore: input.assignmentsScore ? Number(input.assignmentsScore) : 0,
+    projectsScore: input.projectsScore ? Number(input.projectsScore) : 0,
+    examsScore: input.examsScore ? Number(input.examsScore) : 0,
+    testsMax: colMaxes.tests,
+    assignmentsMax: colMaxes.assignments,
+    projectsMax: colMaxes.projects,
+    examsMax: colMaxes.exams,
+    submissionStatus: status,
+  })
+
   const handleSaveScore = async (studentId: string, status: 'draft' | 'submitted') => {
     const input = scoreInputs[studentId]
     if (!input) return
+    const violation = exceedsMax(input)
+    if (violation) {
+      toast({ title: 'Score out of range', description: violation, variant: 'destructive' })
+      return
+    }
     setSaving(true)
     try {
-      const res = await tenantApiPost('/api/tenant/results', {
-        studentId, subject: selectedSubject, academicSession, term, class: selectedClass,
-        attendancePercentage: input.attendance ? Number(input.attendance) : 0,
-        testsScore: input.testsScore ? Number(input.testsScore) : 0,
-        assignmentsScore: input.assignmentsScore ? Number(input.assignmentsScore) : 0,
-        projectsScore: input.projectsScore ? Number(input.projectsScore) : 0,
-        examsScore: input.examsScore ? Number(input.examsScore) : 0,
-        submissionStatus: status,
-      })
+      const res = await tenantApiPost('/api/tenant/results', scorePayload(input, status))
       if (res.ok) {
         toast({ title: status === 'draft' ? 'Draft saved' : 'Score submitted',
           description: `Scores for ${studentId} have been ${status === 'draft' ? 'saved as draft' : 'submitted'}.` })
@@ -204,26 +278,19 @@ export function CAScoreEntry() {
       return
     }
     setSaving(true)
-    let success = 0, failed = 0
+    let success = 0, failed = 0, invalid = 0
     for (const studentId of studentIds) {
       const input = scoreInputs[studentId]
+      if (exceedsMax(input)) { invalid++; continue }
       try {
-        const res = await tenantApiPost('/api/tenant/results', {
-          studentId, subject: selectedSubject, academicSession, term, class: selectedClass,
-          attendancePercentage: input.attendance ? Number(input.attendance) : 0,
-          testsScore: input.testsScore ? Number(input.testsScore) : 0,
-          assignmentsScore: input.assignmentsScore ? Number(input.assignmentsScore) : 0,
-          projectsScore: input.projectsScore ? Number(input.projectsScore) : 0,
-          examsScore: input.examsScore ? Number(input.examsScore) : 0,
-          submissionStatus: 'submitted',
-        })
+        const res = await tenantApiPost('/api/tenant/results', scorePayload(input, 'submitted'))
         if (res.ok) success++; else failed++
       } catch { failed++ }
     }
     setSaving(false)
     toast({ title: 'Batch save complete',
-      description: `${success} saved successfully${failed > 0 ? `, ${failed} failed` : ''}.`,
-      variant: failed > 0 ? 'destructive' : 'default' })
+      description: `${success} saved successfully${failed > 0 ? `, ${failed} failed` : ''}${invalid > 0 ? `, ${invalid} skipped (score exceeds "out of" maximum)` : ''}.`,
+      variant: failed > 0 || invalid > 0 ? 'destructive' : 'default' })
     loadScores(); loadSubmissions()
   }
 
@@ -265,6 +332,38 @@ export function CAScoreEntry() {
       setAutoFillingAttendance(false)
     }
   }
+
+  // Live weighted total preview: contribution = raw/max × weight.
+  const liveTotal = (input: ScoreInput): number => {
+    const parts: [string, number, number][] = [
+      [input.testsScore, colMaxes.tests, weights.tests],
+      [input.assignmentsScore, colMaxes.assignments, weights.assignments],
+      [input.projectsScore, colMaxes.projects, weights.projects],
+      [input.examsScore, colMaxes.exams, weights.exams],
+    ]
+    let total = 0
+    for (const [raw, max, w] of parts) {
+      if (raw === '' || !(max > 0)) continue
+      total += (Number(raw) / max) * w
+    }
+    return Math.round(total * 100) / 100
+  }
+
+  const MaxHead = ({ label, maxKey }: { label: string; maxKey: keyof CAWeights }) => (
+    <TableHead className="w-28">
+      <div className="text-xs font-medium text-gray-900">{label}</div>
+      <div className="flex items-center gap-1 text-[10px] font-normal text-gray-400 mt-0.5">
+        <span>of</span>
+        <Input
+          type="number" min={1}
+          className="h-5 w-14 px-1 text-[10px]"
+          value={colMaxes[maxKey]}
+          onChange={e => setColMaxes(prev => ({ ...prev, [maxKey]: Math.max(1, Number(e.target.value) || 0) }))}
+        />
+        <span>· worth {weights[maxKey]}</span>
+      </div>
+    </TableHead>
+  )
 
   const submittedCount = teacherSubmissions.length
   const draftCount = teacherSubmissions.filter(s => s.status === 'draft').length
@@ -386,11 +485,12 @@ export function CAScoreEntry() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Student</TableHead>
-                      <TableHead className="w-20">Tests</TableHead>
-                      <TableHead className="w-20">Assignments</TableHead>
-                      <TableHead className="w-20">Projects</TableHead>
-                      <TableHead className="w-20">Exams</TableHead>
+                      <MaxHead label="Tests" maxKey="tests" />
+                      <MaxHead label="Assignments" maxKey="assignments" />
+                      <MaxHead label="Projects" maxKey="projects" />
+                      <MaxHead label="Exams" maxKey="exams" />
                       <TableHead className="w-20">Attend %</TableHead>
+                      <TableHead className="w-16">Total</TableHead>
                       <TableHead className="w-24">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -404,10 +504,10 @@ export function CAScoreEntry() {
                             <p className="text-xs text-gray-400">{input.studentId}</p>
                             {existing && <span className="text-xs text-gray-400">(total: {existing.totalScore})</span>}
                           </TableCell>
-                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.testsScore} onChange={e => handleScoreChange(input.studentId, 'testsScore', e.target.value)} /></TableCell>
-                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.assignmentsScore} onChange={e => handleScoreChange(input.studentId, 'assignmentsScore', e.target.value)} /></TableCell>
-                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.projectsScore} onChange={e => handleScoreChange(input.studentId, 'projectsScore', e.target.value)} /></TableCell>
-                          <TableCell><Input type="number" min="0" max="100" className="w-16 h-8" value={input.examsScore} onChange={e => handleScoreChange(input.studentId, 'examsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max={colMaxes.tests} className={`w-16 h-8 ${input.testsScore !== '' && Number(input.testsScore) > colMaxes.tests ? 'border-red-400 text-red-600' : ''}`} value={input.testsScore} onChange={e => handleScoreChange(input.studentId, 'testsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max={colMaxes.assignments} className={`w-16 h-8 ${input.assignmentsScore !== '' && Number(input.assignmentsScore) > colMaxes.assignments ? 'border-red-400 text-red-600' : ''}`} value={input.assignmentsScore} onChange={e => handleScoreChange(input.studentId, 'assignmentsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max={colMaxes.projects} className={`w-16 h-8 ${input.projectsScore !== '' && Number(input.projectsScore) > colMaxes.projects ? 'border-red-400 text-red-600' : ''}`} value={input.projectsScore} onChange={e => handleScoreChange(input.studentId, 'projectsScore', e.target.value)} /></TableCell>
+                          <TableCell><Input type="number" min="0" max={colMaxes.exams} className={`w-16 h-8 ${input.examsScore !== '' && Number(input.examsScore) > colMaxes.exams ? 'border-red-400 text-red-600' : ''}`} value={input.examsScore} onChange={e => handleScoreChange(input.studentId, 'examsScore', e.target.value)} /></TableCell>
                           <TableCell>
                             <div className="relative">
                               <Input type="number" min="0" max="100" className="w-16 h-8" value={input.attendance} onChange={e => handleScoreChange(input.studentId, 'attendance', e.target.value)} />
@@ -416,6 +516,7 @@ export function CAScoreEntry() {
                               )}
                             </div>
                           </TableCell>
+                          <TableCell className="text-sm font-semibold text-gray-900">{liveTotal(input)}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
                               <Button variant="ghost" size="sm" onClick={() => handleSaveScore(input.studentId, 'draft')} disabled={saving} title="Save as draft"><Save className="h-3 w-3" /></Button>
@@ -432,7 +533,7 @@ export function CAScoreEntry() {
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Scores are weighted using the published CA Configuration. Total = (Tests x weight% + Assignments x weight% + Projects x weight% + Exams x weight%) / 100.
+                  Enter raw marks — each is scaled by its "of" value into the CA Configuration weight. E.g. a test marked out of 20 with Tests worth 30: a score of 10 contributes 15. Leave "of" at 100 to enter percentages directly.
                 </AlertDescription>
               </Alert>
             </>

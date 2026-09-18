@@ -60,7 +60,7 @@ app.use('/api', (req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader(
     'Permissions-Policy',
-    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), unload=(self)'
+    'geolocation=(), microphone=(self), camera=(self), display-capture=(self), payment=(), usb=(), magnetometer=(), gyroscope=(), unload=(self)'
   );
   if (isProduction) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');

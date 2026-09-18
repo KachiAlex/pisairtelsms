@@ -33,7 +33,7 @@ export function setSecurityHeaders(res: ApiResponse): void {
   // Controls browser features access
   res.setHeader(
         'Permissions-Policy',
-    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), unload=(self)'
+    'geolocation=(), microphone=(self), camera=(self), display-capture=(self), payment=(), usb=(), magnetometer=(), gyroscope=(), unload=(self)'
   )
 
   // Strict-Transport-Security (HSTS)

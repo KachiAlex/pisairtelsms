@@ -149,9 +149,16 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
 
   // Initialize the RealtimeKit client once we have a token
   useEffect(() => {
-    if (authToken) {
-      initMeeting({ authToken })
-    }
+    if (!authToken) return
+    let cancelled = false
+    initMeeting({ authToken, defaults: { audio: true, video: true } })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to initialize meeting')
+          console.error('RealtimeKit init error:', err)
+        }
+      })
+    return () => { cancelled = true }
   }, [authToken, initMeeting])
 
   // Stop display stream on unmount

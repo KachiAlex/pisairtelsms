@@ -4,6 +4,7 @@ export interface PromotionRecord {
   id: string;
   studentId: string;
   studentName: string;
+  admissionNo?: string;
   fromClass: string;
   toClass: string;
   action: 'promote' | 'repeat' | 'demote' | 'hold';

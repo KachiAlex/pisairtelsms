@@ -27,6 +27,7 @@ interface StudentScore {
   projectsMax: number | null; examsMax: number | null
   submittedBy: string | null; submittedByName: string | null
   submissionStatus: 'draft' | 'submitted' | 'approved'
+  studentName?: string; admissionNo?: string
   createdAt: string; updatedAt: string
 }
 interface CAWeights { tests: number; assignments: number; projects: number; exams: number }
@@ -36,7 +37,8 @@ interface TeacherSubmission {
   class: string; status: string; updatedAt: string
 }
 interface ScoreInput {
-  studentId: string; studentName: string; testsScore: string; assignmentsScore: string
+  studentId: string; studentName: string; admissionNo?: string
+  testsScore: string; assignmentsScore: string
   projectsScore: string; examsScore: string; attendance: string
 }
 
@@ -191,6 +193,7 @@ export function CAScoreEntry() {
       inputs[stu.id] = {
         studentId: stu.id,
         studentName: stu.name,
+        admissionNo: stu.admissionNo,
         testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '',
       }
     }
@@ -198,7 +201,8 @@ export function CAScoreEntry() {
     for (const score of existingScores) {
       inputs[score.studentId] = {
         studentId: score.studentId,
-        studentName: inputs[score.studentId]?.studentName || score.studentId,
+        studentName: inputs[score.studentId]?.studentName || score.studentName || score.studentId,
+        admissionNo: inputs[score.studentId]?.admissionNo || score.admissionNo,
         testsScore: toRaw(score.testsScore, score.testsMax),
         assignmentsScore: toRaw(score.assignmentsScore, score.assignmentsMax),
         projectsScore: toRaw(score.projectsScore, score.projectsMax),
@@ -213,13 +217,13 @@ export function CAScoreEntry() {
     setScoreInputs(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }))
   }
 
-  const handleAddStudents = (students: { id: string; name: string }[]) => {
+  const handleAddStudents = (students: { id: string; name: string; admissionNo?: string }[]) => {
     setScoreInputs(prev => {
       const next = { ...prev }
       for (const s of students) {
         if (!next[s.id]) {
           next[s.id] = {
-            studentId: s.id, studentName: s.name || s.id,
+            studentId: s.id, studentName: s.name || s.id, admissionNo: s.admissionNo,
             testsScore: '', assignmentsScore: '', projectsScore: '', examsScore: '', attendance: '',
           }
         }
@@ -269,7 +273,7 @@ export function CAScoreEntry() {
       const res = await tenantApiPost('/api/tenant/results', scorePayload(input, status))
       if (res.ok) {
         toast({ title: status === 'draft' ? 'Draft saved' : 'Score submitted',
-          description: `Scores for ${studentId} have been ${status === 'draft' ? 'saved as draft' : 'submitted'}.` })
+          description: `Scores for ${input.studentName || studentId} have been ${status === 'draft' ? 'saved as draft' : 'submitted'}.` })
         loadScores(); loadSubmissions()
       } else {
         const data = await res.json().catch(() => ({}))
@@ -510,7 +514,7 @@ export function CAScoreEntry() {
                         <TableRow key={input.studentId}>
                           <TableCell className="font-medium text-gray-900">
                             {input.studentName || input.studentId}
-                            <p className="text-xs text-gray-400">{input.studentId}</p>
+                            <p className="text-xs text-gray-400">{input.admissionNo || input.studentId}</p>
                             {existing && <span className="text-xs text-gray-400">(total: {existing.totalScore})</span>}
                           </TableCell>
                           <TableCell><Input type="number" min="0" max={colMaxes.tests} className={`w-16 h-8 ${input.testsScore !== '' && Number(input.testsScore) > colMaxes.tests ? 'border-red-400 text-red-600' : ''}`} value={input.testsScore} onChange={e => handleScoreChange(input.studentId, 'testsScore', e.target.value)} /></TableCell>
@@ -613,7 +617,7 @@ function StudentPickerDialog({
   onOpenChange: (open: boolean) => void
   existingIds: Set<string>
   defaultClass: string
-  onAdd: (students: { id: string; name: string }[]) => void
+  onAdd: (students: { id: string; name: string; admissionNo?: string }[]) => void
 }) {
   const [students, setStudents] = useState<PickerStudent[]>([])
   const [loading, setLoading] = useState(false)
@@ -737,7 +741,7 @@ function StudentPickerDialog({
                   />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900 truncate">{s.name || s.id}</p>
-                    <p className="text-xs text-gray-400">{s.id}{s.admissionNo ? ` · ${s.admissionNo}` : ''}</p>
+                    <p className="text-xs text-gray-400">{s.admissionNo || s.id}</p>
                   </div>
                   <span className="text-xs text-gray-500 shrink-0">{s.class}{already ? ' · added' : ''}</span>
                 </label>

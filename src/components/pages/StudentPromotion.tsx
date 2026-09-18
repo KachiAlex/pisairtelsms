@@ -334,7 +334,7 @@ export function StudentPromotion() {
   const handleExportReport = () => {
     const headers = ['Student ID', 'Student Name', 'From Class', 'To Class', 'Action', 'Session', 'Term', 'Average Score', 'Attendance', 'Status', 'Approved By', 'Created At']
     const rows = promotionRecords.map(r => [
-      r.studentId, r.studentName, r.fromClass, r.toClass, r.action,
+      r.admissionNo || r.studentId, r.studentName, r.fromClass, r.toClass, r.action,
       r.academicSession, r.term, r.averageScore ?? '', r.attendance ?? '',
       r.status, r.approvedBy ?? '', r.createdAt
     ])
@@ -653,7 +653,10 @@ export function StudentPromotion() {
                             onCheckedChange={(checked) => handleStudentSelect(student.id, checked as boolean)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{student.name}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{student.name}</div>
+                          <div className="text-xs text-gray-400">{student.admissionNo}</div>
+                        </TableCell>
                         <TableCell>{student.class}</TableCell>
                         <TableCell>
                           {student.hasScores ? `${student.averageScore}%` : <span className="text-gray-400 italic">No scores recorded</span>}
@@ -722,7 +725,10 @@ export function StudentPromotion() {
                     <TableBody>
                       {promotionRecords.map((record) => (
                         <TableRow key={record.id}>
-                          <TableCell className="font-medium">{record.studentName}</TableCell>
+                          <TableCell>
+                            <div className="font-medium">{record.studentName}</div>
+                            <div className="text-xs text-gray-400">{record.admissionNo || record.studentId}</div>
+                          </TableCell>
                           <TableCell>{record.fromClass}</TableCell>
                           <TableCell>{record.toClass}</TableCell>
                           <TableCell>
@@ -974,7 +980,10 @@ export function StudentPromotion() {
                     <TableBody>
                       {studentsWithRecommendations.slice(0, 5).map((student) => (
                         <TableRow key={student.id}>
-                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>
+                            <div className="font-medium">{student.name}</div>
+                            <div className="text-xs text-gray-400">{student.admissionNo}</div>
+                          </TableCell>
                           <TableCell>{student.class}</TableCell>
                           <TableCell>{student.nextClass}</TableCell>
                           <TableCell>

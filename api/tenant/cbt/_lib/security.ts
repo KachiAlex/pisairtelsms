@@ -153,45 +153,56 @@ export async function getProctoringLogs(
   const limit = filter?.limit || 20;
   const offset = (page - 1) * limit;
 
-  let whereClause = 'WHERE exam_id = $1';
+  let whereClause = 'WHERE pl.exam_id = $1';
   const params: any[] = [examId];
   let paramIndex = 2;
 
   if (filter?.studentId) {
-    whereClause += ` AND student_id = $${paramIndex}`;
+    whereClause += ` AND pl.student_id = $${paramIndex}`;
     params.push(filter.studentId);
     paramIndex++;
   }
 
   if (filter?.eventType) {
-    whereClause += ` AND event_type = $${paramIndex}`;
+    whereClause += ` AND pl.event_type = $${paramIndex}`;
     params.push(filter.eventType);
     paramIndex++;
   }
 
   if (filter?.startDate) {
-    whereClause += ` AND created_at >= $${paramIndex}`;
+    whereClause += ` AND pl.created_at >= $${paramIndex}`;
     params.push(filter.startDate);
     paramIndex++;
   }
 
   if (filter?.endDate) {
-    whereClause += ` AND created_at <= $${paramIndex}`;
+    whereClause += ` AND pl.created_at <= $${paramIndex}`;
     params.push(filter.endDate);
     paramIndex++;
   }
 
   // Get total count
   const countResult = await queryOne<{ count: string }>(
-    `SELECT COUNT(*) as count FROM proctoring_logs ${whereClause}`,
+    `SELECT COUNT(*) as count FROM proctoring_logs pl ${whereClause}`,
     params
   );
   const total = parseInt(countResult?.count || '0');
 
-  // Get paginated results
+  // Get paginated results — join students for display name + admission number.
+  // student_id may hold either the student's UUID or their admission number.
   const logs = await queryAll<ProctoringLog>(
-    `SELECT * FROM proctoring_logs ${whereClause} ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-    [...params, limit, offset]
+    `SELECT pl.id, pl.exam_id AS "examId", pl.student_id AS "studentId",
+            s.name AS "studentName", s.admission_no AS "admissionNo",
+            pl.event_type AS "eventType", pl.event_details AS "eventDetails",
+            pl.created_at AS "createdAt"
+     FROM proctoring_logs pl
+     LEFT JOIN students s
+       ON (s.id::text = pl.student_id OR s.admission_no = pl.student_id)
+      AND s.tenant_id = $${paramIndex}
+     ${whereClause}
+     ORDER BY pl.created_at DESC
+     LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}`,
+    [...params, tenantId, limit, offset]
   );
 
   return {

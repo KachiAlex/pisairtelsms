@@ -4,6 +4,7 @@ export interface PromotionRecord {
   id: string;
   studentId: string;
   studentName: string;
+  admissionNo?: string;
   fromClass: string;
   toClass: string;
   action: 'promote' | 'repeat' | 'demote' | 'hold';
@@ -143,31 +144,48 @@ export async function fetchPromotionRecords(tenantId: string, academicSession?: 
     await ensurePromotionTables(tenantId);
 
     // Use sql.query for dynamic column selection since the shim doesn't support sql.raw()
+    let rows: any[]
     if (academicSession && term && fromClass) {
       const r = await sql.query(
         `SELECT ${RECORD_SELECT} FROM promotion_records WHERE tenant_id = $1 AND academic_session = $2 AND term = $3 AND from_class = $4 ORDER BY created_at DESC`,
         [tenantId, academicSession, term, fromClass]
       );
-      return r.rows as unknown as PromotionRecord[];
+      rows = r.rows
     } else if (academicSession && term) {
       const r = await sql.query(
         `SELECT ${RECORD_SELECT} FROM promotion_records WHERE tenant_id = $1 AND academic_session = $2 AND term = $3 ORDER BY created_at DESC`,
         [tenantId, academicSession, term]
       );
-      return r.rows as unknown as PromotionRecord[];
+      rows = r.rows
     } else if (academicSession) {
       const r = await sql.query(
         `SELECT ${RECORD_SELECT} FROM promotion_records WHERE tenant_id = $1 AND academic_session = $2 ORDER BY created_at DESC`,
         [tenantId, academicSession]
       );
-      return r.rows as unknown as PromotionRecord[];
+      rows = r.rows
     } else {
       const r = await sql.query(
         `SELECT ${RECORD_SELECT} FROM promotion_records WHERE tenant_id = $1 ORDER BY created_at DESC`,
         [tenantId]
       );
-      return r.rows as unknown as PromotionRecord[];
+      rows = r.rows
     }
+
+    // Attach admission numbers for display — cosmetic, don't fail on error.
+    try {
+      const ids = Array.from(new Set(rows.map(r => r.studentId).filter(Boolean)))
+      if (ids.length > 0) {
+        const st = await sql.query(
+          `SELECT id::text AS id, admission_no FROM students WHERE tenant_id = $1 AND id::text = ANY($2)`,
+          [tenantId, ids]
+        );
+        const admById: Record<string, string | null> = {}
+        for (const s of st.rows) admById[s.id] = s.admission_no
+        for (const r of rows) r.admissionNo = admById[r.studentId] || undefined
+      }
+    } catch { /* keep records without admission numbers */ }
+
+    return rows as unknown as PromotionRecord[];
   } catch (error) {
     console.error('Error fetching promotion records:', error);
     return [];

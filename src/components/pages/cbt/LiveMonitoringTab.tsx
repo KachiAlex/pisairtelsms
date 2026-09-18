@@ -15,6 +15,7 @@ interface StudentProgress {
   id: string;
   studentId: string;
   studentName: string;
+  admissionNo?: string;
   questionsAnswered: number;
   totalQuestions: number;
   currentQuestion: number;
@@ -226,8 +227,8 @@ export function LiveMonitoringTab() {
                             <Users className="w-4 h-4 text-blue-600" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{student.studentName}</p>
-                            <p className="text-xs text-gray-500">{student.questionsAnswered}/{student.totalQuestions} answered</p>
+                            <p className="font-medium text-gray-900 truncate">{student.studentName || student.studentId}</p>
+                            <p className="text-xs text-gray-500">{student.admissionNo ? `${student.admissionNo} · ` : ''}{student.questionsAnswered}/{student.totalQuestions} answered</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">

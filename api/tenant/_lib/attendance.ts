@@ -14,6 +14,8 @@ export interface AttendanceRecord {
   id: string
   tenantId: string
   studentId: string
+  studentName?: string
+  admissionNo?: string
   class: string
   date: string
   status: 'present' | 'absent' | 'late'
@@ -27,6 +29,23 @@ export interface AttendanceRecord {
   updatedAt: string
   createdBy?: string
   updatedBy?: string
+}
+
+// The students table may not exist in every deployment — callers should wrap
+// enrichment in try/catch and fall back to raw student ids.
+async function fetchStudentInfoMap(
+  tenantId: string,
+  ids: string[]
+): Promise<Record<string, { name: string; admission_no: string | null }>> {
+  const map: Record<string, { name: string; admission_no: string | null }> = {}
+  if (ids.length === 0) return map
+  const rows = await queryAll<{ id: string; name: string; admission_no: string | null }>(
+    `SELECT id::text AS id, name, admission_no FROM students
+     WHERE tenant_id = $1 AND id::text = ANY($2)`,
+    [tenantId, ids]
+  )
+  for (const r of rows) map[r.id] = r
+  return map
 }
 
 export interface AttendanceFilter {
@@ -215,8 +234,18 @@ export async function fetchAttendance(filters: AttendanceFilter): Promise<FetchR
     let paramIndex = 2
 
     if (studentId) {
+      // Accept either the internal UUID or the friendly admission number.
+      try {
+        const resolved = await queryOne<{ id: string }>(
+          `SELECT id::text AS id FROM students
+           WHERE tenant_id = $1 AND (id::text = $2 OR admission_no = $2) LIMIT 1`,
+          [tenantId, studentId]
+        )
+        values.push(resolved?.id || studentId)
+      } catch {
+        values.push(studentId)
+      }
       conditions.push(`student_id = $${paramIndex++}`)
-      values.push(studentId)
     }
 
     if (className) {
@@ -273,8 +302,23 @@ export async function fetchAttendance(filters: AttendanceFilter): Promise<FetchR
       [...values, limit, offset]
     )
 
+    const mapped = records.map(rowToAttendanceRecord)
+    try {
+      const infoMap = await fetchStudentInfoMap(
+        tenantId,
+        Array.from(new Set(mapped.map((r: AttendanceRecord) => r.studentId)))
+      )
+      for (const r of mapped) {
+        const st = infoMap[r.studentId]
+        if (st) {
+          r.studentName = st.name
+          r.admissionNo = st.admission_no || undefined
+        }
+      }
+    } catch { /* keep id-only records */ }
+
     return {
-      records: records.map(rowToAttendanceRecord),
+      records: mapped,
       total,
     }
   } catch (error) {
@@ -702,6 +746,7 @@ export interface WeeklyHeatmapEntry {
 export interface AtRiskStudent {
   studentId: string
   name: string
+  admissionNo?: string
   class: string
   attendance: number
   reason: string
@@ -995,6 +1040,22 @@ export async function identifyAtRiskStudents(
         owner: row.owner || null,
       }
     })
+
+    // Enrich with student name + admission number. The students table may not
+    // exist in all deployments, so failures leave the id-based names in place.
+    try {
+      const infoMap = await fetchStudentInfoMap(
+        tenantId,
+        Array.from(new Set(students.map(s => s.studentId)))
+      )
+      for (const s of students) {
+        const st = infoMap[s.studentId]
+        if (st) {
+          s.name = st.name
+          s.admissionNo = st.admission_no || undefined
+        }
+      }
+    } catch { /* keep id-based names */ }
 
     // Apply reason filter post-aggregation if provided
     if (reason) {

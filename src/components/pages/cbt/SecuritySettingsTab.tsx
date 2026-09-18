@@ -26,6 +26,7 @@ interface ProctoringLog {
   id: string;
   studentId: string;
   studentName?: string;
+  admissionNo?: string;
   eventType: 'camera_on' | 'camera_off' | 'tab_switch' | 'copy_attempt' | 'right_click';
   createdAt: string;
   eventDetails?: Record<string, any>;
@@ -388,7 +389,10 @@ export function SecuritySettingsTab() {
                                 {EVENT_TYPE_LABELS[log.eventType] || log.eventType}
                               </Badge>
                             </td>
-                            <td className="p-3 text-gray-700">{log.studentName || log.studentId}</td>
+                            <td className="p-3 text-gray-700">
+                              <div>{log.studentName || log.studentId}</div>
+                              <div className="text-xs text-gray-400">{log.admissionNo || log.studentId}</div>
+                            </td>
                             <td className="p-3 text-gray-500">{new Date(log.createdAt).toLocaleString()}</td>
                             <td className="p-3 text-gray-500 text-xs max-w-[200px] truncate">
                               {log.eventDetails ? JSON.stringify(log.eventDetails) : '—'}

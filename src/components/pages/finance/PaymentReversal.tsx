@@ -13,6 +13,7 @@ interface Payment {
   receiptNumber: string;
   studentName: string;
   studentId: string;
+  admissionNo?: string;
   amount: number;
   paymentDate: string;
   paymentMethod: string;
@@ -71,9 +72,10 @@ export function PaymentReversal({ onClose }: PaymentReversalProps) {
   const filteredPayments = payments.filter((payment) => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      payment.studentName.toLowerCase().includes(searchLower) ||
+      (payment.studentName || '').toLowerCase().includes(searchLower) ||
       payment.receiptNumber.toLowerCase().includes(searchLower) ||
-      payment.studentId.toLowerCase().includes(searchLower)
+      payment.studentId.toLowerCase().includes(searchLower) ||
+      (payment.admissionNo || '').toLowerCase().includes(searchLower)
     );
   });
 
@@ -245,8 +247,8 @@ export function PaymentReversal({ onClose }: PaymentReversalProps) {
                           <TableCell className="font-medium">{payment.receiptNumber}</TableCell>
                           <TableCell>
                             <div>
-                              <p className="font-medium">{payment.studentName}</p>
-                              <p className="text-xs text-gray-500">{payment.studentId}</p>
+                              <p className="font-medium">{payment.studentName || payment.studentId}</p>
+                              <p className="text-xs text-gray-500">{payment.admissionNo || payment.studentId}</p>
                             </div>
                           </TableCell>
                           <TableCell>{formatCurrency(payment.amount)}</TableCell>

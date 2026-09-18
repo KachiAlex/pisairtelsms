@@ -29,9 +29,22 @@ export async function getLiveMonitoringData(
     throw new Error('Exam not found');
   }
 
+  // Join students for display name + admission number. student_id may hold
+  // either the student's UUID or their admission number.
   const students = await queryAll<StudentExamProgress>(
-    'SELECT * FROM student_exam_progress WHERE exam_id = $1 ORDER BY last_activity_time DESC',
-    [examId]
+    `SELECT p.id, p.exam_id AS "examId", p.student_id AS "studentId",
+            s.name AS "studentName", s.admission_no AS "admissionNo",
+            p.questions_answered AS "questionsAnswered", p.current_question AS "currentQuestion",
+            p.status, p.time_remaining AS "timeRemaining",
+            p.last_activity_time AS "lastActivityTime", p.flag_reason AS "flagReason",
+            p.flagged_at AS "flaggedAt", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+     FROM student_exam_progress p
+     LEFT JOIN students s
+       ON (s.id::text = p.student_id OR s.admission_no = p.student_id)
+      AND s.tenant_id = $2
+     WHERE p.exam_id = $1
+     ORDER BY p.last_activity_time DESC`,
+    [examId, tenantId]
   );
 
   const activeStudents = students.filter(s => s.status === 'Active').length;

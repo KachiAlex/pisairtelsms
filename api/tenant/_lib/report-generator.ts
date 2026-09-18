@@ -76,6 +76,8 @@ export function generateCSVContent(reportData: ReportData): string {
 
   // Add column headers
   const headers = [
+    'Student Name',
+    'Admission No',
     'Student ID',
     'Class',
     'Date',
@@ -93,6 +95,8 @@ export function generateCSVContent(reportData: ReportData): string {
   // Add data rows
   for (const record of reportData.records) {
     const row = [
+      record.studentName || '',
+      record.admissionNo || '',
       record.studentId,
       record.class,
       record.date,
@@ -189,20 +193,20 @@ export function generatePDFContent(reportData: ReportData): string {
   lines.push('')
 
   // Table header
-  const colWidths = [12, 10, 12, 10, 15, 12]
-  const headers = ['Student ID', 'Class', 'Date', 'Status', 'Source', 'Created At']
+  const colWidths = [20, 14, 8, 12, 9, 12]
+  const headers = ['Student', 'Admission No', 'Class', 'Date', 'Status', 'Source']
   lines.push(formatTableRow(headers, colWidths))
   lines.push('-'.repeat(pageWidth))
 
   // Table rows
   for (const record of reportData.records) {
     const row = [
-      record.studentId,
+      record.studentName || record.studentId,
+      record.admissionNo || '',
       record.class,
       record.date,
       record.status,
       record.source,
-      record.createdAt.split('T')[0], // Just the date part
     ]
     lines.push(formatTableRow(row, colWidths))
   }

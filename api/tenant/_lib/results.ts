@@ -571,7 +571,7 @@ export async function recomputeAllScores(
   academicSession?: string,
   term?: string,
   className?: string
-): Promise<{ recomputed: number; details: { studentId: string; studentName?: string; subject: string; class: string; oldTotal: number; newTotal: number }[] }> {
+): Promise<{ recomputed: number; details: { studentId: string; studentName?: string; admissionNo?: string; subject: string; class: string; oldTotal: number; newTotal: number }[] }> {
   await ensureResultsTable()
   try {
     let query
@@ -596,7 +596,7 @@ export async function recomputeAllScores(
       )
     }
 
-    const details: { studentId: string; studentName?: string; subject: string; class: string; oldTotal: number; newTotal: number }[] = []
+    const details: { studentId: string; studentName?: string; admissionNo?: string; subject: string; class: string; oldTotal: number; newTotal: number }[] = []
     let recomputed = 0
 
     for (const row of query.rows) {
@@ -648,17 +648,23 @@ export async function recomputeAllScores(
       }
     }
 
-    // Attach student names to the change log
+    // Attach student names + admission numbers to the change log
     const detailIds = Array.from(new Set(details.map(d => d.studentId)))
     if (detailIds.length > 0) {
       try {
-        const names = await poolQuery<{ id: string; name: string }>(
-          `SELECT id::text AS id, name FROM students WHERE tenant_id = $1 AND id::text = ANY($2)`,
+        const names = await poolQuery<{ id: string; name: string; admission_no: string | null }>(
+          `SELECT id::text AS id, name, admission_no FROM students WHERE tenant_id = $1 AND id::text = ANY($2)`,
           [tenantId, detailIds]
         )
-        const nameById: Record<string, string> = {}
-        for (const row of names.rows) nameById[row.id] = row.name
-        for (const d of details) d.studentName = nameById[d.studentId]
+        const nameById: Record<string, { name: string; admission_no: string | null }> = {}
+        for (const row of names.rows) nameById[row.id] = row
+        for (const d of details) {
+          const st = nameById[d.studentId]
+          if (st) {
+            d.studentName = st.name
+            d.admissionNo = st.admission_no || undefined
+          }
+        }
       } catch { /* names are cosmetic — don't fail the recompute */ }
     }
 

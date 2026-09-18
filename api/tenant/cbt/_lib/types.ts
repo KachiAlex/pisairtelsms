@@ -117,6 +117,8 @@ export interface StudentExamProgress {
   id: string;
   examId: string;
   studentId: string;
+  studentName?: string;
+  admissionNo?: string;
   questionsAnswered: number;
   currentQuestion: number;
   status: ProgressStatus;
@@ -229,6 +231,8 @@ export interface ProctoringLog {
   id: string;
   examId: string;
   studentId: string;
+  studentName?: string;
+  admissionNo?: string;
   eventType: ProctoringEventType;
   eventDetails?: Record<string, any>;
   createdAt: Date;

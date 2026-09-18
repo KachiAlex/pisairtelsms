@@ -5,6 +5,8 @@ export interface Payment {
   id: string
   tenantId: string
   studentId: string
+  studentName?: string
+  admissionNo?: string
   feeAssignmentId: string
   feeStructureId: string
   amount: number
@@ -151,6 +153,29 @@ interface PaymentPlanInstallmentRow {
   amount: string
   paid_amount: string
   status: string
+}
+
+// Enrich payments with student name + admission number for display.
+// Failures leave the raw student ids in place.
+async function enrichPaymentsWithStudents(tenantId: string, payments: Payment[]): Promise<Payment[]> {
+  const ids = Array.from(new Set(payments.map(p => p.studentId).filter(Boolean)))
+  if (ids.length === 0) return payments
+  try {
+    const result = await sql<{ id: string; name: string; admission_no: string | null }>`
+      SELECT id::text AS id, name, admission_no FROM students
+      WHERE tenant_id = ${tenantId} AND id::text = ANY(${ids})
+    `
+    const byId: Record<string, { name: string; admission_no: string | null }> = {}
+    for (const r of result.rows) byId[r.id] = r
+    for (const p of payments) {
+      const st = byId[p.studentId]
+      if (st) {
+        p.studentName = st.name
+        p.admissionNo = st.admission_no || undefined
+      }
+    }
+  } catch { /* keep id-only payments */ }
+  return payments
 }
 
 function rowToPayment(row: PaymentRow): Payment {
@@ -575,7 +600,7 @@ export async function getPendingPayments(tenantId?: string): Promise<Payment[]> 
     `
   }
 
-  return result.rows.map(rowToPayment)
+  return enrichPaymentsWithStudents(tenantId || '', result.rows.map(rowToPayment))
 }
 
 export async function getPayments(
@@ -683,7 +708,7 @@ export async function getPayments(
     result = await sql`SELECT * FROM payments WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`
   }
 
-  return (result.rows || []).map(rowToPayment)
+  return enrichPaymentsWithStudents(tenantId, (result.rows || []).map(rowToPayment))
 }
 
 export async function getPaymentById(id: string): Promise<Payment | null> {
@@ -692,7 +717,9 @@ export async function getPaymentById(id: string): Promise<Payment | null> {
   const result = await sql<PaymentRow>`SELECT * FROM payments WHERE id = ${id}`
   if (result.rows.length === 0) return null
 
-  return rowToPayment(result.rows[0])
+  const payment = rowToPayment(result.rows[0])
+  const [enriched] = await enrichPaymentsWithStudents(payment.tenantId, [payment])
+  return enriched
 }
 
 export async function updatePaymentStatus(id: string, status: 'pending' | 'verified' | 'reconciled' | 'reversed'): Promise<Payment | null> {

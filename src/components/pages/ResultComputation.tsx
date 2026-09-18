@@ -17,6 +17,7 @@ import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
 interface RecomputeDetail {
   studentId: string
   studentName?: string
+  admissionNo?: string
   subject: string
   class: string
   oldTotal: number
@@ -315,7 +316,9 @@ export function ResultComputation() {
                     <TableRow key={i}>
                       <TableCell className="font-medium text-gray-900">
                         {d.studentName || d.studentId}
-                        {d.studentName && <p className="text-xs text-gray-400 font-normal">{d.studentId}</p>}
+                        {(d.studentName || d.admissionNo) && (
+                          <p className="text-xs text-gray-400 font-normal">{d.admissionNo || d.studentId}</p>
+                        )}
                       </TableCell>
                       <TableCell>{d.subject}</TableCell>
                       <TableCell>{d.class}</TableCell>

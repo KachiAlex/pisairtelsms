@@ -62,6 +62,7 @@ interface HeatmapEntry {
 interface AtRiskStudent {
   studentId: string
   name: string
+  admissionNo?: string
   class: string
   attendance: number
   reason: string
@@ -601,9 +602,10 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   }, [atRiskPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const exportAtRiskToCSV = () => {
-    const headers = ['Student Name', 'Class', 'Attendance %', 'Reason', 'Absences', 'Late Count', 'Owner']
+    const headers = ['Student Name', 'Admission No', 'Class', 'Attendance %', 'Reason', 'Absences', 'Late Count', 'Owner']
     const rows = atRiskStudents.map((s) => [
       s.name,
+      s.admissionNo || s.studentId,
       s.class,
       `${s.attendance}%`,
       s.reason,
@@ -623,9 +625,11 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
 
   const filteredAtRisk = atRiskStudents.filter((s) => {
     if (!searchTerm) return true
+    const term = searchTerm.toLowerCase()
     return (
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.class.toLowerCase().includes(searchTerm.toLowerCase())
+      s.name.toLowerCase().includes(term) ||
+      s.class.toLowerCase().includes(term) ||
+      (s.admissionNo || '').toLowerCase().includes(term)
     )
   })
 
@@ -970,7 +974,10 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                     <TableBody>
                       {filteredAtRisk.map((student) => (
                         <TableRow key={student.studentId}>
-                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>
+                            <div className="font-medium">{student.name}</div>
+                            <div className="text-xs text-muted-foreground">{student.admissionNo || student.studentId}</div>
+                          </TableCell>
                           <TableCell>{student.class}</TableCell>
                           <TableCell>
                             <Badge variant="destructive">{student.attendance}%</Badge>
@@ -1804,7 +1811,7 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Student ID</TableHead>
+                              <TableHead>Student</TableHead>
                               <TableHead>Class</TableHead>
                               <TableHead>Date</TableHead>
                               <TableHead>Status</TableHead>
@@ -1815,7 +1822,10 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                           <TableBody>
                             {reportPreview.records.map((rec: any) => (
                               <TableRow key={rec.id}>
-                                <TableCell className="font-medium text-sm">{rec.studentId}</TableCell>
+                                <TableCell>
+                                  <div className="font-medium text-sm">{rec.studentName || rec.studentId}</div>
+                                  <div className="text-xs text-muted-foreground">{rec.admissionNo || rec.studentId}</div>
+                                </TableCell>
                                 <TableCell className="text-sm">{rec.class}</TableCell>
                                 <TableCell className="text-sm">{rec.date}</TableCell>
                                 <TableCell>

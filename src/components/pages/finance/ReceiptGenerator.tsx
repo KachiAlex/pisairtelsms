@@ -12,6 +12,7 @@ interface Receipt {
   receiptNumber: string;
   studentName: string;
   studentId: string;
+  admissionNo?: string;
   amount: number;
   paymentDate: string;
   paymentMethod: string;
@@ -50,6 +51,7 @@ export function ReceiptGenerator({ onClose }: ReceiptGeneratorProps) {
           receiptNumber: payment.receiptNumber,
           studentName: payment.studentName,
           studentId: payment.studentId,
+          admissionNo: payment.admissionNo,
           amount: payment.amount,
           paymentDate: payment.paymentDate,
           paymentMethod: payment.paymentMethod,
@@ -71,9 +73,10 @@ export function ReceiptGenerator({ onClose }: ReceiptGeneratorProps) {
   const filteredReceipts = receipts.filter((receipt) => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      receipt.studentName.toLowerCase().includes(searchLower) ||
+      (receipt.studentName || '').toLowerCase().includes(searchLower) ||
       receipt.receiptNumber.toLowerCase().includes(searchLower) ||
-      receipt.studentId.toLowerCase().includes(searchLower)
+      receipt.studentId.toLowerCase().includes(searchLower) ||
+      (receipt.admissionNo || '').toLowerCase().includes(searchLower)
     );
   });
 
@@ -119,7 +122,7 @@ export function ReceiptGenerator({ onClose }: ReceiptGeneratorProps) {
             </div>
             <div class="row">
               <span class="label">Student ID:</span>
-              <span class="value">${selectedReceipt.studentId}</span>
+              <span class="value">${selectedReceipt.admissionNo || selectedReceipt.studentId}</span>
             </div>
           </div>
 
@@ -252,7 +255,7 @@ export function ReceiptGenerator({ onClose }: ReceiptGeneratorProps) {
                       <TableCell>
                         <div>
                           <p className="font-medium">{receipt.studentName}</p>
-                          <p className="text-xs text-gray-500">{receipt.studentId}</p>
+                          <p className="text-xs text-gray-500">{receipt.admissionNo || receipt.studentId}</p>
                         </div>
                       </TableCell>
                       <TableCell>{formatCurrency(receipt.amount)}</TableCell>
@@ -307,7 +310,7 @@ export function ReceiptGenerator({ onClose }: ReceiptGeneratorProps) {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Student ID</p>
-                  <p className="font-medium">{selectedReceipt.studentId}</p>
+                  <p className="font-medium">{selectedReceipt.admissionNo || selectedReceipt.studentId}</p>
                 </div>
               </div>
 

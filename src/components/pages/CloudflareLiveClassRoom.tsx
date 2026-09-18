@@ -8,8 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { getAuthFromStorage } from '../../lib/auth'
-import { tenantApiPost } from '../../lib/tenantApi'
-import { useLessonRecording } from '../../hooks/useLessonRecording'
 import { useRealtimeKitClient, RealtimeKitProvider } from '@cloudflare/realtimekit-react'
 import { RtkMeeting } from '@cloudflare/realtimekit-react-ui'
 
@@ -43,19 +41,89 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
 
   const startTimeRef = useRef<number>(Date.now())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const displayStreamRef = useRef<MediaStream | null>(null)
 
   const auth = getAuthFromStorage()
   const displayName = auth?.name || auth?.email || 'Participant'
   const isTeacher = auth?.role === 'staff' || auth?.role === 'tenant_admin'
 
-  const { state: recordingState, error: recordingError, durationSec, startRecording, stopRecording } = useLessonRecording({
-    uploadEndpoint: `/api/tenant/lessons/recording?lessonId=${lesson.id}`,
-    onUploadComplete: (url) => {
-      setRecordingUrl(url)
-      onRecordingSaved?.(url)
-    },
-  })
+  const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'processing' | 'done' | 'error'>('idle')
+  const [recordingError, setRecordingError] = useState<string | null>(null)
+
+  const callRecordingApi = useCallback(async (action: string) => {
+    const res = await fetch('/api/tenant/live-meetings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${auth?.token}`,
+      },
+      body: JSON.stringify({ lessonId: lesson.id, action }),
+    })
+    const data = await res.json().catch(() => ({} as any))
+    if (!res.ok) throw new Error(data.error || `Recording request failed (${res.status})`)
+    return data
+  }, [auth?.token, lesson.id])
+
+  const handleStartRecording = async () => {
+    try {
+      setRecordingError(null)
+      await callRecordingApi('start-recording')
+      setRecordingState('recording')
+    } catch (err) {
+      setRecordingError(err instanceof Error ? err.message : 'Failed to start recording')
+      setRecordingState('error')
+    }
+  }
+
+  const handleStopRecording = async () => {
+    try {
+      setRecordingError(null)
+      await callRecordingApi('stop-recording')
+      setRecordingState('processing')
+    } catch (err) {
+      setRecordingError(err instanceof Error ? err.message : 'Failed to stop recording')
+      setRecordingState('error')
+    }
+  }
+
+  // Restore recording state on mount (e.g. after a page refresh mid-recording)
+  useEffect(() => {
+    if (!isTeacher) return
+    callRecordingApi('recording-status')
+      .then((data) => {
+        if (data.downloadUrl) {
+          setRecordingUrl(data.downloadUrl)
+          setRecordingState('done')
+        } else if (data.status === 'INVOKED' || data.status === 'RECORDING' || data.status === 'PAUSED') {
+          setRecordingState('recording')
+        } else if (data.status === 'UPLOADING' || data.status === 'UPLOADED') {
+          setRecordingState(data.downloadUrl ? 'done' : 'processing')
+        }
+      })
+      .catch(() => {})
+  }, [isTeacher, callRecordingApi])
+
+  // Poll recording status until the file is ready
+  useEffect(() => {
+    if (recordingState !== 'processing') return
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const data = await callRecordingApi('recording-status')
+        if (cancelled) return
+        if (data.downloadUrl) {
+          setRecordingUrl(data.downloadUrl)
+          setRecordingState('done')
+          onRecordingSaved?.(data.downloadUrl)
+        } else {
+          setTimeout(poll, 8000)
+        }
+      } catch {
+        if (!cancelled) setTimeout(poll, 8000)
+      }
+    }
+    poll()
+    return () => { cancelled = true }
+  }, [recordingState, callRecordingApi, onRecordingSaved])
 
   // Track session duration
   useEffect(() => {
@@ -161,31 +229,6 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
     return () => { cancelled = true }
   }, [authToken, initMeeting])
 
-  // Stop display stream on unmount
-  useEffect(() => {
-    return () => {
-      displayStreamRef.current?.getTracks().forEach(t => t.stop())
-    }
-  }, [])
-
-  const handleStartRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30 },
-        audio: true,
-      })
-      displayStreamRef.current = stream
-      await startRecording(stream)
-    } catch (err) {
-      console.error('Failed to start screen capture:', err)
-    }
-  }
-
-  const handleStopRecording = () => {
-    stopRecording()
-    displayStreamRef.current?.getTracks().forEach(t => t.stop())
-  }
-
   const formatTime = (sec: number) => {
     const h = Math.floor(sec / 3600)
     const m = Math.floor((sec % 3600) / 60)
@@ -272,14 +315,11 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
                     )}
                     {recordingState === 'recording' && (
                       <Button variant="default" className="bg-red-600 hover:bg-red-700" onClick={handleStopRecording}>
-                        <Square className="h-4 w-4 mr-2 fill-current" /> Stop Recording ({formatTime(durationSec)})
+                        <Square className="h-4 w-4 mr-2 fill-current" /> Stop Recording
                       </Button>
                     )}
-                    {recordingState === 'stopped' && (
-                      <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Stopping...</Badge>
-                    )}
-                    {recordingState === 'uploading' && (
-                      <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Uploading recording...</Badge>
+                    {recordingState === 'processing' && (
+                      <Badge variant="secondary"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Processing recording...</Badge>
                     )}
                     {recordingState === 'done' && (
                       <Badge variant="default"><CheckCircle className="h-3 w-3 mr-1" /> Recording saved</Badge>
@@ -304,7 +344,7 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
 
                 {recordingState === 'idle' && (
                   <p className="text-xs text-gray-500 mt-2">
-                    Recording captures your screen + microphone. The file uploads automatically when you stop.
+                    Recording is captured server-side by Cloudflare — it keeps running even if you leave or close the browser.
                   </p>
                 )}
               </CardContent>

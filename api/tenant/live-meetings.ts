@@ -61,10 +61,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(403).json({ error: 'Forbidden: No tenant associated with this account' })
   }
 
-  const { lessonId, displayName } = req.body || {}
+  const { lessonId, displayName, action } = req.body || {}
   if (!lessonId) {
     return res.status(400).json({ error: 'lessonId is required' })
   }
+
+  const isStaff = decoded.role === 'staff' || decoded.role === 'tenant_admin'
 
   try {
     const lessonResult = await sql`
@@ -76,6 +78,77 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
     if (lesson.type !== 'live') {
       return res.status(400).json({ error: 'Lesson is not a live class' })
+    }
+
+    // ---------- Recording actions (staff only) ----------
+    if (action === 'start-recording' || action === 'stop-recording' || action === 'recording-status') {
+      if (!isStaff) {
+        return res.status(403).json({ error: 'Only staff can control recording' })
+      }
+      const meetingId = lesson.meeting_url
+      if (!meetingId) {
+        return res.status(400).json({ error: 'Meeting not started yet — join the class first' })
+      }
+
+      if (action === 'start-recording') {
+        const recRes = await cloudflareFetch<{ id: string; status: string }>(
+          `${CF_BASE}/accounts/${env.accountId}/realtime/kit/${env.appId}/recordings`,
+          env.apiToken,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              meeting_id: meetingId,
+              file_name_prefix: `lesson-${lesson.id}`,
+              max_seconds: 10800,
+              realtimekit_bucket_config: { enabled: true },
+              video_config: { codec: 'H264', width: 1280, height: 720 },
+            }),
+          }
+        )
+        await sql`
+          UPDATE lessons SET recording_id = ${recRes.data.id}
+          WHERE id = ${lesson.id as string} AND tenant_id = ${tenantId}
+        `
+        return res.status(200).json({ recordingId: recRes.data.id, status: recRes.data.status })
+      }
+
+      // Resolve the recording id — stored value, else the meeting's active recording
+      let recordingId = lesson.recording_id
+      if (!recordingId) {
+        const active = await cloudflareFetch<{ id: string }>(
+          `${CF_BASE}/accounts/${env.accountId}/realtime/kit/${env.appId}/recordings/active-recording/${meetingId}`,
+          env.apiToken,
+          {}
+        ).catch(() => ({ success: true, data: null as any }))
+        recordingId = active.data?.id || null
+        if (!recordingId) {
+          return res.status(404).json({ error: 'No recording found for this meeting' })
+        }
+      }
+
+      if (action === 'stop-recording') {
+        const stopRes = await cloudflareFetch<{ id: string; status: string }>(
+          `${CF_BASE}/accounts/${env.accountId}/realtime/kit/${env.appId}/recordings/${recordingId}`,
+          env.apiToken,
+          { method: 'PUT', body: JSON.stringify({ action: 'stop' }) }
+        )
+        return res.status(200).json({ recordingId, status: stopRes.data.status })
+      }
+
+      // recording-status — poll until the file is uploaded, then persist the URL
+      const det = await cloudflareFetch<{ id: string; status: string; download_url?: string }>(
+        `${CF_BASE}/accounts/${env.accountId}/realtime/kit/${env.appId}/recordings/${recordingId}`,
+        env.apiToken,
+        {}
+      )
+      const downloadUrl = det.data.download_url || null
+      if (downloadUrl && downloadUrl !== lesson.recording_url) {
+        await sql`
+          UPDATE lessons SET recording_url = ${downloadUrl}
+          WHERE id = ${lesson.id as string} AND tenant_id = ${tenantId}
+        `
+      }
+      return res.status(200).json({ recordingId, status: det.data.status, downloadUrl })
     }
 
     // Create a Cloudflare Realtime meeting if one does not already exist for this lesson

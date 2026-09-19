@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Video, Circle, Square,
   Clock, ArrowLeft, AlertCircle, CheckCircle, Loader2,
@@ -9,7 +9,7 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { getAuthFromStorage } from '../../lib/auth'
 import { useRealtimeKitClient, RealtimeKitProvider } from '@cloudflare/realtimekit-react'
-import { RtkMeeting } from '@cloudflare/realtimekit-react-ui'
+import { RtkMeeting, createDefaultConfig } from '@cloudflare/realtimekit-react-ui'
 
 interface CloudflareLiveClassRoomProps {
   lesson: Lesson
@@ -48,6 +48,63 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
   const auth = getAuthFromStorage()
   const displayName = auth?.name || auth?.email || 'Participant'
   const isTeacher = auth?.role === 'staff' || auth?.role === 'tenant_admin'
+
+  // Classroom-tuned control bar: screenshare promoted to the bar, chat /
+  // participants / polls on the right, and a trimmed More menu (drops
+  // plugins, AI, debugger, captions, breakout rooms, and the duplicate
+  // in-meeting recording toggle — we record server-side via our own button).
+  const meetingUiConfig = useMemo(() => {
+    const menuItem = (tag: string): [string, Record<string, string>] =>
+      [tag, { variant: 'horizontal', slot: 'more-elements' }]
+    const cfg = createDefaultConfig()
+    cfg.root = {
+      ...cfg.root,
+      'div#controlbar-left': ['rtk-screen-share-toggle', 'rtk-settings-toggle'],
+      'div#controlbar-center': [
+        'rtk-mic-toggle',
+        'rtk-camera-toggle',
+        'rtk-more-toggle',
+        'rtk-leave-button',
+      ],
+      'div#controlbar-right': [
+        'rtk-chat-toggle',
+        'rtk-participants-toggle',
+        'rtk-polls-toggle',
+      ],
+      'div#controlbar-mobile': [
+        'rtk-mic-toggle',
+        'rtk-camera-toggle',
+        'rtk-more-toggle',
+        'rtk-leave-button',
+      ],
+      'rtk-more-toggle.activeMoreMenu': [
+        menuItem('rtk-fullscreen-toggle'),
+        menuItem('rtk-pip-toggle'),
+        menuItem('rtk-mute-all-button'),
+      ],
+      'rtk-more-toggle.activeMoreMenu.sm': [
+        menuItem('rtk-chat-toggle'),
+        menuItem('rtk-participants-toggle'),
+        menuItem('rtk-screen-share-toggle'),
+        menuItem('rtk-polls-toggle'),
+        menuItem('rtk-fullscreen-toggle'),
+        menuItem('rtk-pip-toggle'),
+        menuItem('rtk-mute-all-button'),
+        menuItem('rtk-settings-toggle'),
+      ],
+      'rtk-more-toggle.activeMoreMenu.md': [
+        menuItem('rtk-chat-toggle'),
+        menuItem('rtk-participants-toggle'),
+        menuItem('rtk-screen-share-toggle'),
+        menuItem('rtk-polls-toggle'),
+        menuItem('rtk-fullscreen-toggle'),
+        menuItem('rtk-pip-toggle'),
+        menuItem('rtk-mute-all-button'),
+        menuItem('rtk-settings-toggle'),
+      ],
+    }
+    return cfg
+  }, [])
 
   const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'processing' | 'done' | 'error'>('idle')
   const [recordingError, setRecordingError] = useState<string | null>(null)
@@ -341,6 +398,8 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
                     mode="fill"
                     meeting={meeting}
                     showSetupScreen={false}
+                    config={meetingUiConfig}
+                    loadConfigFromPreset={false}
                   />
                 </RealtimeKitProvider>
               ) : (

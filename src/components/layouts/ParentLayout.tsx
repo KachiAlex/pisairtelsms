@@ -32,6 +32,7 @@ const ChildAssignments = React.lazy(() => import('../pages/parent/ChildAssignmen
 const ChildTranscript = React.lazy(() => import('../pages/parent/ChildTranscript').then(m => ({ default: m.ChildTranscript })))
 const SchoolEvents = React.lazy(() => import('../pages/parent/SchoolEvents').then(m => ({ default: m.SchoolEvents })))
 const ParentVirtualLearningConsents = React.lazy(() => import('../pages/parent/ParentVirtualLearningConsents').then(m => ({ default: m.ParentVirtualLearningConsents })))
+const ParentPrivateLessons = React.lazy(() => import('../pages/parent/ParentPrivateLessons').then(m => ({ default: m.ParentPrivateLessons })))
 
 interface ParentLayoutProps {
   children?: React.ReactNode
@@ -143,6 +144,8 @@ export function ParentLayout({ children }: ParentLayoutProps) {
         return <SchoolEvents />
       case 'virtual-learning-consents':
         return <ParentVirtualLearningConsents />
+      case 'private-lessons':
+        return <ParentPrivateLessons />
       case 'health':
         return <HealthWellness />
       case 'notifications':

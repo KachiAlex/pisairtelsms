@@ -80,12 +80,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Lesson is not a live class' })
     }
 
+    // ---------- Policy gates ----------
+    const settingsRes = await sql`
+      SELECT * FROM virtual_learning_settings WHERE tenant_id = ${tenantId}
+    `.catch(() => ({ rows: [] as any[] }))
+    const vlSettings = settingsRes.rows[0] || null
+
     // ---------- Recording actions (staff only) ----------
     if (action === 'start-recording' || action === 'stop-recording' || action === 'recording-status') {
       if (!isStaff) {
         return res.status(403).json({ error: 'Only staff can control recording' })
       }
-      const meetingId = lesson.meeting_url
+      if (action === 'start-recording' && vlSettings && vlSettings.allow_recording === false) {
+        return res.status(403).json({ error: 'Recording is disabled in virtual learning settings' })
+      }
+      // meeting_url may hold an external link (Zoom/Meet) — that is not a
+      // RealtimeKit meeting ID, so there is no recording to control.
+      const meetingId = lesson.meeting_url && !/^https?:\/\//i.test(lesson.meeting_url)
+        ? lesson.meeting_url
+        : null
       if (!meetingId) {
         return res.status(400).json({ error: 'Meeting not started yet — join the class first' })
       }
@@ -151,8 +164,85 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(200).json({ recordingId, status: det.data.status, downloadUrl })
     }
 
-    // Create a Cloudflare Realtime meeting if one does not already exist for this lesson
+    // ---------- Join gates (applies to actual meeting entry) ----------
+    // Only staff and students may join live classes — parents observe via
+    // consents/attendance, not as participants.
+    if (decoded.role !== 'staff' && decoded.role !== 'tenant_admin' && decoded.role !== 'student') {
+      return res.status(403).json({ error: 'Your role is not permitted to join live classes' })
+    }
+
+    if (vlSettings) {
+      // School-hours restriction (times are stored in school-local time, WAT)
+      if (vlSettings.allow_live_outside_school_hours === false) {
+        const t = await sql`
+          SELECT ((NOW() AT TIME ZONE 'Africa/Lagos')::time
+                  BETWEEN ${vlSettings.school_hours_start}::time
+                      AND ${vlSettings.school_hours_end}::time) AS within_hours
+        `
+        if (!t.rows[0]?.within_hours) {
+          return res.status(403).json({
+            error: `Live classes are only available during school hours (${vlSettings.school_hours_start}–${vlSettings.school_hours_end})`,
+          })
+        }
+      }
+    }
+
+    // Student-specific gates: class enrollment + parent consent
+    if (decoded.role === 'student') {
+      const studentId = decoded.studentId || decoded.userId
+      const stuRes = await sql`
+        SELECT id, class, arm, status FROM students
+        WHERE id = ${studentId} AND tenant_id = ${tenantId}
+      `
+      const student = stuRes.rows[0]
+      if (!student) {
+        return res.status(403).json({ error: 'Student record not found for this account' })
+      }
+
+      // Enrollment: if the classroom is bound to a class arm, the student must
+      // belong to it (matched via the classes table on name + arm).
+      const clsRes = await sql`
+        SELECT vc.class_arm_id
+        FROM virtual_classrooms vc
+        WHERE vc.id = ${lesson.classroom_id} AND vc.tenant_id = ${tenantId}
+      `
+      const classArmId = clsRes.rows[0]?.class_arm_id || null
+      if (classArmId) {
+        const enroll = await sql`
+          SELECT 1 FROM classes c
+          WHERE c.id::text = ${classArmId} AND c.tenant_id = ${tenantId}
+            AND LOWER(c.name) = LOWER(${student.class || ''})
+            AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(${student.arm || ''}))
+          LIMIT 1
+        `
+        if (!enroll.rows[0]) {
+          return res.status(403).json({ error: 'You are not enrolled in the class for this lesson' })
+        }
+      }
+
+      // Parent consent for standard live lessons
+      if (vlSettings?.require_parent_consent_standard) {
+        const consent = await sql`
+          SELECT status FROM virtual_learning_consents
+          WHERE tenant_id = ${tenantId} AND student_id = ${student.id}
+            AND consent_type = 'standard' AND status = 'granted'
+          LIMIT 1
+        `
+        if (!consent.rows[0]) {
+          return res.status(403).json({
+            error: 'A parent/guardian must grant consent before you can join live classes',
+          })
+        }
+      }
+    }
+
+    // Create a Cloudflare Realtime meeting if one does not already exist for this lesson.
+    // meeting_url is dual-purpose — an external http(s) link is NOT a RealtimeKit
+    // meeting ID, so treat it as unset and create a proper meeting.
     let meetingId = lesson.meeting_url || null
+    if (meetingId && /^https?:\/\//i.test(meetingId)) {
+      meetingId = null
+    }
     if (!meetingId) {
       const createRes = await cloudflareFetch<{ id: string }>(
         `${CF_BASE}/accounts/${env.accountId}/realtime/kit/${env.appId}/meetings`,

@@ -1,13 +1,14 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
-import { requireRole, requireAuth } from '../_lib/auth-middleware.js'
+import { requireAuth } from '../_lib/auth-middleware.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireAuth(req, res)
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
-  const userId = decoded.userId || decoded.sub || 'system'
+  // Parent tokens carry parentId (not userId) — normalize so 'system' is never used
+  const userId = decoded.userId || decoded.parentId || decoded.staffId || decoded.studentId || decoded.sub || 'system'
   const userRole = decoded.role
 
   try {
@@ -20,7 +21,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         // Admin sees all requests
         if (status) {
           result = await sql`
-            SELECT plr.*, t.name as teacher_name, s.name as subject_name
+            SELECT plr.*, t.name as teacher_name, s.name as subject_name,
+              (SELECT array_agg(st.name ORDER BY st.name) FROM students st
+               WHERE st.id::text = ANY(plr.student_ids)) AS student_names
             FROM private_lesson_requests plr
             LEFT JOIN staff t ON t.id = plr.teacher_id
             LEFT JOIN subjects s ON s.id::text = plr.subject_id
@@ -29,7 +32,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           `
         } else {
           result = await sql`
-            SELECT plr.*, t.name as teacher_name, s.name as subject_name
+            SELECT plr.*, t.name as teacher_name, s.name as subject_name,
+              (SELECT array_agg(st.name ORDER BY st.name) FROM students st
+               WHERE st.id::text = ANY(plr.student_ids)) AS student_names
             FROM private_lesson_requests plr
             LEFT JOIN staff t ON t.id = plr.teacher_id
             LEFT JOIN subjects s ON s.id::text = plr.subject_id
@@ -40,7 +45,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       } else if (userRole === 'staff') {
         // Teacher sees their own requests
         result = await sql`
-          SELECT plr.*, t.name as teacher_name, s.name as subject_name
+          SELECT plr.*, t.name as teacher_name, s.name as subject_name,
+            (SELECT array_agg(st.name ORDER BY st.name) FROM students st
+             WHERE st.id::text = ANY(plr.student_ids)) AS student_names
           FROM private_lesson_requests plr
           LEFT JOIN staff t ON t.id = plr.teacher_id
           LEFT JOIN subjects s ON s.id::text = plr.subject_id
@@ -48,27 +55,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           ORDER BY plr.created_at DESC
         `
       } else if (userRole === 'parent') {
-        // Parent sees requests for their children
+        // Parent sees requests covering their own children (via parent_students link)
         result = await sql`
-          SELECT plr.*, t.name as teacher_name, s.name as subject_name
+          SELECT plr.*, t.name as teacher_name, s.name as subject_name,
+            (SELECT array_agg(st.name ORDER BY st.name) FROM students st
+             WHERE st.id::text = ANY(plr.student_ids)) AS student_names
           FROM private_lesson_requests plr
           LEFT JOIN staff t ON t.id = plr.teacher_id
           LEFT JOIN subjects s ON s.id::text = plr.subject_id
           WHERE plr.tenant_id = ${tenantId}
-            AND ${userId} = ANY(string_to_array(array_to_string(plr.student_ids, ','), ',')::text[])
+            AND plr.student_ids && COALESCE(
+              (SELECT array_agg(ps.student_id) FROM parent_students ps
+               WHERE ps.parent_id = ${userId} AND ps.tenant_id = ${tenantId}),
+              '{}'::text[])
           ORDER BY plr.created_at DESC
         `
-        // Fallback: parent sees all pending_parent requests if student_ids match fails
-        if (!result.rows.length) {
-          result = await sql`
-            SELECT plr.*, t.name as teacher_name, s.name as subject_name
-            FROM private_lesson_requests plr
-            LEFT JOIN staff t ON t.id = plr.teacher_id
-            LEFT JOIN subjects s ON s.id::text = plr.subject_id
-            WHERE plr.tenant_id = ${tenantId} AND plr.parent_status = 'pending'
-            ORDER BY plr.created_at DESC
-          `
-        }
       } else {
         return res.status(403).json({ error: 'Not authorized to view private lesson requests' })
       }
@@ -82,11 +83,40 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(403).json({ error: 'Only teachers can request private lessons' })
       }
       const { studentIds, subjectId, classroomId, purpose, proposedSchedule, durationMinutes, numSessions } = req.body || {}
-      if (!studentIds || !studentIds.length || !purpose || !proposedSchedule) {
-        return res.status(400).json({ error: 'studentIds, purpose, and proposedSchedule are required' })
+      if (!Array.isArray(studentIds) || !studentIds.length || !purpose || !proposedSchedule) {
+        return res.status(400).json({ error: 'studentIds (array), purpose, and proposedSchedule are required' })
       }
 
-      // Calculate fee from rate card
+      // Validate all students exist in this tenant
+      const validStudents = await sql`
+        SELECT id FROM students
+        WHERE id::text = ANY(${studentIds}) AND tenant_id = ${tenantId}
+      `
+      if (validStudents.rows.length !== studentIds.length) {
+        return res.status(400).json({ error: 'One or more student IDs are invalid' })
+      }
+
+      // Enforce max private lessons per student per week
+      const settingsRes = await sql`
+        SELECT max_private_lessons_per_week FROM virtual_learning_settings WHERE tenant_id = ${tenantId}
+      `
+      const maxPerWeek = settingsRes.rows[0]?.max_private_lessons_per_week ?? 3
+      if (maxPerWeek > 0) {
+        const weekCount = await sql`
+          SELECT COUNT(*)::int AS n FROM private_lesson_requests
+          WHERE tenant_id = ${tenantId}
+            AND status NOT IN ('cancelled', 'rejected', 'declined')
+            AND student_ids && ${studentIds}
+            AND created_at >= date_trunc('week', NOW())
+        `
+        if ((weekCount.rows[0]?.n || 0) >= maxPerWeek) {
+          return res.status(400).json({
+            error: `Weekly private lesson limit reached (${maxPerWeek} per student per week)`,
+          })
+        }
+      }
+
+      // Calculate fee from rate card — prefer a subject-specific rate, else the global one
       let feeAmount: number | null = null
       let feeCurrency = 'NGN'
       let paymentMode = 'direct_payment'
@@ -94,7 +124,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const rateResult = await sql`
           SELECT * FROM private_lesson_rates
           WHERE tenant_id = ${tenantId} AND is_active = true
-          ORDER BY (subject_id = ${subjectId || null}) DESC, subject_id NULLS LAST
+            AND (subject_id IS NULL OR subject_id = ${subjectId || null})
+          ORDER BY (subject_id IS NOT NULL) DESC, created_at DESC
           LIMIT 1
         `
         if (rateResult.rows[0]) {
@@ -128,22 +159,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         RETURNING *
       `
 
-      // Create notification for admin
+      // Notify all tenant admins (staff with admin/principal roles)
       try {
         await sql`
           INSERT INTO virtual_learning_notifications (
             tenant_id, user_id, user_role, type, title, message,
             related_entity_type, related_entity_id
           )
-          VALUES (
-            ${tenantId}, 'admin', 'tenant_admin', 'approval_request',
+          SELECT ${tenantId}, s.id, 'tenant_admin', 'approval_request',
             'New private lesson request',
             ${`Private lesson request for ${studentIds.length} student(s): ${purpose}`},
             'private_lesson_request', ${result.rows[0].id}
-          )
+          FROM staff s
+          WHERE s.tenant_id = ${tenantId}
+            AND (LOWER(s.role) LIKE '%admin%' OR LOWER(s.role) LIKE '%principal%')
         `
-      } catch {
-        // Notification is non-critical
+      } catch (err) {
+        console.warn('Failed to notify admins of private lesson request:', err)
       }
 
       return res.status(201).json({ data: result.rows[0] })
@@ -187,20 +219,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           RETURNING *
         `
 
-        // Notify parent
+        // Notify the parents of the students on this request (respects auto_notify_parents)
         try {
-          await sql`
+          const notifySetting = await sql`
+            SELECT auto_notify_parents FROM virtual_learning_settings WHERE tenant_id = ${tenantId}
+          `.catch(() => ({ rows: [] as any[] }))
+          const autoNotify = notifySetting.rows[0]?.auto_notify_parents !== false
+          if (autoNotify) {
+            await sql`
             INSERT INTO virtual_learning_notifications (
               tenant_id, user_id, user_role, type, title, message,
               related_entity_type, related_entity_id
             )
-            VALUES (
-              ${tenantId}, ${request.student_ids[0] || 'parent'}, 'parent', 'approval_request',
+            SELECT ${tenantId}, ps.parent_id, 'parent', 'approval_request',
               'Private lesson approval needed',
               ${`A private lesson has been approved by admin. Fee: ${finalFee} ${request.fee_currency}. Please review and approve.`},
               'private_lesson_request', ${id}
-            )
+            FROM parent_students ps
+            WHERE ps.tenant_id = ${tenantId} AND ps.student_id = ANY(${request.student_ids || []})
           `
+          }
         } catch (err) {
           // QUAL-02: best-effort notification — log but don't fail the request
           console.warn('Failed to insert approval notification:', err);
@@ -233,11 +271,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         if (userRole !== 'parent') {
           return res.status(403).json({ error: 'Only parents can approve for their children' })
         }
-        // Verify this parent owns at least one of the students in the request
-        const parentChildren = decoded.childrenIds || []
-        const requestStudents: string[] = Array.isArray(request.student_ids) ? request.student_ids : []
-        const ownsStudent = requestStudents.some((sid: string) => parentChildren.includes(sid))
-        if (!ownsStudent) {
+        // Verify via parent_students that this parent owns a student on the request
+        const owned = await sql`
+          SELECT ps.student_id FROM parent_students ps
+          WHERE ps.parent_id = ${userId} AND ps.tenant_id = ${tenantId}
+            AND ps.student_id = ANY(${request.student_ids || []})
+          LIMIT 1
+        `
+        const ownedStudentId = owned.rows[0]?.student_id
+        if (!ownedStudentId) {
           return res.status(403).json({ error: 'You can only approve requests for your own children' })
         }
         if (request.admin_status !== 'approved') {
@@ -264,7 +306,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 amount, currency, payment_method, payment_status
               )
               VALUES (
-                ${tenantId}, ${id}, ${userId}, ${request.student_ids[0] || userId},
+                ${tenantId}, ${id}, ${userId}, ${ownedStudentId},
                 ${request.fee_amount}, ${request.fee_currency}, ${request.payment_mode}, 'pending'
               )
             `
@@ -301,11 +343,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         if (userRole !== 'parent') {
           return res.status(403).json({ error: 'Only parents can decline for their children' })
         }
-        // Verify this parent owns at least one of the students in the request
-        const parentChildren = decoded.childrenIds || []
-        const requestStudents: string[] = Array.isArray(request.student_ids) ? request.student_ids : []
-        const ownsStudent = requestStudents.some((sid: string) => parentChildren.includes(sid))
-        if (!ownsStudent) {
+        const owned = await sql`
+          SELECT 1 FROM parent_students ps
+          WHERE ps.parent_id = ${userId} AND ps.tenant_id = ${tenantId}
+            AND ps.student_id = ANY(${request.student_ids || []})
+          LIMIT 1
+        `
+        if (!owned.rows[0]) {
           return res.status(403).json({ error: 'You can only decline requests for your own children' })
         }
         const result = await sql`

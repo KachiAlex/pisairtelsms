@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import {
   Video, BookOpen, FileText, ClipboardList, Plus, Search, MoreVertical,
   Users, Calendar, Trash2, Edit, Eye, ArrowLeft, Upload, Link2, Download,
@@ -87,6 +87,7 @@ export function VirtualClassroom() {
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false)
   const [showMaterialDialog, setShowMaterialDialog] = useState(false)
   const [liveLesson, setLiveLesson] = useState<Lesson | null>(null)
+  const detailsReqRef = useRef(0)
 
   const fetchClassrooms = useCallback(async () => {
     setLoading(true)
@@ -109,12 +110,15 @@ export function VirtualClassroom() {
   }, [toast])
 
   const fetchClassroomDetails = useCallback(async (classroom: Classroom) => {
+    const reqId = ++detailsReqRef.current
     try {
       const [lessonsRes, assignmentsRes, materialsRes] = await Promise.all([
         tenantApiGet(`/api/tenant/lessons?classroomId=${classroom.id}`),
         tenantApiGet(`/api/tenant/assignments?classroomId=${classroom.id}`),
         tenantApiGet(`/api/tenant/course-materials?classroomId=${classroom.id}`),
       ])
+      // Ignore stale responses if the user switched classrooms mid-fetch
+      if (reqId !== detailsReqRef.current) return
       if (lessonsRes.ok) {
         const data = await lessonsRes.json()
         setLessons(data.data || [])
@@ -353,15 +357,11 @@ export function VirtualClassroom() {
                             </a>
                           </Button>
                         )}
-                        {lesson.type === 'live' && lesson.status !== 'completed' ? (
+                        {lesson.type === 'live' && lesson.status !== 'completed' && (
                           <Button size="sm" variant="outline" onClick={() => setLiveLesson(lesson)}>
                             <Video className="h-4 w-4 mr-1" /> Join Live
                           </Button>
-                        ) : lesson.type === 'live' && lesson.status === 'completed' ? (
-                          <Button size="sm" variant="ghost" onClick={() => setLiveLesson(lesson)}>
-                            <Video className="h-4 w-4 mr-1" /> Replay
-                          </Button>
-                        ) : null}
+                        )}
                       </div>
                     </CardContent>
                   </Card>

@@ -7,7 +7,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
-  const userId = decoded.userId || decoded.sub || 'system'
+  // Parent tokens carry parentId (not userId) — normalize so 'system' is never stored
+  const userId = decoded.userId || decoded.parentId || decoded.staffId || decoded.studentId || decoded.sub || 'system'
   const userRole = decoded.role
 
   try {
@@ -15,12 +16,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const { studentId } = req.query
       let result
       if (userRole === 'parent') {
+        // Parents see consents for their own children only
+        result = await sql`
+          SELECT c.* FROM virtual_learning_consents c
+          JOIN parent_students ps ON ps.student_id = c.student_id
+            AND ps.parent_id = ${userId} AND ps.tenant_id = ${tenantId}
+          WHERE c.tenant_id = ${tenantId}
+          ORDER BY c.created_at DESC
+        `
+      } else if (studentId && (userRole === 'staff' || userRole === 'tenant_admin')) {
         result = await sql`
           SELECT * FROM virtual_learning_consents
-          WHERE parent_id = ${userId} AND tenant_id = ${tenantId}
+          WHERE student_id = ${studentId as string} AND tenant_id = ${tenantId}
           ORDER BY created_at DESC
         `
-      } else if (studentId) {
+      } else if (studentId && userRole === 'student' && studentId === (decoded.studentId || userId)) {
+        // Students may read only their own consent record
         result = await sql`
           SELECT * FROM virtual_learning_consents
           WHERE student_id = ${studentId as string} AND tenant_id = ${tenantId}
@@ -47,6 +58,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (userRole !== 'parent' && userRole !== 'tenant_admin') {
         return res.status(403).json({ error: 'Only parents or admins can set consent' })
       }
+
+      // Verify the student exists in this tenant
+      const student = await sql`
+        SELECT id FROM students WHERE id::text = ${studentId as string} AND tenant_id = ${tenantId}
+      `
+      if (!student.rows[0]) {
+        return res.status(404).json({ error: 'Student not found' })
+      }
+
+      // Parents may only set consent for their own children
+      if (userRole === 'parent') {
+        const link = await sql`
+          SELECT 1 FROM parent_students
+          WHERE parent_id = ${userId} AND student_id = ${studentId as string} AND tenant_id = ${tenantId}
+        `
+        if (!link.rows[0]) {
+          return res.status(403).json({ error: 'You can only set consent for your own children' })
+        }
+      }
+
       const parentId = userRole === 'parent' ? userId : req.body.parentId
 
       const result = await sql`

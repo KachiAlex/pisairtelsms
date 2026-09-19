@@ -20,10 +20,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   if (req.method === 'GET') {
     try {
+      // Merge general + virtual-learning notifications — VL rows are written
+      // to virtual_learning_notifications but deserve the same bell surface.
       const result = await sql.query(
         `
         SELECT id, user_id, title, message, type, is_read, created_at, read_at
         FROM notifications
+        WHERE tenant_id = $1 AND user_id = $2
+        UNION ALL
+        SELECT id, user_id, title, message, type, is_read, created_at, read_at
+        FROM virtual_learning_notifications
         WHERE tenant_id = $1 AND user_id = $2
         ORDER BY created_at DESC
         LIMIT 100
@@ -59,7 +65,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ success: false, error: 'Notification ID is required' })
       }
 
-      const result = await sql.query(
+      let result = await sql.query(
         `
         UPDATE notifications
         SET is_read = true, read_at = NOW()
@@ -68,6 +74,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         `,
         [id, tenantId, userId]
       )
+
+      // Virtual-learning notifications are merged into this feed — fall back
+      if (result.rows.length === 0) {
+        result = await sql.query(
+          `
+          UPDATE virtual_learning_notifications
+          SET is_read = true, read_at = NOW()
+          WHERE id = $1 AND tenant_id = $2 AND user_id = $3
+          RETURNING *
+          `,
+          [id, tenantId, userId]
+        )
+      }
 
       if (result.rows.length === 0) {
         return res.status(404).json({ success: false, error: 'Notification not found' })
@@ -91,7 +110,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ success: false, error: 'Notification ID is required' })
       }
 
-      const result = await sql.query(
+      let result = await sql.query(
         `
         DELETE FROM notifications
         WHERE id = $1 AND tenant_id = $2 AND user_id = $3
@@ -99,6 +118,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         `,
         [id, tenantId, userId]
       )
+
+      if (result.rows.length === 0) {
+        result = await sql.query(
+          `
+          DELETE FROM virtual_learning_notifications
+          WHERE id = $1 AND tenant_id = $2 AND user_id = $3
+          RETURNING id
+          `,
+          [id, tenantId, userId]
+        )
+      }
 
       if (result.rows.length === 0) {
         return res.status(404).json({ success: false, error: 'Notification not found' })

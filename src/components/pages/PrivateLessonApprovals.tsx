@@ -25,6 +25,7 @@ interface LessonRequest {
   teacher_id: string
   teacher_name: string | null
   student_ids: string[]
+  student_names: string[] | null
   subject_name: string | null
   purpose: string
   proposed_schedule: string
@@ -225,7 +226,10 @@ export function PrivateLessonApprovals() {
                           <BookOpen className="h-3 w-3" /> {req.teacher_name || req.teacher_id}
                         </span>
                         <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" /> {req.student_ids?.length || 0} student(s)
+                          <Users className="h-3 w-3" />
+                          {req.student_names?.length
+                            ? req.student_names.join(', ')
+                            : `${req.student_ids?.length || 0} student(s)`}
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" /> {new Date(req.proposed_schedule).toLocaleString()}
@@ -279,7 +283,7 @@ export function PrivateLessonApprovals() {
                 <p><strong>Purpose:</strong> {approveDialog.purpose}</p>
                 <p><strong>Schedule:</strong> {new Date(approveDialog.proposed_schedule).toLocaleString()}</p>
                 <p><strong>Duration:</strong> {approveDialog.duration_minutes} min × {approveDialog.num_sessions} session(s)</p>
-                <p><strong>Students:</strong> {approveDialog.student_ids?.length || 0}</p>
+                <p><strong>Students:</strong> {approveDialog.student_names?.join(', ') || `${approveDialog.student_ids?.length || 0} student(s)`}</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fee">Fee Amount ({approveDialog.fee_currency})</Label>
@@ -326,10 +330,23 @@ function RateCardDialog({ open, onClose, rates, onRefresh }: {
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('NGN')
   const [paymentMode, setPaymentMode] = useState('direct_payment')
+  const [subjectId, setSubjectId] = useState('')
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    if (!open) return
+    tenantApiGet('/api/tenant/academics/subjects')
+      .then(r => (r.ok ? r.json() : { data: [] }))
+      .then(d => setSubjects(d.data || []))
+      .catch(() => {})
+  }, [open])
 
   const handleCreate = async () => {
     try {
-      const res = await tenantApiPost('/api/tenant/private-lesson-rates', { rateType, amount: Number(amount), currency, paymentMode })
+      const res = await tenantApiPost('/api/tenant/private-lesson-rates', {
+        rateType, amount: Number(amount), currency, paymentMode,
+        subjectId: subjectId || undefined,
+      })
       if (res.ok) {
         setAmount('')
         onRefresh()
@@ -417,6 +434,18 @@ function RateCardDialog({ open, onClose, rates, onRefresh }: {
                   <SelectContent>
                     <SelectItem value="direct_payment">Direct Payment</SelectItem>
                     <SelectItem value="add_to_invoice">Add to Invoice</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs">Subject (optional — applies to all subjects when unset)</Label>
+                <Select value={subjectId || '__all__'} onValueChange={v => setSubjectId(v === '__all__' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All subjects</SelectItem>
+                    {subjects.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

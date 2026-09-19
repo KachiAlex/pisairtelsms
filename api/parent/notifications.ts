@@ -21,11 +21,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const limit = parseInt(req.query.limit as string) || 20
     const type = req.query.type as string
 
+    // Merge virtual-learning notifications (approvals, payments) into the feed
     let query = sql`
       SELECT id, type, title, message, is_read, action_url, created_at::text AS date
       FROM parent_notifications
       WHERE parent_id = ${parentId} AND tenant_id = ${tenantId}
-      ORDER BY created_at DESC
+      UNION ALL
+      SELECT id, type, title, message, is_read, NULL AS action_url, created_at::text AS date
+      FROM virtual_learning_notifications
+      WHERE user_id = ${parentId} AND tenant_id = ${tenantId} AND user_role = 'parent'
+      ORDER BY date DESC
       LIMIT ${limit}
     `
 
@@ -34,7 +39,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         SELECT id, type, title, message, is_read, action_url, created_at::text AS date
         FROM parent_notifications
         WHERE parent_id = ${parentId} AND tenant_id = ${tenantId} AND type = ${type}
-        ORDER BY created_at DESC
+        UNION ALL
+        SELECT id, type, title, message, is_read, NULL AS action_url, created_at::text AS date
+        FROM virtual_learning_notifications
+        WHERE user_id = ${parentId} AND tenant_id = ${tenantId} AND user_role = 'parent' AND type = ${type}
+        ORDER BY date DESC
         LIMIT ${limit}
       `
     }
@@ -51,8 +60,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }))
 
     const unreadRes = await sql`
-      SELECT COUNT(*) AS count FROM parent_notifications
-      WHERE parent_id = ${parentId} AND tenant_id = ${tenantId} AND is_read = FALSE
+      SELECT (
+        (SELECT COUNT(*) FROM parent_notifications
+         WHERE parent_id = ${parentId} AND tenant_id = ${tenantId} AND is_read = FALSE)
+        +
+        (SELECT COUNT(*) FROM virtual_learning_notifications
+         WHERE user_id = ${parentId} AND tenant_id = ${tenantId} AND user_role = 'parent' AND is_read = FALSE)
+      ) AS count
     `
     const unreadCount = parseInt(unreadRes.rows[0]?.count ?? '0')
 

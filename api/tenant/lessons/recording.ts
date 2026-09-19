@@ -2,14 +2,6 @@ import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '500mb',
-    },
-  },
-}
-
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
@@ -31,14 +23,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const contentType = req.headers['content-type'] || ''
 
       if (contentType.includes('multipart/form-data')) {
-        // Multipart parsing requires a library; in production, upload to
-        // object storage from the client side directly and post the URL here
-        return res.status(200).json({
-          data: {
-            url: `https://recordings.pisairtel-school.com/${lessonId}/${Date.now()}.webm`,
-            lessonId,
-            uploadedAt: new Date().toISOString(),
-          }
+        // Direct file uploads are not supported — recordings are produced
+        // server-side via Cloudflare RealtimeKit (see live-meetings
+        // start-recording / recording-status actions), which stores the file
+        // and writes the real download URL onto the lesson.
+        return res.status(501).json({
+          error: 'Direct recording upload is not supported. Use the in-class Record button (server-side recording).',
         })
       }
 

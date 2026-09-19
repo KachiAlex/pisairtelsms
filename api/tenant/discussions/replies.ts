@@ -7,7 +7,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
-  const userId = decoded.userId || decoded.sub || 'system'
+  const userId = decoded.userId || decoded.staffId || decoded.studentId || decoded.parentId || decoded.sub || 'system'
   const userRole = decoded.role
 
   try {
@@ -17,9 +17,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ error: 'discussionId query param is required' })
       }
       const result = await sql`
-        SELECT * FROM discussion_replies
-        WHERE discussion_id = ${discussionId as string} AND tenant_id = ${tenantId}
-        ORDER BY created_at ASC
+        SELECT r.*,
+          COALESCE(sf.name, stu.name, pa.name) AS author_name
+        FROM discussion_replies r
+        LEFT JOIN staff sf ON sf.id = r.created_by AND sf.tenant_id = r.tenant_id
+        LEFT JOIN students stu ON stu.id = r.created_by AND stu.tenant_id = r.tenant_id
+        LEFT JOIN parents pa ON pa.id = r.created_by AND pa.tenant_id = r.tenant_id
+        WHERE r.discussion_id = ${discussionId as string} AND r.tenant_id = ${tenantId}
+        ORDER BY r.created_at ASC
       `
       return res.status(200).json({ data: result.rows })
     }
@@ -32,7 +37,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const discussion = await sql`
         SELECT is_locked FROM discussions WHERE id = ${discussionId} AND tenant_id = ${tenantId}
       `
-      if (discussion.rows[0]?.is_locked) {
+      if (!discussion.rows[0]) {
+        return res.status(404).json({ error: 'Discussion not found' })
+      }
+      if (discussion.rows[0].is_locked) {
         return res.status(403).json({ error: 'Discussion is locked' })
       }
       const result = await sql`

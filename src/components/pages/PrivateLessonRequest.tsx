@@ -25,6 +25,7 @@ interface LessonRequest {
   teacher_id: string
   teacher_name: string | null
   student_ids: string[]
+  student_names: string[] | null
   subject_name: string | null
   purpose: string
   proposed_schedule: string
@@ -205,7 +206,10 @@ export function PrivateLessonRequest() {
                       </div>
                       <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" /> {req.student_ids?.length || 0} student(s)
+                          <Users className="h-3 w-3" />
+                          {req.student_names?.length
+                            ? req.student_names.join(', ')
+                            : `${req.student_ids?.length || 0} student(s)`}
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" /> {new Date(req.proposed_schedule).toLocaleString()}
@@ -271,17 +275,66 @@ export function PrivateLessonRequest() {
   )
 }
 
+interface StudentOption {
+  id: string
+  name: string
+  admission_no?: string | null
+  class?: string | null
+  arm?: string | null
+}
+
+interface SubjectOption {
+  id: string
+  name: string
+}
+
 function CreateRequestDialog({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (data: any) => void }) {
-  const [studentIds, setStudentIds] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [studentSearch, setStudentSearch] = useState('')
+  const [students, setStudents] = useState<StudentOption[]>([])
+  const [subjects, setSubjects] = useState<SubjectOption[]>([])
+  const [loadingOptions, setLoadingOptions] = useState(false)
   const [purpose, setPurpose] = useState('')
   const [proposedSchedule, setProposedSchedule] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [numSessions, setNumSessions] = useState(1)
   const [subjectId, setSubjectId] = useState('')
 
+  // Load students + subjects when the dialog opens
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setLoadingOptions(true)
+    Promise.all([
+      tenantApiGet('/api/tenant/students?limit=500').then(r => r.ok ? r.json() : { data: [] }),
+      tenantApiGet('/api/tenant/academics/subjects').then(r => r.ok ? r.json() : { data: [] }),
+    ]).then(([stu, sub]) => {
+      if (cancelled) return
+      setStudents((stu.data || []).filter((s: StudentOption) => s.name))
+      setSubjects(sub.data || [])
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setLoadingOptions(false)
+    })
+    return () => { cancelled = true }
+  }, [open])
+
+  const toggleStudent = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id])
+  }
+
+  const filteredStudents = students.filter(s => {
+    const q = studentSearch.toLowerCase()
+    return !q ||
+      s.name.toLowerCase().includes(q) ||
+      (s.admission_no || '').toLowerCase().includes(q) ||
+      `${s.class || ''} ${s.arm || ''}`.toLowerCase().includes(q)
+  })
+
+  const canSubmit = selectedIds.length > 0 && purpose.trim() && proposedSchedule
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Request Private Lesson</DialogTitle>
           <DialogDescription>
@@ -290,14 +343,37 @@ function CreateRequestDialog({ open, onClose, onCreate }: { open: boolean; onClo
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="studentIds">Student ID(s) * (comma-separated)</Label>
+            <Label>Student(s) * — {selectedIds.length} selected</Label>
             <Input
-              id="studentIds"
-              value={studentIds}
-              onChange={e => setStudentIds(e.target.value)}
-              placeholder="e.g. stu-001, stu-002"
+              value={studentSearch}
+              onChange={e => setStudentSearch(e.target.value)}
+              placeholder="Search by name, admission no, or class…"
             />
-            <p className="text-xs text-gray-400">Enter the student IDs who need private tutoring</p>
+            <div className="max-h-44 overflow-y-auto rounded-md border border-gray-200 divide-y divide-gray-100">
+              {loadingOptions ? (
+                <p className="p-3 text-sm text-gray-400">Loading students…</p>
+              ) : filteredStudents.length === 0 ? (
+                <p className="p-3 text-sm text-gray-400">No students found.</p>
+              ) : (
+                filteredStudents.map(s => (
+                  <label key={s.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(s.id)}
+                      onChange={() => toggleStudent(s.id)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-900">
+                      {s.name}
+                      {s.admission_no && <span className="text-gray-400"> · {s.admission_no}</span>}
+                    </span>
+                    {(s.class || s.arm) && (
+                      <span className="ml-auto text-xs text-gray-400">{[s.class, s.arm].filter(Boolean).join(' ')}</span>
+                    )}
+                  </label>
+                ))
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="purpose">Purpose / Description *</Label>
@@ -340,13 +416,18 @@ function CreateRequestDialog({ open, onClose, onCreate }: { open: boolean; onClo
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="subject">Subject (optional)</Label>
-              <Input
-                id="subject"
-                value={subjectId}
-                onChange={e => setSubjectId(e.target.value)}
-                placeholder="Subject ID"
-              />
+              <Label>Subject (optional)</Label>
+              <Select value={subjectId || '__none__'} onValueChange={v => setSubjectId(v === '__none__' ? '' : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No subject</SelectItem>
+                  {subjects.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
@@ -355,17 +436,16 @@ function CreateRequestDialog({ open, onClose, onCreate }: { open: boolean; onClo
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => {
-            const ids = studentIds.split(',').map(s => s.trim()).filter(Boolean)
+          <Button disabled={!canSubmit} onClick={() => {
             onCreate({
-              studentIds: ids,
-              purpose,
+              studentIds: selectedIds,
+              purpose: purpose.trim(),
               proposedSchedule: proposedSchedule ? new Date(proposedSchedule).toISOString() : null,
               durationMinutes,
               numSessions,
               subjectId: subjectId || undefined,
             })
-            setStudentIds(''); setPurpose(''); setProposedSchedule(''); setSubjectId('')
+            setSelectedIds([]); setPurpose(''); setProposedSchedule(''); setSubjectId(''); setStudentSearch('')
           }}>
             Submit Request
           </Button>

@@ -22,11 +22,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   try {
-    await sql`
+    const result = await sql`
       UPDATE parent_notifications
       SET is_read = TRUE
       WHERE id = ${notificationId} AND parent_id = ${parentId} AND tenant_id = ${tenantId}
+      RETURNING id
     `
+    if (!result.rows[0]) {
+      // Virtual-learning notifications share this feed — fall back
+      await sql`
+        UPDATE virtual_learning_notifications
+        SET is_read = TRUE, read_at = NOW()
+        WHERE id = ${notificationId} AND user_id = ${parentId} AND tenant_id = ${tenantId}
+      `
+    }
     return res.status(200).json({ id: notificationId, isRead: true })
   } catch (error) {
     console.error('Error marking notification as read:', error)

@@ -51,6 +51,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       const studentRes = await sql`SELECT tenant_id, class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1`;
       const tenantId = studentRes.rows[0]?.tenant_id || 'default-tenant';
+      const student = studentRes.rows[0];
 
       const result = await sql`
         SELECT a.id::text, a.title, a.instructions, a.points, a.due_date::text AS due_date,
@@ -60,6 +61,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         LEFT JOIN virtual_classrooms vc ON vc.id = a.classroom_id
         LEFT JOIN subjects s ON s.id::text = vc.subject_id
         WHERE a.tenant_id = ${tenantId} AND a.is_published = true
+          AND (
+            vc.class_arm_id IS NULL OR vc.class_arm_id = ''
+            OR EXISTS (
+              SELECT 1 FROM classes c
+              WHERE c.id::text = vc.class_arm_id AND c.tenant_id = ${tenantId}
+                AND LOWER(c.name) = LOWER(${student?.class || ''})
+                AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(${student?.arm || ''}))
+            )
+          )
         ORDER BY a.due_date DESC
       `;
 
@@ -130,10 +140,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!id) return res.status(400).json({ error: 'Assignment ID is required' });
       const body = await parseBody(req);
 
-      const studentRes = await sql`SELECT tenant_id FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1`;
+      const studentRes = await sql`SELECT tenant_id, class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1`;
       const tenantId = studentRes.rows[0]?.tenant_id || 'default-tenant';
+      const student = studentRes.rows[0];
 
-      const assignment = await sql`SELECT due_date, allow_late_submission FROM assignments WHERE id = ${id as string} AND tenant_id = ${tenantId}`;
+      const assignment = await sql`
+        SELECT a.due_date, a.allow_late_submission
+        FROM assignments a
+        LEFT JOIN virtual_classrooms vc ON vc.id = a.classroom_id
+        WHERE a.id = ${id as string} AND a.tenant_id = ${tenantId}
+          AND (
+            vc.class_arm_id IS NULL OR vc.class_arm_id = ''
+            OR EXISTS (
+              SELECT 1 FROM classes c
+              WHERE c.id::text = vc.class_arm_id AND c.tenant_id = ${tenantId}
+                AND LOWER(c.name) = LOWER(${student?.class || ''})
+                AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(${student?.arm || ''}))
+            )
+          )
+      `;
       if (!assignment.rows[0]) return res.status(404).json({ error: 'Assignment not found' });
 
       const isLate = new Date() > new Date(assignment.rows[0].due_date);

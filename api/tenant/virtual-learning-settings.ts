@@ -3,7 +3,7 @@ import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
@@ -34,6 +34,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     if (req.method === 'PUT') {
+      if (decoded.role !== 'tenant_admin') {
+        return res.status(403).json({ error: 'Only tenant admins can change virtual learning settings' })
+      }
       const {
         school_hours_start, school_hours_end, allow_live_outside_school_hours,
         max_private_lessons_per_week, require_parent_consent_standard, require_parent_consent_private,

@@ -11,14 +11,62 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { lessonId } = req.query
-  if (!lessonId) {
-    return res.status(400).json({ error: 'lessonId query param is required' })
-  }
-
   const tenantId = decoded.tenantId || 'default-tenant'
+  const studentId = decoded.studentId || decoded.userId
 
   try {
+    // Resolve the student's class/arm once — used for enrollment scoping
+    let student: { class: string | null; arm: string | null } | null = null
+    if (decoded.role === 'student' && studentId) {
+      const stuRes = await sql`
+        SELECT class, arm FROM students WHERE id = ${studentId} AND tenant_id = ${tenantId}
+      `
+      student = stuRes.rows[0] || null
+    }
+
+    const { lessonId } = req.query
+
+    // LIST MODE — no lessonId: return live lessons this student can access
+    if (!lessonId) {
+      if (decoded.role === 'student' && !student) {
+        return res.status(403).json({ error: 'Student record not found for this account' })
+      }
+      const result = await sql`
+        SELECT l.id::text,
+               l.title,
+               l.description,
+               l.type,
+               l.scheduled_at::text AS scheduled_at,
+               l.duration_minutes,
+               l.recording_url,
+               l.status,
+               COALESCE(vc.name, '') AS classroom_name,
+               s.name AS subject_name
+        FROM lessons l
+        JOIN virtual_classrooms vc ON vc.id = l.classroom_id AND vc.tenant_id = l.tenant_id
+        LEFT JOIN subjects s ON s.id::text = vc.subject_id
+        WHERE l.tenant_id = ${tenantId}
+          AND l.type = 'live'
+          AND l.status IN ('scheduled', 'live', 'completed')
+          AND (
+            ${decoded.role !== 'student'}
+            OR vc.class_arm_id IS NULL OR vc.class_arm_id = ''
+            OR EXISTS (
+              SELECT 1 FROM classes c
+              WHERE c.id::text = vc.class_arm_id AND c.tenant_id = ${tenantId}
+                AND LOWER(c.name) = LOWER(${student?.class || ''})
+                AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(${student?.arm || ''}))
+            )
+          )
+        ORDER BY
+          CASE l.status WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
+          l.scheduled_at DESC NULLS LAST
+        LIMIT 50
+      `
+      return res.status(200).json({ data: result.rows })
+    }
+
+    // SINGLE LESSON — enrollment check for students
     const result = await sql`
       SELECT l.id::text,
              l.title,
@@ -29,6 +77,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
              l.meeting_url,
              l.recording_url,
              l.status,
+             vc.class_arm_id,
              COALESCE(vc.name, '') AS classroom_name
       FROM lessons l
       LEFT JOIN virtual_classrooms vc ON vc.id = l.classroom_id
@@ -37,11 +86,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         AND l.type = 'live'
     `
 
-    if (!result.rows[0]) {
+    const lesson = result.rows[0]
+    if (!lesson) {
       return res.status(404).json({ error: 'Live class not found' })
     }
 
-    return res.status(200).json({ data: result.rows[0] })
+    if (decoded.role === 'student') {
+      if (!student) {
+        return res.status(403).json({ error: 'Student record not found for this account' })
+      }
+      if (lesson.class_arm_id) {
+        const enroll = await sql`
+          SELECT 1 FROM classes c
+          WHERE c.id::text = ${lesson.class_arm_id} AND c.tenant_id = ${tenantId}
+            AND LOWER(c.name) = LOWER(${student.class || ''})
+            AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(${student.arm || ''}))
+          LIMIT 1
+        `
+        if (!enroll.rows[0]) {
+          return res.status(403).json({ error: 'You are not enrolled in the class for this lesson' })
+        }
+      }
+    }
+
+    return res.status(200).json({ data: lesson })
   } catch (error) {
     console.error('[student/live-meetings]', error)
     const message = error instanceof Error ? error.message : 'Internal server error'

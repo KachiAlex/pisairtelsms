@@ -7,7 +7,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
-  const userId = decoded.userId || decoded.sub || 'system'
+  // Parent tokens carry parentId (not userId) — normalize
+  const userId = decoded.userId || decoded.parentId || decoded.staffId || decoded.studentId || decoded.sub || 'system'
 
   try {
     if (req.method === 'GET') {

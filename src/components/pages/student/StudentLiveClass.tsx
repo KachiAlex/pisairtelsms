@@ -1,12 +1,13 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Video } from 'lucide-react'
+import { Video, PlayCircle, Clock, RefreshCw } from 'lucide-react'
 // Lazy-loaded: the RealtimeKit SDK is ~2.4 MB — only fetch when a lesson is joined
 const CloudflareLiveClassRoom = lazy(() =>
   import('../CloudflareLiveClassRoom').then(m => ({ default: m.CloudflareLiveClassRoom }))
 )
 import { Button } from '../../ui/button'
-import { Input } from '../../ui/input'
+import { Badge } from '../../ui/badge'
+import { Card, CardContent } from '../../ui/card'
 import { getAuthFromStorage } from '../../../lib/auth'
 
 interface Lesson {
@@ -19,20 +20,40 @@ interface Lesson {
   meeting_url: string | null
   recording_url: string | null
   status: string
+  classroom_name?: string
+  subject_name?: string | null
 }
 
 export function StudentLiveClass() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [lessonId, setLessonId] = useState(searchParams.get('lessonId') || '')
+  const [lessons, setLessons] = useState<Lesson[]>([])
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [classroomName, setClassroomName] = useState('Live Class')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [joining, setJoining] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const auth = getAuthFromStorage()
 
-  const loadLesson = async (id: string) => {
+  const loadLessons = async () => {
     setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/student/live-meetings', {
+        headers: { Authorization: `Bearer ${auth?.token}` },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `Failed to load live classes (${res.status})`)
+      setLessons(data.data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadLesson = async (id: string) => {
+    setJoining(true)
     setError(null)
     try {
       const res = await fetch(`/api/student/live-meetings?lessonId=${encodeURIComponent(id)}`, {
@@ -46,13 +67,15 @@ export function StudentLiveClass() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
     } finally {
-      setLoading(false)
+      setJoining(false)
     }
   }
 
   useEffect(() => {
     const id = searchParams.get('lessonId')
     if (id) loadLesson(id)
+    else loadLessons()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (lesson) {
@@ -64,32 +87,27 @@ export function StudentLiveClass() {
           onBack={() => {
             setLesson(null)
             setSearchParams({})
+            loadLessons()
           }}
         />
       </Suspense>
     )
   }
 
-  return (
-    <div className="max-w-md mx-auto py-12 space-y-6">
-      <div className="text-center space-y-2">
-        <Video className="h-12 w-12 mx-auto text-blue-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Join Live Class</h1>
-        <p className="text-sm text-gray-500">Enter the lesson ID shared by your teacher.</p>
-      </div>
+  const joinable = lessons.filter(l => l.status === 'live' || l.status === 'scheduled')
+  const recordings = lessons.filter(l => l.status === 'completed' && l.recording_url)
 
-      <div className="space-y-4">
-        <Input
-          placeholder="e.g. 24b8d56e-6d09-4390-9446-721e9f8eebcb"
-          value={lessonId}
-          onChange={(e) => setLessonId(e.target.value)}
-        />
-        <Button
-          className="w-full"
-          onClick={() => lessonId.trim() && loadLesson(lessonId.trim())}
-          disabled={!lessonId.trim() || loading}
-        >
-          {loading ? 'Joining...' : 'Join Live Class'}
+  return (
+    <div className="max-w-2xl mx-auto py-8 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Video className="h-6 w-6 text-blue-600" /> Live Classes
+          </h1>
+          <p className="text-sm text-gray-500">Join a live class or watch a recording.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadLessons} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </Button>
       </div>
 
@@ -97,6 +115,85 @@ export function StudentLiveClass() {
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-500">Loading your classes…</div>
+      ) : joinable.length === 0 && recordings.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Video className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500">No live classes scheduled right now.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {joinable.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                Upcoming &amp; Live
+              </h2>
+              {joinable.map(l => (
+                <Card key={l.id}>
+                  <CardContent className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Video className={`h-6 w-6 shrink-0 ${l.status === 'live' ? 'text-red-500' : 'text-blue-500'}`} />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{l.title}</p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {[l.classroom_name, l.subject_name].filter(Boolean).join(' · ')}
+                        </p>
+                        {l.scheduled_at && (
+                          <p className="text-xs text-gray-400 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(l.scheduled_at).toLocaleString()}
+                            {l.duration_minutes ? ` · ${l.duration_minutes} min` : ''}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant={l.status === 'live' ? 'destructive' : 'secondary'}>
+                        {l.status === 'live' ? 'Live now' : 'Scheduled'}
+                      </Badge>
+                      <Button size="sm" onClick={() => loadLesson(l.id)} disabled={joining}>
+                        {joining ? 'Joining…' : 'Join'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {recordings.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                Recordings
+              </h2>
+              {recordings.map(l => (
+                <Card key={l.id}>
+                  <CardContent className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <PlayCircle className="h-6 w-6 shrink-0 text-gray-400" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{l.title}</p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {[l.classroom_name, l.subject_name].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={l.recording_url!} target="_blank" rel="noopener noreferrer">
+                        <PlayCircle className="h-4 w-4 mr-1" /> Watch
+                      </a>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -16,6 +16,7 @@ interface Discussion {
   title: string
   content: string | null
   created_by: string
+  author_name: string | null
   author_role: string
   is_pinned: boolean
   is_locked: boolean
@@ -26,6 +27,7 @@ interface Reply {
   id: string
   content: string
   created_by: string
+  author_name: string | null
   author_role: string
   created_at: string
   parent_reply_id: string | null
@@ -80,10 +82,10 @@ export function VirtualClassroomDiscussions({ classroomId }: VirtualClassroomDis
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to create discussion')
-      setDiscussions((prev) => [data.data, ...prev])
       setNewTitle('')
       setNewContent('')
       setCreateOpen(false)
+      loadDiscussions()
       toast({ title: 'Discussion created' })
     } catch (err) {
       toast({
@@ -202,7 +204,7 @@ export function VirtualClassroomDiscussions({ classroomId }: VirtualClassroomDis
                       <p className="text-sm text-gray-600 line-clamp-2">{d.content}</p>
                     )}
                     <p className="text-xs text-gray-400 mt-1">
-                      By {d.created_by} • {new Date(d.created_at).toLocaleString()}
+                      By {d.author_name || d.author_role} • {new Date(d.created_at).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -278,7 +280,7 @@ export function VirtualClassroomDiscussions({ classroomId }: VirtualClassroomDis
               <div className="bg-gray-50 p-3 rounded-lg text-gray-800 text-sm">
                 {selected.content}
                 <p className="text-xs text-gray-500 mt-2">
-                  By {selected.created_by} • {new Date(selected.created_at).toLocaleString()}
+                  By {selected.author_name || selected.author_role} • {new Date(selected.created_at).toLocaleString()}
                 </p>
               </div>
             )}
@@ -289,7 +291,7 @@ export function VirtualClassroomDiscussions({ classroomId }: VirtualClassroomDis
                 <div key={r.id} className="bg-white border rounded-lg p-3">
                   <p className="text-sm text-gray-800">{r.content}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    By {r.created_by} • {new Date(r.created_at).toLocaleString()}
+                    By {r.author_name || r.author_role} • {new Date(r.created_at).toLocaleString()}
                   </p>
                 </div>
               ))}

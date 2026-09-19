@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   { id: 'events', label: 'School Events', icon: CalendarDays },
   { id: 'health', label: 'Health & Wellness', icon: Heart },
   { id: 'virtual-learning-consents', label: 'Virtual Consents', icon: Shield },
+  { id: 'private-lessons', label: 'Private Lessons', icon: GraduationCap },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'profile', label: 'Profile', icon: User },
 ]

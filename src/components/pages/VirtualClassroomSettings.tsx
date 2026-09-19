@@ -5,6 +5,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Switch } from '../ui/switch'
 import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
+import { getAuthFromStorage } from '../../lib/auth'
 import { useToast } from '../ui/use-toast'
 import { Save, Loader2 } from 'lucide-react'
 
@@ -25,6 +26,7 @@ export function VirtualClassroomSettings() {
   const [settings, setSettings] = useState<VirtualLearningSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const isAdmin = getAuthFromStorage()?.role === 'tenant_admin'
 
   useEffect(() => {
     async function load() {
@@ -78,6 +80,12 @@ export function VirtualClassroomSettings() {
         <CardTitle>Virtual Learning Settings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {!isAdmin && (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            These policies are set by your school administrator. You can view but not change them.
+          </p>
+        )}
+        <fieldset disabled={!isAdmin} className="space-y-6 disabled:opacity-70">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>School day start</Label>
@@ -154,15 +162,18 @@ export function VirtualClassroomSettings() {
             onCheckedChange={(v) => update('auto_notify_parents', v)}
           />
         </div>
+        </fieldset>
 
-        <Button onClick={save} disabled={saving} className="w-full sm:w-auto">
-          {saving ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4 mr-2" />
-          )}
-          Save Settings
-        </Button>
+        {isAdmin && (
+          <Button onClick={save} disabled={saving} className="w-full sm:w-auto">
+            {saving ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            Save Settings
+          </Button>
+        )}
       </CardContent>
     </Card>
   )

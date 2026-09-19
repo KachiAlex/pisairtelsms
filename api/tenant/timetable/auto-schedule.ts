@@ -115,75 +115,85 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // Sort by sequence then day to get a nice distribution
+    // Sort by day then period so round-robin placement spreads each subject
+    // across different days and periods rather than stacking one period daily
     availableSlots.sort((a, b) => {
-      if (a.sequence !== b.sequence) return a.sequence - b.sequence
-      return a.dayOfWeek - b.dayOfWeek
+      if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek
+      return a.sequence - b.sequence
     })
 
     const createdEntries: any[] = []
     const failedSubjects: { subjectName: string; reason: string }[] = []
 
-    // 6. Assign each subject's periods
-    for (const subject of subjects) {
-      const needed = Math.max(1, Math.min(subject.periodsPerWeek, 10))
-      let assigned = 0
+    const takenClassSlots = new Set(existingEntries.map(e => `${e.timeSlotId}|${e.dayOfWeek}`))
+    const busyTeacherSlots = new Set(teacherAssignments.map(ta => `${ta.teacherId}|${ta.timeSlotId}|${ta.dayOfWeek}`))
+    const subjectDayCount = new Map<string, number>()
 
-      for (const slot of availableSlots) {
-        if (assigned >= needed) break
+    // 6. Assign periods round-robin: every subject gets one slot per pass so
+    // a full grid starves subjects evenly instead of the first subjects in
+    // the list consuming everything.
+    const queue = subjects.map(s => ({
+      ...s,
+      needed: Math.max(1, Math.min(s.periodsPerWeek, 10)),
+      assigned: 0,
+    }))
 
-        // Check teacher availability
-        const teacherBusy = teacherAssignments.some(
-          ta => ta.teacherId === subject.teacherId && ta.timeSlotId === slot.slotId && ta.dayOfWeek === slot.dayOfWeek
-        ) || createdEntries.some(
-          e => e.teacherId === subject.teacherId && e.timeSlotId === slot.slotId && e.dayOfWeek === slot.dayOfWeek
-        )
+    let placedThisPass = true
+    while (placedThisPass) {
+      placedThisPass = false
+      for (const subject of queue) {
+        if (subject.assigned >= subject.needed) continue
+        const perDayCap = Math.ceil(subject.needed / days.length)
 
-        if (teacherBusy) continue
+        for (const slot of availableSlots) {
+          const classKey = `${slot.slotId}|${slot.dayOfWeek}`
+          if (takenClassSlots.has(classKey)) continue
+          if (busyTeacherSlots.has(`${subject.teacherId}|${slot.slotId}|${slot.dayOfWeek}`)) continue
 
-        // Check class slot not already taken by another subject in this batch
-        const classSlotTaken = createdEntries.some(
-          e => e.scheduleId === scheduleId && e.timeSlotId === slot.slotId && e.dayOfWeek === slot.dayOfWeek
-        )
-        if (classSlotTaken) continue
+          const dayKey = `${subject.subjectName}|${slot.dayOfWeek}`
+          if ((subjectDayCount.get(dayKey) || 0) >= perDayCap) continue
 
-        const entryId = randomUUID()
-        await sql`
-          INSERT INTO timetable_class_schedule_entries
-          (id, schedule_id, time_slot_id, subject_id, subject_name, teacher_id, teacher_name, room_id, day_of_week)
-          VALUES (
-            ${entryId}, ${scheduleId}, ${slot.slotId},
-            ${subject.subjectId || subject.subjectName}, ${subject.subjectName},
-            ${subject.teacherId}, ${subject.teacherName},
-            NULL, ${slot.dayOfWeek}
-          )
-        `
+          const entryId = randomUUID()
+          await sql`
+            INSERT INTO timetable_class_schedule_entries
+            (id, schedule_id, time_slot_id, subject_id, subject_name, teacher_id, teacher_name, room_id, day_of_week)
+            VALUES (
+              ${entryId}, ${scheduleId}, ${slot.slotId},
+              ${subject.subjectId || subject.subjectName}, ${subject.subjectName},
+              ${subject.teacherId}, ${subject.teacherName},
+              NULL, ${slot.dayOfWeek}
+            )
+          `
 
-        createdEntries.push({
-          id: entryId,
-          scheduleId,
-          timeSlotId: slot.slotId,
-          subjectName: subject.subjectName,
-          teacherId: subject.teacherId,
-          teacherName: subject.teacherName,
-          dayOfWeek: slot.dayOfWeek,
-        })
+          createdEntries.push({
+            id: entryId,
+            scheduleId,
+            timeSlotId: slot.slotId,
+            subjectName: subject.subjectName,
+            teacherId: subject.teacherId,
+            teacherName: subject.teacherName,
+            dayOfWeek: slot.dayOfWeek,
+          })
 
-        teacherAssignments.push({
-          teacherId: subject.teacherId,
-          timeSlotId: slot.slotId,
-          dayOfWeek: slot.dayOfWeek,
-        })
-
-        assigned++
+          takenClassSlots.add(classKey)
+          busyTeacherSlots.add(`${subject.teacherId}|${slot.slotId}|${slot.dayOfWeek}`)
+          subjectDayCount.set(dayKey, (subjectDayCount.get(dayKey) || 0) + 1)
+          subject.assigned++
+          placedThisPass = true
+          break
+        }
       }
+    }
 
-      if (assigned < needed) {
-        failedSubjects.push({
-          subjectName: subject.subjectName,
-          reason: `Only assigned ${assigned}/${needed} periods (insufficient slots or teacher conflicts)`,
-        })
-      }
+    const freeClassSlots = availableSlots.filter(s => !takenClassSlots.has(`${s.slotId}|${s.dayOfWeek}`))
+    for (const subject of queue) {
+      if (subject.assigned >= subject.needed) continue
+      failedSubjects.push({
+        subjectName: subject.subjectName,
+        reason: freeClassSlots.length === 0
+          ? `Only assigned ${subject.assigned}/${subject.needed} periods — weekly grid is full (${availableSlots.length} slots). Add teaching periods in Timetable → Time Slots or reduce periods per subject`
+          : `Only assigned ${subject.assigned}/${subject.needed} periods — ${subject.teacherName || 'the assigned teacher'} is booked in every remaining slot (teacher conflict)`,
+      })
     }
 
     return res.status(200).json({
@@ -192,6 +202,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         created: createdEntries.length,
         entries: createdEntries,
         failed: failedSubjects,
+        capacity: availableSlots.length,
+        requested: queue.reduce((sum, s) => sum + s.needed, 0),
       },
     })
   } catch (error: any) {

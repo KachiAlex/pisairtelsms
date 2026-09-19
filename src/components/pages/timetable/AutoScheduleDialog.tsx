@@ -60,8 +60,9 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
   const [scheduling, setScheduling] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ created: number; failed: { subjectName: string; reason: string }[] } | null>(null)
+  const [result, setResult] = useState<{ created: number; failed: { subjectName: string; reason: string }[]; capacity?: number; requested?: number } | null>(null)
   const [clearExisting, setClearExisting] = useState(false)
+  const [teachingSlotsPerDay, setTeachingSlotsPerDay] = useState<number | null>(null)
 
   // staff.subjects may arrive as a JSON string or already-parsed array
   function parseTeacherSubjects(raw: string[] | string | undefined): string[] {
@@ -182,13 +183,16 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
       tenantApiGet('/api/tenant/staff').then(r => r.json()),
       tenantApiGet('/api/tenant/academics/subjects').then(r => r.json()),
       tenantApiGet('/api/tenant/teacher-allocation-handler?action=matrix').then(r => r.json()).catch(() => ({})),
+      tenantApiGet('/api/tenant/timetable/time-slots').then(r => r.json()).catch(() => ({})),
     ])
-      .then(([staffData, subjectsData, allocData]) => {
+      .then(([staffData, subjectsData, allocData, slotsData]) => {
         const members = Array.isArray(staffData.data) ? staffData.data : []
         const subjects = Array.isArray(subjectsData.data) ? subjectsData.data : []
+        const slots = Array.isArray(slotsData.data) ? slotsData.data : []
         setStaff(members)
         setAvailableSubjects(subjects)
         setAllocations(Array.isArray(allocData.data) ? allocData.data : [])
+        setTeachingSlotsPerDay(slots.filter((s: { isBreak?: boolean }) => !s.isBreak).length)
       })
       .catch(() => setError('Failed to load data'))
       .finally(() => setLoading(false))
@@ -248,6 +252,8 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
       setResult({
         created: data.data?.created || 0,
         failed: data.data?.failed || [],
+        capacity: data.data?.capacity,
+        requested: data.data?.requested,
       })
       if ((data.data?.failed || []).length === 0) {
         onScheduled()
@@ -262,6 +268,7 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
   if (!open) return null
 
   const totalPeriods = subjects.reduce((sum, s) => sum + (Number(s.periodsPerWeek) || 0), 0)
+  const weeklyCapacity = teachingSlotsPerDay === null ? null : teachingSlotsPerDay * 5
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -305,6 +312,24 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
                   <li key={i}>• {f.subjectName}: {f.reason}</li>
                 ))}
               </ul>
+              {result.capacity !== undefined && result.requested !== undefined && result.requested > result.capacity && (
+                <p className="text-xs text-amber-700 pl-6">
+                  Requested {result.requested} periods but this class grid holds {result.capacity}/week.
+                  Add more teaching periods in Timetable → Time Slots, or reduce periods per subject.
+                </p>
+              )}
+            </div>
+          )}
+
+          {subjects.length > 0 && weeklyCapacity !== null && totalPeriods > weeklyCapacity && !result && (
+            <div className="rounded-lg bg-amber-50 border border-amber-100 p-3 text-sm text-amber-700 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span>
+                Requested <strong>{totalPeriods}</strong> periods but this class grid holds{' '}
+                <strong>{weeklyCapacity}/week</strong> ({teachingSlotsPerDay} teaching periods × 5 days).
+                Reduce periods per subject or add more teaching periods in Timetable → Time Slots —
+                otherwise only {weeklyCapacity} periods can be placed.
+              </span>
             </div>
           )}
 

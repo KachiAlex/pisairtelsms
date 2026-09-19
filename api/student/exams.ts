@@ -85,20 +85,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       ongoing: exams.filter(e => e.status === 'ongoing').length,
     };
 
+    // Session/term from Timetable & Scheduling — the single source of truth.
     let academicSession = '', term = '';
     try {
-      const termRes = await sql`SELECT name FROM terms WHERE tenant_id = ${decoded.tenantId || 'default-tenant'} ORDER BY created_at DESC LIMIT 1`;
+      const today = new Date().toISOString().slice(0, 10);
+      const termRes = await sql`
+        SELECT name, academic_year FROM timetable_terms
+        WHERE tenant_id = ${decoded.tenantId || 'default-tenant'}
+        ORDER BY (start_date <= ${today} AND ${today} <= end_date) DESC, start_date ASC
+        LIMIT 1`;
       if (termRes.rows[0]) {
         term = termRes.rows[0].name;
-        const year = new Date().getFullYear();
-        academicSession = `${year}/${year+1}`;
+        academicSession = termRes.rows[0].academic_year;
       }
     } catch (err) {
-      // QUAL-02: previously silent — log so missing/misconfigured terms table is diagnosable
-      console.warn('terms lookup failed; using fallback', err);
+      console.warn('timetable_terms lookup failed', err);
     }
 
-    return res.status(200).json({ exams, summary, academicSession: academicSession || '2024/2025', term: term || 'First Term' } as ExamScheduleResponse);
+    return res.status(200).json({ exams, summary, academicSession, term } as ExamScheduleResponse);
   } catch (error) {
     console.error('Error fetching exam schedule:', error);
     return res.status(500).json({ error: 'Failed to fetch exam schedule' });

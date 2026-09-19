@@ -37,6 +37,7 @@ import {
 } from '../ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
+import { useAcademicYears, useTimetableTerms } from '../../hooks/useTimetableTerms';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -57,6 +58,8 @@ export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { termNames, currentTermName } = useTimetableTerms();
+  const { years, currentYearName } = useAcademicYears();
 
   const handleLogout = () => {
     clearAuthFromStorage();
@@ -97,16 +100,26 @@ export default function DashboardLayout() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="hidden md:flex">
-                  <span className="text-sm">2024/2025 - Term 2</span>
+                  <span className="text-sm">
+                    {currentYearName
+                      ? `${currentYearName}${currentTermName ? ` - ${currentTermName}` : ''}`
+                      : 'No session configured'}
+                  </span>
                   <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Academic Session</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>2024/2025 - Term 1</DropdownMenuItem>
-                <DropdownMenuItem>2024/2025 - Term 2 (Current)</DropdownMenuItem>
-                <DropdownMenuItem>2024/2025 - Term 3</DropdownMenuItem>
+                {years.map(y => (
+                  <DropdownMenuItem key={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</DropdownMenuItem>
+                ))}
+                {termNames.map(t => (
+                  <DropdownMenuItem key={t}>{t}{t === currentTermName ? ' (Current)' : ''}</DropdownMenuItem>
+                ))}
+                {years.length === 0 && termNames.length === 0 && (
+                  <DropdownMenuItem disabled>Configure sessions &amp; terms in Timetable &amp; Scheduling</DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 

@@ -31,6 +31,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import { TenantContext } from '../../contexts/TenantContext'
+import { useAcademicYears, useTimetableTerms } from '../../hooks/useTimetableTerms'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -84,6 +85,7 @@ import {
   type PromotionRule,
 } from '../../lib/promotionsClient'
 import { fetchScores } from '../../lib/resultsClient'
+import { tenantApiGet } from '../../lib/tenantApi'
 
 interface StudentWithPerformance extends StudentType {
   averageScore: number | null
@@ -95,9 +97,34 @@ export function StudentPromotion() {
   const { tenantId } = useContext(TenantContext) || { tenantId: '' }
   
   // Filter states
-  const [academicSession, setAcademicSession] = useState('2024/2025')
-  const [term, setTerm] = useState('Third Term')
-  const [fromClass, setFromClass] = useState('Primary 5')
+  const [academicSession, setAcademicSession] = useState('')
+  const [term, setTerm] = useState('')
+  const [fromClass, setFromClass] = useState('')
+  const [classNames, setClassNames] = useState<string[]>([])
+  const { termNames, currentTermName } = useTimetableTerms(term)
+  const { years, currentYearName } = useAcademicYears()
+  const sessionNames = academicSession && !years.some(y => y.name === academicSession)
+    ? [academicSession, ...years.map(y => y.name)]
+    : years.map(y => y.name)
+  useEffect(() => {
+    if (!term && currentTermName) setTerm(currentTermName)
+    if (!academicSession && currentYearName) setAcademicSession(currentYearName)
+  }, [currentTermName, currentYearName])
+
+  // Class names from the school's real class list
+  useEffect(() => {
+    tenantApiGet('/api/tenant/academics/classes')
+      .then(r => (r.ok ? r.json() : { data: [] }))
+      .then(d => {
+        const items = d?.data || d?.classes || []
+        setClassNames([...new Set(items.map((c: any) => c.name).filter(Boolean))].sort() as string[])
+      })
+      .catch(() => setClassNames([]))
+  }, [])
+
+  const fromClassOptions = fromClass && !classNames.includes(fromClass)
+    ? [fromClass, ...classNames]
+    : classNames
 
   // Data states
   const [students, setStudents] = useState<StudentWithPerformance[]>([])
@@ -503,9 +530,10 @@ export function StudentPromotion() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2024/2025">2024/2025</SelectItem>
-                  <SelectItem value="2025/2026">2025/2026</SelectItem>
-                  <SelectItem value="2023/2024">2023/2024</SelectItem>
+                  {sessionNames.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                  {sessionNames.length === 0 && <SelectItem value="__none" disabled>No academic years configured</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -516,9 +544,10 @@ export function StudentPromotion() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="First Term">First Term</SelectItem>
-                  <SelectItem value="Second Term">Second Term</SelectItem>
-                  <SelectItem value="Third Term">Third Term</SelectItem>
+                  {termNames.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                  {termNames.length === 0 && <SelectItem value="__none" disabled>No terms configured</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -529,18 +558,10 @@ export function StudentPromotion() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Primary 1">Primary 1</SelectItem>
-                  <SelectItem value="Primary 2">Primary 2</SelectItem>
-                  <SelectItem value="Primary 3">Primary 3</SelectItem>
-                  <SelectItem value="Primary 4">Primary 4</SelectItem>
-                  <SelectItem value="Primary 5">Primary 5</SelectItem>
-                  <SelectItem value="Primary 6">Primary 6</SelectItem>
-                  <SelectItem value="JSS 1">JSS 1</SelectItem>
-                  <SelectItem value="JSS 2">JSS 2</SelectItem>
-                  <SelectItem value="JSS 3">JSS 3</SelectItem>
-                  <SelectItem value="SS 1">SS 1</SelectItem>
-                  <SelectItem value="SS 2">SS 2</SelectItem>
-                  <SelectItem value="SS 3">SS 3</SelectItem>
+                  {fromClassOptions.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                  {fromClassOptions.length === 0 && <SelectItem value="__none" disabled>No classes configured</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

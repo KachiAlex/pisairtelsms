@@ -1,4 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { fetchAttendance, upsertAttendanceBatch, type AttendancePayload, type AttendanceFilter } from './_lib/attendance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
@@ -120,6 +121,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       })
     }
 
+    // Terms must exist in Timetable & Scheduling (timetable_terms) — the
+    // single source of truth for term names.
+    let validTermNames: Set<string> | null = null
+    try {
+      const termRes = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+      validTermNames = new Set(termRes.rows.map(r => r.name))
+    } catch { /* table may not exist yet — skip enforcement */ }
+
     // Validate all records
     const validationErrors: Array<{ index: number; error: string }> = []
 
@@ -134,6 +143,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!record.status) errors.push('status is required')
       if (!record.academicSession) errors.push('academicSession is required')
       if (!record.term) errors.push('term is required')
+      else if (validTermNames !== null && !validTermNames.has(record.term)) {
+        errors.push(validTermNames.size === 0
+          ? 'no terms configured — create terms in Timetable & Scheduling first'
+          : `term must be one of the configured terms: ${[...validTermNames].join(', ')}`)
+      }
 
       // Validate status
       if (record.status && !['present', 'absent', 'late'].includes(record.status)) {

@@ -17,6 +17,7 @@ import { ParentLoginPage } from './components/auth/ParentLoginPage';
 import { ParentForgotPasswordPage } from './components/auth/ParentForgotPasswordPage';
 import { clearAuthFromStorage, getAuthFromStorage } from './lib/auth';
 import { useDocumentMeta } from './hooks/useDocumentMeta';
+import { SessionTermLabel } from './components/SessionTermLabel';
 import { AccessPortalPage } from './components/pages/AccessPortalPage';
 import { UnauthorizedPage } from './components/pages/UnauthorizedPage';
 import { SchoolNotFound } from './components/pages/SchoolNotFound';
@@ -459,7 +460,7 @@ export default function App() {
             </Button>
             <div className="hidden sm:block">
               <h1 className="text-lg font-semibold text-gray-900">{getPageTitle()}</h1>
-              <p className="text-xs text-gray-500">2025/2026 Academic Session - First Term</p>
+              <SessionTermLabel />
             </div>
           </div>
 

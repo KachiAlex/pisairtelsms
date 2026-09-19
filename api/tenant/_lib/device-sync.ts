@@ -5,6 +5,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { sql } from '../../_lib/sql.js'
 import {
   getDevice,
   logSync,
@@ -175,10 +176,29 @@ export async function syncDevice(
   const syncId = uuidv4()
   const startTime = Date.now()
 
-  // Default academic session and term
-  const currentYear = new Date().getFullYear()
-  const session = academicSession || `${currentYear}/${currentYear + 1}`
-  const currentTerm = term || '1'
+  // Default academic session and term — resolved from Timetable & Scheduling
+  // (academic_years / timetable_terms), the single source of truth.
+  const today = new Date().toISOString().slice(0, 10)
+  let session = academicSession || ''
+  let currentTerm = term || ''
+  try {
+    if (!session) {
+      const yr = await sql`SELECT name FROM academic_years WHERE tenant_id = ${tenantId} ORDER BY is_current DESC, start_date ASC LIMIT 1`
+      session = yr.rows[0]?.name || ''
+    }
+    if (!currentTerm) {
+      const tr = await sql`
+        SELECT name FROM timetable_terms
+        WHERE tenant_id = ${tenantId}
+        ORDER BY (start_date <= ${today} AND ${today} <= end_date) DESC, start_date ASC
+        LIMIT 1`
+      currentTerm = tr.rows[0]?.name || ''
+    }
+  } catch { /* tables may not exist yet */ }
+  if (!session) {
+    const currentYear = new Date().getFullYear()
+    session = `${currentYear}/${currentYear + 1}`
+  }
 
   try {
     // Get device and check it's not in maintenance

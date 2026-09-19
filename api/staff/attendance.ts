@@ -128,9 +128,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const body = await parseBody(req);
       const { classId, date, records } = body as AttendanceSubmissionBody;
 
-      const term = 'First Term';
-      const year = new Date().getFullYear();
-      const academicSession = `${year}/${year + 1}`;
+      // Term/session come from Timetable & Scheduling — the single source of truth.
+      const today = new Date().toISOString().slice(0, 10);
+      const termRes = await sql`
+        SELECT name, academic_year FROM timetable_terms
+        WHERE tenant_id = ${tenantId}
+        ORDER BY (start_date <= ${today} AND ${today} <= end_date) DESC, start_date ASC
+        LIMIT 1`;
+      const term = termRes.rows[0]?.name || '';
+      const academicSession = termRes.rows[0]?.academic_year || '';
+      if (!term || !academicSession) {
+        return res.status(400).json({ error: 'No term configured — create terms in Timetable & Scheduling first' });
+      }
 
       for (const record of records) {
         const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

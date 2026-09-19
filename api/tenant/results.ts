@@ -125,6 +125,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Missing required fields', details: missing })
     }
 
+    // Term must exist in Timetable & Scheduling (timetable_terms) — the
+    // single source of truth for term names.
+    try {
+      const termCheck = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+      const validTerms = termCheck.rows.map(r => r.name)
+      if (!validTerms.includes(term)) {
+        return res.status(400).json({
+          error: validTerms.length === 0
+            ? 'No terms configured — create terms in Timetable & Scheduling first'
+            : `Invalid term — must be one of: ${validTerms.join(', ')}`,
+        })
+      }
+    } catch (err) {
+      // timetable_terms missing — skip enforcement rather than block scoring
+      if ((err as any)?.code !== '42P01') throw err
+    }
+
     // Validate score ranges. When a "marked out of" max is supplied the value
     // is a raw mark and is validated against that max; otherwise the legacy
     // 0-100 normalized range applies.

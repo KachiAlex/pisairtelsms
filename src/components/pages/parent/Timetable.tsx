@@ -4,8 +4,11 @@ import { useParentContext } from '../../../contexts/ParentContext'
 import { getAuthFromStorage } from '../../../lib/auth'
 
 interface TimeSlot {
-  day: string
-  time: string
+  id: string
+  dayOfWeek: number // 1=Monday … 5=Friday
+  timeSlot: string
+  startTime: string
+  endTime: string
   subject: string
   teacher: string
   room: string
@@ -20,10 +23,11 @@ interface ExamSchedule {
 }
 
 interface TimetableData {
-  classSchedule: TimeSlot[]
+  schedule: TimeSlot[]
   examSchedule: ExamSchedule[]
   holidays: Array<{ date: string; name: string }>
-  terms: Array<{ id: string; name: string; startDate: string; endDate: string }>
+  currentTermId?: string
+  availableTerms: Array<{ id: string; name: string; startDate: string; endDate: string }>
 }
 
 export function Timetable() {
@@ -50,8 +54,9 @@ export function Timetable() {
       if (!res.ok) throw new Error('Failed to fetch timetable')
       const data = await res.json()
       setTimetable(data)
-      if (!selectedTerm && data.terms?.length > 0) {
-        setSelectedTerm(data.terms[0].id)
+      if (!selectedTerm && data.availableTerms?.length > 0) {
+        const active = data.availableTerms.find((t: any) => t.id === data.currentTermId) || data.availableTerms[0]
+        setSelectedTerm(active.id)
       }
       setError(null)
     } catch (err) {
@@ -72,8 +77,8 @@ TIMETABLE FOR ${selectedChild?.name}
 Generated: ${new Date().toLocaleDateString()}
 
 CLASS SCHEDULE:
-${timetable?.classSchedule.map(slot => 
-  `${slot.day} ${slot.time}: ${slot.subject} (${slot.teacher}) - Room ${slot.room}`
+${timetable?.schedule.map(slot =>
+  `${days[slot.dayOfWeek - 1] || slot.dayOfWeek} ${slot.startTime}-${slot.endTime}: ${slot.subject} (${slot.teacher}) - Room ${slot.room}`
 ).join('\n')}
 
 EXAM SCHEDULE:
@@ -134,7 +139,7 @@ ${timetable?.holidays.map(h => `${h.date}: ${h.name}`).join('\n')}
               onChange={e => setSelectedTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {timetable?.terms.map(term => (
+              {timetable?.availableTerms.map(term => (
                 <option key={term.id} value={term.id}>
                   {term.name} ({term.startDate} - {term.endDate})
                 </option>
@@ -188,9 +193,9 @@ ${timetable?.holidays.map(h => `${h.date}: ${h.name}`).join('\n')}
               {timeSlots.map(time => (
                 <tr key={time} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-700">{time}</td>
-                  {days.map(day => {
-                    const slot = timetable?.classSchedule.find(
-                      s => s.day === day && s.time === time
+                  {days.map((day, dayIdx) => {
+                    const slot = timetable?.schedule.find(
+                      s => s.dayOfWeek === dayIdx + 1 && s.startTime?.slice(0, 5) === time
                     )
                     return (
                       <td key={`${day}-${time}`} className="px-4 py-3">

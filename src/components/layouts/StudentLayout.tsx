@@ -22,6 +22,7 @@ import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
 import { useBranding } from '../../contexts/BrandingContext'
 import { StudentNotificationsDropdown } from '../student/StudentNotificationsDropdown'
+import { SessionTermLabel } from '../SessionTermLabel'
 
 const StudentDashboard = lazy(() => import('../pages/student/StudentDashboard').then(m => ({ default: m.StudentDashboard })))
 const MyResults = lazy(() => import('../pages/student/MyResults').then(m => ({ default: m.MyResults })))
@@ -211,7 +212,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
               <p className="text-sm font-semibold text-gray-900">
                 {navItems.find(n => n.id === currentPage)?.label ?? 'Student Portal'}
               </p>
-              <p className="text-xs text-gray-500">2024/2025 Academic Session</p>
+              <SessionTermLabel />
             </div>
           </div>
 

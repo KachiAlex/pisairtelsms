@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ClassArmSelect } from '../ui/class-arm-select'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { useTimetableTerms } from '../../hooks/useTimetableTerms'
 
 const PUB_BASE = '/api/tenant/result-publishing-handler'
 
@@ -60,12 +61,17 @@ export function ResultPublishing() {
   const [unpublishing, setUnpublishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const { termNames, currentTermName } = useTimetableTerms(term)
+
   useEffect(() => {
     const now = new Date()
     const y = now.getFullYear()
     setAcademicSession(`${y}/${y + 1}`)
-    setTerm('First Term')
   }, [])
+
+  useEffect(() => {
+    if (!term && currentTermName) setTerm(currentTermName)
+  }, [currentTermName])
 
   const loadData = useCallback(async () => {
     if (!academicSession || !term) return
@@ -179,9 +185,10 @@ export function ResultPublishing() {
               <Select value={term} onValueChange={setTerm}>
                 <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="First Term">First Term</SelectItem>
-                  <SelectItem value="Second Term">Second Term</SelectItem>
-                  <SelectItem value="Third Term">Third Term</SelectItem>
+                  {termNames.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                  {termNames.length === 0 && <SelectItem value="__none" disabled>No terms configured</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

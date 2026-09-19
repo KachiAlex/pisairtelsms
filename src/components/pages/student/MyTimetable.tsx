@@ -24,6 +24,8 @@ interface TimetableData {
   schedule: TimeSlot[];
   examSchedule: ExamSchedule[];
   termId: string;
+  currentTerm?: string;
+  availableTerms?: Array<{ id: string; name: string }>;
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -41,6 +43,7 @@ export function MyTimetable() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'schedule' | 'exams'>('schedule');
+  const [selectedTermId, setSelectedTermId] = useState('');
 
   useEffect(() => {
     const fetchTimetable = async () => {
@@ -50,11 +53,18 @@ export function MyTimetable() {
         const auth = localStorage.getItem('auth');
         if (!auth) { setError('Not authenticated'); return; }
         const { token } = JSON.parse(auth);
-        const res = await fetch('/api/student/timetable', {
+        const url = selectedTermId
+          ? `/api/student/timetable?termId=${encodeURIComponent(selectedTermId)}`
+          : '/api/student/timetable';
+        const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('Failed to fetch timetable');
-        setData(await res.json());
+        const json = await res.json();
+        setData(json);
+        if (!selectedTermId && json.termId && json.termId !== 'current') {
+          setSelectedTermId(json.termId);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -62,7 +72,7 @@ export function MyTimetable() {
       }
     };
     fetchTimetable();
-  }, []);
+  }, [selectedTermId]);
 
   const subjectColorMap = new Map<string, string>();
   let colorIndex = 0;
@@ -80,10 +90,23 @@ export function MyTimetable() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">My Timetable</h1>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Download className="h-4 w-4" />
-          Download
-        </Button>
+        <div className="flex items-center gap-3">
+          {(data?.availableTerms?.length ?? 0) > 0 && (
+            <select
+              value={selectedTermId}
+              onChange={e => setSelectedTermId(e.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            >
+              {data!.availableTerms!.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
+          <Button variant="outline" size="sm" className="gap-2">
+            <Download className="h-4 w-4" />
+            Download
+          </Button>
+        </div>
       </div>
 
       {error && (

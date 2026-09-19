@@ -54,29 +54,78 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7
     };
 
-    let schedule: ScheduleEntry[] = [];
+    // Terms come from Timetable & Scheduling (timetable_terms) — the single
+    // source of truth. Honor ?termId=, else the term covering today, else first.
+    const requestedTermId = req.query.termId as string | undefined;
+    let availableTerms: Term[] = [];
+    let resolvedTermId: string | null = null;
     try {
-      const ttResult = await sql`
-        SELECT id::text, day, start_time, end_time,
-               COALESCE(start_time, '') || ' - ' || COALESCE(end_time, '') AS time_slot,
-               subject, class_name, room
-        FROM timetable
-        WHERE staff_id = ${staffId}
-          AND tenant_id = ${tenantId}
-        ORDER BY day, start_time
+      const termResult = await sql`
+        SELECT id::text, name, start_date::text AS start_date, end_date::text AS end_date
+        FROM timetable_terms WHERE tenant_id = ${tenantId} ORDER BY start_date`;
+      availableTerms = termResult.rows.map(r => ({ id: r.id, name: r.name }));
+      const today = new Date().toISOString().slice(0, 10);
+      const active = termResult.rows.find(r => r.start_date <= today && today <= r.end_date);
+      resolvedTermId = requestedTermId || active?.id || availableTerms[0]?.id || null;
+    } catch (termErr) {
+      console.error('Terms query error:', termErr);
+    }
+    const currentTerm = resolvedTermId || '';
+
+    let schedule: ScheduleEntry[] = [];
+    // Primary source: Timetable & Scheduling teacher schedules
+    try {
+      const tsResult = await sql`
+        SELECT tsch.id::text, tsch.day_of_week, tsch.subject_name,
+               COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), '') AS class_name,
+               t.start_time::text AS start_time, t.end_time::text AS end_time
+        FROM timetable_teacher_schedules tsch
+        JOIN timetable_time_slots t ON t.id = tsch.time_slot_id
+        LEFT JOIN classes c ON c.id::text = tsch.class_id
+        WHERE tsch.teacher_id = ${staffId}
+          AND tsch.tenant_id = ${tenantId}
+          AND (${resolvedTermId}::text IS NULL OR tsch.term_id = ${resolvedTermId})
+        ORDER BY tsch.day_of_week, t.start_time
       `;
-      schedule = ttResult.rows.map(r => ({
+      schedule = tsResult.rows.map(r => ({
         id: r.id,
-        dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
-        timeSlot: r.time_slot,
-        subject: r.subject,
+        dayOfWeek: Number(r.day_of_week),
+        timeSlot: `${r.start_time} - ${r.end_time}`,
+        subject: r.subject_name,
         className: r.class_name,
-        room: r.room,
+        room: '',
         startTime: r.start_time,
         endTime: r.end_time,
       }));
-    } catch (ttErr) {
-      console.error('Timetable query error:', ttErr);
+    } catch (tsErr) {
+      console.error('Teacher schedule query error:', tsErr);
+    }
+
+    // Legacy fallback: rows in the old flat `timetable` table
+    if (schedule.length === 0) {
+      try {
+        const ttResult = await sql`
+          SELECT id::text, day, start_time, end_time,
+                 COALESCE(start_time, '') || ' - ' || COALESCE(end_time, '') AS time_slot,
+                 subject, class_name, room
+          FROM timetable
+          WHERE staff_id = ${staffId}
+            AND tenant_id = ${tenantId}
+          ORDER BY day, start_time
+        `;
+        schedule = ttResult.rows.map(r => ({
+          id: r.id,
+          dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
+          timeSlot: r.time_slot,
+          subject: r.subject,
+          className: r.class_name,
+          room: r.room,
+          startTime: r.start_time,
+          endTime: r.end_time,
+        }));
+      } catch (ttErr) {
+        console.error('Timetable query error:', ttErr);
+      }
     }
 
     let examSchedule: ExamEntry[] = [];
@@ -91,13 +140,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         FROM exams e
         WHERE e.exam_date >= CURRENT_DATE
           AND e.tenant_id = ${tenantId}
-          AND EXISTS (
-            SELECT 1 FROM timetable tt
-            WHERE tt.staff_id = ${staffId}
-              AND tt.tenant_id = ${tenantId}
-              AND tt.subject IS NOT NULL
-              AND e.title IS NOT NULL
-              AND LOWER(tt.subject) = LOWER(e.title)
+          AND (
+            EXISTS (
+              SELECT 1 FROM timetable tt
+              WHERE tt.staff_id = ${staffId}
+                AND tt.tenant_id = ${tenantId}
+                AND tt.subject IS NOT NULL
+                AND e.title IS NOT NULL
+                AND LOWER(tt.subject) = LOWER(e.title)
+            )
+            OR EXISTS (
+              SELECT 1 FROM timetable_teacher_schedules tsch
+              WHERE tsch.teacher_id = ${staffId}
+                AND tsch.tenant_id = ${tenantId}
+                AND e.title IS NOT NULL
+                AND LOWER(tsch.subject_name) = LOWER(e.title)
+            )
           )
         ORDER BY e.exam_date, e.start_time
       `;
@@ -107,18 +165,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }));
     } catch (examErr) {
       console.error('Exam query error:', examErr);
-    }
-
-    let availableTerms: Term[] = [];
-    let currentTerm = '';
-    try {
-      const termResult = await sql`SELECT id::text, name FROM terms WHERE tenant_id = ${tenantId} ORDER BY name`;
-      if (termResult.rows.length > 0) {
-        availableTerms = termResult.rows.map(r => ({ id: r.id, name: r.name }));
-        currentTerm = availableTerms[0].id;
-      }
-    } catch (termErr) {
-      console.error('Terms query error:', termErr);
     }
 
     return res.status(200).json({ schedule, examSchedule, currentTerm, availableTerms });

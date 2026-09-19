@@ -95,9 +95,8 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
       }));
     } catch (err) {
       console.error('Failed to fetch academic data:', err);
-      // Fallback to hardcoded values
-      setAcademicYears(['2024/2025', '2025/2026', '2026/2027']);
-      setTerms(['Term 1', 'Term 2', 'Term 3']);
+      setAcademicYears([]);
+      setTerms([]);
     }
   };
 

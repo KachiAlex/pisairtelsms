@@ -5,17 +5,22 @@ import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { AnalyticsFilters } from '../../../hooks/useAnalytics'
+import { useAcademicYears, useTimetableTerms } from '../../../hooks/useTimetableTerms'
 
 export interface DashboardFiltersProps {
   filters: AnalyticsFilters
   onChange: (filters: AnalyticsFilters) => void
 }
 
-const SESSIONS = ['2024/2025', '2025/2026']
-const TERMS = ['1', '2', '3']
 const CLASSES = ['All', 'JSS 1', 'JSS 2', 'JSS 3', 'SSS 1', 'SSS 2', 'SSS 3']
 
 export function DashboardFilters({ filters, onChange }: DashboardFiltersProps) {
+  // Sessions/terms from Timetable & Scheduling — the single source of truth.
+  const { termNames } = useTimetableTerms(filters.term)
+  const { years } = useAcademicYears()
+  const sessionNames = filters.academicSession && !years.some(y => y.name === filters.academicSession)
+    ? [filters.academicSession, ...years.map(y => y.name)]
+    : years.map(y => y.name)
   const update = (key: keyof AnalyticsFilters, value: string) => {
     onChange({ ...filters, [key]: value || undefined })
   }
@@ -45,7 +50,7 @@ export function DashboardFilters({ filters, onChange }: DashboardFiltersProps) {
               <SelectValue placeholder="Select session" />
             </SelectTrigger>
             <SelectContent>
-              {SESSIONS.map((s) => (
+              {sessionNames.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
             </SelectContent>
@@ -59,7 +64,7 @@ export function DashboardFilters({ filters, onChange }: DashboardFiltersProps) {
               <SelectValue placeholder="Select term" />
             </SelectTrigger>
             <SelectContent>
-              {TERMS.map((t) => (
+              {termNames.map((t) => (
                 <SelectItem key={t} value={t}>{t}</SelectItem>
               ))}
             </SelectContent>

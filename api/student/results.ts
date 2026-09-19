@@ -45,11 +45,29 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   try {
-    const { academicSession = '2025/2026', term = 'First' } = req.query;
+    // Defaults come from Timetable & Scheduling — the single source of truth.
+    const tenantId = decoded.tenantId || 'default-tenant';
+    let defaultSession = '', defaultTerm = '';
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const tr = await sql`
+        SELECT name, academic_year FROM timetable_terms
+        WHERE tenant_id = ${tenantId}
+        ORDER BY (start_date <= ${today} AND ${today} <= end_date) DESC, start_date ASC
+        LIMIT 1`;
+      defaultTerm = tr.rows[0]?.name || '';
+      defaultSession = tr.rows[0]?.academic_year || '';
+      if (!defaultSession) {
+        const yr = await sql`SELECT name FROM academic_years WHERE tenant_id = ${tenantId} ORDER BY is_current DESC, start_date ASC LIMIT 1`;
+        defaultSession = yr.rows[0]?.name || '';
+      }
+    } catch { /* tables may not exist yet */ }
+
+    const academicSession = (req.query.academicSession as string) || defaultSession;
+    const term = (req.query.term as string) || defaultTerm;
 
     // Get tenant_id and class for the student (scoped to JWT tenant)
-    const tenantRes = await sql`SELECT tenant_id, class FROM students WHERE id = ${studentId} AND tenant_id = ${decoded.tenantId || 'default-tenant'} LIMIT 1`;
-    const tenantId = tenantRes.rows[0]?.tenant_id || 'default-tenant';
+    const tenantRes = await sql`SELECT tenant_id, class FROM students WHERE id = ${studentId} AND tenant_id = ${tenantId} LIMIT 1`;
     const studentClass = tenantRes.rows[0]?.class || '';
     const classLevel = getLevelForClass(studentClass);
 

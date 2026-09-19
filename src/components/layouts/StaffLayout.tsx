@@ -36,6 +36,7 @@ import { StaffTasks } from '../pages/staff/StaffTasks'
 import { StaffDocuments } from '../pages/staff/StaffDocuments'
 import { TeacherAssignments } from '../pages/staff/TeacherAssignments'
 import { NotificationsDropdown } from '../staff/NotificationsDropdown'
+import { SessionTermLabel } from '../SessionTermLabel'
 
 interface StaffLayoutProps {
   children?: React.ReactNode
@@ -213,7 +214,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
               <p className="text-sm font-semibold text-gray-900">
                 {navItems.find(n => n.id === currentPage)?.label ?? 'Staff Portal'}
               </p>
-              <p className="text-xs text-gray-500">2024/2025 Academic Session</p>
+              <SessionTermLabel />
             </div>
           </div>
 

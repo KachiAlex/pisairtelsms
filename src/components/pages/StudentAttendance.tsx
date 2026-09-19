@@ -39,6 +39,7 @@ import {
 } from '../ui/table'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { useTimetableTerms } from '../../hooks/useTimetableTerms'
 
 // TypeScript interfaces
 
@@ -162,12 +163,18 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   // Mark Attendance tab
   const [markClass, setMarkClass] = useState('')
   const [markDate, setMarkDate] = useState('')
-  const [markTerm, setMarkTerm] = useState('First Term')
+  const [markTerm, setMarkTerm] = useState('')
   const [markStudents, setMarkStudents] = useState<any[]>([])
   const [markAttendance, setMarkAttendance] = useState<Record<string, 'present' | 'absent' | 'late'>>({})
   const [markLoading, setMarkLoading] = useState(false)
   const [markSubmitting, setMarkSubmitting] = useState(false)
   const [markError, setMarkError] = useState<string | null>(null)
+
+  // Terms come from Timetable & Scheduling (single source of truth).
+  const { termNames, currentTermName } = useTimetableTerms([termFilter, markTerm, reportTerm])
+  useEffect(() => {
+    if (!markTerm && currentTermName) setMarkTerm(currentTermName)
+  }, [currentTermName])
 
   // Batch Upload tab
   const [batchFile, setBatchFile] = useState<File | null>(null)
@@ -772,9 +779,9 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_all">All terms</SelectItem>
-                      <SelectItem value="First Term">First Term</SelectItem>
-                      <SelectItem value="Second Term">Second Term</SelectItem>
-                      <SelectItem value="Third Term">Third Term</SelectItem>
+                      {termNames.map(t => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <Select value={reasonFilter || '_all'} onValueChange={(v) => setReasonFilter(v === '_all' ? '' : v)}>
@@ -1068,9 +1075,9 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="First Term">First Term</SelectItem>
-                      <SelectItem value="Second Term">Second Term</SelectItem>
-                      <SelectItem value="Third Term">Third Term</SelectItem>
+                      {termNames.map(t => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1674,9 +1681,9 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                       <SelectValue placeholder="All terms" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="First Term">First Term</SelectItem>
-                      <SelectItem value="Second Term">Second Term</SelectItem>
-                      <SelectItem value="Third Term">Third Term</SelectItem>
+                      {termNames.map(t => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

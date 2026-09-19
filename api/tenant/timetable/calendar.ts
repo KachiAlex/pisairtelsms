@@ -6,7 +6,7 @@ import {
   getExamPeriods, createExamPeriod, updateExamPeriod, deleteExamPeriod,
 } from './_lib/calendar.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
-import { requireRole } from '../../_lib/auth-middleware.js'
+import { requireAuth, requireRole } from '../../_lib/auth-middleware.js'
 
 let migrationsInitialized = false
 
@@ -17,8 +17,13 @@ function parseBody(req: ApiRequest) {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant timetable
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  // GET is read-only reference data (terms, academic years, holidays) needed
+  // by every role — students and parents read it too. Mutations stay
+  // restricted to staff/tenant_admin below.
+  const decoded =
+    req.method === 'GET'
+      ? await requireAuth(req, res)
+      : await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   // Ensure migrations are run on first request

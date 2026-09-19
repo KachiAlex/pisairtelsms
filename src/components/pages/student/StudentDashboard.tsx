@@ -5,6 +5,7 @@ import { MetricCard } from './MetricCard';
 import { AnnouncementsSection } from './AnnouncementsSection';
 import { MessagesSection } from './MessagesSection';
 import { Button } from '../../ui/button';
+import { SessionTermLabel } from '../../SessionTermLabel';
 
 interface StudentData {
   student: {
@@ -167,7 +168,7 @@ export function StudentDashboard() {
           </div>
           <div>
             <p className="text-sm text-blue-100">Academic Session</p>
-            <p className="font-semibold">2025/2026 - First Term</p>
+            <SessionTermLabel className="font-semibold" />
           </div>
         </div>
       </div>

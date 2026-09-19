@@ -181,7 +181,7 @@ export function MyTimetable() {
                   </td>
                   {DAYS.map((_, dayIdx) => {
                     const session = data.schedule.find(
-                      (s) => s.timeSlot === timeSlot && s.dayOfWeek === dayIdx
+                      (s) => s.timeSlot === timeSlot && s.dayOfWeek === dayIdx + 1
                     )
                     return (
                       <td

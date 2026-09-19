@@ -13,6 +13,7 @@ import { ClassArmSelect } from '../ui/class-arm-select'
 import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPut, tenantApiPost } from '../../lib/tenantApi'
+import { useTimetableTerms } from '../../hooks/useTimetableTerms'
 
 interface CompiledRow {
   id: string
@@ -54,10 +55,15 @@ export function ResultApproval() {
   const currentYear = new Date().getFullYear()
   const defaultSession = `${currentYear}/${currentYear + 1}`
 
+  const { termNames, currentTermName } = useTimetableTerms(term)
+
   useEffect(() => {
     setAcademicSession(defaultSession)
-    setTerm('First Term')
   }, [])
+
+  useEffect(() => {
+    if (!term && currentTermName) setTerm(currentTermName)
+  }, [currentTermName])
 
   const loadCompiled = useCallback(async () => {
     if (!academicSession || !term) return
@@ -216,9 +222,10 @@ export function ResultApproval() {
               <Select value={term} onValueChange={setTerm}>
                 <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="First Term">First Term</SelectItem>
-                  <SelectItem value="Second Term">Second Term</SelectItem>
-                  <SelectItem value="Third Term">Third Term</SelectItem>
+                  {termNames.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                  {termNames.length === 0 && <SelectItem value="__none" disabled>No terms configured</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

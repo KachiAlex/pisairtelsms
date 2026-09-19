@@ -61,6 +61,10 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
     else if (url.includes('absence-reasons')) body = { data: [] }
     else if (url.includes('/api/staff/dashboard')) body = mockDashboard
     else if (url.includes('/api/tenant/attendance')) body = { success: true }
+    else if (url.includes('resource=academic-years'))
+      body = { data: [{ id: 'ay-1', name: '2024/2025', is_current: true }] }
+    else if (url.includes('resource=terms'))
+      body = { data: [{ id: 't-1', name: 'Second Term', start_date: '2024-01-01', end_date: '2099-12-31', academic_year: '2024/2025' }] }
     return Promise.resolve({ ok: true, json: async () => body } as Response)
   }
 
@@ -305,7 +309,7 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
       })
     })
 
-    it('should display academic session in header', () => {
+    it('should display academic session in header', async () => {
       
 
       render(
@@ -314,7 +318,10 @@ describe('StaffLayout Integration - TeacherAttendanceEntry', () => {
         </MemoryRouter>
       )
 
-      expect(screen.getByText(/2024\/2025 Academic Session/i)).toBeInTheDocument()
+      // Session label is fetched from Timetable & Scheduling (timetable_terms)
+      await waitFor(() => {
+        expect(screen.getByText(/2024\/2025 Academic Session - Second Term/i)).toBeInTheDocument()
+      })
     })
   })
 

@@ -1,4 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import {
   fetchPromotionRecords,
   createPromotionRecord,
@@ -61,6 +62,28 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const body = parseBody(req)
       if (!body) {
         return res.status(400).json({ error: 'Request body is required' })
+      }
+
+      const tenantId = decoded.tenantId || 'default-tenant'
+
+      // Terms must exist in Timetable & Scheduling (timetable_terms) — the
+      // single source of truth for term names.
+      const payloads: PromotionPayload[] = Array.isArray(body.records)
+        ? body.records
+        : [body.record || body]
+      try {
+        const termCheck = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+        const validTerms = new Set(termCheck.rows.map(r => r.name))
+        const bad = payloads.filter(p => p.term && !validTerms.has(p.term))
+        if (bad.length > 0) {
+          return res.status(400).json({
+            error: validTerms.size === 0
+              ? 'No terms configured — create terms in Timetable & Scheduling first'
+              : `Invalid term — must be one of: ${[...validTerms].join(', ')}`,
+          })
+        }
+      } catch (err) {
+        if ((err as any)?.code !== '42P01') throw err
       }
 
       // Check if this is a bulk create or single create

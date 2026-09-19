@@ -157,7 +157,7 @@ export async function getAcademicAnalytics(
   let previousAverage = averageScore
 
   if (filters.academicSession && filters.term) {
-    currentTerm = `${filters.academicSession} - Term ${filters.term}`
+    currentTerm = `${filters.academicSession} - ${filters.term}`
 
     // Previous term: the most recent term before the selected one
     const previousRes = await sql.query<{
@@ -172,9 +172,9 @@ export async function getAcademicAnalytics(
     previousAverage = parseFloat(previousRes.rows[0]?.average_score || '0')
     previousTerm = previousRes.rows[0] ? `Previous` : 'Previous Term'
   } else if (termsRes.rows.length > 0) {
-    currentTerm = `${termsRes.rows[0].academic_session} - Term ${termsRes.rows[0].term}`
+    currentTerm = `${termsRes.rows[0].academic_session} - ${termsRes.rows[0].term}`
     if (termsRes.rows.length > 1) {
-      previousTerm = `${termsRes.rows[1].academic_session} - Term ${termsRes.rows[1].term}`
+      previousTerm = `${termsRes.rows[1].academic_session} - ${termsRes.rows[1].term}`
       const prevRes = await sql.query<{
         average_score: string
       }>(
@@ -448,7 +448,7 @@ export async function getPerformanceAnalytics(
   const termTrend = trendRes.rows
     .sort((a, b) => (a.academic_session > b.academic_session ? 1 : -1) || (a.term > b.term ? 1 : -1))
     .map(row => ({
-      term: `${row.academic_session} - Term ${row.term}`,
+      term: `${row.academic_session} - ${row.term}`,
       average: Math.round(parseFloat(row.average || '0') * 10) / 10,
       passRate: Math.round(parseFloat(row.pass_rate || '0')),
     }))

@@ -35,23 +35,77 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const { class: studentClass, arm } = childRow.rows[0]
     const className = `${studentClass}${arm ?? ''}`
 
-    const ttResult = await sql`
-      SELECT tt.id::text, tt.day, tt.start_time, tt.end_time,
-             tt.start_time || '-' || tt.end_time AS time_slot,
-             tt.subject, tt.room,
-             COALESCE(st.name, '') AS teacher
-      FROM timetable tt
-      LEFT JOIN staff st ON st.id = tt.staff_id
-      WHERE tt.class_name = ${className}
-        AND tt.tenant_id = ${tenantId}
-      ORDER BY tt.day, tt.start_time
+    // Terms come from Timetable & Scheduling (timetable_terms) — the single
+    // source of truth. Resolve the requested term, else the one covering
+    // today, else the earliest.
+    const termRows = await sql`
+      SELECT id::text, name, start_date::text AS start_date, end_date::text AS end_date
+      FROM timetable_terms WHERE tenant_id = ${tenantId} ORDER BY start_date
     `
-
-    const schedule = ttResult.rows.map(r => ({
-      id: r.id, dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
-      timeSlot: r.time_slot, subject: r.subject, teacher: r.teacher, room: r.room,
-      startTime: r.start_time, endTime: r.end_time,
+    const availableTerms = termRows.rows.map(r => ({
+      id: r.id, name: r.name, startDate: r.start_date, endDate: r.end_date,
     }))
+    const today = new Date().toISOString().slice(0, 10)
+    const resolvedTermId =
+      termId ||
+      termRows.rows.find(r => r.start_date <= today && today <= r.end_date)?.id ||
+      termRows.rows[0]?.id ||
+      null
+    const currentTerm = availableTerms.find(t => t.id === resolvedTermId)?.name || 'Current'
+
+    // Resolve the child's class_id (classes.name + classes.arm)
+    const classResult = await sql`
+      SELECT id::text FROM classes
+      WHERE tenant_id = ${tenantId}
+        AND LOWER(name) = LOWER(${studentClass})
+        AND LOWER(COALESCE(arm, '')) = LOWER(COALESCE(${arm ?? ''}, ''))
+        AND deleted_at IS NULL
+      LIMIT 1
+    `
+    const classId = classResult.rows[0]?.id as string | undefined
+
+    // Primary source: Timetable & Scheduling tables
+    let schedule: { id: string; dayOfWeek: number; timeSlot: string; subject: string; teacher: string; room: string; startTime: string; endTime: string }[] = []
+    if (classId && resolvedTermId) {
+      const entriesResult = await sql`
+        SELECT e.id::text, e.day_of_week, e.subject_name, e.teacher_name,
+               COALESCE(e.room_id, '') AS room,
+               ts.start_time::text AS start_time, ts.end_time::text AS end_time
+        FROM timetable_class_schedule_entries e
+        JOIN timetable_class_schedules s ON s.id = e.schedule_id
+        JOIN timetable_time_slots ts ON ts.id = e.time_slot_id
+        WHERE s.tenant_id = ${tenantId}
+          AND s.class_id = ${classId}
+          AND s.term_id = ${resolvedTermId}
+        ORDER BY e.day_of_week, ts.start_time
+      `
+      schedule = entriesResult.rows.map(r => ({
+        id: r.id, dayOfWeek: Number(r.day_of_week),
+        timeSlot: `${r.start_time}-${r.end_time}`,
+        subject: r.subject_name, teacher: r.teacher_name, room: r.room,
+        startTime: r.start_time, endTime: r.end_time,
+      }))
+    }
+
+    // Legacy fallback: rows in the old flat `timetable` table (class_name string)
+    if (schedule.length === 0) {
+      const ttResult = await sql`
+        SELECT tt.id::text, tt.day, tt.start_time, tt.end_time,
+               tt.start_time || '-' || tt.end_time AS time_slot,
+               tt.subject, tt.room,
+               COALESCE(st.name, '') AS teacher
+        FROM timetable tt
+        LEFT JOIN staff st ON st.id = tt.staff_id
+        WHERE tt.class_name = ${className}
+          AND tt.tenant_id = ${tenantId}
+        ORDER BY tt.day, tt.start_time
+      `
+      schedule = ttResult.rows.map(r => ({
+        id: r.id, dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
+        timeSlot: r.time_slot, subject: r.subject, teacher: r.teacher, room: r.room,
+        startTime: r.start_time, endTime: r.end_time,
+      }))
+    }
 
     const examResult = await sql`
       SELECT id::text, title AS subject, exam_date::text AS date, start_time AS time, room,
@@ -68,16 +122,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       room: r.room ?? '', duration: Number(r.duration ?? 0), invigilator: '',
     }))
 
-    let availableTerms = [{ id: 'term1', name: 'First Term' }, { id: 'term2', name: 'Second Term' }, { id: 'term3', name: 'Third Term' }]
-    try {
-      const termRows = await sql`SELECT id::text, name FROM terms WHERE tenant_id = ${tenantId} ORDER BY name`
-      if (termRows.rows.length > 0) availableTerms = termRows.rows.map(r => ({ id: r.id, name: r.name }))
-    } catch { /* terms table may not exist */ }
-
     return res.status(200).json({
       schedule, examSchedule,
-      currentTerm: termId || (availableTerms[0]?.name ?? 'Current'),
-      availableTerms, holidays: [],
+      currentTerm,
+      currentTermId: resolvedTermId,
+      availableTerms,
+      terms: availableTerms,
+      holidays: [],
     })
   } catch (error) {
     console.error('Error fetching timetable:', error)

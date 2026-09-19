@@ -1,4 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
+import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import {
@@ -115,6 +116,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Missing required fields', details: missing })
     }
 
+    // Term must exist in Timetable & Scheduling (timetable_terms).
+    try {
+      const termCheck = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+      const validTerms = termCheck.rows.map(r => r.name)
+      if (!validTerms.includes(term)) {
+        return res.status(400).json({
+          error: validTerms.length === 0
+            ? 'No terms configured — create terms in Timetable & Scheduling first'
+            : `Invalid term — must be one of: ${validTerms.join(', ')}`,
+        })
+      }
+    } catch (err) {
+      if ((err as any)?.code !== '42P01') throw err
+    }
+
     try {
       const assignment = await createFeeAssignment(
         tenantId,
@@ -143,6 +159,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     if (!assignments || !Array.isArray(assignments) || assignments.length === 0) {
       return res.status(400).json({ error: 'assignments array is required' })
+    }
+
+    // Terms must exist in Timetable & Scheduling (timetable_terms).
+    let validTermSet: Set<string> | null = null
+    try {
+      const termCheck = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+      validTermSet = new Set(termCheck.rows.map(r => r.name))
+    } catch (err) {
+      if ((err as any)?.code !== '42P01') throw err
+    }
+    if (validTermSet !== null) {
+      const bad = assignments.find((a: any) => a.term && !validTermSet.has(a.term))
+      if (bad) {
+        return res.status(400).json({
+          error: validTermSet.size === 0
+            ? 'No terms configured — create terms in Timetable & Scheduling first'
+            : `Invalid term — must be one of: ${[...validTermSet].join(', ')}`,
+        })
+      }
     }
 
     try {

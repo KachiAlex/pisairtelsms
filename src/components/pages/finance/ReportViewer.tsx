@@ -58,8 +58,12 @@ export function ReportViewer() {
         const uniqueClasses = [...new Set((data.data || []).map((s: any) => s.class))];
         setClasses(uniqueClasses as string[]);
       }
-      // In a real app, fetch terms from academic calendar
-      setTerms(['Term 1', 'Term 2', 'Term 3']);
+      // Terms from Timetable & Scheduling — the single source of truth
+      const termsRes = await financeApiGet('/api/tenant/timetable/calendar?resource=terms');
+      if (termsRes.ok) {
+        const termsData = await termsRes.json();
+        setTerms((termsData.data || []).map((t: any) => t.name));
+      }
     } catch (err) {
       console.error('Error fetching filter options:', err);
     }

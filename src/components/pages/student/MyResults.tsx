@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, Download } from 'lucide-react';
 import { Button } from '../../ui/button';
+import { tenantApiGet } from '../../../lib/tenantApi';
 
 interface StudentResult {
   subject: string;
@@ -54,26 +55,27 @@ export function MyResults() {
 
   const fetchAcademicData = async () => {
     try {
-      const yearsRes = await fetch('/api/tenant/timetable/calendar?resource=academic-years');
+      const [yearsRes, termsRes] = await Promise.all([
+        tenantApiGet('/api/tenant/timetable/calendar?resource=academic-years'),
+        tenantApiGet('/api/tenant/timetable/calendar?resource=terms'),
+      ]);
       const yearsData = await yearsRes.json();
-      const years = yearsData.data?.map((y: any) => y.name) || [];
-      setSessions(years);
-
-      const termsRes = await fetch('/api/tenant/timetable/calendar?resource=terms');
       const termsData = await termsRes.json();
+      const years = yearsData.data?.map((y: any) => y.name) || [];
       const termNames = termsData.data?.map((t: any) => t.name) || [];
+      setSessions(years);
       setTerms(termNames);
 
-      // Set defaults
-      if (years.length > 0) setSession(years[0]);
-      if (termNames.length > 0) setTerm(termNames[0]);
+      // Default to the current academic year and the term covering today
+      const currentYear = yearsData.data?.find((y: any) => y.is_current)?.name || years[0];
+      const today = new Date().toISOString().slice(0, 10);
+      const activeTerm = termsData.data?.find((t: any) => t.start_date <= today && today <= t.end_date)?.name || termNames[0];
+      if (currentYear) setSession(currentYear);
+      if (activeTerm) setTerm(activeTerm);
     } catch (err) {
       console.error('Failed to fetch academic data:', err);
-      // Fallback
-      setSessions(['2025/2026', '2024/2025', '2023/2024']);
-      setTerms(['First', 'Second', 'Third']);
-      setSession('2025/2026');
-      setTerm('First');
+      setSessions([]);
+      setTerms([]);
     }
   };
 

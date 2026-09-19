@@ -26,28 +26,36 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     // Get student's class
     const studentRow = await sql`SELECT class FROM students WHERE id = ${childId} AND deleted_at IS NULL LIMIT 1`
     const studentClass = studentRow.rows[0]?.class ?? ''
 
-    // Available terms from DB (fallback to static)
-    let availableTerms = [{ id: 'term1', name: 'First Term' }, { id: 'term2', name: 'Second Term' }, { id: 'term3', name: 'Third Term' }]
-    try {
-      const termRows = await sql`SELECT id::text, name FROM terms ORDER BY name`
-      if (termRows.rows.length > 0) availableTerms = termRows.rows.map(r => ({ id: r.id, name: r.name }))
-    } catch { /* terms table may not exist */ }
+    // Terms come from Timetable & Scheduling (timetable_terms) — the single
+    // source of truth. results.term stores the term *name*, so resolve the
+    // termId param (id or name) to the name before filtering.
+    const termRows = await sql`
+      SELECT id::text, name, start_date::text AS start_date, end_date::text AS end_date
+      FROM timetable_terms WHERE tenant_id = ${tenantId} ORDER BY start_date
+    `
+    const availableTerms = termRows.rows.map(r => ({ id: r.id, name: r.name }))
+    const today = new Date().toISOString().slice(0, 10)
+    const requestedTerm = termRows.rows.find(r => r.id === termId || r.name === termId)
+    const activeTerm = termRows.rows.find(r => r.start_date <= today && today <= r.end_date)
+    const termName = requestedTerm?.name || activeTerm?.name || availableTerms[0]?.name || null
 
-    // Results for this child filtered by termId if provided
-    const resultsQuery = termId
-      ? await sql`SELECT id::text, subject, ca_score, exam_score, (ca_score+exam_score) AS total_score, grade FROM results WHERE student_id = ${childId} AND term = ${termId} ORDER BY subject`
+    // Results for this child filtered by the resolved term name
+    const resultsQuery = termName
+      ? await sql`SELECT id::text, subject, ca_score, exam_score, (ca_score+exam_score) AS total_score, grade FROM results WHERE student_id = ${childId} AND term = ${termName} ORDER BY subject`
       : await sql`SELECT id::text, subject, ca_score, exam_score, (ca_score+exam_score) AS total_score, grade FROM results WHERE student_id = ${childId} ORDER BY subject`
 
     // Class average per subject
-    const classAvgRows = termId
+    const classAvgRows = termName
       ? await sql`
           SELECT r.subject, ROUND(AVG(r.ca_score + r.exam_score)) AS avg
           FROM results r JOIN students s ON s.id = r.student_id
-          WHERE s.class = ${studentClass} AND r.term = ${termId}
+          WHERE s.class = ${studentClass} AND r.term = ${termName}
           GROUP BY r.subject
         `
       : await sql`
@@ -76,7 +84,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     `
 
     return res.status(200).json({
-      currentTerm: termId || (availableTerms[0]?.name ?? 'Current'),
+      currentTerm: requestedTerm?.id || activeTerm?.id || availableTerms[0]?.id || '',
       availableTerms,
       subjects,
       overallGPA: 0,

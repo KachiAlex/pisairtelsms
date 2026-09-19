@@ -15,6 +15,7 @@ import { ClassArmSelect } from '../ui/class-arm-select'
 import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { useTimetableTerms } from '../../hooks/useTimetableTerms'
 
 interface SubjectItem { id: string; name: string }
 interface StudentItem { id: string; name: string; admissionNo?: string }
@@ -67,13 +68,18 @@ export function CAScoreEntry() {
   // same as before). Change to e.g. 20 when the test was marked out of 20.
   const [colMaxes, setColMaxes] = useState<CAWeights>({ tests: 100, assignments: 100, projects: 100, exams: 100 })
 
+  const { termNames, currentTermName } = useTimetableTerms(term)
+
   const currentYear = new Date().getFullYear()
   const defaultSession = `${currentYear}/${currentYear + 1}`
 
   useEffect(() => {
     setAcademicSession(defaultSession)
-    setTerm('First Term')
   }, [])
+
+  useEffect(() => {
+    if (!term && currentTermName) setTerm(currentTermName)
+  }, [currentTermName])
 
   const loadMeta = useCallback(async () => {
     setLoadingMeta(true)
@@ -453,9 +459,10 @@ export function CAScoreEntry() {
               <Select value={term} onValueChange={setTerm}>
                 <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="First Term">First Term</SelectItem>
-                  <SelectItem value="Second Term">Second Term</SelectItem>
-                  <SelectItem value="Third Term">Third Term</SelectItem>
+                  {termNames.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                  {termNames.length === 0 && <SelectItem value="__none" disabled>No terms configured</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

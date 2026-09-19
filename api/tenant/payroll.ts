@@ -160,22 +160,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ error: 'month and year are required' })
       }
       try {
-        // A run tagged to a schedule inherits that schedule's pay group
+        // A run tagged to a schedule inherits that schedule's template or pay group
         let staffIds: string[] | undefined
+        let templateRunId: string | undefined
         let runName: string | undefined
         if (body.scheduleId) {
           const sched = await sql`
-            SELECT name, staff_ids FROM payroll_schedules WHERE id = ${body.scheduleId} AND tenant_id = ${actualTenantId}
+            SELECT name, staff_ids, template_run_id FROM payroll_schedules WHERE id = ${body.scheduleId} AND tenant_id = ${actualTenantId}
           `
           if (sched.rows.length === 0) return res.status(400).json({ error: 'Schedule not found' })
           const ids = sched.rows[0].staff_ids
           if (Array.isArray(ids) && ids.length > 0) staffIds = ids
+          templateRunId = sched.rows[0].template_run_id || undefined
           runName = `${sched.rows[0].name} — ${body.month} ${body.year}`
         }
         const run = await createPayrollRun(body.month, Number(body.year), body.scheduleId || null, actualTenantId, {
           supplementary: body.supplementary === true,
           actor,
           staffIds,
+          templateRunId,
           runName,
         })
         return res.status(201).json({ data: run })

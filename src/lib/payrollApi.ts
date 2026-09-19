@@ -25,6 +25,7 @@ export interface PayrollSchedule {
   autoDisburse: boolean
   isActive: boolean
   staffIds: string[]
+  templateRunId: string | null
   createdAt: string
   updatedAt: string
 }

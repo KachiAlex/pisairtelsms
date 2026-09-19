@@ -53,8 +53,8 @@ export function PayrollSchedules() {
   const [form, setForm] = useState<{
     name: string; frequency: 'weekly' | 'monthly' | 'bi_weekly' | 'custom';
     dayOfMonth: number; dayOfWeek: number; autoGenerate: boolean; autoDisburse: boolean;
-    staffIds: string[];
-  }>({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false, staffIds: [] })
+    staffIds: string[]; templateRunId: string;
+  }>({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false, staffIds: [], templateRunId: '' })
 
   const fetchSchedules = async () => {
     setLoading(true)
@@ -82,7 +82,7 @@ export function PayrollSchedules() {
     try {
       await payrollApi.createSchedule(form)
       setShowForm(false)
-      setForm({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false, staffIds: [] })
+      setForm({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false, staffIds: [], templateRunId: '' })
       fetchSchedules()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create schedule')
@@ -144,6 +144,7 @@ export function PayrollSchedules() {
           {schedules.map(s => {
             const schedRuns = runs.filter(r => r.scheduleId === s.id).slice(0, 3)
             const groupSize = s.staffIds?.length || 0
+            const tplRun = s.templateRunId ? runs.find(r => r.id === s.templateRunId) : null
             return (
             <Card key={s.id}>
               <CardContent className="p-5">
@@ -153,7 +154,10 @@ export function PayrollSchedules() {
                     <p className="text-xs text-gray-500 capitalize">{s.frequency.replace('_', '-')} · Day {s.frequency === 'monthly' ? s.dayOfMonth : s.dayOfWeek}</p>
                     <p className="text-xs text-blue-600 mt-0.5">{s.isActive ? nextRunLabel(s) : 'Inactive — will not run'}</p>
                     <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1">
-                      <Users className="w-3 h-3" /> Pay group: {groupSize ? `${groupSize} selected staff` : 'all active staff with salaries'}
+                      <Users className="w-3 h-3" />
+                      {s.templateRunId
+                        ? `Template: ${tplRun?.name || s.templateRunId}`
+                        : `Pay group: ${groupSize ? `${groupSize} selected staff` : 'all active staff with salaries'}`}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -221,8 +225,19 @@ export function PayrollSchedules() {
               </div>
             )}
             <div>
+              <Label>Template payroll run (optional)</Label>
+              <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={form.templateRunId}
+                onChange={e => setForm(f => ({ ...f, templateRunId: e.target.value }))}>
+                <option value="">None — generate from staff salaries + rules</option>
+                {runs.map(r => <option key={r.id} value={r.id}>{r.name} ({r.totalStaff} staff)</option>)}
+              </select>
+              {form.templateRunId && (
+                <p className="text-xs text-blue-600 mt-1">Each run will clone this run's staff and pay lines — tax, pension and advance repayments are recalculated fresh each period.</p>
+              )}
+            </div>
+            <div>
               <Label>Pay group — staff included in this payroll (empty = all staff)</Label>
-              <div className="max-h-44 overflow-y-auto border border-gray-200 rounded-md p-2 space-y-1 mt-1">
+              <div className={`max-h-44 overflow-y-auto border border-gray-200 rounded-md p-2 space-y-1 mt-1 ${form.templateRunId ? 'opacity-50 pointer-events-none' : ''}`}>
                 {staff.length === 0 && <p className="text-xs text-gray-400 p-1">Loading staff…</p>}
                 {staff.map(s => (
                   <label key={s.id} className="flex items-center gap-2 text-sm">
@@ -236,7 +251,11 @@ export function PayrollSchedules() {
                   </label>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 mt-1">{form.staffIds.length ? `${form.staffIds.length} staff selected` : 'All active staff with salaries will be included'}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {form.templateRunId
+                  ? 'Pay group comes from the template run'
+                  : form.staffIds.length ? `${form.staffIds.length} staff selected` : 'All active staff with salaries will be included'}
+              </p>
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.autoGenerate} onChange={e => setForm(f => ({ ...f, autoGenerate: e.target.checked }))} className="rounded" />

@@ -14,6 +14,7 @@ export interface PayrollSchedule {
   autoDisburse: boolean
   isActive: boolean
   staffIds: string[]
+  templateRunId: string | null
   createdAt: string
   updatedAt: string
 }
@@ -367,7 +368,8 @@ export async function ensurePayrollTables() {
     `
     await sql`
       ALTER TABLE payroll_schedules
-        ADD COLUMN IF NOT EXISTS staff_ids JSONB DEFAULT '[]'
+        ADD COLUMN IF NOT EXISTS staff_ids JSONB DEFAULT '[]',
+        ADD COLUMN IF NOT EXISTS template_run_id TEXT
     `
     await sql`
       CREATE TABLE IF NOT EXISTS payroll_audit_log (
@@ -552,14 +554,25 @@ async function validateScheduleStaff(staffIds: string[] | undefined, tenantId: s
   }
 }
 
+async function validateTemplateRun(templateRunId: string | null | undefined, tenantId: string) {
+  if (!templateRunId) return
+  const result = await sql`
+    SELECT id FROM payroll_runs WHERE id = ${templateRunId} AND tenant_id = ${tenantId}
+  `
+  if (result.rows.length === 0) {
+    throw new PayrollError('Template payroll run not found')
+  }
+}
+
 export async function createSchedule(data: Partial<PayrollSchedule> & { name: string; frequency: string }, tenantId: string): Promise<PayrollSchedule> {
   await ensurePayrollTables()
   await validateScheduleStaff(data.staffIds, tenantId)
+  await validateTemplateRun(data.templateRunId, tenantId)
   const id = `sched_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const result = await sql`
-    INSERT INTO payroll_schedules (id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse, is_active, staff_ids)
+    INSERT INTO payroll_schedules (id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse, is_active, staff_ids, template_run_id)
     VALUES (${id}, ${tenantId}, ${data.name}, ${data.frequency || 'monthly'}, ${data.dayOfMonth || 25}, ${data.dayOfWeek || 5},
-      ${data.autoGenerate || false}, ${data.autoDisburse || false}, ${data.isActive !== false}, ${JSON.stringify(data.staffIds || [])})
+      ${data.autoGenerate || false}, ${data.autoDisburse || false}, ${data.isActive !== false}, ${JSON.stringify(data.staffIds || [])}, ${data.templateRunId || null})
     RETURNING *
   `
   return rowToSchedule(result.rows[0])
@@ -567,6 +580,8 @@ export async function createSchedule(data: Partial<PayrollSchedule> & { name: st
 
 export async function updateSchedule(id: string, data: Partial<PayrollSchedule>, tenantId: string): Promise<PayrollSchedule | null> {
   await validateScheduleStaff(data.staffIds, tenantId)
+  await validateTemplateRun(data.templateRunId, tenantId)
+  await validateTemplateRun(data.templateRunId, tenantId)
   try {
     const result = await sql`
       UPDATE payroll_schedules SET
@@ -578,6 +593,8 @@ export async function updateSchedule(id: string, data: Partial<PayrollSchedule>,
         auto_disburse = COALESCE(${data.autoDisburse ?? null}, auto_disburse),
         is_active = COALESCE(${data.isActive ?? null}, is_active),
         staff_ids = COALESCE(${data.staffIds ? JSON.stringify(data.staffIds) : null}, staff_ids),
+        template_run_id = CASE WHEN ${data.templateRunId !== undefined} THEN ${data.templateRunId || null} ELSE template_run_id END,
+        template_run_id = COALESCE(${data.templateRunId !== undefined ? data.templateRunId : null}, template_run_id),
         updated_at = NOW()
       WHERE id = ${id} AND tenant_id = ${tenantId}
       RETURNING *
@@ -897,7 +914,7 @@ export async function createPayrollRun(
   year: number,
   scheduleId: string | null,
   tenantId: string,
-  options?: { supplementary?: boolean; actor?: string; staffIds?: string[]; runName?: string }
+  options?: { supplementary?: boolean; actor?: string; staffIds?: string[]; runName?: string; templateRunId?: string }
 ): Promise<PayrollRun> {
   await ensurePayrollTables()
 
@@ -916,23 +933,73 @@ export async function createPayrollRun(
     }
   }
 
-  // Fetch active staff with salaries — restricted to the schedule's pay
-  // group when one is defined
-  const staffResult = options?.staffIds?.length
-    ? await sql`
-        SELECT id, name, salary FROM staff
-        WHERE tenant_id = ${tenantId} AND status = 'active' AND salary IS NOT NULL AND salary > 0
-          AND id = ANY(${options.staffIds})
-      `
-    : await sql`
-        SELECT id, name, salary FROM staff
-        WHERE tenant_id = ${tenantId} AND status = 'active' AND salary IS NOT NULL AND salary > 0
-      `
-  const staffRows = staffResult.rows
-  if (staffRows.length === 0) {
-    throw new PayrollError(options?.staffIds?.length
-      ? 'No eligible staff in this pay group (inactive or missing salary)'
-      : 'No active staff with salaries found')
+  // Entries to pay: either cloned from a template run's items (verbatim pay
+  // lines — advances and statutory are still recomputed fresh below) or
+  // generated from staff salaries + rules.
+  interface PendingEntry {
+    staffId: string
+    staffName: string
+    basicSalary: number
+    earnings: EarningDeduction[]
+    manualDeductions: EarningDeduction[]
+    applyRules: boolean
+  }
+  let entries: PendingEntry[]
+
+  if (options?.templateRunId) {
+    const tplRun = await sql`
+      SELECT id FROM payroll_runs WHERE id = ${options.templateRunId} AND tenant_id = ${tenantId}
+    `
+    if (tplRun.rows.length === 0) throw new PayrollError('Template payroll run not found')
+    const tplItems = await sql`
+      SELECT staff_id, basic_salary, earnings, deductions FROM payroll_run_items
+      WHERE run_id = ${options.templateRunId} AND tenant_id = ${tenantId}
+    `
+    if (tplItems.rows.length === 0) throw new PayrollError('Template run has no items')
+    const templateStaffIds = tplItems.rows.map(r => r.staff_id)
+    const activeStaff = await sql`
+      SELECT id, name FROM staff WHERE tenant_id = ${tenantId} AND status = 'active' AND id = ANY(${templateStaffIds})
+    `
+    const nameById = new Map(activeStaff.rows.map(r => [r.id, r.name as string]))
+    entries = tplItems.rows
+      .filter(r => nameById.has(r.staff_id))
+      .map(r => ({
+        staffId: r.staff_id,
+        staffName: nameById.get(r.staff_id)!,
+        basicSalary: Number(r.basic_salary) || 0,
+        earnings: Array.isArray(r.earnings) ? r.earnings : [],
+        // Statutory lines regenerate via computePayroll; advance lines
+        // regenerate from live advances so repayment progresses per period.
+        manualDeductions: (Array.isArray(r.deductions) ? r.deductions : [])
+          .filter((d: EarningDeduction) => !STATUTORY_CATEGORIES.has(d.category) && d.category !== 'salary_advance'),
+        applyRules: false,
+      }))
+    if (entries.length === 0) {
+      throw new PayrollError('No usable items in the template run — all staff are inactive')
+    }
+  } else {
+    // Fetch active staff with salaries — restricted to the schedule's pay
+    // group when one is defined
+    const staffResult = options?.staffIds?.length
+      ? await sql`
+          SELECT id, name, salary FROM staff
+          WHERE tenant_id = ${tenantId} AND status = 'active' AND salary IS NOT NULL AND salary > 0
+            AND id = ANY(${options.staffIds})
+        `
+      : await sql`
+          SELECT id, name, salary FROM staff
+          WHERE tenant_id = ${tenantId} AND status = 'active' AND salary IS NOT NULL AND salary > 0
+        `
+    const staffRows = staffResult.rows
+    if (staffRows.length === 0) {
+      throw new PayrollError(options?.staffIds?.length
+        ? 'No eligible staff in this pay group (inactive or missing salary)'
+        : 'No active staff with salaries found')
+    }
+    entries = staffRows.map(s => ({
+      staffId: s.id, staffName: s.name, basicSalary: Number(s.salary) || 0,
+      earnings: [], manualDeductions: [], applyRules: true,
+    }))
   }
 
   // Fetch tax config
@@ -958,19 +1025,18 @@ export async function createPayrollRun(
   let totalDeductions = 0
   let totalNet = 0
 
-  // Process each staff member
-  for (const staff of staffRows) {
-    const basicSalary = Number(staff.salary) || 0
-    const staffId = staff.id
-
+  // Process each entry
+  for (const entry of entries) {
     const { earnings, computed } = computeStaffPay(
-      basicSalary,
-      allRules.filter(r => r.staffId === staffId),
-      activeAdvances.filter(a => a.staffId === staffId),
-      taxConfig
+      entry.basicSalary,
+      entry.applyRules ? allRules.filter(r => r.staffId === entry.staffId) : [],
+      activeAdvances.filter(a => a.staffId === entry.staffId),
+      taxConfig,
+      entry.earnings,
+      entry.manualDeductions
     )
 
-    await insertRunItem(runId, tenantId, month, year, staffId, staff.name, basicSalary, earnings, computed)
+    await insertRunItem(runId, tenantId, month, year, entry.staffId, entry.staffName, entry.basicSalary, earnings, computed)
 
     totalGross += computed.grossPay
     totalDeductions += computed.totalDeductions
@@ -980,7 +1046,7 @@ export async function createPayrollRun(
   // Create the run record
   const result = await sql`
     INSERT INTO payroll_runs (id, tenant_id, schedule_id, name, month, year, total_staff, total_gross, total_deductions, total_net, status, run_date, run_type)
-    VALUES (${runId}, ${tenantId}, ${scheduleId}, ${runName}, ${month}, ${year}, ${staffRows.length}, ${totalGross}, ${totalDeductions}, ${totalNet}, 'draft', NOW(), ${options?.supplementary ? 'supplementary' : 'regular'})
+    VALUES (${runId}, ${tenantId}, ${scheduleId}, ${runName}, ${month}, ${year}, ${entries.length}, ${totalGross}, ${totalDeductions}, ${totalNet}, 'draft', NOW(), ${options?.supplementary ? 'supplementary' : 'regular'})
     RETURNING *
   `
 
@@ -995,7 +1061,8 @@ export async function createPayrollRun(
   }
 
   await logPayrollAudit(tenantId, runId, 'run_created', options?.actor || 'system', {
-    month, year, totalStaff: staffRows.length, totalNet,
+    month, year, totalStaff: entries.length, totalNet,
+    ...(options?.templateRunId ? { templateRunId: options.templateRunId } : {}),
   })
 
   return rowToRun(result.rows[0])
@@ -1680,6 +1747,7 @@ function rowToSchedule(r: any): PayrollSchedule {
     dayOfMonth: r.day_of_month, dayOfWeek: r.day_of_week,
     autoGenerate: r.auto_generate, autoDisburse: r.auto_disburse, isActive: r.is_active,
     staffIds: Array.isArray(r.staff_ids) ? r.staff_ids : [],
+    templateRunId: r.template_run_id || null,
     createdAt: r.created_at?.toISOString?.() || String(r.created_at),
     updatedAt: r.updated_at?.toISOString?.() || String(r.updated_at),
   }

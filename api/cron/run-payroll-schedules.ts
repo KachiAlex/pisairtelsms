@@ -20,6 +20,7 @@ interface ScheduleRow {
   auto_generate: boolean
   auto_disburse: boolean
   staff_ids: unknown
+  template_run_id: string | null
 }
 
 function isDueToday(schedule: ScheduleRow, today: Date, lastRunAt: Date | null): boolean {
@@ -57,7 +58,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   try {
     const schedules = await sql`
-      SELECT id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse, staff_ids
+      SELECT id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse, staff_ids, template_run_id
       FROM payroll_schedules
       WHERE is_active = true
     `
@@ -95,7 +96,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
         const payGroup = Array.isArray(schedule.staff_ids) ? (schedule.staff_ids as string[]) : []
         let targetIds = payGroup
-        if (targetIds.length === 0) {
+        if (schedule.template_run_id) {
+          const tpl = await sql`
+            SELECT DISTINCT staff_id FROM payroll_run_items WHERE run_id = ${schedule.template_run_id} AND tenant_id = ${schedule.tenant_id}
+          `
+          targetIds = (tpl.rows as Array<{ staff_id: string }>).map(r => r.staff_id)
+        } else if (targetIds.length === 0) {
           const all = await sql`
             SELECT id FROM staff WHERE tenant_id = ${schedule.tenant_id} AND status = 'active' AND salary IS NOT NULL AND salary > 0
           `
@@ -112,7 +118,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
         const run = await createPayrollRun(month, year, schedule.id, schedule.tenant_id, {
           actor: ACTOR,
-          staffIds: payGroup.length > 0 ? payGroup : undefined,
+          staffIds: !schedule.template_run_id && payGroup.length > 0 ? payGroup : undefined,
+          templateRunId: schedule.template_run_id || undefined,
           runName: `${schedule.name} — ${month} ${year}`,
         })
         await submitRunForApproval(run.id, schedule.tenant_id, ACTOR)

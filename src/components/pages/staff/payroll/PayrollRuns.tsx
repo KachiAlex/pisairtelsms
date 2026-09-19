@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Play, Send, CheckCircle, DollarSign, RefreshCw, AlertCircle, ChevronDown, ChevronRight, FileText } from 'lucide-react'
+import { Play, Send, CheckCircle, DollarSign, RefreshCw, AlertCircle, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '../../../ui/card'
 import { Button } from '../../../ui/button'
 import { Badge } from '../../../ui/badge'
@@ -136,6 +136,19 @@ export function PayrollRuns() {
     } finally { setActionLoading(false) }
   }
 
+  const handleDelete = async (run: PayrollRun) => {
+    if (!confirm(`Delete "${run.name}"? This permanently removes the run and its items. Only draft/failed runs can be deleted.`)) return
+    setActionLoading(true)
+    setError(null)
+    try {
+      await payrollApi.deleteRun(run.id)
+      if (expandedRun === run.id) { setExpandedRun(null); setRunDetails(null) }
+      setNotice('Run deleted')
+      fetchRuns()
+    } catch (e) { setError(errMsg(e, 'Failed to delete run')) }
+    finally { setActionLoading(false) }
+  }
+
   const formatCurrency = (n: number) => `₦${Number(n).toLocaleString()}`
   const statusColor = (s: string) =>
     s === 'paid' ? 'bg-green-100 text-green-800' :
@@ -212,6 +225,12 @@ export function PayrollRuns() {
                     {(run.status === 'approved' || run.status === 'failed') && (
                       <Button size="sm" onClick={(e) => { e.stopPropagation(); setDisburseTarget(run); setDisburseMode('auto') }} disabled={actionLoading}>
                         <DollarSign className="w-3 h-3 mr-1" /> {run.status === 'failed' ? 'Retry Disbursement' : 'Disburse'}
+                      </Button>
+                    )}
+                    {(run.status === 'draft' || run.status === 'failed') && (
+                      <Button size="sm" variant="outline" className="text-red-600"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(run) }} disabled={actionLoading}>
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     )}
                   </div>

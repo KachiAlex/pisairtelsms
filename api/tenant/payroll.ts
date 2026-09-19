@@ -8,7 +8,7 @@ import {
   fetchRules, createRule, deleteRule,
   // Runs
   fetchRuns, fetchRun, fetchRunItems, createPayrollRun, submitRunForApproval,
-  approveRun, rejectRun, fetchApprovals, disburseRun, fetchAuditLog,
+  approveRun, rejectRun, fetchApprovals, disburseRun, fetchAuditLog, deletePayrollRun,
   // Payslips
   fetchPayslips, generatePayslipsForRun, emailPayslip,
   // Advances
@@ -210,6 +210,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         })
       }
       return res.status(400).json({ error: 'Unknown action' })
+    }
+    if (req.method === 'DELETE') {
+      if (!id) return res.status(400).json({ error: 'Run ID is required' })
+      const result = await deletePayrollRun(id as string, actualTenantId, actor)
+      if (!result.deleted) return res.status(400).json({ error: result.error })
+      return res.status(200).json({ message: 'Run deleted' })
     }
     return methodNotAllowed(res)
   }

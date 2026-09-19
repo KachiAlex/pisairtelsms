@@ -245,6 +245,7 @@ export const payrollApi = {
   rejectRun: (id: string, approverRole: string, comment: string) => apiPut('runs', id, { action: 'reject', approverRole, comment }).then(r => r.data),
   disburseRun: (id: string, options?: { manualConfirmation?: boolean; manualReference?: string }) =>
     apiPut('runs', id, { action: 'disburse', manualConfirmation: options?.manualConfirmation, manualReference: options?.manualReference }).then(r => r),
+  deleteRun: (id: string) => apiDelete('runs', id),
 
   // Payslips
   getPayslips: (staffId?: string) => apiGet('payslips', staffId ? { staffId } : undefined).then(r => r.data as Payslip[]),

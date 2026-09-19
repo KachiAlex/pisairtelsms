@@ -674,6 +674,24 @@ export async function fetchRunItems(runId: string, tenantId: string): Promise<Pa
   }
 }
 
+// Deletes a run and its dependent rows. Only runs that never paid out may be
+// deleted — approved/paid/disbursing runs are financial records and must be kept.
+export async function deletePayrollRun(runId: string, tenantId: string, actor?: string): Promise<{ deleted: boolean; error?: string }> {
+  const run = await sql`SELECT status FROM payroll_runs WHERE id = ${runId} AND tenant_id = ${tenantId}`
+  if (run.rows.length === 0) return { deleted: false, error: 'Run not found' }
+  const status = run.rows[0].status
+  if (!['draft', 'failed'].includes(status)) {
+    return { deleted: false, error: `Only draft or failed runs can be deleted — this run is '${status}'` }
+  }
+
+  await sql`DELETE FROM payslips WHERE run_id = ${runId} AND tenant_id = ${tenantId}`
+  await sql`DELETE FROM payroll_approvals WHERE run_id = ${runId} AND tenant_id = ${tenantId}`
+  await sql`DELETE FROM payroll_run_items WHERE run_id = ${runId} AND tenant_id = ${tenantId}`
+  await sql`DELETE FROM payroll_runs WHERE id = ${runId} AND tenant_id = ${tenantId}`
+  await logPayrollAudit(tenantId, runId, 'run_deleted', actor || 'system', { status })
+  return { deleted: true }
+}
+
 export async function createPayrollRun(
   month: string,
   year: number,

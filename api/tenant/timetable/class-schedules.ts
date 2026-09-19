@@ -24,13 +24,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET /class-schedules or GET /class-schedules?scheduleId=xxx
   if (method === 'GET') {
     if (scheduleId) {
-      const schedule = getClassScheduleById(scheduleId)
+      const schedule = await getClassScheduleById(scheduleId)
       if (!schedule) return res.status(404).json({ error: 'Schedule not found' })
       return res.status(200).json({ data: schedule })
     }
     const classId = query.classId as string | undefined
     const termId = query.termId as string | undefined
-    return res.status(200).json({ data: getClassSchedules(tenantId, classId, termId) })
+    return res.status(200).json({ data: await getClassSchedules(tenantId, classId, termId) })
   }
 
   // POST /class-schedules — create schedule
@@ -39,7 +39,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!body) return res.status(400).json({ error: 'Request body is required' })
     const { classId, termId } = body
     if (!classId || !termId) return res.status(400).json({ error: 'classId and termId are required' })
-    return res.status(201).json({ data: createClassSchedule(tenantId, classId, termId) })
+    return res.status(201).json({ data: await createClassSchedule(tenantId, classId, termId) })
   }
 
   // POST /class-schedules?scheduleId=xxx — add entry
@@ -50,10 +50,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!timeSlotId || !subjectId || !teacherId || dayOfWeek === undefined) {
       return res.status(400).json({ error: 'timeSlotId, subjectId, teacherId, dayOfWeek are required' })
     }
-    if (!isTeacherAvailable(teacherId, timeSlotId, dayOfWeek)) {
+    if (!(await isTeacherAvailable(teacherId, timeSlotId, dayOfWeek))) {
       return res.status(409).json({ error: `Teacher ${teacherName || teacherId} is already assigned to another class in this slot` })
     }
-    const entry = addScheduleEntry(scheduleId, { timeSlotId, subjectId, subjectName: subjectName || subjectId, teacherId, teacherName: teacherName || teacherId, roomId, dayOfWeek })
+    const entry = await addScheduleEntry(scheduleId, { timeSlotId, subjectId, subjectName: subjectName || subjectId, teacherId, teacherName: teacherName || teacherId, roomId, dayOfWeek })
     return res.status(201).json({ data: entry })
   }
 
@@ -62,18 +62,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const body = parseBody(req)
     if (!body) return res.status(400).json({ error: 'Request body is required' })
     if (body.teacherId && body.timeSlotId && body.dayOfWeek !== undefined) {
-      if (!isTeacherAvailable(body.teacherId, body.timeSlotId, body.dayOfWeek, entryId)) {
+      if (!(await isTeacherAvailable(body.teacherId, body.timeSlotId, body.dayOfWeek, entryId))) {
         return res.status(409).json({ error: 'Teacher is already assigned to another class in this slot' })
       }
     }
-    const updated = updateScheduleEntry(entryId, body)
+    const updated = await updateScheduleEntry(entryId, body)
     if (!updated) return res.status(404).json({ error: 'Entry not found' })
     return res.status(200).json({ data: updated })
   }
 
   // DELETE /class-schedules?scheduleId=xxx&entryId=yyy — delete entry
   if (method === 'DELETE' && scheduleId && entryId) {
-    const ok = deleteScheduleEntry(entryId)
+    const ok = await deleteScheduleEntry(entryId)
     if (!ok) return res.status(404).json({ error: 'Entry not found' })
     return res.status(204).end()
   }

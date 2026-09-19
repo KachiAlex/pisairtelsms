@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, RefreshCcw, Wand2 } from 'lucide-react'
+import { Plus, Printer, RefreshCcw, Wand2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
@@ -76,7 +76,7 @@ export function ClassTimetableTab() {
         const fetchedTerms: Term[] = Array.isArray(calData.data?.terms) ? calData.data.terms : []
         const fetchedClasses: ClassArm[] = Array.isArray(classesData.data) ? classesData.data : []
         setTerms(fetchedTerms)
-        setTimeSlots(Array.isArray(slotsData.data) ? slotsData.data.filter((s: TimeSlot) => !s.isBreak) : [])
+        setTimeSlots(Array.isArray(slotsData.data) ? [...slotsData.data].sort((a: TimeSlot, b: TimeSlot) => a.sequence - b.sequence) : [])
         setClasses(fetchedClasses)
         if (fetchedTerms.length > 0) setSelectedTerm(fetchedTerms[0].id)
         if (fetchedClasses.length > 0) setSelectedClass(fetchedClasses[0].id)
@@ -138,6 +138,53 @@ export function ClassTimetableTab() {
     await loadSchedule()
   }
 
+  function escapeHtml(s: string) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  }
+
+  function handlePrint() {
+    const classLabel = classes.find(c => c.id === selectedClass)
+    const termLabel = terms.find(t => t.id === selectedTerm)
+    const className = `${classLabel?.name || ''}${classLabel?.arm ? ` ${classLabel.arm}` : ''}`.trim() || 'Class'
+    const termName = termLabel ? `${termLabel.name} (${termLabel.academicYear})` : ''
+
+    const rows = timeSlots.map(slot => {
+      const head = `<td class="slot"><strong>${escapeHtml(slot.name)}</strong><br/><small>${slot.startTime}–${slot.endTime}</small></td>`
+      if (slot.isBreak) {
+        return `<tr>${head}<td colspan="5" class="break">${escapeHtml(slot.name)}</td></tr>`
+      }
+      const cells = DAY_NUMS.map(day => {
+        const e = getCellEntry(slot.id, day)
+        return `<td>${e ? `<strong>${escapeHtml(e.subjectName)}</strong><br/><small>${escapeHtml(e.teacherName)}</small>` : '—'}</td>`
+      }).join('')
+      return `<tr>${head}${cells}</tr>`
+    }).join('')
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Timetable — ${escapeHtml(className)}</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; color: #111; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; color: #555; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { border: 1px solid #999; padding: 6px 8px; text-align: center; vertical-align: middle; }
+  th { background: #f0f0f0; }
+  td.slot { text-align: left; white-space: nowrap; width: 110px; }
+  td.break { background: #f5f5f5; color: #666; font-style: italic; letter-spacing: 0.05em; }
+  small { color: #555; }
+  @media print { body { padding: 0; } }
+</style></head><body>
+<h1>Weekly Timetable — ${escapeHtml(className)}</h1>
+<p class="sub">${escapeHtml(termName)}</p>
+<table><thead><tr><th style="text-align:left">Time Slot</th>${DAY_HEADERS.map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+<script>window.onload = function(){ window.print(); }</script>
+</body></html>`
+
+    const w = window.open('', '_blank', 'width=1100,height=800')
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
@@ -158,6 +205,9 @@ export function ClassTimetableTab() {
         </Button>
         <Button variant="outline" size="sm" onClick={() => setShowAutoSchedule(true)} disabled={!selectedTerm} className="border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50">
           <Wand2 className="h-4 w-4 mr-1" /> Auto Schedule
+        </Button>
+        <Button variant="outline" size="sm" onClick={handlePrint} disabled={loading || timeSlots.length === 0}>
+          <Printer className="h-4 w-4 mr-1" /> Print
         </Button>
       </div>
 
@@ -191,12 +241,16 @@ export function ClassTimetableTab() {
                     </TableRow>
                   ) : (
                     timeSlots.map(slot => (
-                      <TableRow key={slot.id}>
+                      <TableRow key={slot.id} className={slot.isBreak ? 'bg-gray-50' : undefined}>
                         <TableCell className="font-medium text-xs text-gray-700">
                           <p>{slot.name}</p>
                           <p className="text-gray-400">{slot.startTime}–{slot.endTime}</p>
                         </TableCell>
-                        {DAY_NUMS.map(day => {
+                        {slot.isBreak ? (
+                          <TableCell colSpan={5} className="text-center text-xs text-gray-400 italic tracking-wide">
+                            {slot.name}
+                          </TableCell>
+                        ) : DAY_NUMS.map(day => {
                           const entry = getCellEntry(slot.id, day)
                           return (
                             <TableCell key={day} className="text-center p-1">

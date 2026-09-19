@@ -77,9 +77,9 @@ export function PaymentProcessing({ onClose }: PaymentProcessingProps) {
   const filteredPayments = payments.filter((payment) => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      payment.studentName.toLowerCase().includes(searchLower) ||
-      payment.referenceNumber.toLowerCase().includes(searchLower) ||
-      payment.receiptNumber.toLowerCase().includes(searchLower)
+      (payment.studentName || '').toLowerCase().includes(searchLower) ||
+      (payment.referenceNumber || '').toLowerCase().includes(searchLower) ||
+      (payment.receiptNumber || '').toLowerCase().includes(searchLower)
     );
   });
 

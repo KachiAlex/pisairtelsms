@@ -342,6 +342,38 @@ export async function ensurePaymentTables(): Promise<void> {
   }
 }
 
+export class PaymentValidationError extends Error {}
+
+interface ResolvedAssignment {
+  id: string
+  student_id: string
+  fee_structure_id: string
+  total_balance: string
+}
+
+// Validates the assignment exists under this tenant and belongs to the
+// student, then returns it — the caller uses the DB fee_structure_id and
+// total_balance rather than trusting client-supplied values.
+async function resolveAssignment(
+  tenantId: string,
+  feeAssignmentId: string,
+  studentId: string
+): Promise<ResolvedAssignment> {
+  const res = await sql<ResolvedAssignment>`
+    SELECT id, student_id, fee_structure_id, total_balance
+    FROM fee_assignments
+    WHERE id = ${feeAssignmentId} AND tenant_id = ${tenantId}
+  `
+  const assignment = res.rows[0]
+  if (!assignment) {
+    throw new PaymentValidationError('Fee assignment not found')
+  }
+  if (assignment.student_id !== studentId) {
+    throw new PaymentValidationError('Fee assignment does not belong to the specified student')
+  }
+  return assignment
+}
+
 export async function createPayment(
   tenantId: string,
   studentId: string,
@@ -360,13 +392,20 @@ export async function createPayment(
   gatewayResponse?: Record<string, unknown> | null
 ): Promise<Payment> {
   await ensurePaymentTables()
+
+  const assignment = await resolveAssignment(tenantId, feeAssignmentId, studentId)
+  const balance = parseFloat(assignment.total_balance)
+  if (amount > balance) {
+    throw new PaymentValidationError(`Amount exceeds the outstanding balance of ${balance}`)
+  }
+
   const id = uuidv4()
 
   const result = await sql<PaymentRow>`
     INSERT INTO payments
       (id, tenant_id, student_id, fee_assignment_id, fee_structure_id, amount, payment_method, reference_number, receipt_number, payment_date, payment_time, recorded_by, notes, status, gateway, gateway_ref, gateway_response)
     VALUES
-      (${id}, ${tenantId}, ${studentId}, ${feeAssignmentId}, ${feeStructureId}, ${amount}, ${paymentMethod}, ${referenceNumber}, ${receiptNumber}, ${paymentDate}, ${paymentTime}, ${recordedBy}, ${notes || null}, 'pending', ${gateway || null}, ${gatewayRef || null}, ${gatewayResponse ? JSON.stringify(gatewayResponse) : null})
+      (${id}, ${tenantId}, ${studentId}, ${feeAssignmentId}, ${assignment.fee_structure_id}, ${amount}, ${paymentMethod}, ${referenceNumber}, ${receiptNumber}, ${paymentDate}, ${paymentTime}, ${recordedBy}, ${notes || null}, 'pending', ${gateway || null}, ${gatewayRef || null}, ${gatewayResponse ? JSON.stringify(gatewayResponse) : null})
     RETURNING *
   `
 
@@ -433,6 +472,9 @@ export async function initiatePayment(
   gatewayRef: string
 ): Promise<Payment> {
   await ensurePaymentTables()
+
+  const assignment = await resolveAssignment(tenantId, feeAssignmentId, studentId)
+
   const id = uuidv4()
   const now = new Date()
   const dateStr = now.toISOString().split('T')[0]
@@ -443,7 +485,7 @@ export async function initiatePayment(
     INSERT INTO payments
       (id, tenant_id, student_id, fee_assignment_id, fee_structure_id, amount, payment_method, reference_number, receipt_number, payment_date, payment_time, status, gateway, gateway_ref)
     VALUES
-      (${id}, ${tenantId}, ${studentId}, ${feeAssignmentId}, ${feeStructureId}, ${amount}, 'online', ${gatewayRef}, ${receiptNumber}, ${dateStr}, ${timeStr}, 'pending', ${gateway}, ${gatewayRef})
+      (${id}, ${tenantId}, ${studentId}, ${feeAssignmentId}, ${assignment.fee_structure_id}, ${amount}, 'online', ${gatewayRef}, ${receiptNumber}, ${dateStr}, ${timeStr}, 'pending', ${gateway}, ${gatewayRef})
     RETURNING *
   `
 
@@ -496,6 +538,13 @@ export async function createManualPayment(
   notes?: string
 ): Promise<Payment> {
   await ensurePaymentTables()
+
+  const assignment = await resolveAssignment(tenantId, feeAssignmentId, studentId)
+  const balance = parseFloat(assignment.total_balance)
+  if (amount > balance) {
+    throw new PaymentValidationError(`Amount exceeds the outstanding balance of ${balance}`)
+  }
+
   const id = uuidv4()
   const now = new Date()
   const dateStr = now.toISOString().split('T')[0]
@@ -506,7 +555,7 @@ export async function createManualPayment(
     INSERT INTO payments
       (id, tenant_id, student_id, fee_assignment_id, fee_structure_id, amount, payment_method, reference_number, receipt_number, payment_date, payment_time, status, gateway, notes)
     VALUES
-      (${id}, ${tenantId}, ${studentId}, ${feeAssignmentId}, ${feeStructureId}, ${amount}, ${paymentMethod}, ${receiptNumber}, ${receiptNumber}, ${dateStr}, ${timeStr}, 'pending', 'manual', ${notes || null})
+      (${id}, ${tenantId}, ${studentId}, ${feeAssignmentId}, ${assignment.fee_structure_id}, ${amount}, ${paymentMethod}, ${receiptNumber}, ${receiptNumber}, ${dateStr}, ${timeStr}, 'pending', 'manual', ${notes || null})
     RETURNING *
   `
 
@@ -552,8 +601,9 @@ export async function confirmPayment(paymentId: string, confirmedBy: string): Pr
 
   const payment = rowToPayment(result.rows[0])
 
-  // Update fee assignment balance
-  await sql`
+  // Apply the balance decrement atomically — if two pending payments race,
+  // the second one can't push the balance negative.
+  const balanceUpdate = await sql`
     UPDATE fee_assignments
     SET
       total_paid = total_paid + ${payment.amount},
@@ -563,8 +613,16 @@ export async function confirmPayment(paymentId: string, confirmedBy: string): Pr
         ELSE 'partial'
       END,
       updated_at = NOW()
-    WHERE id = ${payment.feeAssignmentId}
+    WHERE id = ${payment.feeAssignmentId} AND total_balance >= ${payment.amount}
+    RETURNING id
   `
+
+  if (balanceUpdate.rows.length === 0) {
+    await sql`
+      UPDATE payments SET status = 'pending', paid_at = NULL, recorded_by = NULL WHERE id = ${paymentId}
+    `
+    throw new PaymentValidationError('Payment amount exceeds the remaining fee balance')
+  }
 
   return payment
 }

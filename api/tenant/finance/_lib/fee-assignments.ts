@@ -1,4 +1,4 @@
-import { sql } from './db.js'
+import { sql, query } from './db.js'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface FeeAssignment {
@@ -14,6 +14,10 @@ export interface FeeAssignment {
   dueDate: string
   createdAt: string
   updatedAt: string
+  studentName?: string
+  admissionNo?: string
+  studentClass?: string
+  structureName?: string
 }
 
 export interface StudentPayment {
@@ -58,6 +62,10 @@ interface FeeAssignmentRow {
   due_date: Date
   created_at: Date
   updated_at: Date
+  student_name?: string | null
+  admission_no?: string | null
+  student_class?: string | null
+  structure_name?: string | null
 }
 
 interface StudentPaymentRow {
@@ -103,6 +111,10 @@ function rowToFeeAssignment(row: FeeAssignmentRow): FeeAssignment {
     dueDate: row.due_date.toISOString().split('T')[0],
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    studentName: row.student_name || undefined,
+    admissionNo: row.admission_no || undefined,
+    studentClass: row.student_class || undefined,
+    structureName: row.structure_name || undefined,
   }
 }
 
@@ -180,25 +192,30 @@ export async function getFeeAssignments(
 ): Promise<FeeAssignment[]> {
   await ensureFeeAssignmentTables()
 
-  let query = sql<FeeAssignmentRow>`SELECT * FROM fee_assignments WHERE tenant_id = ${tenantId}`
-
-  if (studentId && academicSession && term) {
-    query = sql<FeeAssignmentRow>`
-      SELECT * FROM fee_assignments
-      WHERE tenant_id = ${tenantId} AND student_id = ${studentId} AND academic_session = ${academicSession} AND term = ${term}
-    `
-  } else if (studentId) {
-    query = sql<FeeAssignmentRow>`
-      SELECT * FROM fee_assignments WHERE tenant_id = ${tenantId} AND student_id = ${studentId}
-    `
-  } else if (academicSession && term) {
-    query = sql<FeeAssignmentRow>`
-      SELECT * FROM fee_assignments
-      WHERE tenant_id = ${tenantId} AND academic_session = ${academicSession} AND term = ${term}
-    `
+  const conditions: string[] = ['fa.tenant_id = $1']
+  const params: any[] = [tenantId]
+  if (studentId) {
+    params.push(studentId)
+    conditions.push(`fa.student_id = $${params.length}`)
+  }
+  if (academicSession) {
+    params.push(academicSession)
+    conditions.push(`fa.academic_session = $${params.length}`)
+  }
+  if (term) {
+    params.push(term)
+    conditions.push(`fa.term = $${params.length}`)
   }
 
-  const result = await query
+  const result = await query<FeeAssignmentRow>(
+    `SELECT fa.*, s.name AS student_name, s.admission_no, s.class AS student_class, fs.name AS structure_name
+     FROM fee_assignments fa
+     LEFT JOIN students s ON s.id = fa.student_id AND s.tenant_id = fa.tenant_id
+     LEFT JOIN fee_structures fs ON fs.id = fa.fee_structure_id AND fs.tenant_id = fa.tenant_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY fa.created_at DESC`,
+    params
+  )
   return result.rows.map(rowToFeeAssignment)
 }
 

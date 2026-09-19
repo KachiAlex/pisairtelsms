@@ -26,6 +26,7 @@ interface FeeAssignment {
   dueDate: string;
   academicSession: string;
   term: string;
+  structureName?: string;
 }
 
 interface QuickActionsProps {
@@ -140,6 +141,7 @@ export function QuickActions({
                     studentId={studentId}
                     feeAssignmentId={selectedFeeAssignment.id}
                     balance={selectedFeeAssignment.totalBalance}
+                    paymentFor={`${selectedFeeAssignment.structureName || 'Fee'} — ${selectedFeeAssignment.term} ${selectedFeeAssignment.academicSession}`}
                     onSuccess={handlePaymentSuccess}
                   />
                 )}
@@ -277,6 +279,7 @@ export function QuickActions({
                               studentId={studentId}
                               feeAssignmentId={assignment.id}
                               balance={assignment.totalBalance}
+                              paymentFor={`${assignment.structureName || 'Fee'} — ${assignment.term} ${assignment.academicSession}`}
                               onSuccess={handlePaymentSuccess}
                             />
                           </DialogContent>

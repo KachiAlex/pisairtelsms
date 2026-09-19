@@ -16,6 +16,7 @@ import {
   confirmPayment,
   rejectPayment,
   getPendingPayments,
+  PaymentValidationError,
 } from './_lib/payments.js'
 import {
   createAdminNotification,
@@ -143,7 +144,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const missing: string[] = []
     if (!studentId) missing.push('studentId')
     if (!feeAssignmentId) missing.push('feeAssignmentId')
-    if (!feeStructureId) missing.push('feeStructureId')
     if (amount === undefined) missing.push('amount')
     if (!gatewayRef) missing.push('gatewayRef')
 
@@ -173,6 +173,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       )
       return res.status(201).json({ data: payment })
     } catch (error) {
+      if (error instanceof PaymentValidationError) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error('Error initiating payment:', error)
       return res.status(500).json({ error: 'Failed to initiate payment' })
     }
@@ -218,7 +221,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const missing: string[] = []
     if (!studentId) missing.push('studentId')
     if (!feeAssignmentId) missing.push('feeAssignmentId')
-    if (!feeStructureId) missing.push('feeStructureId')
     if (amount === undefined) missing.push('amount')
     if (!paymentMethod) missing.push('paymentMethod')
 
@@ -261,6 +263,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       return res.status(201).json({ data: payment })
     } catch (error) {
+      if (error instanceof PaymentValidationError) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error('Error creating manual payment:', error)
       return res.status(500).json({ error: 'Failed to create manual payment' })
     }
@@ -330,6 +335,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       return res.status(200).json({ data: payment })
     } catch (error) {
+      if (error instanceof PaymentValidationError) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error('Error confirming payment:', error)
       return res.status(500).json({ error: 'Failed to confirm payment' })
     }
@@ -404,7 +412,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   // GET /api/tenant/finance/payments
   if (req.method === 'GET' && !id && !action) {
-    const { feeAssignmentId, paymentDate, status, studentId, gateway, dateFrom, dateTo } = req.query
+    const { feeAssignmentId, paymentDate, status, studentId, paymentMethod, gateway, dateFrom, dateTo } = req.query
     try {
       const payments = await getPayments(
         tenantId,
@@ -415,10 +423,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         dateFrom as string | undefined,
         dateTo as string | undefined
       )
-      // Filter by student if requested
-      const filtered = studentId
-        ? payments.filter(p => p.studentId === studentId)
-        : payments
+      // Filter by student / method if requested
+      const filtered = payments.filter(p =>
+        (!studentId || p.studentId === studentId) &&
+        (!paymentMethod || p.paymentMethod === paymentMethod)
+      )
       return res.status(200).json({ data: filtered })
     } catch (error) {
       console.error('Error fetching payments:', error)
@@ -450,27 +459,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const {
       studentId,
       feeAssignmentId,
-      feeStructureId,
       amount,
       paymentMethod,
       referenceNumber,
       receiptNumber,
       paymentDate,
       paymentTime,
-      recordedBy,
       notes,
     } = body
 
     const missing: string[] = []
     if (!studentId) missing.push('studentId')
     if (!feeAssignmentId) missing.push('feeAssignmentId')
-    if (!feeStructureId) missing.push('feeStructureId')
     if (amount === undefined) missing.push('amount')
     if (!paymentMethod) missing.push('paymentMethod')
-    if (!referenceNumber) missing.push('referenceNumber')
-    if (!receiptNumber) missing.push('receiptNumber')
-    if (!paymentDate) missing.push('paymentDate')
-    if (!paymentTime) missing.push('paymentTime')
+    // referenceNumber optional for cash — the generated receipt number is the audit anchor
 
     if (missing.length > 0) {
       return res.status(400).json({ error: 'Missing required fields', details: missing })
@@ -480,23 +483,51 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'amount must be greater than 0' })
     }
 
+    // Server-side defaults — receipt number is generated, not user-supplied;
+    // recordedBy comes from the verified JWT, not the request body.
+    const now = new Date()
+    const effectiveReceiptNumber = receiptNumber || `RCP-${now.getTime()}`
+    const effectivePaymentDate = paymentDate || now.toISOString().split('T')[0]
+    const effectivePaymentTime = paymentTime || now.toTimeString().slice(0, 8)
+    const recordedByUser = decoded.email || decoded.userId || decoded.staffId || 'system'
+
     try {
       const payment = await createPayment(
         tenantId,
         studentId,
         feeAssignmentId,
-        feeStructureId,
+        '',
         amount,
         paymentMethod,
-        referenceNumber,
-        receiptNumber,
-        paymentDate,
-        paymentTime,
-        recordedBy || null,
+        referenceNumber || effectiveReceiptNumber,
+        effectiveReceiptNumber,
+        effectivePaymentDate,
+        effectivePaymentTime,
+        recordedByUser,
         notes
       )
+
+      // Surface the recorded payment in the pending queue for confirmation
+      try {
+        await ensureAdminNotificationsTable()
+        await createAdminNotification(
+          tenantId,
+          'payment_pending',
+          payment.id,
+          studentId,
+          undefined,
+          amount,
+          { paymentMethod, recordedBy: recordedByUser, notes }
+        )
+      } catch (notifyErr) {
+        console.error('Payment notification failed:', notifyErr)
+      }
+
       return res.status(201).json({ data: payment })
     } catch (error) {
+      if (error instanceof PaymentValidationError) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error('Error creating payment:', error)
       return res.status(500).json({ error: 'Failed to create payment' })
     }
@@ -521,27 +552,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const {
           studentId,
           feeAssignmentId,
-          feeStructureId,
           amount,
           paymentMethod,
           referenceNumber,
           receiptNumber,
           paymentDate,
           paymentTime,
-          recordedBy,
           notes,
         } = payment
 
         const missing: string[] = []
         if (!studentId) missing.push('studentId')
         if (!feeAssignmentId) missing.push('feeAssignmentId')
-        if (!feeStructureId) missing.push('feeStructureId')
         if (amount === undefined) missing.push('amount')
         if (!paymentMethod) missing.push('paymentMethod')
-        if (!referenceNumber) missing.push('referenceNumber')
-        if (!receiptNumber) missing.push('receiptNumber')
-        if (!paymentDate) missing.push('paymentDate')
-        if (!paymentTime) missing.push('paymentTime')
 
         if (missing.length > 0) {
           return res.status(400).json({ error: 'Missing required fields in payment', details: missing })
@@ -551,18 +575,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           return res.status(400).json({ error: 'amount must be greater than 0' })
         }
 
+        const now = new Date()
         const result = await createPayment(
           tenantId,
           studentId,
           feeAssignmentId,
-          feeStructureId,
+          '',
           amount,
           paymentMethod,
-          referenceNumber,
-          receiptNumber,
-          paymentDate,
-          paymentTime,
-          recordedBy || null,
+          referenceNumber || `RCP-${now.getTime()}`,
+          receiptNumber || `RCP-${now.getTime()}`,
+          paymentDate || now.toISOString().split('T')[0],
+          paymentTime || now.toTimeString().slice(0, 8),
+          decoded.email || decoded.userId || decoded.staffId || 'system',
           notes
         )
         created.push(result)
@@ -570,6 +595,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       return res.status(201).json({ data: created })
     } catch (error) {
+      if (error instanceof PaymentValidationError) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error('Error bulk creating payments:', error)
       return res.status(500).json({ error: 'Failed to bulk create payments' })
     }

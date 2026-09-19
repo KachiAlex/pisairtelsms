@@ -1,5 +1,7 @@
 import { query } from '../../cbt/_lib/db.js'
 
+export { query }
+
 export interface SqlResult<T = any> {
   rows: T[]
 }

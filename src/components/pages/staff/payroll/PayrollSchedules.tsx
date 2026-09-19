@@ -8,6 +8,32 @@ import { Label } from '../../../ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog'
 import { payrollApi, type PayrollSchedule } from '../../../../lib/payrollApi'
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function nextRunLabel(s: PayrollSchedule): string {
+  const now = new Date()
+  if (s.frequency === 'weekly' || s.frequency === 'bi_weekly') {
+    const target = s.dayOfWeek ?? 5
+    const next = new Date(now)
+    next.setDate(now.getDate() + ((target - now.getDay() + 7) % 7))
+    const dateStr = next.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return s.frequency === 'weekly'
+      ? `Next: ${WEEKDAYS[target]} ${dateStr}`
+      : `Every other ${WEEKDAYS[target]} (next ~${dateStr})`
+  }
+  const day = s.dayOfMonth || 25
+  const candidate = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  candidate.setDate(Math.min(day, lastDay))
+  if (candidate <= now) {
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const nextLastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate()
+    nextMonth.setDate(Math.min(day, nextLastDay))
+    return `Next: ${nextMonth.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+  }
+  return `Next: ${candidate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+}
+
 export function PayrollSchedules() {
   const [schedules, setSchedules] = useState<PayrollSchedule[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,6 +129,7 @@ export function PayrollSchedules() {
                   <div>
                     <h4 className="font-semibold text-gray-900">{s.name}</h4>
                     <p className="text-xs text-gray-500 capitalize">{s.frequency.replace('_', '-')} · Day {s.frequency === 'monthly' ? s.dayOfMonth : s.dayOfWeek}</p>
+                    <p className="text-xs text-blue-600 mt-0.5">{s.isActive ? nextRunLabel(s) : 'Inactive — will not run'}</p>
                   </div>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(s.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>

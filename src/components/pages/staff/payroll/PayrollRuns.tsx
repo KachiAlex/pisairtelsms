@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog'
 import { Input } from '../../../ui/input'
 import { Label } from '../../../ui/label'
-import { payrollApi, PayrollApiError, type PayrollRun, type PayrollRunItem, type PayrollApproval, type PayrollAuditEntry } from '../../../../lib/payrollApi'
+import { payrollApi, PayrollApiError, type PayrollRun, type PayrollRunItem, type PayrollApproval, type PayrollAuditEntry, type PayrollSchedule } from '../../../../lib/payrollApi'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -34,7 +34,8 @@ export function PayrollRuns() {
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
   const [runDetails, setRunDetails] = useState<{ items: PayrollRunItem[]; approvals: PayrollApproval[]; auditLog: PayrollAuditEntry[] } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState({ month: MONTHS[new Date().getMonth()], year: new Date().getFullYear(), supplementary: false })
+  const [createForm, setCreateForm] = useState({ month: MONTHS[new Date().getMonth()], year: new Date().getFullYear(), supplementary: false, scheduleId: '' })
+  const [schedules, setSchedules] = useState<PayrollSchedule[]>([])
   const [actionLoading, setActionLoading] = useState(false)
   const [rejectTarget, setRejectTarget] = useState<{ runId: string; role: string } | null>(null)
   const [rejectComment, setRejectComment] = useState('')
@@ -65,6 +66,7 @@ export function PayrollRuns() {
       .then(r => r.ok ? r.json() : { data: [] })
       .then(d => setStaffOptions((d.data || []).filter((s: StaffOption) => s.status === 'active' || !s.status)))
       .catch(() => {})
+    payrollApi.getSchedules().then(setSchedules).catch(() => {})
   }, [])
 
   const refreshDetails = async (runId: string) => {
@@ -76,7 +78,7 @@ export function PayrollRuns() {
     setActionLoading(true)
     setError(null)
     try {
-      await payrollApi.createRun(createForm.month, createForm.year, undefined, createForm.supplementary)
+      await payrollApi.createRun(createForm.month, createForm.year, createForm.scheduleId || undefined, createForm.supplementary)
       setShowCreate(false)
       setNotice(`Payroll run for ${createForm.month} ${createForm.year} created`)
       fetchRuns()
@@ -465,6 +467,16 @@ export function PayrollRuns() {
                 {years.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
+            {schedules.length > 0 && (
+              <div>
+                <Label>Schedule (optional)</Label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={createForm.scheduleId}
+                  onChange={e => setCreateForm(f => ({ ...f, scheduleId: e.target.value }))}>
+                  <option value="">None — manual run</option>
+                  {schedules.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm text-gray-600">
               <input type="checkbox" checked={createForm.supplementary}
                 onChange={e => setCreateForm(f => ({ ...f, supplementary: e.target.checked }))} />

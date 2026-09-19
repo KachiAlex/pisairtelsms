@@ -41,6 +41,8 @@ services:
       DATABASE_URL: postgresql://pisairtel:${POSTGRES_PASSWORD:-PisairtelSMS2024!}@postgres:5432/pisairtel_sms?pooling=true
       # Auth
       JWT_SECRET: ${JWT_SECRET:-pisairtel-sms-jwt-secret-key-2024-very-secure-32chars}
+      # Cron endpoints (payroll scheduler, cleanup jobs)
+      CRON_SECRET: ${CRON_SECRET}
       # App config
       APP_URL: ${APP_URL:-https://pisairtelsms.com}
       # Brevo Email Service

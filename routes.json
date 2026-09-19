@@ -509,6 +509,10 @@
       "destination": "/api/cron/cleanup-violations.ts"
     },
     {
+      "source": "/api/cron/run-payroll-schedules",
+      "destination": "/api/cron/run-payroll-schedules.ts"
+    },
+    {
       "source": "/api/tenant/branding",
       "destination": "/api/tenant/branding-handler.ts"
     },

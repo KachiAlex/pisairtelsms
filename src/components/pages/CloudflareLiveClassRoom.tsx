@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  Video, Mic, MicOff, VideoOff, PhoneOff, Circle, Square,
-  Users, Clock, ArrowLeft, AlertCircle, CheckCircle, Loader2,
-  PlayCircle, Download
+  Video, Circle, Square,
+  Clock, ArrowLeft, AlertCircle, CheckCircle, Loader2,
+  PlayCircle, Hand, LogIn, DoorOpen
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -30,12 +30,15 @@ interface Lesson {
   status: string
 }
 
+type MeetingPhase = 'initializing' | 'ready' | 'joining' | 'waiting' | 'joined' | 'rejected' | 'left'
+
 export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecordingSaved }: CloudflareLiveClassRoomProps) {
   const [meeting, initMeeting] = useRealtimeKitClient()
   const [authToken, setAuthToken] = useState<string | null>(null)
   const [participantId, setParticipantId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [phase, setPhase] = useState<MeetingPhase>('initializing')
   const [elapsedSec, setElapsedSec] = useState(0)
   const [recordingUrl, setRecordingUrl] = useState<string | null>(lesson.recording_url || null)
 
@@ -136,9 +139,9 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
     }
   }, [])
 
-  // Record virtual attendance join/leave
+  // Record virtual attendance join/leave — tied to actually entering the room
   useEffect(() => {
-    if (!participantId || !lesson.id) return
+    if (!participantId || !lesson.id || phase !== 'joined') return
 
     const recordAttendance = async (action: 'joined' | 'left') => {
       try {
@@ -164,7 +167,7 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
     return () => {
       recordAttendance('left')
     }
-  }, [participantId, lesson.id, displayName, auth?.token])
+  }, [participantId, lesson.id, displayName, auth?.token, phase])
 
   // Fetch Cloudflare Realtime auth token on mount
   useEffect(() => {
@@ -220,6 +223,7 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
     if (!authToken) return
     let cancelled = false
     initMeeting({ authToken, defaults: { audio: true, video: true } })
+      .then((m) => { if (!cancelled && !m) setError('Failed to initialize meeting') })
       .catch((err) => {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to initialize meeting')
@@ -228,6 +232,50 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
       })
     return () => { cancelled = true }
   }, [authToken, initMeeting])
+
+  // Track join/waiting state from the SDK — drives the join gate UI
+  useEffect(() => {
+    if (!meeting) return
+    const self = meeting.self
+    const sync = () => {
+      if (self.roomJoined) return setPhase('joined')
+      if (self.waitlistStatus === 'rejected' || self.roomState === 'rejected') return setPhase('rejected')
+      if (self.roomState === 'waitlisted' || self.waitlistStatus === 'waiting') return setPhase('waiting')
+      if (self.roomState !== 'init') return setPhase('left') // left/kicked/ended/disconnected
+      setPhase((prev) => (prev === 'joining' ? prev : 'ready'))
+    }
+    sync()
+    self.on('*', sync)
+    return () => {
+      self.removeListener('*', sync)
+      meeting.leave().catch(() => {})
+    }
+  }, [meeting])
+
+  const handleJoin = async () => {
+    if (!meeting) return
+    setPhase('joining')
+    try {
+      await meeting.join()
+      // roomJoined/waitlisted events update phase via the sync listener;
+      // read state directly too in case events fired before listeners attached
+      if (meeting.self.roomJoined) setPhase('joined')
+      else if (meeting.self.waitlistStatus === 'waiting' || meeting.self.roomState === 'waitlisted') setPhase('waiting')
+    } catch (err) {
+      // Some SDK paths reject join() when the participant is waitlisted
+      if (meeting.self.roomJoined) setPhase('joined')
+      else if (meeting.self.waitlistStatus === 'waiting' || meeting.self.roomState === 'waitlisted') setPhase('waiting')
+      else {
+        setError(err instanceof Error ? err.message : 'Failed to join the class')
+        setPhase('ready')
+      }
+    }
+  }
+
+  const handleLeaveWaiting = async () => {
+    try { await meeting?.leave() } catch { /* best effort */ }
+    onBack()
+  }
 
   const formatTime = (sec: number) => {
     const h = Math.floor(sec / 3600)
@@ -238,7 +286,11 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
       : `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  const connectionStatus: 'connecting' | 'connected' | 'disconnected' = isLoading ? 'connecting' : error ? 'disconnected' : 'connected'
+  const connectionStatus = error ? 'disconnected'
+    : phase === 'joined' ? 'connected'
+    : phase === 'waiting' ? 'waiting'
+    : phase === 'left' ? 'left'
+    : 'connecting'
 
   return (
     <div className="space-y-4">
@@ -251,7 +303,11 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">{lesson.title}</h1>
             <Badge variant={connectionStatus === 'connected' ? 'default' : 'secondary'}>
-              {connectionStatus === 'connected' ? 'Live' : connectionStatus}
+              {connectionStatus === 'connected' ? 'Live'
+                : connectionStatus === 'waiting' ? 'Waiting room'
+                : connectionStatus === 'left' ? 'Left'
+                : connectionStatus === 'disconnected' ? 'Error'
+                : 'Connecting'}
             </Badge>
           </div>
           <p className="text-sm text-gray-600">{classroomName}</p>
@@ -279,31 +335,125 @@ export function CloudflareLiveClassRoom({ lesson, classroomName, onBack, onRecor
         <div className="lg:col-span-3 space-y-4">
           <Card className="overflow-hidden">
             <div className="w-full bg-black" style={{ height: '500px' }}>
-              {meeting ? (
+              {phase === 'joined' && meeting ? (
                 <RealtimeKitProvider value={meeting}>
                   <RtkMeeting
                     mode="fill"
                     meeting={meeting}
-                    showSetupScreen={true}
+                    showSetupScreen={false}
                   />
                 </RealtimeKitProvider>
               ) : (
                 <div className="flex items-center justify-center h-full text-white">
-                  {isLoading ? (
+                  {error && !meeting && (
+                    <div className="flex flex-col items-center gap-4 text-center px-6">
+                      <div className="rounded-full bg-red-500/20 p-4">
+                        <AlertCircle className="h-8 w-8 text-red-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold">Couldn't set up the meeting</h2>
+                        <p className="text-sm text-gray-400 mt-1">{error}</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700"
+                          onClick={() => window.location.reload()}>Retry</Button>
+                        <Button variant="ghost" size="sm" onClick={onBack} className="text-gray-400">Back</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!error && phase === 'initializing' && (
                     <div className="flex items-center gap-2">
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>Joining live class...</span>
+                      <span>{isLoading ? 'Preparing live class…' : 'Connecting…'}</span>
                     </div>
-                  ) : (
-                    <span>Waiting to join</span>
+                  )}
+
+                  {(phase === 'ready' || phase === 'joining') && (
+                    <div className="flex flex-col items-center gap-4 text-center px-6">
+                      <div className="rounded-full bg-blue-600/20 p-4">
+                        <Video className="h-8 w-8 text-blue-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold">Ready to join {lesson.title}?</h2>
+                        <p className="text-sm text-gray-400 mt-1">
+                          Your camera and microphone will turn on when you join.
+                        </p>
+                      </div>
+                      <Button
+                        size="lg"
+                        className="bg-blue-600 hover:bg-blue-700 px-8"
+                        onClick={handleJoin}
+                        disabled={!meeting || phase === 'joining'}
+                      >
+                        {phase === 'joining' ? (
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Joining…</>
+                        ) : (
+                          <><LogIn className="h-4 w-4 mr-2" /> Join Class</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {phase === 'waiting' && (
+                    <div className="flex flex-col items-center gap-4 text-center px-6">
+                      <div className="rounded-full bg-amber-500/20 p-4">
+                        <Hand className="h-8 w-8 text-amber-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold">You're in the waiting room</h2>
+                        <p className="text-sm text-gray-400 mt-1">
+                          The teacher will let you in when class starts. Stay on this page.
+                        </p>
+                      </div>
+                      <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
+                      <Button variant="outline" size="sm" onClick={handleLeaveWaiting}
+                        className="border-gray-600 text-gray-300 hover:bg-gray-800">
+                        <DoorOpen className="h-4 w-4 mr-2" /> Leave waiting room
+                      </Button>
+                    </div>
+                  )}
+
+                  {phase === 'rejected' && (
+                    <div className="flex flex-col items-center gap-4 text-center px-6">
+                      <div className="rounded-full bg-red-500/20 p-4">
+                        <AlertCircle className="h-8 w-8 text-red-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold">Not admitted</h2>
+                        <p className="text-sm text-gray-400 mt-1">The teacher didn't let you into this class.</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button variant="outline" size="sm" onClick={handleJoin}
+                          className="border-gray-600 text-gray-300 hover:bg-gray-800">Try again</Button>
+                        <Button variant="ghost" size="sm" onClick={onBack} className="text-gray-400">Back</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {phase === 'left' && (
+                    <div className="flex flex-col items-center gap-4 text-center px-6">
+                      <div className="rounded-full bg-gray-600/30 p-4">
+                        <DoorOpen className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold">You left the class</h2>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={handleJoin}>
+                          <LogIn className="h-4 w-4 mr-2" /> Rejoin
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={onBack} className="text-gray-400">Back</Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
             </div>
           </Card>
 
-          {/* Recording Controls (Teacher only) */}
-          {isTeacher && (
+          {/* Recording Controls (Teacher only, once inside the room) */}
+          {isTeacher && phase === 'joined' && (
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">

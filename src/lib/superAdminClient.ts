@@ -29,7 +29,7 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
 }
 
 export async function fetchSuperAdminAccount(): Promise<SuperAdminAccount | null> {
-  const response = await fetch('/api/super-admin')
+  const response = await fetch('/api/super-admin/index')
   const data = await parseResponse<SuperAdminAccount>(response)
   return data.account ?? null
 }
@@ -37,7 +37,7 @@ export async function fetchSuperAdminAccount(): Promise<SuperAdminAccount | null
 export async function upsertSuperAdminAccount(
   payload: SuperAdminAccountPayload,
 ): Promise<SuperAdminAccount> {
-  const response = await fetch('/api/super-admin', {
+  const response = await fetch('/api/super-admin/index', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

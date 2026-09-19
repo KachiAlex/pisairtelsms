@@ -222,6 +222,7 @@ export function LoginPanel({ onLogin, roleData, activeRole }: LoginPanelProps) {
         <Input
           id="login-email"
           type="email"
+          autoComplete="username"
           placeholder="admin@yourschool.edu"
           value={email}
           onChange={(event) => setEmail(event.target.value)}

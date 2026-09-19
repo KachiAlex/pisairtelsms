@@ -143,7 +143,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (!auth) return;
+    // The notifications endpoint only serves staff/tenant_admin — skip the
+    // fetch for other roles instead of logging a guaranteed 401.
+    if (!auth || (auth.role !== 'staff' && auth.role !== 'tenant_admin')) return;
     let cancelled = false;
     const fetchNotifications = async () => {
       setNotifLoading(true);

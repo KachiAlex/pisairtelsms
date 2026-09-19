@@ -88,6 +88,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         LEFT JOIN classes c ON c.id::text = s.class_id::text
         WHERE e.teacher_id = ${staffId}
           AND s.tenant_id = ${tenantId}
+          AND s.status = 'published'
           AND (${resolvedTermId}::text IS NULL OR s.term_id = ${resolvedTermId})
         ORDER BY e.day_of_week, t.sequence
       `;

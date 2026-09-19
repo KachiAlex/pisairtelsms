@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, Printer, RefreshCcw, Wand2 } from 'lucide-react'
+import { Copy, Plus, Printer, RefreshCcw, UploadCloud, Wand2, Zap } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
 import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../../ui/badge'
 import { TimetableEntryModal } from './TimetableEntryModal'
 import { AutoScheduleDialog } from './AutoScheduleDialog'
+import { BatchScheduleDialog } from './BatchScheduleDialog'
 import { tenantApiGet, tenantApiPost } from '../../../lib/tenantApi'
 
 const DAY_HEADERS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
@@ -25,6 +26,7 @@ interface ClassSchedule {
   id: string
   classId: string
   termId: string
+  status?: 'draft' | 'published'
   entries: ScheduleEntry[]
 }
 
@@ -61,6 +63,10 @@ export function ClassTimetableTab() {
   const [showModal, setShowModal] = useState(false)
   const [modalSlot, setModalSlot] = useState<{ timeSlotId: string; dayOfWeek: number } | null>(null)
   const [showAutoSchedule, setShowAutoSchedule] = useState(false)
+  const [showBatch, setShowBatch] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadConfig() {
@@ -185,6 +191,47 @@ export function ClassTimetableTab() {
     w.document.close()
   }
 
+  async function handlePublish(action: 'publish' | 'unpublish') {
+    setPublishing(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await tenantApiPost('/api/tenant/timetable/publish', { termId: selectedTerm, action })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || `Failed to ${action}`)
+        return
+      }
+      setNotice(action === 'publish' ? 'Timetable published — now visible to students, parents and staff.' : 'Timetable unpublished — reverted to draft.')
+      await loadSchedule()
+    } catch {
+      setError(`Network error during ${action}`)
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  async function handleCopyTerm(fromTermId: string) {
+    if (!fromTermId) return
+    setCopying(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await tenantApiPost('/api/tenant/timetable/copy-term', { fromTermId, toTermId: selectedTerm })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to copy term')
+        return
+      }
+      setNotice(`Copied ${data.data?.entriesCopied ?? 0} entries across ${data.data?.schedulesCopied ?? 0} class(es) as drafts.`)
+      await loadSchedule()
+    } catch {
+      setError('Network error during copy')
+    } finally {
+      setCopying(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
@@ -206,17 +253,57 @@ export function ClassTimetableTab() {
         <Button variant="outline" size="sm" onClick={() => setShowAutoSchedule(true)} disabled={!selectedTerm} className="border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50">
           <Wand2 className="h-4 w-4 mr-1" /> Auto Schedule
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setShowBatch(true)} disabled={!selectedTerm} className="border-purple-200 text-purple-700 hover:bg-purple-50 disabled:opacity-50">
+          <Zap className="h-4 w-4 mr-1" /> All Classes
+        </Button>
         <Button variant="outline" size="sm" onClick={handlePrint} disabled={loading || timeSlots.length === 0}>
           <Printer className="h-4 w-4 mr-1" /> Print
         </Button>
+        {schedule && (
+          schedule.status === 'published' ? (
+            <Button variant="outline" size="sm" onClick={() => handlePublish('unpublish')} disabled={publishing} className="border-gray-300 text-gray-600">
+              <UploadCloud className="h-4 w-4 mr-1" /> {publishing ? 'Working…' : 'Unpublish'}
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => handlePublish('publish')} disabled={publishing} className="bg-emerald-600 hover:bg-emerald-700">
+              <UploadCloud className="h-4 w-4 mr-1" /> {publishing ? 'Publishing…' : 'Publish Term'}
+            </Button>
+          )
+        )}
+        {terms.length > 1 && (
+          <Select value="" onValueChange={handleCopyTerm} disabled={copying}>
+            <SelectTrigger className="w-44 h-9 text-sm">
+              <SelectValue placeholder={copying ? 'Copying…' : 'Copy from term…'} />
+            </SelectTrigger>
+            <SelectContent>
+              {terms.filter(t => t.id !== selectedTerm).map(t => (
+                <SelectItem key={t.id} value={t.id}>
+                  <span className="flex items-center gap-1"><Copy className="h-3 w-3" /> {t.name}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {notice && <p className="text-sm text-emerald-700">{notice}</p>}
 
       <Card>
         <CardHeader>
-          <CardTitle>{classes.find(c => c.id === selectedClass)?.name || selectedClass} — Weekly Timetable</CardTitle>
-          <CardDescription>Click any empty cell to assign a subject and teacher</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            {classes.find(c => c.id === selectedClass)?.name || selectedClass} — Weekly Timetable
+            {schedule && (
+              <Badge variant="secondary" className={schedule.status === 'published' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                {schedule.status === 'published' ? 'Published' : 'Draft'}
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            {schedule?.status === 'published'
+              ? 'Published — visible to students, parents and staff'
+              : 'Draft — only visible here until published. Click any empty cell to assign a subject and teacher'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -301,6 +388,17 @@ export function ClassTimetableTab() {
         onClose={() => setShowAutoSchedule(false)}
         onScheduled={() => {
           setShowAutoSchedule(false)
+          loadSchedule()
+        }}
+      />
+
+      <BatchScheduleDialog
+        open={showBatch}
+        onClose={() => setShowBatch(false)}
+        termId={selectedTerm}
+        termName={terms.find(t => t.id === selectedTerm)?.name}
+        onDone={() => {
+          setShowBatch(false)
           loadSchedule()
         }}
       />

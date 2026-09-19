@@ -6,6 +6,9 @@ export interface ClassSchedule {
   tenantId: string
   classId: string
   termId: string
+  status: 'draft' | 'published'
+  publishedAt?: string
+  publishedBy?: string
   createdAt: string
   updatedAt: string
 }
@@ -25,7 +28,7 @@ export interface ClassScheduleEntry {
 }
 
 function rowToSchedule(r: any): ClassSchedule {
-  return { id: r.id, tenantId: r.tenant_id, classId: r.class_id, termId: r.term_id, createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
+  return { id: r.id, tenantId: r.tenant_id, classId: r.class_id, termId: r.term_id, status: r.status || 'draft', publishedAt: r.published_at ? String(r.published_at) : undefined, publishedBy: r.published_by ?? undefined, createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }
 }
 function rowToEntry(r: any): ClassScheduleEntry {
   return { id: r.id, scheduleId: r.schedule_id, timeSlotId: r.time_slot_id, subjectId: r.subject_id, subjectName: r.subject_name, teacherId: r.teacher_id, teacherName: r.teacher_name, roomId: r.room_id ?? undefined, dayOfWeek: Number(r.day_of_week), createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at), updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at) }

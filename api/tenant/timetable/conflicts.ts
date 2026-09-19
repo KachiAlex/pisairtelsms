@@ -1,5 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
-import { getConflicts, resolveConflict } from './_lib/conflicts.js'
+import { getConflicts, resolveConflict, detectConflicts } from './_lib/conflicts.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 function parseBody(req: ApiRequest) {
@@ -20,6 +20,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const action = query.action as string | undefined
 
     if (method === 'GET') {
+      // ?action=detect&termId= — live derived conflicts (double bookings,
+      // unassigned subjects, empty schedules) rather than persisted rows
+      if (action === 'detect') {
+        const termId = query.termId as string | undefined
+        return res.status(200).json({ data: await detectConflicts(tenantId, termId) })
+      }
       const status = query.status as string | undefined
       const severity = query.severity as string | undefined
       const entityType = query.entityType as string | undefined

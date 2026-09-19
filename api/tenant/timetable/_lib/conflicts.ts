@@ -54,3 +54,83 @@ export async function getOpenConflictCount(tenantId: string): Promise<number> {
     return parseInt(r.rows[0]?.count || '0')
   } catch { return 0 }
 }
+
+export interface DetectedConflict {
+  type: 'teacher_double_booking' | 'unassigned_subject' | 'empty_schedule'
+  severity: ConflictSeverity
+  entityType: 'class' | 'teacher'
+  entityId: string
+  description: string
+}
+
+// Derive live conflicts from the schedule entries + allocation matrix rather
+// than the persisted timetable_conflicts table — always reflects current truth.
+export async function detectConflicts(tenantId: string, termId?: string): Promise<DetectedConflict[]> {
+  const conflicts: DetectedConflict[] = []
+  try {
+    // 1. Teacher double-booked: same teacher, same slot, same day, >1 class
+    const doubleBooked = await sql`
+      SELECT e.teacher_id, MAX(e.teacher_name) AS teacher_name,
+             e.time_slot_id, MAX(t.name) AS slot_name,
+             e.day_of_week,
+             array_agg(DISTINCT COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), s.class_id::text)) AS class_names,
+             COUNT(DISTINCT s.id) AS class_count
+      FROM timetable_class_schedule_entries e
+      JOIN timetable_class_schedules s ON s.id = e.schedule_id
+      JOIN timetable_time_slots t ON t.id = e.time_slot_id
+      LEFT JOIN classes c ON c.id::text = s.class_id::text
+      WHERE s.tenant_id = ${tenantId}
+        AND (${termId ?? null}::text IS NULL OR s.term_id = ${termId ?? null})
+      GROUP BY e.teacher_id, e.time_slot_id, e.day_of_week
+      HAVING COUNT(DISTINCT s.id) > 1
+    `
+    const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    for (const r of doubleBooked.rows) {
+      conflicts.push({
+        type: 'teacher_double_booking',
+        severity: 'high',
+        entityType: 'teacher',
+        entityId: r.teacher_id,
+        description: `${r.teacher_name} is booked in ${r.class_count} classes at ${r.slot_name} on ${DAY_NAMES[Number(r.day_of_week)] || 'day ' + r.day_of_week}: ${(r.class_names || []).join(', ')}`,
+      })
+    }
+
+    // 2. Allocation rows with no teacher (Open coverage)
+    const openAlloc = await sql`
+      SELECT class, subject FROM teacher_allocation_slots
+      WHERE tenant_id = ${tenantId} AND (coverage = 'Open' OR teacher IS NULL OR teacher = '')
+      ORDER BY class, subject`
+    for (const r of openAlloc.rows) {
+      conflicts.push({
+        type: 'unassigned_subject',
+        severity: 'medium',
+        entityType: 'class',
+        entityId: r.class,
+        description: `${r.class}: no teacher assigned for ${r.subject}`,
+      })
+    }
+
+    // 3. Schedules in this term with zero entries
+    const emptySchedules = await sql`
+      SELECT s.id, COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), s.class_id::text) AS class_name
+      FROM timetable_class_schedules s
+      LEFT JOIN classes c ON c.id::text = s.class_id::text
+      LEFT JOIN timetable_class_schedule_entries e ON e.schedule_id = s.id
+      WHERE s.tenant_id = ${tenantId}
+        AND (${termId ?? null}::text IS NULL OR s.term_id = ${termId ?? null})
+      GROUP BY s.id, class_name
+      HAVING COUNT(e.id) = 0`
+    for (const r of emptySchedules.rows) {
+      conflicts.push({
+        type: 'empty_schedule',
+        severity: 'low',
+        entityType: 'class',
+        entityId: r.id,
+        description: `${r.class_name} has a timetable with no entries`,
+      })
+    }
+  } catch (e) {
+    console.error('detectConflicts error:', e)
+  }
+  return conflicts
+}

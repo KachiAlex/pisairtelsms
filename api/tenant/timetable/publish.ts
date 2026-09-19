@@ -1,18 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
-import { getOpenConflictCount } from './_lib/conflicts.js'
-import { getClassSchedules } from './_lib/class-schedules.js'
-import { getExamSchedules } from './_lib/exam-schedules.js'
+import { sql } from './_lib/db.js'
+import { detectConflicts } from './_lib/conflicts.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
-
-interface PublishedRecord {
-  id: string
-  scheduleType: 'class' | 'teacher' | 'exam' | 'all'
-  scheduleIds: string[]
-  publishedAt: string
-  publishedBy: string
-}
-
-const publishedStore: PublishedRecord[] = []
 
 function parseBody(req: ApiRequest) {
   if (!req.body) return null
@@ -21,56 +10,89 @@ function parseBody(req: ApiRequest) {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant timetable
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  try {
-    const tenantId = decoded.tenantId || 'default-tenant'
-    const { method, query } = req
+  const tenantId = decoded.tenantId || 'default-tenant'
+  const { method, query } = req
+  const termId = (query.termId as string | undefined) || (parseBody(req)?.termId as string | undefined)
 
-    // GET /publish/status
+  try {
+    // GET /publish?termId= — publish state + live conflict check
     if (method === 'GET') {
-      const openConflicts = await getOpenConflictCount(tenantId)
-      const classSchedules = await getClassSchedules(tenantId)
-      const examSchedules = await getExamSchedules(tenantId)
-      const readinessPct = openConflicts === 0 ? 95 : Math.max(10, 80 - openConflicts * 10)
+      const counts = await sql`
+        SELECT status, COUNT(*)::int AS n
+        FROM timetable_class_schedules
+        WHERE tenant_id = ${tenantId}
+          AND (${termId ?? null}::text IS NULL OR term_id = ${termId ?? null})
+        GROUP BY status`
+      const published = counts.rows.find((r: any) => r.status === 'published')?.n ?? 0
+      const drafts = counts.rows.find((r: any) => r.status === 'draft')?.n ?? 0
+      const lastPub = await sql`
+        SELECT MAX(published_at) AS last_at, MAX(published_by) AS last_by
+        FROM timetable_class_schedules
+        WHERE tenant_id = ${tenantId} AND status = 'published'
+          AND (${termId ?? null}::text IS NULL OR term_id = ${termId ?? null})`
+
+      const detected = await detectConflicts(tenantId, termId)
+      const highConflicts = detected.filter(c => c.severity === 'high').length
+
       return res.status(200).json({
         data: {
-          publishedSchedules: publishedStore,
-          lastPublishedAt: publishedStore.length > 0 ? publishedStore[publishedStore.length - 1].publishedAt : null,
-          openConflicts,
-          classScheduleCount: classSchedules.length,
-          examScheduleCount: examSchedules.length,
-          readinessPct,
-          canPublish: openConflicts === 0,
+          publishedCount: published,
+          draftCount: drafts,
+          lastPublishedAt: lastPub.rows[0]?.last_at ?? null,
+          lastPublishedBy: lastPub.rows[0]?.last_by ?? null,
+          conflicts: detected,
+          highConflicts,
+          canPublish: highConflicts === 0 && drafts > 0,
         },
       })
     }
 
-    // POST /publish — publish schedules
+    // POST /publish {termId, action: 'publish'|'unpublish', scheduleIds?}
     if (method === 'POST') {
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
 
-      const openConflicts = await getOpenConflictCount(tenantId)
-      if (openConflicts > 0) {
+      const { termId: bodyTermId, action = 'publish', scheduleIds } = body as {
+        termId?: string
+        action?: 'publish' | 'unpublish'
+        scheduleIds?: string[]
+      }
+      const effectiveTermId = bodyTermId || termId
+      if (!effectiveTermId) return res.status(400).json({ error: 'termId is required' })
+
+      const publishedBy = (decoded as any).name || (decoded as any).email || 'admin'
+
+      if (action === 'unpublish') {
+        await sql`
+          UPDATE timetable_class_schedules
+          SET status = 'draft', published_at = NULL, published_by = NULL, updated_at = NOW()
+          WHERE tenant_id = ${tenantId} AND term_id = ${effectiveTermId}
+            AND (${!scheduleIds?.length}::boolean OR id = ANY(${scheduleIds ?? []}::text[]))`
+        return res.status(200).json({ data: { success: true, action: 'unpublished' } })
+      }
+
+      // Publish: block on high-severity live conflicts (teacher double-booked)
+      const detected = await detectConflicts(tenantId, effectiveTermId)
+      const blocking = detected.filter(c => c.severity === 'high')
+      if (blocking.length > 0) {
         return res.status(400).json({
-          error: `Cannot publish: ${openConflicts} unresolved conflict(s) must be resolved first`,
-          openConflicts,
+          error: `Cannot publish: ${blocking.length} teacher conflict(s) must be resolved first`,
+          conflicts: detected,
         })
       }
 
-      const { scheduleType = 'all', scheduleIds = [], publishedBy = 'admin' } = body
-      const record: PublishedRecord = {
-        id: `pub-${Date.now()}`,
-        scheduleType,
-        scheduleIds,
-        publishedAt: new Date().toISOString(),
-        publishedBy,
+      const result = await sql`
+        UPDATE timetable_class_schedules
+        SET status = 'published', published_at = NOW(), published_by = ${publishedBy}, updated_at = NOW()
+        WHERE tenant_id = ${tenantId} AND term_id = ${effectiveTermId}
+          AND (${!scheduleIds?.length}::boolean OR id = ANY(${scheduleIds ?? []}::text[]))`
+      if ((result.rowCount ?? 0) === 0) {
+        return res.status(404).json({ error: 'No schedules found for this term' })
       }
-      publishedStore.push(record)
-      return res.status(201).json({ data: { success: true, publishedAt: record.publishedAt, record } })
+      return res.status(200).json({ data: { success: true, action: 'published', count: result.rowCount } })
     }
 
     res.setHeader('Allow', 'GET,POST')

@@ -87,6 +87,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         WHERE s.tenant_id = ${tenantId}
           AND s.class_id = ${classId}
           AND s.term_id = ${resolvedTermId}
+          AND s.status = 'published'
         ORDER BY e.day_of_week, ts.start_time
       `;
       const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

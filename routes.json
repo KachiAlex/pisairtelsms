@@ -237,6 +237,14 @@
       "destination": "/api/tenant/timetable/auto-schedule.ts"
     },
     {
+      "source": "/api/tenant/timetable/auto-schedule-all",
+      "destination": "/api/tenant/timetable/auto-schedule-all.ts"
+    },
+    {
+      "source": "/api/tenant/timetable/copy-term",
+      "destination": "/api/tenant/timetable/copy-term.ts"
+    },
+    {
       "source": "/api/admin/support-tickets",
       "destination": "/api/admin/support-tickets-handler.ts"
     },

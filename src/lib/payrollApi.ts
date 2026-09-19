@@ -24,6 +24,7 @@ export interface PayrollSchedule {
   autoGenerate: boolean
   autoDisburse: boolean
   isActive: boolean
+  staffIds: string[]
   createdAt: string
   updatedAt: string
 }

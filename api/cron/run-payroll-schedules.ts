@@ -19,6 +19,7 @@ interface ScheduleRow {
   day_of_week: number | null
   auto_generate: boolean
   auto_disburse: boolean
+  staff_ids: unknown
 }
 
 function isDueToday(schedule: ScheduleRow, today: Date, lastRunAt: Date | null): boolean {
@@ -56,7 +57,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   try {
     const schedules = await sql`
-      SELECT id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse
+      SELECT id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse, staff_ids
       FROM payroll_schedules
       WHERE is_active = true
     `
@@ -80,7 +81,40 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           continue
         }
 
-        const run = await createPayrollRun(month, year, schedule.id, schedule.tenant_id, { actor: ACTOR })
+        // Staff already covered by another regular run for this period (under a
+        // different schedule or a manual run) must not be paid twice
+        const covered = await sql`
+          SELECT DISTINCT i.staff_id
+          FROM payroll_runs r
+          JOIN payroll_run_items i ON i.run_id = r.id
+          WHERE r.tenant_id = ${schedule.tenant_id} AND r.month = ${month} AND r.year = ${year}
+            AND r.status != 'failed' AND COALESCE(r.run_type, 'regular') = 'regular'
+            AND COALESCE(r.schedule_id, '') <> ${schedule.id}
+        `
+        const coveredIds = new Set((covered.rows as Array<{ staff_id: string }>).map(r => r.staff_id))
+
+        const payGroup = Array.isArray(schedule.staff_ids) ? (schedule.staff_ids as string[]) : []
+        let targetIds = payGroup
+        if (targetIds.length === 0) {
+          const all = await sql`
+            SELECT id FROM staff WHERE tenant_id = ${schedule.tenant_id} AND status = 'active' AND salary IS NOT NULL AND salary > 0
+          `
+          targetIds = (all.rows as Array<{ id: string }>).map(r => r.id)
+        }
+        const overlap = targetIds.filter(id => coveredIds.has(id))
+        if (overlap.length > 0) {
+          skipped.push({
+            scheduleId: schedule.id, tenantId: schedule.tenant_id,
+            reason: `${overlap.length} staff already covered by another run for ${month} ${year}`,
+          })
+          continue
+        }
+
+        const run = await createPayrollRun(month, year, schedule.id, schedule.tenant_id, {
+          actor: ACTOR,
+          staffIds: payGroup.length > 0 ? payGroup : undefined,
+          runName: `${schedule.name} — ${month} ${year}`,
+        })
         await submitRunForApproval(run.id, schedule.tenant_id, ACTOR)
         generated.push({ scheduleId: schedule.id, tenantId: schedule.tenant_id, runId: run.id, staff: run.totalStaff })
       } catch (err) {

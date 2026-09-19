@@ -13,6 +13,7 @@ export interface PayrollSchedule {
   autoGenerate: boolean
   autoDisburse: boolean
   isActive: boolean
+  staffIds: string[]
   createdAt: string
   updatedAt: string
 }
@@ -365,6 +366,10 @@ export async function ensurePayrollTables() {
         ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)
     `
     await sql`
+      ALTER TABLE payroll_schedules
+        ADD COLUMN IF NOT EXISTS staff_ids JSONB DEFAULT '[]'
+    `
+    await sql`
       CREATE TABLE IF NOT EXISTS payroll_audit_log (
         id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,
@@ -537,19 +542,31 @@ export async function fetchSchedules(tenantId: string): Promise<PayrollSchedule[
   }
 }
 
+async function validateScheduleStaff(staffIds: string[] | undefined, tenantId: string) {
+  if (!staffIds?.length) return
+  const result = await sql`
+    SELECT COUNT(*)::int AS n FROM staff WHERE tenant_id = ${tenantId} AND id = ANY(${staffIds})
+  `
+  if (result.rows[0].n !== staffIds.length) {
+    throw new PayrollError('One or more selected staff do not belong to this tenant')
+  }
+}
+
 export async function createSchedule(data: Partial<PayrollSchedule> & { name: string; frequency: string }, tenantId: string): Promise<PayrollSchedule> {
   await ensurePayrollTables()
+  await validateScheduleStaff(data.staffIds, tenantId)
   const id = `sched_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const result = await sql`
-    INSERT INTO payroll_schedules (id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse, is_active)
+    INSERT INTO payroll_schedules (id, tenant_id, name, frequency, day_of_month, day_of_week, auto_generate, auto_disburse, is_active, staff_ids)
     VALUES (${id}, ${tenantId}, ${data.name}, ${data.frequency || 'monthly'}, ${data.dayOfMonth || 25}, ${data.dayOfWeek || 5},
-      ${data.autoGenerate || false}, ${data.autoDisburse || false}, ${data.isActive !== false})
+      ${data.autoGenerate || false}, ${data.autoDisburse || false}, ${data.isActive !== false}, ${JSON.stringify(data.staffIds || [])})
     RETURNING *
   `
   return rowToSchedule(result.rows[0])
 }
 
 export async function updateSchedule(id: string, data: Partial<PayrollSchedule>, tenantId: string): Promise<PayrollSchedule | null> {
+  await validateScheduleStaff(data.staffIds, tenantId)
   try {
     const result = await sql`
       UPDATE payroll_schedules SET
@@ -560,6 +577,7 @@ export async function updateSchedule(id: string, data: Partial<PayrollSchedule>,
         auto_generate = COALESCE(${data.autoGenerate ?? null}, auto_generate),
         auto_disburse = COALESCE(${data.autoDisburse ?? null}, auto_disburse),
         is_active = COALESCE(${data.isActive ?? null}, is_active),
+        staff_ids = COALESCE(${data.staffIds ? JSON.stringify(data.staffIds) : null}, staff_ids),
         updated_at = NOW()
       WHERE id = ${id} AND tenant_id = ${tenantId}
       RETURNING *
@@ -879,16 +897,18 @@ export async function createPayrollRun(
   year: number,
   scheduleId: string | null,
   tenantId: string,
-  options?: { supplementary?: boolean; actor?: string }
+  options?: { supplementary?: boolean; actor?: string; staffIds?: string[]; runName?: string }
 ): Promise<PayrollRun> {
   await ensurePayrollTables()
 
-  // One regular run per month/year — supplementary runs must be explicit
+  // One regular run per month/year per schedule — supplementary runs must be
+  // explicit; different schedules (pay groups) may each have a run for a period
   if (!options?.supplementary) {
     const existing = await sql`
       SELECT id, status FROM payroll_runs
       WHERE tenant_id = ${tenantId} AND month = ${month} AND year = ${year}
         AND status != 'failed' AND COALESCE(run_type, 'regular') = 'regular'
+        AND COALESCE(schedule_id, '') = ${scheduleId || ''}
       LIMIT 1
     `
     if (existing.rows.length > 0) {
@@ -896,13 +916,23 @@ export async function createPayrollRun(
     }
   }
 
-  // Fetch all active staff with salaries
-  const staffResult = await sql`
-    SELECT id, name, salary FROM staff WHERE tenant_id = ${tenantId} AND status = 'active' AND salary IS NOT NULL AND salary > 0
-  `
+  // Fetch active staff with salaries — restricted to the schedule's pay
+  // group when one is defined
+  const staffResult = options?.staffIds?.length
+    ? await sql`
+        SELECT id, name, salary FROM staff
+        WHERE tenant_id = ${tenantId} AND status = 'active' AND salary IS NOT NULL AND salary > 0
+          AND id = ANY(${options.staffIds})
+      `
+    : await sql`
+        SELECT id, name, salary FROM staff
+        WHERE tenant_id = ${tenantId} AND status = 'active' AND salary IS NOT NULL AND salary > 0
+      `
   const staffRows = staffResult.rows
   if (staffRows.length === 0) {
-    throw new PayrollError('No active staff with salaries found')
+    throw new PayrollError(options?.staffIds?.length
+      ? 'No eligible staff in this pay group (inactive or missing salary)'
+      : 'No active staff with salaries found')
   }
 
   // Fetch tax config
@@ -922,7 +952,7 @@ export async function createPayrollRun(
 
   // Create the run
   const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  const runName = `Payroll — ${month} ${year}${options?.supplementary ? ' (Supplementary)' : ''}`
+  const runName = options?.runName || `Payroll — ${month} ${year}${options?.supplementary ? ' (Supplementary)' : ''}`
 
   let totalGross = 0
   let totalDeductions = 0
@@ -1649,6 +1679,7 @@ function rowToSchedule(r: any): PayrollSchedule {
     id: r.id, tenantId: r.tenant_id, name: r.name, frequency: r.frequency,
     dayOfMonth: r.day_of_month, dayOfWeek: r.day_of_week,
     autoGenerate: r.auto_generate, autoDisburse: r.auto_disburse, isActive: r.is_active,
+    staffIds: Array.isArray(r.staff_ids) ? r.staff_ids : [],
     createdAt: r.created_at?.toISOString?.() || String(r.created_at),
     updatedAt: r.updated_at?.toISOString?.() || String(r.updated_at),
   }

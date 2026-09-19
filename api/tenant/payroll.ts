@@ -82,16 +82,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (req.method === 'POST') {
       const body = parseBody(req)
       if (!body?.name) return res.status(400).json({ error: 'Schedule name is required' })
-      const schedule = await createSchedule(body, actualTenantId)
-      return res.status(201).json({ data: schedule })
+      try {
+        const schedule = await createSchedule(body, actualTenantId)
+        return res.status(201).json({ data: schedule })
+      } catch (err) {
+        if (err instanceof PayrollError) return res.status(400).json({ error: err.message })
+        throw err
+      }
     }
     if (req.method === 'PUT') {
       if (!id) return res.status(400).json({ error: 'Schedule ID is required' })
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
-      const schedule = await updateSchedule(id as string, body, actualTenantId)
-      if (!schedule) return res.status(404).json({ error: 'Schedule not found' })
-      return res.status(200).json({ data: schedule })
+      try {
+        const schedule = await updateSchedule(id as string, body, actualTenantId)
+        if (!schedule) return res.status(404).json({ error: 'Schedule not found' })
+        return res.status(200).json({ data: schedule })
+      } catch (err) {
+        if (err instanceof PayrollError) return res.status(400).json({ error: err.message })
+        throw err
+      }
     }
     if (req.method === 'DELETE') {
       if (!id) return res.status(400).json({ error: 'Schedule ID is required' })
@@ -150,9 +160,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ error: 'month and year are required' })
       }
       try {
+        // A run tagged to a schedule inherits that schedule's pay group
+        let staffIds: string[] | undefined
+        let runName: string | undefined
+        if (body.scheduleId) {
+          const sched = await sql`
+            SELECT name, staff_ids FROM payroll_schedules WHERE id = ${body.scheduleId} AND tenant_id = ${actualTenantId}
+          `
+          if (sched.rows.length === 0) return res.status(400).json({ error: 'Schedule not found' })
+          const ids = sched.rows[0].staff_ids
+          if (Array.isArray(ids) && ids.length > 0) staffIds = ids
+          runName = `${sched.rows[0].name} — ${body.month} ${body.year}`
+        }
         const run = await createPayrollRun(body.month, Number(body.year), body.scheduleId || null, actualTenantId, {
           supplementary: body.supplementary === true,
           actor,
+          staffIds,
+          runName,
         })
         return res.status(201).json({ data: run })
       } catch (err) {

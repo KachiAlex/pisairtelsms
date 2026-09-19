@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, Plus, Trash2, RefreshCw, AlertCircle } from 'lucide-react'
+import { Calendar, Plus, Trash2, RefreshCw, AlertCircle, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../ui/card'
 import { Button } from '../../../ui/button'
 import { Badge } from '../../../ui/badge'
 import { Input } from '../../../ui/input'
 import { Label } from '../../../ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog'
-import { payrollApi, type PayrollSchedule } from '../../../../lib/payrollApi'
+import { payrollApi, type PayrollSchedule, type PayrollRun } from '../../../../lib/payrollApi'
+
+interface StaffOption { id: string; name: string; salary?: number | null; status?: string }
+
+function authHeaders(): Record<string, string> {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return auth.token ? { Authorization: `Bearer ${auth.token}` } : {}
+  } catch { return {} }
+}
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -36,19 +45,23 @@ function nextRunLabel(s: PayrollSchedule): string {
 
 export function PayrollSchedules() {
   const [schedules, setSchedules] = useState<PayrollSchedule[]>([])
+  const [runs, setRuns] = useState<PayrollRun[]>([])
+  const [staff, setStaff] = useState<StaffOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<{
     name: string; frequency: 'weekly' | 'monthly' | 'bi_weekly' | 'custom';
     dayOfMonth: number; dayOfWeek: number; autoGenerate: boolean; autoDisburse: boolean;
-  }>({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false })
+    staffIds: string[];
+  }>({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false, staffIds: [] })
 
   const fetchSchedules = async () => {
     setLoading(true)
     try {
-      const data = await payrollApi.getSchedules()
+      const [data, runData] = await Promise.all([payrollApi.getSchedules(), payrollApi.getRuns()])
       setSchedules(data)
+      setRuns(runData)
     } catch (err) {
       setError('Failed to load schedules')
     } finally {
@@ -56,17 +69,23 @@ export function PayrollSchedules() {
     }
   }
 
-  useEffect(() => { fetchSchedules() }, [])
+  useEffect(() => {
+    fetchSchedules()
+    fetch('/api/tenant/staff', { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then(d => setStaff((d.data || []).filter((s: StaffOption) => s.status === 'active' || !s.status)))
+      .catch(() => {})
+  }, [])
 
   const handleCreate = async () => {
     if (!form.name) return
     try {
       await payrollApi.createSchedule(form)
       setShowForm(false)
-      setForm({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false })
+      setForm({ name: '', frequency: 'monthly', dayOfMonth: 25, dayOfWeek: 5, autoGenerate: false, autoDisburse: false, staffIds: [] })
       fetchSchedules()
     } catch (err) {
-      setError('Failed to create schedule')
+      setError(err instanceof Error ? err.message : 'Failed to create schedule')
     }
   }
 
@@ -122,7 +141,10 @@ export function PayrollSchedules() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {schedules.map(s => (
+          {schedules.map(s => {
+            const schedRuns = runs.filter(r => r.scheduleId === s.id).slice(0, 3)
+            const groupSize = s.staffIds?.length || 0
+            return (
             <Card key={s.id}>
               <CardContent className="p-5">
                 <div className="flex justify-between items-start mb-3">
@@ -130,6 +152,9 @@ export function PayrollSchedules() {
                     <h4 className="font-semibold text-gray-900">{s.name}</h4>
                     <p className="text-xs text-gray-500 capitalize">{s.frequency.replace('_', '-')} · Day {s.frequency === 'monthly' ? s.dayOfMonth : s.dayOfWeek}</p>
                     <p className="text-xs text-blue-600 mt-0.5">{s.isActive ? nextRunLabel(s) : 'Inactive — will not run'}</p>
+                    <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1">
+                      <Users className="w-3 h-3" /> Pay group: {groupSize ? `${groupSize} selected staff` : 'all active staff with salaries'}
+                    </p>
                   </div>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(s.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
@@ -149,9 +174,21 @@ export function PayrollSchedules() {
                     <span>Active</span>
                   </label>
                 </div>
+                {schedRuns.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+                    <p className="text-xs font-medium text-gray-500">Runs under this schedule</p>
+                    {schedRuns.map(r => (
+                      <div key={r.id} className="flex justify-between items-center text-xs">
+                        <span className="text-gray-700 truncate mr-2">{r.name}</span>
+                        <Badge>{r.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -183,6 +220,24 @@ export function PayrollSchedules() {
                 <Input type="number" min={0} max={6} value={form.dayOfWeek} onChange={e => setForm(f => ({ ...f, dayOfWeek: Number(e.target.value) }))} />
               </div>
             )}
+            <div>
+              <Label>Pay group — staff included in this payroll (empty = all staff)</Label>
+              <div className="max-h-44 overflow-y-auto border border-gray-200 rounded-md p-2 space-y-1 mt-1">
+                {staff.length === 0 && <p className="text-xs text-gray-400 p-1">Loading staff…</p>}
+                {staff.map(s => (
+                  <label key={s.id} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" className="rounded" checked={form.staffIds.includes(s.id)}
+                      onChange={e => setForm(f => ({
+                        ...f,
+                        staffIds: e.target.checked ? [...f.staffIds, s.id] : f.staffIds.filter(id => id !== s.id),
+                      }))} />
+                    <span className="flex-1">{s.name}</span>
+                    {!s.salary && <span className="text-xs text-amber-600">no salary set</span>}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">{form.staffIds.length ? `${form.staffIds.length} staff selected` : 'All active staff with salaries will be included'}</p>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.autoGenerate} onChange={e => setForm(f => ({ ...f, autoGenerate: e.target.checked }))} className="rounded" />
               <span>Auto-generate payroll on schedule</span>

@@ -23,6 +23,19 @@ interface WorkloadEntry {
   days: number[]
 }
 
+interface SessionEntry {
+  id: string
+  dayOfWeek: number
+  slotId: string
+  slotName: string
+  sequence: number
+  startTime: string
+  endTime: string
+  subjectName: string
+  className: string
+  roomId: string
+}
+
 interface TeacherSchedule {
   teacherId: string
   teacherName: string
@@ -31,6 +44,7 @@ interface TeacherSchedule {
   totalClasses: number
   maxHoursLimit: number | null
   workload: WorkloadEntry[]
+  sessions: SessionEntry[]
 }
 
 interface Term {
@@ -119,6 +133,7 @@ export function TeacherTimetableTab() {
           {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />)}
         </div>
       ) : schedule ? (
+        <>
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Workload summary */}
           <Card>
@@ -178,6 +193,58 @@ export function TeacherTimetableTab() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Weekly grid: which period, which class */}
+        {schedule.sessions.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{selectedTeacher?.name || 'Teacher'} — Weekly Timetable</CardTitle>
+              <CardDescription>Period-by-period view of where this teacher teaches</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-xl border border-gray-200 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 w-36">Period</th>
+                      {DAY_NAMES.slice(1).map(d => (
+                        <th key={d} className="px-3 py-2 text-center text-xs font-semibold text-gray-700">{d}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(new Map(schedule.sessions.map(s => [s.slotId, s])).values())
+                      .sort((a, b) => a.sequence - b.sequence)
+                      .map(slot => (
+                        <tr key={slot.slotId} className="border-b border-gray-100 last:border-0">
+                          <td className="px-3 py-2 text-xs font-medium text-gray-700">
+                            <p>{slot.slotName}</p>
+                            <p className="text-gray-400">{slot.startTime}–{slot.endTime}</p>
+                          </td>
+                          {[1, 2, 3, 4, 5].map(day => {
+                            const s = schedule.sessions.find(x => x.slotId === slot.slotId && x.dayOfWeek === day)
+                            return (
+                              <td key={day} className="px-2 py-1.5 text-center">
+                                {s ? (
+                                  <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-1.5 text-xs">
+                                    <p className="font-semibold text-emerald-800">{s.subjectName}</p>
+                                    <p className="text-emerald-600">{s.className}{s.roomId ? ` • ${s.roomId}` : ''}</p>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-300">—</span>
+                                )}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        </>
       ) : (
         <Card>
           <CardContent className="p-8 text-center text-gray-500">

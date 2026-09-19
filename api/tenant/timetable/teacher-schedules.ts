@@ -59,6 +59,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           AND (${termId ?? null}::text IS NULL OR s.term_id = ${termId ?? null})
       `
       const t = totals.rows[0] || {}
+      const sessionsResult = await sql`
+        SELECT e.id::text, e.day_of_week, e.subject_name, e.room_id,
+               t.id::text AS slot_id, t.name AS slot_name, t.sequence,
+               t.start_time::text AS start_time, t.end_time::text AS end_time,
+               COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), s.class_id::text) AS class_name
+        FROM timetable_class_schedule_entries e
+        JOIN timetable_class_schedules s ON s.id = e.schedule_id
+        JOIN timetable_time_slots t ON t.id = e.time_slot_id
+        LEFT JOIN classes c ON c.id::text = s.class_id::text
+        WHERE e.teacher_id = ${teacherId}
+          AND s.tenant_id = ${tenantId}
+          AND (${termId ?? null}::text IS NULL OR s.term_id = ${termId ?? null})
+        ORDER BY t.sequence, e.day_of_week
+      `
+      const sessions = sessionsResult.rows.map((r: any) => ({
+        id: r.id,
+        dayOfWeek: Number(r.day_of_week),
+        slotId: r.slot_id,
+        slotName: r.slot_name,
+        sequence: Number(r.sequence),
+        startTime: String(r.start_time).slice(0, 5),
+        endTime: String(r.end_time).slice(0, 5),
+        subjectName: r.subject_name,
+        className: r.class_name,
+        roomId: r.room_id || '',
+      }))
       return res.status(200).json({
         data: {
           teacherId,
@@ -68,6 +94,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           totalClasses: Number(t.total_classes || 0),
           maxHoursLimit: null,
           workload,
+          sessions,
         },
       })
     }

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { AlertCircle, ChevronDown } from 'lucide-react'
+import { AlertCircle, Bell, ChevronDown } from 'lucide-react'
 import { Button } from '../../ui/button'
 
 interface ScheduleEntry {
   id: string
   dayOfWeek: number
+  slotName: string
+  sequence: number
   timeSlot: string
   subject: string
   className: string
@@ -123,6 +125,29 @@ export function MyTimetable() {
 
   const today = new Date().getDay()
   const currentDayIndex = today === 0 ? 4 : today - 1 // Adjust for Monday=0
+  const todayDow = today === 0 ? 7 : today // schedule dayOfWeek: 1=Mon..5=Fri
+
+  const toMin = (t: string) => {
+    const [h, m] = String(t).split(':').map(Number)
+    return (h || 0) * 60 + (m || 0)
+  }
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
+
+  const todaysSessions = data.schedule
+    .filter(s => s.dayOfWeek === todayDow)
+    .sort((a, b) => a.sequence - b.sequence)
+  const ongoing = todaysSessions.find(s => toMin(s.startTime) <= nowMin && nowMin < toMin(s.endTime))
+  const nextUp = !ongoing ? todaysSessions.find(s => toMin(s.startTime) > nowMin) : undefined
+
+  // Unique period rows, ordered by the school's slot sequence
+  const slotRows = Array.from(
+    new Map(
+      data.schedule.map(s => [
+        `${s.slotName}|${s.timeSlot}`,
+        { slotName: s.slotName, timeSlot: s.timeSlot, sequence: s.sequence },
+      ])
+    ).values()
+  ).sort((a, b) => a.sequence - b.sequence)
 
   return (
     <div className="space-y-6">
@@ -144,6 +169,37 @@ export function MyTimetable() {
           <ChevronDown className="absolute right-2 top-2.5 h-5 w-5 text-gray-400 pointer-events-none" />
         </div>
       </div>
+
+      {/* Today's classes alert */}
+      {todayDow <= 5 && (
+        <div className={`flex items-start gap-3 rounded-lg border p-4 ${
+          todaysSessions.length > 0
+            ? 'border-blue-200 bg-blue-50'
+            : 'border-gray-200 bg-gray-50'
+        }`}>
+          <Bell className={`h-5 w-5 flex-shrink-0 mt-0.5 ${todaysSessions.length > 0 ? 'text-blue-600' : 'text-gray-400'}`} />
+          <div className="text-sm">
+            {todaysSessions.length === 0 ? (
+              <p className="text-gray-600">No classes scheduled for you today.</p>
+            ) : ongoing ? (
+              <p className="text-blue-800">
+                <span className="font-semibold">In class now:</span> {ongoing.subject} — {ongoing.className}
+                {' '}({ongoing.slotName ? `${ongoing.slotName}, ` : ''}{ongoing.startTime}–{ongoing.endTime})
+              </p>
+            ) : nextUp ? (
+              <p className="text-blue-800">
+                <span className="font-semibold">{todaysSessions.length} class{todaysSessions.length > 1 ? 'es' : ''} today.</span>
+                {' '}Next: {nextUp.subject} — {nextUp.className}
+                {' '}({nextUp.slotName ? `${nextUp.slotName}, ` : ''}{nextUp.startTime}–{nextUp.endTime})
+              </p>
+            ) : (
+              <p className="text-blue-800">
+                <span className="font-semibold">{todaysSessions.length} class{todaysSessions.length > 1 ? 'es' : ''} today</span> — all done for today.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Weekly Timetable Grid */}
       {data.schedule.length === 0 ? (
@@ -171,21 +227,19 @@ export function MyTimetable() {
               </tr>
             </thead>
             <tbody>
-              {/* Get unique time slots */}
-              {Array.from(
-                new Set(data.schedule.map((s) => s.timeSlot))
-              ).map((timeSlot) => (
-                <tr key={timeSlot} className="border-b border-gray-200">
+              {slotRows.map((row) => (
+                <tr key={`${row.slotName}|${row.timeSlot}`} className="border-b border-gray-200">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50">
-                    {timeSlot}
+                    {row.slotName && <p>{row.slotName}</p>}
+                    <p className={row.slotName ? 'text-xs font-normal text-gray-400' : ''}>{row.timeSlot}</p>
                   </td>
                   {DAYS.map((_, dayIdx) => {
                     const session = data.schedule.find(
-                      (s) => s.timeSlot === timeSlot && s.dayOfWeek === dayIdx + 1
+                      (s) => `${s.slotName}|${s.timeSlot}` === `${row.slotName}|${row.timeSlot}` && s.dayOfWeek === dayIdx + 1
                     )
                     return (
                       <td
-                        key={`${timeSlot}-${dayIdx}`}
+                        key={`${row.slotName}-${dayIdx}`}
                         className={`px-4 py-3 text-sm ${
                           dayIdx === currentDayIndex
                             ? 'bg-blue-50'
@@ -196,7 +250,7 @@ export function MyTimetable() {
                           <div className="rounded-lg bg-blue-100 p-2 border border-blue-300">
                             <p className="font-semibold text-blue-900">{session.subject}</p>
                             <p className="text-xs text-blue-700">{session.className}</p>
-                            <p className="text-xs text-blue-600">Room: {session.room}</p>
+                            {session.room && <p className="text-xs text-blue-600">Room: {session.room}</p>}
                           </div>
                         ) : (
                           <span className="text-gray-400">-</span>

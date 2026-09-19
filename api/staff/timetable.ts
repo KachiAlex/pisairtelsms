@@ -5,6 +5,8 @@ import { requireRole } from '../_lib/auth-middleware.js';
 interface ScheduleEntry {
   id: string;
   dayOfWeek: number;
+  slotName: string;
+  sequence: number;
   timeSlot: string;
   subject: string;
   className: string;
@@ -77,6 +79,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     try {
       const tsResult = await sql`
         SELECT e.id::text, e.day_of_week, e.subject_name, e.room_id,
+               t.name AS slot_name, t.sequence,
                COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), '') AS class_name,
                t.start_time::text AS start_time, t.end_time::text AS end_time
         FROM timetable_class_schedule_entries e
@@ -86,17 +89,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         WHERE e.teacher_id = ${staffId}
           AND s.tenant_id = ${tenantId}
           AND (${resolvedTermId}::text IS NULL OR s.term_id = ${resolvedTermId})
-        ORDER BY e.day_of_week, t.start_time
+        ORDER BY e.day_of_week, t.sequence
       `;
       schedule = tsResult.rows.map(r => ({
         id: r.id,
         dayOfWeek: Number(r.day_of_week),
-        timeSlot: `${r.start_time} - ${r.end_time}`,
+        slotName: r.slot_name || '',
+        sequence: Number(r.sequence ?? 0),
+        timeSlot: `${String(r.start_time).slice(0, 5)} - ${String(r.end_time).slice(0, 5)}`,
         subject: r.subject_name,
         className: r.class_name,
         room: r.room_id || '',
-        startTime: r.start_time,
-        endTime: r.end_time,
+        startTime: String(r.start_time).slice(0, 5),
+        endTime: String(r.end_time).slice(0, 5),
       }));
     } catch (tsErr) {
       console.error('Teacher schedule query error:', tsErr);
@@ -117,6 +122,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         schedule = ttResult.rows.map(r => ({
           id: r.id,
           dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
+          slotName: '',
+          sequence: 0,
           timeSlot: r.time_slot,
           subject: r.subject,
           className: r.class_name,

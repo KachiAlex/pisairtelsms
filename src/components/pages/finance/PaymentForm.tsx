@@ -76,10 +76,12 @@ export function PaymentForm({
 
   const [students, setStudents] = useState<Student[]>([])
   const [studentsLoading, setStudentsLoading] = useState(false)
+  const [studentSearch, setStudentSearch] = useState('')
   const [selectedStudentId, setSelectedStudentId] = useState(propStudentId || '')
   const [assignments, setAssignments] = useState<FeeAssignment[]>([])
   const [assignmentsLoading, setAssignmentsLoading] = useState(false)
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(propFeeAssignmentId || '')
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const [amount, setAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
@@ -119,9 +121,27 @@ export function PaymentForm({
     ? assignments.find((a) => a.id === selectedAssignmentId)
     : undefined
 
+  const selectedStudent = standalone
+    ? students.find((s) => s.id === selectedStudentId)
+    : undefined
+
+  const filteredStudents = studentSearch.trim()
+    ? students.filter((s) => {
+        const q = studentSearch.trim().toLowerCase()
+        return (
+          s.name.toLowerCase().includes(q) ||
+          (s.admissionNo || '').toLowerCase().includes(q) ||
+          (s.class || '').toLowerCase().includes(q)
+        )
+      })
+    : students
+
   const balance = standalone ? selectedAssignment?.totalBalance ?? 0 : propBalance ?? 0
   const feeAssignmentId = standalone ? selectedAssignmentId : propFeeAssignmentId
   const studentId = standalone ? selectedStudentId : propStudentId
+
+  const numAmount = parseFloat(amount) || 0
+  const balanceAfter = feeAssignmentId ? balance - numAmount : null
 
   const handleAssignmentChange = (id: string) => {
     setSelectedAssignmentId(id)
@@ -134,8 +154,8 @@ export function PaymentForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccessMessage(null)
 
-    const numAmount = parseFloat(amount)
     if (!numAmount || numAmount <= 0) {
       setError('Amount must be greater than 0')
       return
@@ -180,7 +200,16 @@ export function PaymentForm({
       }
 
       const result = await response.json()
+      const payment = result.data as Payment | undefined
       onSuccess?.(result.data)
+
+      if (payment?.receiptNumber) {
+        setSuccessMessage(
+          `Payment recorded — receipt ${payment.receiptNumber}${
+            payment.status === 'pending' ? ' (awaiting confirmation)' : ''
+          }`
+        )
+      }
 
       setAmount('')
       setReferenceNumber('')
@@ -189,6 +218,7 @@ export function PaymentForm({
       if (standalone) {
         setSelectedStudentId('')
         setSelectedAssignmentId('')
+        setStudentSearch('')
         setAssignments([])
       }
     } catch (err) {
@@ -214,26 +244,66 @@ export function PaymentForm({
           {standalone && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="paymentStudent">Student</Label>
-                <select
-                  id="paymentStudent"
-                  value={selectedStudentId}
-                  onChange={(e) => {
-                    setSelectedStudentId(e.target.value)
-                    setSelectedAssignmentId('')
-                    setAmount('')
-                  }}
-                  disabled={studentsLoading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  <option value="">{studentsLoading ? 'Loading students…' : 'Select a student'}</option>
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.admissionNo}) — {s.class}
-                      {s.arm ? ` ${s.arm}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <Label htmlFor="studentSearch">Student</Label>
+                {selectedStudent ? (
+                  <div className="flex items-center justify-between px-3 py-2 border border-blue-300 bg-blue-50 rounded-md">
+                    <span className="text-sm font-medium">
+                      {selectedStudent.name} ({selectedStudent.admissionNo}) — {selectedStudent.class}
+                      {selectedStudent.arm ? ` ${selectedStudent.arm}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStudentId('')
+                        setSelectedAssignmentId('')
+                        setAmount('')
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      id="studentSearch"
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      placeholder={studentsLoading ? 'Loading students…' : 'Search by name, admission no, or class'}
+                      disabled={studentsLoading}
+                    />
+                    {students.length > 0 && (
+                      <div className="border border-gray-200 rounded-md max-h-48 overflow-y-auto divide-y">
+                        {filteredStudents.slice(0, 15).map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedStudentId(s.id)
+                              setSelectedAssignmentId('')
+                              setAmount('')
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+                          >
+                            <span className="font-medium">{s.name}</span>
+                            <span className="text-gray-500 ml-2">
+                              {s.admissionNo} — {s.class}
+                              {s.arm ? ` ${s.arm}` : ''}
+                            </span>
+                          </button>
+                        ))}
+                        {filteredStudents.length === 0 && (
+                          <p className="px-3 py-2 text-sm text-gray-500">No students match "{studentSearch}"</p>
+                        )}
+                        {filteredStudents.length > 15 && (
+                          <p className="px-3 py-2 text-xs text-gray-400">
+                            {filteredStudents.length - 15} more — refine your search
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {selectedStudentId && (
@@ -287,8 +357,17 @@ export function PaymentForm({
               />
             </div>
             <p className="text-sm text-gray-500">
-              {feeAssignmentId ? `Outstanding balance: ${formatCurrency(balance)}` : 'Select a student and fee first'}
+              {feeAssignmentId
+                ? `Outstanding balance: ${formatCurrency(balance)}`
+                : 'Select a student and fee first'}
             </p>
+            {feeAssignmentId && numAmount > 0 && balanceAfter !== null && (
+              <p className={`text-sm ${balanceAfter < 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                Balance after payment: {formatCurrency(Math.max(balanceAfter, 0))}
+                {balanceAfter === 0 ? ' — fully paid' : ''}
+                {balanceAfter < 0 ? ' — amount exceeds balance' : ''}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -358,8 +437,18 @@ export function PaymentForm({
             </Alert>
           )}
 
+          {successMessage && (
+            <Alert className="border-green-200 bg-green-50">
+              <AlertDescription className="text-green-800">{successMessage}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="flex gap-3">
-            <Button type="submit" disabled={loading || !feeAssignmentId} className="flex-1">
+            <Button
+              type="submit"
+              disabled={loading || !feeAssignmentId || numAmount <= 0 || numAmount > balance}
+              className="flex-1"
+            >
               {loading ? 'Recording...' : 'Record Payment'}
             </Button>
             {onCancel && (

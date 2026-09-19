@@ -210,8 +210,8 @@ export async function getFeeAssignments(
   const result = await query<FeeAssignmentRow>(
     `SELECT fa.*, s.name AS student_name, s.admission_no, s.class AS student_class, fs.name AS structure_name
      FROM fee_assignments fa
-     LEFT JOIN students s ON s.id = fa.student_id AND s.tenant_id = fa.tenant_id
-     LEFT JOIN fee_structures fs ON fs.id = fa.fee_structure_id AND fs.tenant_id = fa.tenant_id
+     LEFT JOIN students s ON s.id::text = fa.student_id::text AND s.tenant_id = fa.tenant_id
+     LEFT JOIN fee_structures fs ON fs.id::text = fa.fee_structure_id::text AND fs.tenant_id = fa.tenant_id
      WHERE ${conditions.join(' AND ')}
      ORDER BY fa.created_at DESC`,
     params

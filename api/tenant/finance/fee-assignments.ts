@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
+import { getAcademicSessionNames } from '../_lib/academic-calendar.js'
 import {
   createFeeAssignment,
   getFeeAssignments,
@@ -131,6 +132,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if ((err as any)?.code !== '42P01') throw err
     }
 
+    // Academic session must exist in Timetable & Scheduling (academic_years).
+    const validSessions = await getAcademicSessionNames(tenantId)
+    if (validSessions !== null && !validSessions.includes(academicSession)) {
+      return res.status(400).json({
+        error: validSessions.length === 0
+          ? 'No academic sessions configured — create academic years in Timetable & Scheduling first'
+          : `Invalid academic session — must be one of: ${validSessions.join(', ')}`,
+      })
+    }
+
     try {
       const assignment = await createFeeAssignment(
         tenantId,
@@ -176,6 +187,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           error: validTermSet.size === 0
             ? 'No terms configured — create terms in Timetable & Scheduling first'
             : `Invalid term — must be one of: ${[...validTermSet].join(', ')}`,
+        })
+      }
+    }
+
+    // Academic sessions must exist in Timetable & Scheduling (academic_years).
+    const validSessions = await getAcademicSessionNames(tenantId)
+    if (validSessions !== null) {
+      const sessionSet = new Set(validSessions)
+      const bad = assignments.find((a: any) => a.academicSession && !sessionSet.has(a.academicSession))
+      if (bad) {
+        return res.status(400).json({
+          error: sessionSet.size === 0
+            ? 'No academic sessions configured — create academic years in Timetable & Scheduling first'
+            : `Invalid academic session — must be one of: ${validSessions.join(', ')}`,
         })
       }
     }

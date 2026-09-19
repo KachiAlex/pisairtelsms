@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { fetchAttendance, upsertAttendanceBatch, type AttendancePayload, type AttendanceFilter } from './_lib/attendance.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { getAcademicSessionNames } from './_lib/academic-calendar.js'
 
 function getUserId(req: ApiRequest): string | undefined {
   return (req.headers['x-user-id'] as string) || (req.query.userId as string) || undefined
@@ -121,13 +122,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       })
     }
 
-    // Terms must exist in Timetable & Scheduling (timetable_terms) — the
-    // single source of truth for term names.
+    // Terms and academic sessions must exist in Timetable & Scheduling
+    // (timetable_terms / academic_years) — the single source of truth.
     let validTermNames: Set<string> | null = null
     try {
       const termRes = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
       validTermNames = new Set(termRes.rows.map(r => r.name))
     } catch { /* table may not exist yet — skip enforcement */ }
+    const validSessionNames = await getAcademicSessionNames(tenantId)
+    const validSessionSet = validSessionNames === null ? null : new Set(validSessionNames)
 
     // Validate all records
     const validationErrors: Array<{ index: number; error: string }> = []
@@ -164,9 +167,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         errors.push('date cannot be in the future')
       }
 
-      // Validate academic session format
+      // Validate academic session format and membership
       if (record.academicSession && !/^\d{4}\/\d{4}$/.test(record.academicSession)) {
         errors.push('academicSession must be in YYYY/YYYY format')
+      } else if (record.academicSession && validSessionSet !== null && !validSessionSet.has(record.academicSession)) {
+        errors.push(validSessionSet.size === 0
+          ? 'no academic sessions configured — create academic years in Timetable & Scheduling first'
+          : `academicSession must be one of the configured sessions: ${[...validSessionSet].join(', ')}`)
       }
 
       if (errors.length > 0) {

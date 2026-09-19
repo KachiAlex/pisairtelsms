@@ -181,11 +181,11 @@ export async function syncDevice(
   const today = new Date().toISOString().slice(0, 10)
   let session = academicSession || ''
   let currentTerm = term || ''
+  let yearsLookupRan = false
   try {
-    if (!session) {
-      const yr = await sql`SELECT name FROM academic_years WHERE tenant_id = ${tenantId} ORDER BY is_current DESC, start_date ASC LIMIT 1`
-      session = yr.rows[0]?.name || ''
-    }
+    const yr = await sql`SELECT name FROM academic_years WHERE tenant_id = ${tenantId} ORDER BY is_current DESC, start_date ASC LIMIT 1`
+    yearsLookupRan = true
+    if (!session) session = yr.rows[0]?.name || ''
     if (!currentTerm) {
       const tr = await sql`
         SELECT name FROM timetable_terms
@@ -195,12 +195,16 @@ export async function syncDevice(
       currentTerm = tr.rows[0]?.name || ''
     }
   } catch { /* tables may not exist yet */ }
-  if (!session) {
-    const currentYear = new Date().getFullYear()
-    session = `${currentYear}/${currentYear + 1}`
-  }
-
   try {
+    if (!session) {
+      if (yearsLookupRan) {
+        // academic_years answered with zero rows — never fabricate a session.
+        throw new Error('No academic session configured — create academic years in Timetable & Scheduling first')
+      }
+      const currentYear = new Date().getFullYear()
+      session = `${currentYear}/${currentYear + 1}`
+    }
+
     // Get device and check it's not in maintenance
     const device = await getDevice(tenantId, deviceId)
     if (!device) {

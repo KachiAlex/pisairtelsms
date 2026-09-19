@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { fetchScores, createScore, fetchScoresByClassAndSubject, fetchTeacherSubmissions, recomputeAllScores, compileResults, fetchCompiledResults, approveCompiledResults, computeAttendanceBatch, fetchBroadsheet, type ScorePayload } from './_lib/results.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { getAcademicSessionNames } from './_lib/academic-calendar.js'
 
 function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
@@ -140,6 +141,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     } catch (err) {
       // timetable_terms missing — skip enforcement rather than block scoring
       if ((err as any)?.code !== '42P01') throw err
+    }
+
+    // Academic session must exist in Timetable & Scheduling (academic_years).
+    const validSessions = await getAcademicSessionNames(tenantId)
+    if (validSessions !== null && !validSessions.includes(academicSession)) {
+      return res.status(400).json({
+        error: validSessions.length === 0
+          ? 'No academic sessions configured — create academic years in Timetable & Scheduling first'
+          : `Invalid academic session — must be one of: ${validSessions.join(', ')}`,
+      })
     }
 
     // Validate score ranges. When a "marked out of" max is supplied the value

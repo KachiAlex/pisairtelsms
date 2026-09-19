@@ -1,6 +1,8 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
+import { sql } from '../../_lib/sql.js'
 import { parseCsvContent, generateCsvTemplate } from '../_lib/csv-parser.js'
 import { upsertAttendanceBatch, type AttendancePayload } from '../_lib/attendance.js'
+import { getAcademicSessionNames } from '../_lib/academic-calendar.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
 
@@ -64,8 +66,43 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ success: false, error: 'CSV content is empty' })
     }
 
+    // Terms and academic sessions must exist in Timetable & Scheduling
+    // (timetable_terms / academic_years) — the single source of truth.
+    let validTermNames: Set<string> | null = null
+    try {
+      const termRes = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+      validTermNames = new Set(termRes.rows.map(r => r.name))
+    } catch { /* table may not exist yet — skip enforcement */ }
+    const validSessions = await getAcademicSessionNames(tenantId)
+    const validSessionSet = validSessions === null ? null : new Set(validSessions)
+
     // Parse and validate CSV
     const parseResult = parseCsvContent(csvContent)
+
+    for (const record of parseResult.valid) {
+      if (record.term && validTermNames !== null && !validTermNames.has(record.term)) {
+        parseResult.errors.push({
+          row: -1,
+          field: 'term',
+          message: validTermNames.size === 0
+            ? 'no terms configured — create terms in Timetable & Scheduling first'
+            : `term must be one of the configured terms: ${[...validTermNames].join(', ')}`,
+        })
+      }
+      if (record.academicSession && validSessionSet !== null && !validSessionSet.has(record.academicSession)) {
+        parseResult.errors.push({
+          row: -1,
+          field: 'academicSession',
+          message: validSessionSet.size === 0
+            ? 'no academic sessions configured — create academic years in Timetable & Scheduling first'
+            : `academicSession must be one of the configured sessions: ${[...validSessionSet].join(', ')}`,
+        })
+      }
+    }
+    parseResult.valid = parseResult.valid.filter(
+      r => (!r.term || validTermNames === null || validTermNames.has(r.term))
+        && (!r.academicSession || validSessionSet === null || validSessionSet.has(r.academicSession))
+    )
 
     if (parseResult.totalRows === 0 && parseResult.errors.length === 0) {
       return res.status(400).json({ success: false, error: 'CSV file has no data rows' })

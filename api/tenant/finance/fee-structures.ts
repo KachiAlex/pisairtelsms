@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
+import { getAcademicSessionNames } from '../_lib/academic-calendar.js'
 import {
   createFeeStructure,
   getFeeStructures,
@@ -134,6 +135,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if ((err as any)?.code !== '42P01') throw err
     }
 
+    // Academic session must exist in Timetable & Scheduling (academic_years).
+    const validSessions = await getAcademicSessionNames(tenantId)
+    if (validSessions !== null && !validSessions.includes(academicSession)) {
+      return res.status(400).json({
+        error: validSessions.length === 0
+          ? 'No academic sessions configured — create academic years in Timetable & Scheduling first'
+          : `Invalid academic session — must be one of: ${validSessions.join(', ')}`,
+      })
+    }
+
     try {
       const structure = await createFeeStructure(
         tenantId,
@@ -198,6 +209,29 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     if (missing.length > 0) {
       return res.status(400).json({ error: 'Missing required fields', details: missing })
+    }
+
+    // Target term/session must exist in Timetable & Scheduling.
+    try {
+      const termCheck = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+      const validTerms = termCheck.rows.map(r => r.name)
+      if (!validTerms.includes(newTerm)) {
+        return res.status(400).json({
+          error: validTerms.length === 0
+            ? 'No terms configured — create terms in Timetable & Scheduling first'
+            : `Invalid term — must be one of: ${validTerms.join(', ')}`,
+        })
+      }
+    } catch (err) {
+      if ((err as any)?.code !== '42P01') throw err
+    }
+    const validSessions = await getAcademicSessionNames(tenantId)
+    if (validSessions !== null && !validSessions.includes(newAcademicSession)) {
+      return res.status(400).json({
+        error: validSessions.length === 0
+          ? 'No academic sessions configured — create academic years in Timetable & Scheduling first'
+          : `Invalid academic session — must be one of: ${validSessions.join(', ')}`,
+      })
     }
 
     try {

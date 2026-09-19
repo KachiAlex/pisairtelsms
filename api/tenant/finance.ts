@@ -1,5 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
+import { sql } from '../_lib/sql.js'
 import { fetchFeeRecords, createFeeRecord, recordPayment, sendFeeReminders, generateFeeRecordsFromAssignments, type FeeRecordPayload, type PaymentPayload } from './_lib/finance.js'
+import { getAcademicSessionNames } from './_lib/academic-calendar.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from './cbt/_lib/db.js'
 
@@ -115,6 +117,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!term) missing.push('term')
 
     if (missing.length > 0) return res.status(400).json({ error: 'Missing required fields', details: missing })
+
+    // Term and academic session must exist in Timetable & Scheduling
+    // (timetable_terms / academic_years) — the single source of truth.
+    try {
+      const termCheck = await sql`SELECT name FROM timetable_terms WHERE tenant_id = ${tenantId}`
+      const validTerms = termCheck.rows.map(r => r.name)
+      if (!validTerms.includes(term)) {
+        return res.status(400).json({
+          error: validTerms.length === 0
+            ? 'No terms configured — create terms in Timetable & Scheduling first'
+            : `Invalid term — must be one of: ${validTerms.join(', ')}`,
+        })
+      }
+    } catch (err) {
+      if ((err as any)?.code !== '42P01') throw err
+    }
+    const validSessions = await getAcademicSessionNames(tenantId)
+    if (validSessions !== null && !validSessions.includes(academicSession)) {
+      return res.status(400).json({
+        error: validSessions.length === 0
+          ? 'No academic sessions configured — create academic years in Timetable & Scheduling first'
+          : `Invalid academic session — must be one of: ${validSessions.join(', ')}`,
+      })
+    }
 
     try {
       const payload: FeeRecordPayload = { studentId, studentName, admissionNo, class: className, feeType, amount: Number(amount), academicSession, term }

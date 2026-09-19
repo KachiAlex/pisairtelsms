@@ -77,6 +77,9 @@ export interface PayrollRunItem {
   paymentDate: string | null
   failureReason: string | null
   payslipGenerated: boolean
+  nhf?: number
+  nhis?: number
+  year?: number
   createdAt: string
 }
 
@@ -84,6 +87,9 @@ interface EarningDeduction {
   category: string
   label: string
   amount: number
+  // Optional linkage so repayment counters only move for deductions that were
+  // actually taken in this run item (e.g. salary advances).
+  refId?: string
 }
 
 export interface PayrollApproval {
@@ -157,6 +163,15 @@ export interface TaxConfig {
   isActive: boolean
   createdAt: string
   updatedAt: string
+}
+
+export interface PayrollAuditEntry {
+  id: string
+  runId: string | null
+  action: string
+  actor: string
+  details: Record<string, unknown>
+  createdAt: string
 }
 
 // ── Table Initialization ─────────────────────────────────────────────────────
@@ -333,8 +348,55 @@ export async function ensurePayrollTables() {
         '[{"min":0,"max":300000,"rate":7},{"min":300000,"max":600000,"rate":11},{"min":600000,"max":1100000,"rate":15},{"min":1100000,"max":1600000,"rate":19},{"min":1600000,"max":3200000,"rate":21},{"min":3200000,"max":null,"rate":24}]'::jsonb
       WHERE NOT EXISTS (SELECT 1 FROM tax_config WHERE tenant_id = 'default-tenant' LIMIT 1)
     `
+    await sql`
+      ALTER TABLE payroll_run_items
+        ADD COLUMN IF NOT EXISTS year INT,
+        ADD COLUMN IF NOT EXISTS nhf NUMERIC(12,2) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS nhis NUMERIC(12,2) DEFAULT 0
+    `
+    await sql`
+      ALTER TABLE payroll_runs
+        ADD COLUMN IF NOT EXISTS run_type VARCHAR(20) DEFAULT 'regular'
+    `
+    await sql`
+      ALTER TABLE staff
+        ADD COLUMN IF NOT EXISTS account_number VARCHAR(20),
+        ADD COLUMN IF NOT EXISTS bank_code VARCHAR(20),
+        ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)
+    `
+    await sql`
+      CREATE TABLE IF NOT EXISTS payroll_audit_log (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        run_id TEXT,
+        action VARCHAR(50) NOT NULL,
+        actor VARCHAR(255) NOT NULL,
+        details JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `
   } catch (error) {
     console.error('Error ensuring payroll tables:', error)
+  }
+}
+
+export class PayrollError extends Error {}
+
+async function logPayrollAudit(
+  tenantId: string,
+  runId: string | null,
+  action: string,
+  actor: string,
+  details: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    const id = `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    await sql`
+      INSERT INTO payroll_audit_log (id, tenant_id, run_id, action, actor, details)
+      VALUES (${id}, ${tenantId}, ${runId}, ${action}, ${actor}, ${JSON.stringify(details)}::jsonb)
+    `
+  } catch (error) {
+    console.error('Payroll audit log failed:', error)
   }
 }
 
@@ -407,10 +469,12 @@ export function computePayroll(
   // NHIS: 1.5% of gross
   const nhis = taxConfig ? (grossPay * taxConfig.nhisRate) / 100 : (grossPay * 1.5) / 100
 
-  // Cratum allowance (consolidated relief allowance)
+  // Consolidated Relief Allowance (Nigeria): higher of ₦200k or 1% of annual
+  // gross, PLUS 20% of annual gross.
+  const annualGrossForCra = grossPay * 12
   const cratumFlat = taxConfig?.cratumAllowance || 200000
   const cratumPct = taxConfig?.cratumPercentage || 1.0
-  const cratum = Math.max(cratumFlat, (grossPay * 12 * cratumPct) / 100)
+  const cratum = Math.max(cratumFlat, (annualGrossForCra * cratumPct) / 100) + annualGrossForCra * 0.2
 
   // Annual taxable income
   const annualPension = pensionEmployee * 12
@@ -540,6 +604,12 @@ export async function fetchRules(tenantId: string, staffId?: string): Promise<Pa
 
 export async function createRule(data: Partial<PayrollRule> & { staffId: string; ruleType: string; category: string; label: string; amount: number }, tenantId: string): Promise<PayrollRule> {
   await ensurePayrollTables()
+
+  const staffCheck = await sql`SELECT id FROM staff WHERE id = ${data.staffId} AND tenant_id = ${tenantId}`
+  if (staffCheck.rows.length === 0) {
+    throw new PayrollError('Staff member not found in this tenant')
+  }
+
   const id = `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const result = await sql`
     INSERT INTO payroll_rules (id, tenant_id, staff_id, staff_name, rule_type, category, label, amount, calculation_method, percentage_of, is_recurring, is_active, effective_from, effective_to)
@@ -608,9 +678,23 @@ export async function createPayrollRun(
   month: string,
   year: number,
   scheduleId: string | null,
-  tenantId: string
+  tenantId: string,
+  options?: { supplementary?: boolean; actor?: string }
 ): Promise<PayrollRun> {
   await ensurePayrollTables()
+
+  // One regular run per month/year — supplementary runs must be explicit
+  if (!options?.supplementary) {
+    const existing = await sql`
+      SELECT id, status FROM payroll_runs
+      WHERE tenant_id = ${tenantId} AND month = ${month} AND year = ${year}
+        AND status != 'failed' AND COALESCE(run_type, 'regular') = 'regular'
+      LIMIT 1
+    `
+    if (existing.rows.length > 0) {
+      throw new PayrollError(`A payroll run for ${month} ${year} already exists (${existing.rows[0].status})`)
+    }
+  }
 
   // Fetch all active staff with salaries
   const staffResult = await sql`
@@ -618,7 +702,7 @@ export async function createPayrollRun(
   `
   const staffRows = staffResult.rows
   if (staffRows.length === 0) {
-    throw new Error('No active staff with salaries found')
+    throw new PayrollError('No active staff with salaries found')
   }
 
   // Fetch tax config
@@ -638,7 +722,7 @@ export async function createPayrollRun(
 
   // Create the run
   const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  const runName = `Payroll — ${month} ${year}`
+  const runName = `Payroll — ${month} ${year}${options?.supplementary ? ' (Supplementary)' : ''}`
 
   let totalGross = 0
   let totalDeductions = 0
@@ -649,16 +733,27 @@ export async function createPayrollRun(
     const basicSalary = Number(staff.salary) || 0
     const staffId = staff.id
 
-    // Apply rules for this staff
+    // Apply rules for this staff. Two passes: fixed + %-of-basic rules first so
+    // that %-of-gross rules compute against a real gross (basic + earnings).
     const staffRules = allRules.filter(r => r.staffId === staffId)
     const earnings: EarningDeduction[] = []
     const manualDeductions: EarningDeduction[] = []
 
-    for (const rule of staffRules) {
+    for (const rule of staffRules.filter(r => r.calculationMethod !== 'percentage' || r.percentageOf !== 'gross')) {
       const amount = rule.calculationMethod === 'percentage'
-        ? (rule.percentageOf === 'gross' ? basicSalary * 1.5 : basicSalary) * (rule.amount / 100)
+        ? basicSalary * (rule.amount / 100)
         : rule.amount
 
+      if (rule.ruleType === 'earning') {
+        earnings.push({ category: rule.category, label: rule.label, amount })
+      } else {
+        manualDeductions.push({ category: rule.category, label: rule.label, amount })
+      }
+    }
+
+    const partialGross = basicSalary + earnings.reduce((s, e) => s + e.amount, 0)
+    for (const rule of staffRules.filter(r => r.calculationMethod === 'percentage' && r.percentageOf === 'gross')) {
+      const amount = partialGross * (rule.amount / 100)
       if (rule.ruleType === 'earning') {
         earnings.push({ category: rule.category, label: rule.label, amount })
       } else {
@@ -672,6 +767,7 @@ export async function createPayrollRun(
         category: 'salary_advance',
         label: `Advance Repayment (${advance.installmentsPaid + 1}/${advance.installments})`,
         amount: advance.monthlyDeduction,
+        refId: advance.id,
       })
     }
 
@@ -680,12 +776,13 @@ export async function createPayrollRun(
 
     const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     await sql`
-      INSERT INTO payroll_run_items (id, run_id, tenant_id, staff_id, staff_name, basic_salary, earnings, deductions, gross_pay, total_deductions, net_pay, paye_tax, pension_employee, pension_employer, status, payslip_generated, month)
+      INSERT INTO payroll_run_items (id, run_id, tenant_id, staff_id, staff_name, basic_salary, earnings, deductions, gross_pay, total_deductions, net_pay, paye_tax, pension_employee, pension_employer, nhf, nhis, status, payslip_generated, month, year)
       VALUES (${itemId}, ${runId}, ${tenantId}, ${staffId}, ${staff.name}, ${basicSalary},
         ${JSON.stringify(earnings)}::jsonb, ${JSON.stringify(computed.allDeductions)}::jsonb,
         ${computed.grossPay}, ${computed.totalDeductions}, ${computed.netPay},
         ${computed.payeTax}, ${computed.pensionEmployee}, ${computed.pensionEmployer},
-        'pending', false, ${month})
+        ${computed.nhf}, ${computed.nhis},
+        'pending', false, ${month}, ${year})
     `
 
     totalGross += computed.grossPay
@@ -695,8 +792,8 @@ export async function createPayrollRun(
 
   // Create the run record
   const result = await sql`
-    INSERT INTO payroll_runs (id, tenant_id, schedule_id, name, month, year, total_staff, total_gross, total_deductions, total_net, status, run_date)
-    VALUES (${runId}, ${tenantId}, ${scheduleId}, ${runName}, ${month}, ${year}, ${staffRows.length}, ${totalGross}, ${totalDeductions}, ${totalNet}, 'draft', NOW())
+    INSERT INTO payroll_runs (id, tenant_id, schedule_id, name, month, year, total_staff, total_gross, total_deductions, total_net, status, run_date, run_type)
+    VALUES (${runId}, ${tenantId}, ${scheduleId}, ${runName}, ${month}, ${year}, ${staffRows.length}, ${totalGross}, ${totalDeductions}, ${totalNet}, 'draft', NOW(), ${options?.supplementary ? 'supplementary' : 'regular'})
     RETURNING *
   `
 
@@ -710,19 +807,28 @@ export async function createPayrollRun(
     `
   }
 
+  await logPayrollAudit(tenantId, runId, 'run_created', options?.actor || 'system', {
+    month, year, totalStaff: staffRows.length, totalNet,
+  })
+
   return rowToRun(result.rows[0])
 }
 
-export async function submitRunForApproval(runId: string, tenantId: string): Promise<PayrollRun | null> {
-  try {
-    const result = await sql`
-      UPDATE payroll_runs SET status = 'pending_approval', updated_at = NOW() WHERE id = ${runId} AND tenant_id = ${tenantId} AND status = 'draft' RETURNING *
-    `
-    return result.rows[0] ? rowToRun(result.rows[0]) : null
-  } catch (error) {
-    console.error('Error submitting run for approval:', error)
-    return null
-  }
+export async function submitRunForApproval(runId: string, tenantId: string, actor?: string): Promise<PayrollRun | null> {
+  const result = await sql`
+    UPDATE payroll_runs SET status = 'pending_approval', updated_at = NOW() WHERE id = ${runId} AND tenant_id = ${tenantId} AND status = 'draft' RETURNING *
+  `
+  if (result.rows.length === 0) return null
+
+  // Reset the approval chain — a rejected run resubmitted must get fresh approvals
+  await sql`
+    UPDATE payroll_approvals
+    SET status = 'pending', approver_id = NULL, approver_name = NULL, comment = NULL, approved_at = NULL
+    WHERE run_id = ${runId} AND tenant_id = ${tenantId}
+  `
+
+  await logPayrollAudit(tenantId, runId, 'submitted_for_approval', actor || 'system')
+  return rowToRun(result.rows[0])
 }
 
 export async function approveRun(
@@ -734,6 +840,18 @@ export async function approveRun(
   tenantId: string
 ): Promise<{ run: PayrollRun | null; approval: PayrollApproval | null; allApprovals: PayrollApproval[] }> {
   try {
+    // Segregation of duties: the same user cannot approve two levels of a run
+    if (approverId) {
+      const dup = await sql`
+        SELECT id FROM payroll_approvals
+        WHERE run_id = ${runId} AND tenant_id = ${tenantId} AND approver_id = ${approverId} AND status = 'approved'
+        LIMIT 1
+      `
+      if (dup.rows.length > 0) {
+        throw new PayrollError('You have already approved this run — a different approver must sign off each level')
+      }
+    }
+
     // Find the pending approval for this role
     const apprResult = await sql`
       SELECT * FROM payroll_approvals WHERE run_id = ${runId} AND tenant_id = ${tenantId} AND approver_role = ${approverRole} AND status = 'pending' ORDER BY approval_level LIMIT 1
@@ -760,12 +878,15 @@ export async function approveRun(
         UPDATE payroll_runs SET status = 'approved', approved_by = ${approverName}, approved_at = NOW(), updated_at = NOW()
         WHERE id = ${runId} AND tenant_id = ${tenantId} RETURNING *
       `
+      await logPayrollAudit(tenantId, runId, 'run_approved', approverName || approverId, { level: 'final', role: approverRole })
       return { run: runResult.rows[0] ? rowToRun(runResult.rows[0]) : null, approval: rowToApproval(updatedAppr.rows[0]), allApprovals }
     }
 
+    await logPayrollAudit(tenantId, runId, 'approval_step', approverName || approverId, { role: approverRole })
     const runResult = await sql`SELECT * FROM payroll_runs WHERE id = ${runId} AND tenant_id = ${tenantId}`
     return { run: runResult.rows[0] ? rowToRun(runResult.rows[0]) : null, approval: rowToApproval(updatedAppr.rows[0]), allApprovals }
   } catch (error) {
+    if (error instanceof PayrollError) throw error
     console.error('Error approving run:', error)
     return { run: null, approval: null, allApprovals: [] }
   }
@@ -790,6 +911,7 @@ export async function rejectRun(
       UPDATE payroll_runs SET status = 'draft', failure_reason = ${'Rejected by ' + approverRole + ': ' + comment}, updated_at = NOW()
       WHERE id = ${runId} AND tenant_id = ${tenantId} RETURNING *
     `
+    await logPayrollAudit(tenantId, runId, 'run_rejected', approverName || approverId, { role: approverRole, comment })
     return { run: runResult.rows[0] ? rowToRun(runResult.rows[0]) : null, approval: rowToApproval(apprResult.rows[0]) }
   } catch (error) {
     console.error('Error rejecting run:', error)
@@ -811,14 +933,69 @@ export async function fetchApprovals(runId: string, tenantId: string): Promise<P
 
 // ── Disbursement ─────────────────────────────────────────────────────────────
 
-export async function disburseRun(runId: string, tenantId: string): Promise<{ success: boolean; run: PayrollRun | null; error?: string }> {
+// Mark advance repayments for a paid item — increments installments only for
+// advances whose deduction was actually taken in this run item, and clears the
+// advance when fully repaid.
+async function applyAdvanceRepayments(item: PayrollRunItem, tenantId: string): Promise<void> {
+  const deductedIds = item.deductions
+    .filter(d => d.category === 'salary_advance' && d.refId)
+    .map(d => d.refId as string)
+  if (deductedIds.length === 0) return
+
+  for (const advId of deductedIds) {
+    const adv = await sql`
+      SELECT * FROM salary_advances
+      WHERE id = ${advId} AND tenant_id = ${tenantId} AND status = 'active' AND installments_paid < installments
+    `
+    if (adv.rows.length === 0) continue
+    const row = adv.rows[0]
+    const paid = (row.installments_paid || 0) + 1
+    const repaid = Number(row.total_repaid || 0) + Number(row.monthly_deduction || 0)
+    const cleared = paid >= row.installments
+    await sql`
+      UPDATE salary_advances
+      SET installments_paid = ${paid},
+          total_repaid = ${repaid},
+          status = ${cleared ? 'cleared' : 'active'},
+          updated_at = NOW()
+      WHERE id = ${advId} AND tenant_id = ${tenantId}
+    `
+  }
+}
+
+export async function disburseRun(
+  runId: string,
+  tenantId: string,
+  options?: { manualConfirmation?: boolean; manualReference?: string; actor?: string }
+): Promise<{ success: boolean; run: PayrollRun | null; error?: string; code?: string }> {
   try {
-    // Update run status to disbursing
-    await sql`UPDATE payroll_runs SET status = 'disbursing', updated_at = NOW() WHERE id = ${runId} AND tenant_id = ${tenantId}`
+    // Atomic gate: only an approved run can be disbursed, exactly once.
+    // The status flip IS the lock — a second concurrent call gets 0 rows.
+    // 'failed' allows retrying only the failed items; a 'disbursing' lock older
+    // than 10 minutes is treated as a crashed attempt and may be retaken.
+    const gate = await sql`
+      UPDATE payroll_runs SET status = 'disbursing', updated_at = NOW()
+      WHERE id = ${runId} AND tenant_id = ${tenantId}
+        AND (status IN ('approved', 'failed')
+          OR (status = 'disbursing' AND updated_at < NOW() - INTERVAL '10 minutes'))
+      RETURNING id
+    `
+    if (gate.rows.length === 0) {
+      const current = await sql`SELECT status FROM payroll_runs WHERE id = ${runId} AND tenant_id = ${tenantId}`
+      const status = current.rows[0]?.status
+      return {
+        success: false,
+        run: null,
+        error: status
+          ? `Run cannot be disbursed — current status is '${status}' (must be approved first)`
+          : 'Run not found',
+      }
+    }
 
     // Fetch run items
     const items = await fetchRunItems(runId, tenantId)
     if (items.length === 0) {
+      await sql`UPDATE payroll_runs SET status = 'approved' WHERE id = ${runId} AND tenant_id = ${tenantId}`
       return { success: false, run: null, error: 'No items in this run' }
     }
 
@@ -826,10 +1003,21 @@ export async function disburseRun(runId: string, tenantId: string): Promise<{ su
     const paymentSecret = process.env.PAYSTACK_SECRET_KEY || process.env.FLUTTERWAVE_SECRET_KEY
     const usePaymentGateway = !!paymentSecret
 
+    if (!usePaymentGateway && !options?.manualConfirmation) {
+      await sql`UPDATE payroll_runs SET status = 'approved' WHERE id = ${runId} AND tenant_id = ${tenantId}`
+      return {
+        success: false,
+        run: null,
+        error: 'No payment gateway configured. Confirm that salaries were paid outside the app (cash/bank) to record them as paid.',
+        code: 'MANUAL_CONFIRMATION_REQUIRED',
+      }
+    }
+
     let successCount = 0
     let failCount = 0
 
     for (const item of items) {
+      if (item.status === 'paid') { successCount++; continue }
       if (usePaymentGateway) {
         // Attempt actual transfer via payment gateway
         try {
@@ -839,6 +1027,7 @@ export async function disburseRun(runId: string, tenantId: string): Promise<{ su
               UPDATE payroll_run_items SET status = 'paid', payment_reference = ${transferResult.reference}, payment_date = NOW()
               WHERE id = ${item.id}
             `
+            await applyAdvanceRepayments(item, tenantId)
             successCount++
           } else {
             await sql`
@@ -855,12 +1044,13 @@ export async function disburseRun(runId: string, tenantId: string): Promise<{ su
           failCount++
         }
       } else {
-        // No payment gateway configured — mark as paid (manual disbursement mode)
-        const ref = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        // Manual disbursement — explicitly confirmed by the admin
+        const ref = options?.manualReference || `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         await sql`
           UPDATE payroll_run_items SET status = 'paid', payment_reference = ${ref}, payment_date = NOW()
           WHERE id = ${item.id}
         `
+        await applyAdvanceRepayments(item, tenantId)
         successCount++
       }
     }
@@ -873,6 +1063,9 @@ export async function disburseRun(runId: string, tenantId: string): Promise<{ su
       `
       // Auto-generate payslips
       await generatePayslipsForRun(runId, tenantId)
+      await logPayrollAudit(tenantId, runId, 'disbursed', options?.actor || 'system', {
+        mode: usePaymentGateway ? 'gateway' : 'manual', paid: successCount,
+      })
       return { success: true, run: rowToRun(result.rows[0]) }
     } else if (successCount > 0) {
       const result = await sql`
@@ -880,12 +1073,16 @@ export async function disburseRun(runId: string, tenantId: string): Promise<{ su
         WHERE id = ${runId} AND tenant_id = ${tenantId} RETURNING *
       `
       await generatePayslipsForRun(runId, tenantId)
+      await logPayrollAudit(tenantId, runId, 'disbursed_partial', options?.actor || 'system', {
+        paid: successCount, failed: failCount,
+      })
       return { success: true, run: rowToRun(result.rows[0]) }
     } else {
       const result = await sql`
         UPDATE payroll_runs SET status = 'failed', failure_reason = 'All transfers failed', updated_at = NOW()
         WHERE id = ${runId} AND tenant_id = ${tenantId} RETURNING *
       `
+      await logPayrollAudit(tenantId, runId, 'disburse_failed', options?.actor || 'system')
       return { success: false, run: rowToRun(result.rows[0]), error: 'All transfers failed' }
     }
   } catch (error) {
@@ -908,9 +1105,10 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
       const staffResult = await sql`SELECT * FROM staff WHERE id = ${item.staffId} AND tenant_id = ${tenantId}`
       const staff = staffResult.rows[0]
       if (!staff) return { success: false, reference, error: 'Staff not found' }
+      if (!staff.account_number || !staff.bank_code) {
+        return { success: false, reference, error: 'Staff bank details (account number/bank code) not on file' }
+      }
 
-      // In production, this would call Paystack Transfer API
-      // For now, we simulate the call structure
       const response = await fetch('https://api.paystack.co/transfer', {
         method: 'POST',
         headers: {
@@ -920,7 +1118,7 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
         body: JSON.stringify({
           source: 'balance',
           amount: Math.round(item.netPay * 100), // Paystack uses kobo
-          recipient: staff.bank_code ? { account_number: staff.account_number, bank_code: staff.bank_code } : undefined,
+          recipient: { account_number: staff.account_number, bank_code: staff.bank_code },
           reason: `Salary ${item.staffName}`,
           reference,
         }),
@@ -942,6 +1140,9 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
       const staffResult = await sql`SELECT * FROM staff WHERE id = ${item.staffId} AND tenant_id = ${tenantId}`
       const staff = staffResult.rows[0]
       if (!staff) return { success: false, reference, error: 'Staff not found' }
+      if (!staff.account_number || !staff.bank_code) {
+        return { success: false, reference, error: 'Staff bank details (account number/bank code) not on file' }
+      }
 
       const response = await fetch('https://api.flutterwave.com/v3/transfers', {
         method: 'POST',
@@ -1026,6 +1227,55 @@ export async function markPayslipEmailed(payslipId: string): Promise<void> {
   }
 }
 
+// Sends the payslip to the staff member's email; only marks `emailed` on success.
+export async function emailPayslip(payslipId: string, tenantId: string): Promise<{ sent: boolean; error?: string }> {
+  const result = await sql<any>`
+    SELECT p.*, s.email AS staff_email FROM payslips p
+    LEFT JOIN staff s ON s.id = p.staff_id AND s.tenant_id = p.tenant_id
+    WHERE p.id = ${payslipId} AND p.tenant_id = ${tenantId}
+  `
+  const row = result.rows[0]
+  if (!row) return { sent: false, error: 'Payslip not found' }
+  if (!row.staff_email) return { sent: false, error: 'No email address on file for this staff member' }
+
+  const payslip = rowToPayslip(row)
+  const fmt = (n: number) => `₦${Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`
+  const earningRows = payslip.earnings.map(e => `<tr><td>${e.label}</td><td align="right">${fmt(e.amount)}</td></tr>`).join('')
+  const deductionRows = payslip.deductions.map(d => `<tr><td>${d.label}</td><td align="right">${fmt(d.amount)}</td></tr>`).join('')
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">
+      <h2 style="color:#1e3a5f">Payslip — ${payslip.month} ${payslip.year}</h2>
+      <p>Dear ${payslip.staffName},</p>
+      <p>Your payslip for <strong>${payslip.month} ${payslip.year}</strong> is below.</p>
+      <table style="width:100%;border-collapse:collapse" cellpadding="6">
+        <tr style="background:#f1f5f9"><td><strong>Basic Salary</strong></td><td align="right"><strong>${fmt(payslip.basicSalary)}</strong></td></tr>
+        ${earningRows}
+        <tr style="background:#f1f5f9"><td><strong>Gross Pay</strong></td><td align="right"><strong>${fmt(payslip.grossPay)}</strong></td></tr>
+        ${deductionRows}
+        <tr style="background:#ecfdf5"><td><strong>Net Pay</strong></td><td align="right"><strong>${fmt(payslip.netPay)}</strong></td></tr>
+      </table>
+      <p style="color:#64748b;font-size:12px;margin-top:24px">This is an automated payslip. Please contact the bursar's office with any questions.</p>
+    </div>
+  `
+
+  try {
+    const { sendEmail } = await import('../../_lib/email.js')
+    const res = await sendEmail({
+      to: row.staff_email,
+      subject: `Payslip — ${payslip.month} ${payslip.year}`,
+      html,
+    })
+    if ((res as any)?.success === false) {
+      return { sent: false, error: (res as any).error || 'Email send failed' }
+    }
+    await sql`UPDATE payslips SET emailed = true WHERE id = ${payslipId}`
+    return { sent: true }
+  } catch (error) {
+    return { sent: false, error: String(error instanceof Error ? error.message : error) }
+  }
+}
+
 // ── Salary Advances ──────────────────────────────────────────────────────────
 
 export async function fetchAdvances(tenantId: string, staffId?: string, status?: string): Promise<SalaryAdvance[]> {
@@ -1052,6 +1302,11 @@ export async function createAdvance(data: {
   reason: string
   installments: number
 }, tenantId: string): Promise<SalaryAdvance> {
+  const staffCheck = await sql`SELECT name FROM staff WHERE id = ${data.staffId} AND tenant_id = ${tenantId}`
+  if (staffCheck.rows.length === 0) {
+    throw new PayrollError('Staff member not found in this tenant')
+  }
+
   const id = `adv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   const monthlyDeduction = data.installments > 0 ? data.amount / data.installments : data.amount
   const result = await sql`
@@ -1112,6 +1367,55 @@ export async function updateTaxConfig(id: string, data: Partial<TaxConfig>, tena
   }
 }
 
+// Creates a tenant-owned tax configuration. Deactivates any previous config so
+// a tenant has exactly one active config at a time.
+export async function createTaxConfig(data: Partial<TaxConfig>, tenantId: string): Promise<TaxConfig> {
+  await ensurePayrollTables()
+
+  await sql`
+    UPDATE tax_config SET is_active = false, updated_at = NOW()
+    WHERE tenant_id = ${tenantId} AND is_active = true
+  `
+
+  const id = `tax_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const result = await sql`
+    INSERT INTO tax_config (
+      id, tenant_id, tax_year,
+      cratum_allowance, cratum_percentage,
+      pension_rate_employee, pension_rate_employer,
+      nhf_rate, nhis_rate, brackets, is_active
+    ) VALUES (
+      ${id}, ${tenantId}, ${data.taxYear || new Date().getFullYear()},
+      ${data.cratumAllowance ?? 200000}, ${data.cratumPercentage ?? 1.0},
+      ${data.pensionRateEmployee ?? 8.0}, ${data.pensionRateEmployer ?? 10.0},
+      ${data.nhfRate ?? 2.5}, ${data.nhisRate ?? 1.5},
+      ${data.brackets?.length ? JSON.stringify(data.brackets) : '[]'}::jsonb,
+      true
+    )
+    RETURNING *
+  `
+  return rowToTaxConfig(result.rows[0])
+}
+
+export async function fetchAuditLog(runId: string, tenantId: string): Promise<PayrollAuditEntry[]> {
+  try {
+    const result = await sql`
+      SELECT * FROM payroll_audit_log WHERE run_id = ${runId} AND tenant_id = ${tenantId} ORDER BY created_at ASC
+    `
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      runId: r.run_id,
+      action: r.action,
+      actor: r.actor,
+      details: r.details || {},
+      createdAt: r.created_at?.toISOString?.() || String(r.created_at),
+    }))
+  } catch (error) {
+    console.error('Error fetching payroll audit log:', error)
+    return []
+  }
+}
+
 // ── Compliance Reports ───────────────────────────────────────────────────────
 
 export async function generateComplianceReport(tenantId: string, year: number): Promise<{
@@ -1125,18 +1429,27 @@ export async function generateComplianceReport(tenantId: string, year: number): 
   monthlyBreakdown: { month: string; gross: number; paye: number; pension: number; nhf: number; nhis: number }[]
 }> {
   try {
+    // Only items from runs that actually paid out count toward statutory
+    // reporting — draft/pending/failed runs would inflate the figures.
     const result = await sql`
       SELECT
-        month,
-        SUM(gross_pay) as gross,
-        SUM(paye_tax) as paye,
-        SUM(pension_employee) as pension_emp,
-        SUM(pension_employer) as pension_er,
-        COUNT(DISTINCT staff_id) as staff_count
-      FROM payroll_run_items
-      WHERE tenant_id = ${tenantId}
-      GROUP BY month
-      ORDER BY month
+        ri.month,
+        SUM(ri.gross_pay) as gross,
+        SUM(ri.paye_tax) as paye,
+        SUM(ri.pension_employee) as pension_emp,
+        SUM(ri.pension_employer) as pension_er,
+        SUM(ri.nhf) as nhf,
+        SUM(ri.nhis) as nhis,
+        COUNT(DISTINCT ri.staff_id) as staff_count,
+        MIN(r.run_date) as first_run_date
+      FROM payroll_run_items ri
+      JOIN payroll_runs r ON r.id = ri.run_id AND r.tenant_id = ri.tenant_id
+      WHERE ri.tenant_id = ${tenantId}
+        AND r.year = ${year}
+        AND r.status = 'paid'
+        AND ri.status = 'paid'
+      GROUP BY ri.month
+      ORDER BY MIN(r.run_date)
     `
 
     const monthlyBreakdown = result.rows.map((r: any) => ({
@@ -1144,8 +1457,8 @@ export async function generateComplianceReport(tenantId: string, year: number): 
       gross: Number(r.gross) || 0,
       paye: Number(r.paye) || 0,
       pension: (Number(r.pension_emp) || 0) + (Number(r.pension_er) || 0),
-      nhf: 0,
-      nhis: 0,
+      nhf: Number(r.nhf) || 0,
+      nhis: Number(r.nhis) || 0,
     }))
 
     const totalGross = monthlyBreakdown.reduce((s, m) => s + m.gross, 0)
@@ -1158,8 +1471,8 @@ export async function generateComplianceReport(tenantId: string, year: number): 
       totalPAYE,
       totalPensionEmployee,
       totalPensionEmployer,
-      totalNHF: 0,
-      totalNHIS: 0,
+      totalNHF: result.rows.reduce((s: number, r: any) => s + (Number(r.nhf) || 0), 0),
+      totalNHIS: result.rows.reduce((s: number, r: any) => s + (Number(r.nhis) || 0), 0),
       staffCount: result.rows.reduce((max: number, r: any) => Math.max(max, Number(r.staff_count) || 0), 0),
       monthlyBreakdown,
     }
@@ -1224,6 +1537,9 @@ function rowToRunItem(r: any): PayrollRunItem {
     status: r.status, paymentReference: r.payment_reference,
     paymentDate: r.payment_date?.toISOString?.() || null,
     failureReason: r.failure_reason, payslipGenerated: r.payslip_generated,
+    nhf: r.nhf != null ? Number(r.nhf) : undefined,
+    nhis: r.nhis != null ? Number(r.nhis) : undefined,
+    year: r.year != null ? Number(r.year) : undefined,
     createdAt: r.created_at?.toISOString?.() || String(r.created_at),
   }
 }

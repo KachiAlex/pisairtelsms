@@ -88,6 +88,9 @@ export interface PayrollRunItem {
   paymentDate: string | null
   failureReason: string | null
   payslipGenerated: boolean
+  nhf?: number
+  nhis?: number
+  year?: number
 }
 
 export interface PayrollApproval {
@@ -100,6 +103,15 @@ export interface PayrollApproval {
   status: 'pending' | 'approved' | 'rejected'
   comment: string | null
   approvedAt: string | null
+}
+
+export interface PayrollAuditEntry {
+  id: string
+  runId: string | null
+  action: string
+  actor: string
+  details: Record<string, unknown>
+  createdAt: string
 }
 
 export interface Payslip {
@@ -184,11 +196,22 @@ async function apiPost(resource: string, body: any): Promise<any> {
   return res.json()
 }
 
+export class PayrollApiError extends Error {
+  code?: string
+  constructor(message: string, code?: string) {
+    super(message)
+    this.code = code
+  }
+}
+
 async function apiPut(resource: string, id: string, body: any): Promise<any> {
   const res = await fetch(`${BASE}?resource=${resource}&id=${id}`, {
     method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'API error')
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}))
+    throw new PayrollApiError(payload.error || 'API error', payload.code)
+  }
   return res.json()
 }
 
@@ -215,16 +238,18 @@ export const payrollApi = {
 
   // Runs
   getRuns: (status?: string) => apiGet('runs', status ? { status } : undefined).then(r => r.data as PayrollRun[]),
-  getRun: (id: string) => apiGet('runs', { id }).then(r => r.data as PayrollRun & { items: PayrollRunItem[]; approvals: PayrollApproval[] }),
-  createRun: (month: string, year: number, scheduleId?: string) => apiPost('runs', { month, year, scheduleId }).then(r => r.data as PayrollRun),
+  getRun: (id: string) => apiGet('runs', { id }).then(r => r.data as PayrollRun & { items: PayrollRunItem[]; approvals: PayrollApproval[]; auditLog: PayrollAuditEntry[] }),
+  createRun: (month: string, year: number, scheduleId?: string, supplementary?: boolean) => apiPost('runs', { month, year, scheduleId, supplementary }).then(r => r.data as PayrollRun),
   submitRun: (id: string) => apiPut('runs', id, { action: 'submit' }).then(r => r.data as PayrollRun),
   approveRun: (id: string, approverRole: string, comment?: string) => apiPut('runs', id, { action: 'approve', approverRole, comment }).then(r => r.data),
   rejectRun: (id: string, approverRole: string, comment: string) => apiPut('runs', id, { action: 'reject', approverRole, comment }).then(r => r.data),
-  disburseRun: (id: string) => apiPut('runs', id, { action: 'disburse' }).then(r => r),
+  disburseRun: (id: string, options?: { manualConfirmation?: boolean; manualReference?: string }) =>
+    apiPut('runs', id, { action: 'disburse', manualConfirmation: options?.manualConfirmation, manualReference: options?.manualReference }).then(r => r),
 
   // Payslips
   getPayslips: (staffId?: string) => apiGet('payslips', staffId ? { staffId } : undefined).then(r => r.data as Payslip[]),
   generatePayslips: (runId: string) => apiPost('payslips', { runId }).then(r => r.data),
+  emailPayslip: (id: string) => apiPut('payslips', id, { action: 'email' }),
 
   // Advances
   getAdvances: (staffId?: string, status?: string) => apiGet('advances', { ...(staffId ? { staffId } : {}), ...(status ? { status } : {}) }).then(r => r.data as SalaryAdvance[]),
@@ -234,6 +259,7 @@ export const payrollApi = {
 
   // Tax
   getTaxConfig: () => apiGet('tax').then(r => r.data as TaxConfig | null),
+  createTaxConfig: (data: Partial<TaxConfig>) => apiPost('tax', data).then(r => r.data as TaxConfig),
   updateTaxConfig: (id: string, data: Partial<TaxConfig>) => apiPut('tax', id, data).then(r => r.data as TaxConfig),
 
   // Compliance

@@ -21,6 +21,9 @@ interface Staff {
   salary?: number
   qualification?: string
   gender?: string
+  accountNumber?: string
+  bankCode?: string
+  bankName?: string
 }
 
 const DEPARTMENTS = ['Teaching', 'Administration', 'Finance', 'Security', 'Maintenance', 'ICT', 'Library', 'Health']
@@ -53,7 +56,8 @@ export function StaffDirectory() {
   const [resetSaving, setResetSaving] = useState(false)
   const [form, setForm] = useState({
     name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '',
-    hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active', defaultPassword: ''
+    hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active', defaultPassword: '',
+    accountNumber: '', bankCode: '', bankName: ''
   })
 
   useEffect(() => { fetchStaff() }, [])
@@ -75,7 +79,7 @@ export function StaffDirectory() {
 
   const openAdd = () => {
     setEditingStaff(null)
-    setForm({ name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '', hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active', defaultPassword: '' })
+    setForm({ name: '', role: ROLES[0], department: DEPARTMENTS[0], email: '', phone: '', hireDate: '', salary: '', qualification: '', gender: 'male', status: 'active', defaultPassword: '', accountNumber: '', bankCode: '', bankName: '' })
     setShowForm(true)
   }
 
@@ -85,7 +89,8 @@ export function StaffDirectory() {
       name: s.name, role: s.role, department: s.department,
       email: s.email, phone: s.phone, hireDate: s.hireDate,
       salary: s.salary?.toString() || '', qualification: s.qualification || '',
-      gender: s.gender || '', status: s.status, defaultPassword: ''
+      gender: s.gender || '', status: s.status, defaultPassword: '',
+      accountNumber: s.accountNumber || '', bankCode: s.bankCode || '', bankName: s.bankName || ''
     })
     setShowForm(true)
   }
@@ -326,6 +331,18 @@ export function StaffDirectory() {
             <div>
               <Label>Qualification</Label>
               <Input value={form.qualification} onChange={e => setForm(f => ({ ...f, qualification: e.target.value }))} placeholder="B.Ed, M.Sc, etc." />
+            </div>
+            <div>
+              <Label>Bank Name</Label>
+              <Input value={form.bankName} onChange={e => setForm(f => ({ ...f, bankName: e.target.value }))} placeholder="e.g. GTBank, Zenith" />
+            </div>
+            <div>
+              <Label>Bank Code</Label>
+              <Input value={form.bankCode} onChange={e => setForm(f => ({ ...f, bankCode: e.target.value }))} placeholder="e.g. 058 (required for transfers)" />
+            </div>
+            <div>
+              <Label>Account Number</Label>
+              <Input value={form.accountNumber} onChange={e => setForm(f => ({ ...f, accountNumber: e.target.value }))} placeholder="10-digit NUBAN" />
             </div>
             {!editingStaff && (
               <div className="col-span-2">

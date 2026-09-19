@@ -1,23 +1,25 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import {
   ensurePayrollTables,
+  PayrollError,
   // Schedules
   fetchSchedules, createSchedule, updateSchedule, deleteSchedule,
   // Rules
   fetchRules, createRule, deleteRule,
   // Runs
   fetchRuns, fetchRun, fetchRunItems, createPayrollRun, submitRunForApproval,
-  approveRun, rejectRun, fetchApprovals, disburseRun,
+  approveRun, rejectRun, fetchApprovals, disburseRun, fetchAuditLog,
   // Payslips
-  fetchPayslips, generatePayslipsForRun, markPayslipEmailed,
+  fetchPayslips, generatePayslipsForRun, emailPayslip,
   // Advances
   fetchAdvances, createAdvance, approveAdvance, rejectAdvance,
   // Tax
-  getTaxConfig, updateTaxConfig,
+  getTaxConfig, updateTaxConfig, createTaxConfig,
   // Compliance
   generateComplianceReport,
 } from './_lib/payroll.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { sql } from '../_lib/sql.js'
 
 function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST,PUT,DELETE')
@@ -32,12 +34,43 @@ function parseBody(req: ApiRequest) {
   return req.body
 }
 
+// Maps a staff member's free-text role to the approval-chain role it satisfies.
+// tenant_admin may act at any level (segregation of duties in the lib prevents
+// one person approving multiple levels of the same run).
+const APPROVER_ROLE_KEYWORDS: Record<string, string[]> = {
+  hr_admin: ['hr', 'human resource', 'admin'],
+  principal: ['principal', 'head', 'director'],
+  bursar: ['bursar', 'accountant', 'finance', 'accounts'],
+}
+
+async function resolveApproverRoles(decoded: { userId?: string; sub?: string; staffId?: string; email?: string; role?: string }, tenantId: string): Promise<string[]> {
+  if (decoded.role === 'tenant_admin' || decoded.role === 'super_admin') {
+    return Object.keys(APPROVER_ROLE_KEYWORDS)
+  }
+  const userId = decoded.staffId || decoded.userId || decoded.sub || ''
+  const result = await sql`
+    SELECT role FROM staff
+    WHERE tenant_id = ${tenantId} AND (id = ${userId} OR staff_id = ${userId} OR email = ${decoded.email || ''})
+    LIMIT 1
+  `
+  const staffRole = String(result.rows[0]?.role || '').toLowerCase()
+  if (!staffRole) return []
+  return Object.entries(APPROVER_ROLE_KEYWORDS)
+    .filter(([, keywords]) => keywords.some(k => staffRole.includes(k)))
+    .map(([role]) => role)
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const actualTenantId = decoded.tenantId || 'default-tenant'
-  const { resource, id, staffId, status, year, runId } = req.query
+  // Payroll is tenant-scoped financial data — a missing tenant claim is a hard failure
+  if (!decoded.tenantId) {
+    return res.status(401).json({ error: 'Authenticated tenant context is required' })
+  }
+  const actualTenantId = decoded.tenantId
+  const actor = decoded.email || decoded.userId || decoded.sub || 'unknown'
+  const { resource, id, staffId, status, year } = req.query
 
   // ── Schedules ────────────────────────────────────────────────────────────
   if (resource === 'schedules') {
@@ -79,8 +112,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!body?.staffId || !body?.category || !body?.label) {
         return res.status(400).json({ error: 'staffId, category, and label are required' })
       }
-      const rule = await createRule(body, actualTenantId)
-      return res.status(201).json({ data: rule })
+      try {
+        const rule = await createRule(body, actualTenantId)
+        return res.status(201).json({ data: rule })
+      } catch (err) {
+        if (err instanceof PayrollError) return res.status(400).json({ error: err.message })
+        throw err
+      }
     }
     if (req.method === 'DELETE') {
       if (!id) return res.status(400).json({ error: 'Rule ID is required' })
@@ -99,7 +137,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         if (!run) return res.status(404).json({ error: 'Run not found' })
         const items = await fetchRunItems(id as string, actualTenantId)
         const approvals = await fetchApprovals(id as string, actualTenantId)
-        return res.status(200).json({ data: { ...run, items, approvals } })
+        const auditLog = await fetchAuditLog(id as string, actualTenantId)
+        return res.status(200).json({ data: { ...run, items, approvals, auditLog } })
       }
       const runs = await fetchRuns(actualTenantId, status as string | undefined)
       return res.status(200).json({ data: runs })
@@ -110,9 +149,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ error: 'month and year are required' })
       }
       try {
-        const run = await createPayrollRun(body.month, body.year, body.scheduleId || null, actualTenantId)
+        const run = await createPayrollRun(body.month, Number(body.year), body.scheduleId || null, actualTenantId, {
+          supplementary: body.supplementary === true,
+          actor,
+        })
         return res.status(201).json({ data: run })
       } catch (err) {
+        if (err instanceof PayrollError) return res.status(409).json({ error: err.message })
         return res.status(400).json({ error: String(err instanceof Error ? err.message : err) })
       }
     }
@@ -122,23 +165,49 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!body?.action) return res.status(400).json({ error: 'action is required' })
 
       if (body.action === 'submit') {
-        const run = await submitRunForApproval(id as string, actualTenantId)
+        const run = await submitRunForApproval(id as string, actualTenantId, actor)
         if (!run) return res.status(400).json({ error: 'Run cannot be submitted (must be in draft status)' })
         return res.status(200).json({ data: run })
       }
-      if (body.action === 'approve') {
-        const result = await approveRun(id as string, decoded.userId || decoded.sub || '', decoded.email || '', body.approverRole || 'tenant_admin', body.comment || null, actualTenantId)
-        if (!result.run) return res.status(400).json({ error: 'Approval failed' })
-        return res.status(200).json({ data: result })
-      }
-      if (body.action === 'reject') {
-        const result = await rejectRun(id as string, decoded.userId || decoded.sub || '', decoded.email || '', body.approverRole || 'tenant_admin', body.comment || 'Rejected', actualTenantId)
-        if (!result.run) return res.status(400).json({ error: 'Rejection failed' })
-        return res.status(200).json({ data: result })
+      if (body.action === 'approve' || body.action === 'reject') {
+        // The approver role is validated against the authenticated user's staff
+        // role — the request body only selects which level they are acting on.
+        const requestedRole = body.approverRole
+        if (!requestedRole) return res.status(400).json({ error: 'approverRole is required' })
+        const allowedRoles = await resolveApproverRoles(decoded, actualTenantId)
+        if (!allowedRoles.includes(requestedRole)) {
+          return res.status(403).json({ error: `You are not authorized to approve as '${requestedRole}'` })
+        }
+        try {
+          const fn = body.action === 'approve' ? approveRun : rejectRun
+          const result = await fn(
+            id as string,
+            decoded.userId || decoded.sub || '',
+            decoded.email || '',
+            requestedRole,
+            body.comment || (body.action === 'reject' ? 'Rejected' : null),
+            actualTenantId
+          )
+          if (!result.run) {
+            return res.status(400).json({ error: `No pending '${requestedRole}' approval found for this run` })
+          }
+          return res.status(200).json({ data: result })
+        } catch (err) {
+          if (err instanceof PayrollError) return res.status(409).json({ error: err.message })
+          throw err
+        }
       }
       if (body.action === 'disburse') {
-        const result = await disburseRun(id as string, actualTenantId)
-        return res.status(result.success ? 200 : 400).json({ data: result.run, error: result.error })
+        const result = await disburseRun(id as string, actualTenantId, {
+          manualConfirmation: body.manualConfirmation === true,
+          manualReference: body.manualReference || null,
+          actor,
+        })
+        return res.status(result.success ? 200 : 400).json({
+          data: result.run,
+          error: result.error,
+          code: result.code,
+        })
       }
       return res.status(400).json({ error: 'Unknown action' })
     }
@@ -162,8 +231,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!id) return res.status(400).json({ error: 'Payslip ID is required' })
       const body = parseBody(req)
       if (body?.action === 'email') {
-        await markPayslipEmailed(id as string)
-        return res.status(200).json({ message: 'Payslip marked as emailed' })
+        const result = await emailPayslip(id as string, actualTenantId)
+        if (!result.sent) return res.status(400).json({ error: result.error || 'Failed to email payslip' })
+        return res.status(200).json({ message: 'Payslip emailed to staff member' })
       }
       return res.status(400).json({ error: 'Unknown action' })
     }
@@ -181,8 +251,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!body?.staffId || !body?.amount) {
         return res.status(400).json({ error: 'staffId and amount are required' })
       }
-      const advance = await createAdvance(body, actualTenantId)
-      return res.status(201).json({ data: advance })
+      try {
+        const advance = await createAdvance(body, actualTenantId)
+        return res.status(201).json({ data: advance })
+      } catch (err) {
+        if (err instanceof PayrollError) return res.status(400).json({ error: err.message })
+        throw err
+      }
     }
     if (req.method === 'PUT') {
       if (!id) return res.status(400).json({ error: 'Advance ID is required' })
@@ -207,6 +282,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (req.method === 'GET') {
       const config = await getTaxConfig(actualTenantId)
       return res.status(200).json({ data: config })
+    }
+    if (req.method === 'POST') {
+      const body = parseBody(req)
+      if (!body) return res.status(400).json({ error: 'Request body is required' })
+      const config = await createTaxConfig(body, actualTenantId)
+      return res.status(201).json({ data: config })
     }
     if (req.method === 'PUT') {
       if (!id) return res.status(400).json({ error: 'Tax config ID is required' })

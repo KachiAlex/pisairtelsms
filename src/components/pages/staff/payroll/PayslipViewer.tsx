@@ -11,7 +11,9 @@ export function PayslipViewer() {
   const [payslips, setPayslips] = useState<Payslip[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null)
+  const [emailing, setEmailing] = useState<string | null>(null)
 
   const fetchPayslips = async () => {
     setLoading(true)
@@ -20,6 +22,18 @@ export function PayslipViewer() {
       setPayslips(data)
     } catch { setError('Failed to load payslips') }
     finally { setLoading(false) }
+  }
+
+  const handleEmail = async (p: Payslip) => {
+    setEmailing(p.id)
+    setError(null)
+    try {
+      await payrollApi.emailPayslip(p.id)
+      setNotice(`Payslip emailed to ${p.staffName}`)
+      fetchPayslips()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to email payslip')
+    } finally { setEmailing(null) }
   }
 
   useEffect(() => { fetchPayslips() }, [])
@@ -33,6 +47,15 @@ export function PayslipViewer() {
           <CardContent className="p-4 flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-red-600" />
             <p className="text-red-700 text-sm">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+      {notice && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Mail className="h-5 w-5 text-green-600" />
+            <p className="text-green-700 text-sm">{notice}</p>
+            <Button variant="ghost" size="sm" onClick={() => setNotice(null)} className="ml-auto">Dismiss</Button>
           </CardContent>
         </Card>
       )}
@@ -84,9 +107,14 @@ export function PayslipViewer() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedPayslip(p)}>
-                          <FileText className="w-4 h-4 mr-1" /> View
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedPayslip(p)}>
+                            <FileText className="w-4 h-4 mr-1" /> View
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleEmail(p)} disabled={emailing === p.id}>
+                            <Mail className="w-4 h-4 mr-1" /> {emailing === p.id ? 'Sending...' : p.emailed ? 'Resend' : 'Email'}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

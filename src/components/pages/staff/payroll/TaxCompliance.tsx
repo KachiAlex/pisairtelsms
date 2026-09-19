@@ -38,8 +38,16 @@ export function TaxCompliance() {
     if (!editConfig) return
     setSaving(true)
     try {
-      const updated = await payrollApi.updateTaxConfig(editConfig.id, editConfig)
+      let updated: TaxConfig
+      try {
+        updated = await payrollApi.updateTaxConfig(editConfig.id, editConfig)
+      } catch {
+        // The displayed config may belong to default-tenant (borrowed fallback)
+        // or not exist yet for this tenant — create a tenant-owned copy instead.
+        updated = await payrollApi.createTaxConfig(editConfig)
+      }
       setTaxConfig(updated)
+      setEditConfig(updated)
       setError(null)
     } catch { setError('Failed to save tax config') }
     finally { setSaving(false) }
@@ -197,6 +205,14 @@ export function TaxCompliance() {
                       <p className="text-xs text-gray-600">Total Pension (Employer)</p>
                       <p className="text-lg font-bold text-purple-600">{formatCurrency(report.totalPensionEmployer)}</p>
                     </div>
+                    <div className="bg-amber-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-600">Total NHF</p>
+                      <p className="text-lg font-bold text-amber-600">{formatCurrency(report.totalNHF)}</p>
+                    </div>
+                    <div className="bg-teal-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-600">Total NHIS</p>
+                      <p className="text-lg font-bold text-teal-600">{formatCurrency(report.totalNHIS)}</p>
+                    </div>
                   </div>
 
                   {report.monthlyBreakdown.length > 0 ? (
@@ -208,6 +224,8 @@ export function TaxCompliance() {
                             <TableHead className="text-right">Gross</TableHead>
                             <TableHead className="text-right">PAYE</TableHead>
                             <TableHead className="text-right">Pension</TableHead>
+                            <TableHead className="text-right">NHF</TableHead>
+                            <TableHead className="text-right">NHIS</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -217,6 +235,8 @@ export function TaxCompliance() {
                               <TableCell className="text-right">{formatCurrency(m.gross)}</TableCell>
                               <TableCell className="text-right text-red-600">{formatCurrency(m.paye)}</TableCell>
                               <TableCell className="text-right text-green-600">{formatCurrency(m.pension)}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(m.nhf)}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(m.nhis)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

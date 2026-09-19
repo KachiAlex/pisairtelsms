@@ -31,6 +31,9 @@ export interface Staff {
   dateOfBirth?: string
   emergencyContact?: string
   emergencyPhone?: string
+  accountNumber?: string
+  bankCode?: string
+  bankName?: string
   createdAt: string
   updatedAt: string
 }
@@ -51,6 +54,9 @@ export interface StaffPayload {
   dateOfBirth?: string
   emergencyContact?: string
   emergencyPhone?: string
+  accountNumber?: string
+  bankCode?: string
+  bankName?: string
 }
 
 export interface LeaveRequest {
@@ -117,6 +123,9 @@ interface StaffRow {
   date_of_birth: Date | null
   emergency_contact: string | null
   emergency_phone: string | null
+  account_number: string | null
+  bank_code: string | null
+  bank_name: string | null
   created_at: Date
   updated_at: Date
 }
@@ -185,6 +194,9 @@ function rowToStaff(row: StaffRow): Staff {
     dateOfBirth: row.date_of_birth instanceof Date ? row.date_of_birth.toISOString().split('T')[0] : row.date_of_birth ?? undefined,
     emergencyContact: row.emergency_contact ?? undefined,
     emergencyPhone: row.emergency_phone ?? undefined,
+    accountNumber: row.account_number ?? undefined,
+    bankCode: row.bank_code ?? undefined,
+    bankName: row.bank_name ?? undefined,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   }
@@ -547,12 +559,15 @@ export async function createStaffMember(
   const resolvedTenantId = tenantId || 'default-tenant'
   const result = await sql<StaffRow>`
     INSERT INTO staff (id, staff_id, tenant_id, name, role, department, status, email, phone, hire_date,
-                       salary, address, qualification, gender, date_of_birth, emergency_contact, emergency_phone, password_hash)
+                       salary, address, qualification, gender, date_of_birth, emergency_contact, emergency_phone,
+                       account_number, bank_code, bank_name, password_hash)
     VALUES (${id}, ${staffId}, ${resolvedTenantId}, ${payload.name}, ${payload.role}, ${payload.department},
             ${payload.status || 'active'}, ${payload.email}, ${payload.phone}, ${payload.hireDate},
             ${payload.salary ?? null}, ${payload.address ?? null}, ${payload.qualification ?? null},
             ${payload.gender ?? null}, ${payload.dateOfBirth ?? null},
-            ${payload.emergencyContact ?? null}, ${payload.emergencyPhone ?? null}, ${passwordHash})
+            ${payload.emergencyContact ?? null}, ${payload.emergencyPhone ?? null},
+            ${payload.accountNumber ?? null}, ${payload.bankCode ?? null}, ${payload.bankName ?? null},
+            ${passwordHash})
     RETURNING *
   `
 
@@ -615,6 +630,9 @@ export async function updateStaffMember(
         gender = COALESCE(${payload.gender ?? null}, gender),
         emergency_contact = COALESCE(${payload.emergencyContact ?? null}, emergency_contact),
         emergency_phone = COALESCE(${payload.emergencyPhone ?? null}, emergency_phone),
+        account_number = COALESCE(${payload.accountNumber ?? null}, account_number),
+        bank_code = COALESCE(${payload.bankCode ?? null}, bank_code),
+        bank_name = COALESCE(${payload.bankName ?? null}, bank_name),
         updated_at = NOW()
       WHERE id = ${id} AND tenant_id = ${tenantId || 'default-tenant'}
       RETURNING *

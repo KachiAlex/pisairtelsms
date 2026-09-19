@@ -1,47 +1,66 @@
 import React, { useState, useEffect } from 'react'
-import { Play, Send, CheckCircle, XCircle, DollarSign, RefreshCw, AlertCircle, ChevronDown, ChevronRight, FileText } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '../../../ui/card'
+import { Play, Send, CheckCircle, DollarSign, RefreshCw, AlertCircle, ChevronDown, ChevronRight, FileText } from 'lucide-react'
+import { Card, CardContent } from '../../../ui/card'
 import { Button } from '../../../ui/button'
 import { Badge } from '../../../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog'
 import { Input } from '../../../ui/input'
 import { Label } from '../../../ui/label'
-import { payrollApi, type PayrollRun, type PayrollRunItem, type PayrollApproval } from '../../../../lib/payrollApi'
+import { payrollApi, PayrollApiError, type PayrollRun, type PayrollRunItem, type PayrollApproval, type PayrollAuditEntry } from '../../../../lib/payrollApi'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+const ROLE_LABELS: Record<string, string> = {
+  hr_admin: 'HR Admin',
+  principal: 'Principal',
+  bursar: 'Bursar',
+}
 
 export function PayrollRuns() {
   const [runs, setRuns] = useState<PayrollRun[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
-  const [runDetails, setRunDetails] = useState<{ items: PayrollRunItem[]; approvals: PayrollApproval[] } | null>(null)
+  const [runDetails, setRunDetails] = useState<{ items: PayrollRunItem[]; approvals: PayrollApproval[]; auditLog: PayrollAuditEntry[] } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState({ month: MONTHS[new Date().getMonth()], year: new Date().getFullYear() })
+  const [createForm, setCreateForm] = useState({ month: MONTHS[new Date().getMonth()], year: new Date().getFullYear(), supplementary: false })
   const [actionLoading, setActionLoading] = useState(false)
-  const [showReject, setShowReject] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState<{ runId: string; role: string } | null>(null)
   const [rejectComment, setRejectComment] = useState('')
+  const [disburseTarget, setDisburseTarget] = useState<PayrollRun | null>(null)
+  const [disburseMode, setDisburseMode] = useState<'auto' | 'manual'>('auto')
+  const [manualRef, setManualRef] = useState('')
+
+  const errMsg = (e: unknown, fallback: string) => e instanceof Error ? e.message : fallback
 
   const fetchRuns = async () => {
     setLoading(true)
     try {
       const data = await payrollApi.getRuns()
       setRuns(data)
-    } catch { setError('Failed to load runs') }
+    } catch (e) { setError(errMsg(e, 'Failed to load runs')) }
     finally { setLoading(false) }
   }
 
   useEffect(() => { fetchRuns() }, [])
 
+  const refreshDetails = async (runId: string) => {
+    const data = await payrollApi.getRun(runId)
+    setRunDetails({ items: data.items, approvals: data.approvals, auditLog: data.auditLog || [] })
+  }
+
   const handleCreate = async () => {
     setActionLoading(true)
+    setError(null)
     try {
-      await payrollApi.createRun(createForm.month, createForm.year)
+      await payrollApi.createRun(createForm.month, createForm.year, undefined, createForm.supplementary)
       setShowCreate(false)
+      setNotice(`Payroll run for ${createForm.month} ${createForm.year} created`)
       fetchRuns()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create run')
+    } catch (e) {
+      setError(errMsg(e, 'Failed to create run'))
     } finally { setActionLoading(false) }
   }
 
@@ -52,51 +71,72 @@ export function PayrollRuns() {
       return
     }
     setExpandedRun(runId)
+    setRunDetails(null)
     try {
-      const data = await payrollApi.getRun(runId)
-      setRunDetails({ items: data.items, approvals: data.approvals })
-    } catch { setError('Failed to load run details') }
+      await refreshDetails(runId)
+    } catch (e) { setError(errMsg(e, 'Failed to load run details')) }
   }
 
   const handleSubmit = async (id: string) => {
     setActionLoading(true)
-    try { await payrollApi.submitRun(id); fetchRuns() }
-    catch { setError('Failed to submit run') }
+    setError(null)
+    try { await payrollApi.submitRun(id); fetchRuns(); if (expandedRun === id) refreshDetails(id) }
+    catch (e) { setError(errMsg(e, 'Failed to submit run')) }
     finally { setActionLoading(false) }
   }
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string, role: string) => {
     setActionLoading(true)
-    try { await payrollApi.approveRun(id, 'tenant_admin'); fetchRuns(); handleExpand(id) }
-    catch { setError('Failed to approve run') }
+    setError(null)
+    try {
+      await payrollApi.approveRun(id, role)
+      setNotice(`Approved at ${ROLE_LABELS[role] || role} level`)
+      fetchRuns()
+      refreshDetails(id)
+    } catch (e) { setError(errMsg(e, 'Failed to approve run')) }
     finally { setActionLoading(false) }
   }
 
   const handleReject = async () => {
-    if (!expandedRun || !rejectComment) return
+    if (!rejectTarget || !rejectComment) return
     setActionLoading(true)
+    setError(null)
     try {
-      await payrollApi.rejectRun(expandedRun, 'tenant_admin', rejectComment)
-      setShowReject(false)
+      await payrollApi.rejectRun(rejectTarget.runId, rejectTarget.role, rejectComment)
+      setRejectTarget(null)
       setRejectComment('')
       fetchRuns()
-    } catch { setError('Failed to reject run') }
+      refreshDetails(rejectTarget.runId)
+    } catch (e) { setError(errMsg(e, 'Failed to reject run')) }
     finally { setActionLoading(false) }
   }
 
-  const handleDisburse = async (id: string) => {
-    if (!confirm('Disburse salary payments? This will trigger bank transfers to all staff.')) return
+  // First disburse attempt goes through the gateway path. If the server reports
+  // no gateway is configured, the dialog switches to an explicit manual-payment
+  // confirmation instead of silently marking items paid.
+  const handleDisburse = async (run: PayrollRun, confirmed = false) => {
     setActionLoading(true)
+    setError(null)
     try {
-      const result = await payrollApi.disburseRun(id)
-      if (result.error) setError(`Disbursement completed with errors: ${result.error}`)
+      const result = await payrollApi.disburseRun(run.id, confirmed ? { manualConfirmation: true, manualReference: manualRef || undefined } : undefined)
+      if (result.error) setError(`Disbursement completed with issues: ${result.error}`)
+      else setNotice('Payroll disbursed — payslips generated')
+      setDisburseTarget(null)
+      setDisburseMode('auto')
+      setManualRef('')
       fetchRuns()
-      handleExpand(id)
-    } catch { setError('Disbursement failed') }
-    finally { setActionLoading(false) }
+      refreshDetails(run.id)
+    } catch (e) {
+      if (e instanceof PayrollApiError && e.code === 'MANUAL_CONFIRMATION_REQUIRED') {
+        setDisburseMode('manual')
+      } else {
+        setError(errMsg(e, 'Disbursement failed'))
+        setDisburseTarget(null)
+      }
+    } finally { setActionLoading(false) }
   }
 
-  const formatCurrency = (n: number) => `₦${n.toLocaleString()}`
+  const formatCurrency = (n: number) => `₦${Number(n).toLocaleString()}`
   const statusColor = (s: string) =>
     s === 'paid' ? 'bg-green-100 text-green-800' :
     s === 'approved' ? 'bg-blue-100 text-blue-800' :
@@ -105,6 +145,7 @@ export function PayrollRuns() {
     s === 'failed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
+  const pendingApprovals = runDetails?.approvals.filter(a => a.status === 'pending') || []
 
   return (
     <div className="space-y-4">
@@ -114,6 +155,15 @@ export function PayrollRuns() {
             <AlertCircle className="h-5 w-5 text-red-600" />
             <p className="text-red-700 text-sm">{error}</p>
             <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">Dismiss</Button>
+          </CardContent>
+        </Card>
+      )}
+      {notice && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            <p className="text-green-700 text-sm">{notice}</p>
+            <Button variant="ghost" size="sm" onClick={() => setNotice(null)} className="ml-auto">Dismiss</Button>
           </CardContent>
         </Card>
       )}
@@ -149,6 +199,7 @@ export function PayrollRuns() {
                     <div>
                       <p className="font-semibold text-gray-900">{run.name}</p>
                       <p className="text-xs text-gray-500">{run.totalStaff} staff · Gross: {formatCurrency(run.totalGross)} · Net: {formatCurrency(run.totalNet)}</p>
+                      {run.failureReason && <p className="text-xs text-red-600 mt-0.5">{run.failureReason}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -158,39 +209,46 @@ export function PayrollRuns() {
                         <Send className="w-3 h-3 mr-1" /> Submit
                       </Button>
                     )}
-                    {run.status === 'pending_approval' && (
-                      <>
-                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleApprove(run.id) }} disabled={actionLoading}>
-                          <CheckCircle className="w-3 h-3 mr-1" /> Approve
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setShowReject(true); setExpandedRun(run.id) }} disabled={actionLoading}>
-                          <XCircle className="w-3 h-3 mr-1" /> Reject
-                        </Button>
-                      </>
-                    )}
-                    {run.status === 'approved' && (
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); handleDisburse(run.id) }} disabled={actionLoading}>
-                        <DollarSign className="w-3 h-3 mr-1" /> Disburse
+                    {(run.status === 'approved' || run.status === 'failed') && (
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setDisburseTarget(run); setDisburseMode('auto') }} disabled={actionLoading}>
+                        <DollarSign className="w-3 h-3 mr-1" /> {run.status === 'failed' ? 'Retry Disbursement' : 'Disburse'}
                       </Button>
                     )}
                   </div>
                 </div>
 
-                {expandedRun === run.id && runDetails && (
+                {expandedRun === run.id && (
                   <div className="mt-4 border-t pt-4">
-                    {/* Approval chain */}
+                    {!runDetails ? (
+                      <p className="text-sm text-gray-400 py-4 text-center animate-pulse">Loading details...</p>
+                    ) : (
+                    <>
+                    {/* Approval chain with per-level actions */}
                     <div className="mb-4">
                       <p className="text-xs font-semibold text-gray-600 mb-2">APPROVAL CHAIN</p>
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex gap-3 flex-wrap">
                         {runDetails.approvals.map(a => (
-                          <div key={a.id} className="flex items-center gap-2 text-xs">
+                          <div key={a.id} className="flex items-center gap-2 text-xs border rounded-md px-2 py-1.5">
                             <Badge className={a.status === 'approved' ? 'bg-green-100 text-green-800' : a.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}>
-                              {a.approverRole}
+                              {ROLE_LABELS[a.approverRole] || a.approverRole}
                             </Badge>
                             <span className="text-gray-500">{a.status}</span>
                             {a.approverName && <span className="text-gray-400">by {a.approverName}</span>}
+                            {a.status === 'pending' && run.status === 'pending_approval' && (
+                              <span className="flex gap-1 ml-1">
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
+                                  onClick={(e) => { e.stopPropagation(); handleApprove(run.id, a.approverRole) }} disabled={actionLoading}>
+                                  Approve
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-xs text-red-600"
+                                  onClick={(e) => { e.stopPropagation(); setRejectTarget({ runId: run.id, role: a.approverRole }) }} disabled={actionLoading}>
+                                  Reject
+                                </Button>
+                              </span>
+                            )}
                           </div>
                         ))}
+                        {runDetails.approvals.length === 0 && <span className="text-xs text-gray-400">No approvals recorded</span>}
                       </div>
                     </div>
 
@@ -207,6 +265,7 @@ export function PayrollRuns() {
                             <TableHead className="text-right">Pension (Emp)</TableHead>
                             <TableHead className="text-right">Net Pay</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Reference</TableHead>
                             <TableHead>Payslip</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -224,7 +283,9 @@ export function PayrollRuns() {
                                 <Badge className={item.status === 'paid' ? 'bg-green-100 text-green-800' : item.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
                                   {item.status}
                                 </Badge>
+                                {item.failureReason && <p className="text-xs text-red-500 mt-1 max-w-[160px]">{item.failureReason}</p>}
                               </TableCell>
+                              <TableCell className="text-xs text-gray-500 max-w-[120px] truncate">{item.paymentReference || '—'}</TableCell>
                               <TableCell>
                                 {item.payslipGenerated ? <FileText className="w-4 h-4 text-green-600" /> : '—'}
                               </TableCell>
@@ -233,6 +294,24 @@ export function PayrollRuns() {
                         </TableBody>
                       </Table>
                     </div>
+
+                    {/* Audit trail */}
+                    {runDetails.auditLog.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold text-gray-600 mb-2">AUDIT TRAIL</p>
+                        <div className="space-y-1">
+                          {runDetails.auditLog.map(entry => (
+                            <div key={entry.id} className="text-xs text-gray-500 flex gap-2">
+                              <span className="text-gray-400">{new Date(entry.createdAt).toLocaleString()}</span>
+                              <span className="font-medium text-gray-700">{entry.action.replace(/_/g, ' ')}</span>
+                              <span>by {entry.actor}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    </>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -260,6 +339,11 @@ export function PayrollRuns() {
                 {years.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={createForm.supplementary}
+                onChange={e => setCreateForm(f => ({ ...f, supplementary: e.target.checked }))} />
+              Supplementary run (correction — allowed even if a regular run exists for this period)
+            </label>
             <p className="text-sm text-gray-500">
               This will auto-generate payroll for all active staff with salaries, applying earnings/deduction rules, tax (PAYE), pension, NHF, and NHIS.
             </p>
@@ -272,9 +356,9 @@ export function PayrollRuns() {
       </Dialog>
 
       {/* Reject Dialog */}
-      <Dialog open={showReject} onOpenChange={setShowReject}>
+      <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) setRejectTarget(null) }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Reject Payroll Run</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Reject Payroll Run{rejectTarget ? ` — ${ROLE_LABELS[rejectTarget.role] || rejectTarget.role}` : ''}</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-4">
             <div>
               <Label>Reason for rejection</Label>
@@ -282,8 +366,49 @@ export function PayrollRuns() {
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setShowReject(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRejectTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleReject} disabled={!rejectComment || actionLoading}>Reject Run</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disburse Dialog */}
+      <Dialog open={!!disburseTarget} onOpenChange={(open) => { if (!open) { setDisburseTarget(null); setDisburseMode('auto'); setManualRef('') } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Disburse Payroll — {disburseTarget?.name}</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-4">
+            {disburseMode === 'auto' ? (
+              <p className="text-sm text-gray-600">
+                This will initiate salary transfers to <strong>{disburseTarget?.totalStaff} staff</strong> totaling{' '}
+                <strong>{formatCurrency(disburseTarget?.totalNet || 0)}</strong> via the configured payment gateway.
+                Staff without bank details on file will fail.
+              </p>
+            ) : (
+              <>
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                  No payment gateway is configured. Only continue if salaries were already paid outside this app
+                  (cash or direct bank transfer) — this records them as paid and issues payslips.
+                </div>
+                <div>
+                  <Label>Payment reference (optional)</Label>
+                  <Input value={manualRef} onChange={e => setManualRef(e.target.value)}
+                    placeholder="e.g. bank bulk transfer ref, cash voucher no." />
+                  <p className="text-xs text-gray-500 mt-1">Recorded on every payroll item for audit purposes.</p>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => { setDisburseTarget(null); setDisburseMode('auto'); setManualRef('') }}>Cancel</Button>
+            {disburseMode === 'auto' ? (
+              <Button onClick={() => disburseTarget && handleDisburse(disburseTarget)} disabled={actionLoading}>
+                {actionLoading ? 'Processing...' : 'Confirm Disbursement'}
+              </Button>
+            ) : (
+              <Button variant="destructive" onClick={() => disburseTarget && handleDisburse(disburseTarget, true)} disabled={actionLoading}>
+                {actionLoading ? 'Recording...' : 'Confirm Manual Payment'}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

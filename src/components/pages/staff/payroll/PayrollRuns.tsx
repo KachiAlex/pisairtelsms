@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Play, Send, CheckCircle, DollarSign, RefreshCw, AlertCircle, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react'
+import { Play, Send, CheckCircle, DollarSign, RefreshCw, AlertCircle, ChevronDown, ChevronRight, FileText, Trash2, UserPlus, Pencil } from 'lucide-react'
 import { Card, CardContent } from '../../../ui/card'
 import { Button } from '../../../ui/button'
 import { Badge } from '../../../ui/badge'
@@ -17,6 +17,15 @@ const ROLE_LABELS: Record<string, string> = {
   bursar: 'Bursar',
 }
 
+interface StaffOption { id: string; name: string; salary?: number; status?: string }
+
+function authHeaders(): Record<string, string> {
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    return auth.token ? { Authorization: `Bearer ${auth.token}` } : {}
+  } catch { return {} }
+}
+
 export function PayrollRuns() {
   const [runs, setRuns] = useState<PayrollRun[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +41,10 @@ export function PayrollRuns() {
   const [disburseTarget, setDisburseTarget] = useState<PayrollRun | null>(null)
   const [disburseMode, setDisburseMode] = useState<'auto' | 'manual'>('auto')
   const [manualRef, setManualRef] = useState('')
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
+  const [addStaffId, setAddStaffId] = useState('')
+  const [editItem, setEditItem] = useState<PayrollRunItem | null>(null)
+  const [editForm, setEditForm] = useState<{ basicSalary: string; extraEarnings: { label: string; amount: string }[]; extraDeductions: { label: string; amount: string }[] }>({ basicSalary: '', extraEarnings: [], extraDeductions: [] })
 
   const errMsg = (e: unknown, fallback: string) => e instanceof Error ? e.message : fallback
 
@@ -45,6 +58,14 @@ export function PayrollRuns() {
   }
 
   useEffect(() => { fetchRuns() }, [])
+
+  // Load staff once — used by the "add staff to run" picker
+  useEffect(() => {
+    fetch('/api/tenant/staff', { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then(d => setStaffOptions((d.data || []).filter((s: StaffOption) => s.status === 'active' || !s.status)))
+      .catch(() => {})
+  }, [])
 
   const refreshDetails = async (runId: string) => {
     const data = await payrollApi.getRun(runId)
@@ -146,6 +167,55 @@ export function PayrollRuns() {
       setNotice('Run deleted')
       fetchRuns()
     } catch (e) { setError(errMsg(e, 'Failed to delete run')) }
+    finally { setActionLoading(false) }
+  }
+
+  const handleAddStaff = async (runId: string) => {
+    if (!addStaffId) return
+    setActionLoading(true)
+    setError(null)
+    try {
+      await payrollApi.addStaffToRun(runId, addStaffId)
+      setAddStaffId('')
+      setNotice('Staff added to run')
+      fetchRuns()
+      refreshDetails(runId)
+    } catch (e) { setError(errMsg(e, 'Failed to add staff')) }
+    finally { setActionLoading(false) }
+  }
+
+  const handleDeleteItem = async (runId: string, itemId: string, staffName: string) => {
+    if (!confirm(`Remove ${staffName} from this run?`)) return
+    setActionLoading(true)
+    setError(null)
+    try {
+      await payrollApi.deleteRunItem(itemId)
+      fetchRuns()
+      refreshDetails(runId)
+    } catch (e) { setError(errMsg(e, 'Failed to remove staff')) }
+    finally { setActionLoading(false) }
+  }
+
+  const openEditItem = (item: PayrollRunItem) => {
+    setEditItem(item)
+    setEditForm({ basicSalary: String(item.basicSalary), extraEarnings: [], extraDeductions: [] })
+  }
+
+  const handleSaveItem = async () => {
+    if (!editItem || !expandedRun) return
+    setActionLoading(true)
+    setError(null)
+    try {
+      await payrollApi.updateRunItem(editItem.id, {
+        basicSalary: Number(editForm.basicSalary),
+        extraEarnings: editForm.extraEarnings.filter(e => e.label && e.amount).map(e => ({ category: 'adjustment', label: e.label, amount: Number(e.amount) })),
+        extraDeductions: editForm.extraDeductions.filter(d => d.label && d.amount).map(d => ({ category: 'adjustment', label: d.label, amount: Number(d.amount) })),
+      })
+      setEditItem(null)
+      setNotice('Item recalculated')
+      fetchRuns()
+      refreshDetails(expandedRun)
+    } catch (e) { setError(errMsg(e, 'Failed to update item')) }
     finally { setActionLoading(false) }
   }
 
@@ -286,6 +356,7 @@ export function PayrollRuns() {
                             <TableHead>Status</TableHead>
                             <TableHead>Reference</TableHead>
                             <TableHead>Payslip</TableHead>
+                            {run.status === 'draft' && <TableHead>Actions</TableHead>}
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -308,11 +379,47 @@ export function PayrollRuns() {
                               <TableCell>
                                 {item.payslipGenerated ? <FileText className="w-4 h-4 text-green-600" /> : '—'}
                               </TableCell>
+                              {run.status === 'draft' && (
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => openEditItem(item)} disabled={actionLoading}>
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-red-600" onClick={() => handleDeleteItem(run.id, item.id, item.staffName)} disabled={actionLoading}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              )}
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     </div>
+
+                    {/* Add staff to a draft run */}
+                    {run.status === 'draft' && (
+                      <div className="mt-3 flex items-center gap-2 border-t pt-3">
+                        <UserPlus className="w-4 h-4 text-gray-400" />
+                        <select
+                          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm flex-1 max-w-xs"
+                          value={addStaffId}
+                          onChange={e => setAddStaffId(e.target.value)}
+                        >
+                          <option value="">Add staff member to this run…</option>
+                          {staffOptions
+                            .filter(s => !runDetails.items.some(i => i.staffId === s.id))
+                            .map(s => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}{s.salary ? ` — ${formatCurrency(s.salary)}` : ' — (no salary set)'}
+                              </option>
+                            ))}
+                        </select>
+                        <Button size="sm" variant="outline" onClick={() => handleAddStaff(run.id)} disabled={!addStaffId || actionLoading}>
+                          Add
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Audit trail */}
                     {runDetails.auditLog.length > 0 && (
@@ -428,6 +535,59 @@ export function PayrollRuns() {
                 {actionLoading ? 'Recording...' : 'Confirm Manual Payment'}
               </Button>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Run Item Dialog — adjust basic salary + one-off earnings/deductions.
+          Statutory deductions (PAYE, pension, NHF, NHIS) are recomputed server-side. */}
+      <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) setEditItem(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit — {editItem?.staffName}</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label>Basic Salary (₦)</Label>
+              <Input type="number" value={editForm.basicSalary}
+                onChange={e => setEditForm(f => ({ ...f, basicSalary: e.target.value }))} />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <Label>One-off Earnings</Label>
+                <Button variant="ghost" size="sm" className="h-6 text-xs"
+                  onClick={() => setEditForm(f => ({ ...f, extraEarnings: [...f.extraEarnings, { label: '', amount: '' }] }))}>+ Add</Button>
+              </div>
+              {editForm.extraEarnings.map((e, i) => (
+                <div key={i} className="flex gap-2 mb-1">
+                  <Input value={e.label} placeholder="e.g. Bonus" className="flex-1"
+                    onChange={ev => setEditForm(f => { const a = [...f.extraEarnings]; a[i] = { ...a[i], label: ev.target.value }; return { ...f, extraEarnings: a } })} />
+                  <Input type="number" value={e.amount} placeholder="Amount" className="w-28"
+                    onChange={ev => setEditForm(f => { const a = [...f.extraEarnings]; a[i] = { ...a[i], amount: ev.target.value }; return { ...f, extraEarnings: a } })} />
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <Label>One-off Deductions</Label>
+                <Button variant="ghost" size="sm" className="h-6 text-xs"
+                  onClick={() => setEditForm(f => ({ ...f, extraDeductions: [...f.extraDeductions, { label: '', amount: '' }] }))}>+ Add</Button>
+              </div>
+              {editForm.extraDeductions.map((d, i) => (
+                <div key={i} className="flex gap-2 mb-1">
+                  <Input value={d.label} placeholder="e.g. Uniform cost" className="flex-1"
+                    onChange={ev => setEditForm(f => { const a = [...f.extraDeductions]; a[i] = { ...a[i], label: ev.target.value }; return { ...f, extraDeductions: a } })} />
+                  <Input type="number" value={d.amount} placeholder="Amount" className="w-28"
+                    onChange={ev => setEditForm(f => { const a = [...f.extraDeductions]; a[i] = { ...a[i], amount: ev.target.value }; return { ...f, extraDeductions: a } })} />
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs text-gray-500">PAYE, pension, NHF and NHIS are recalculated automatically. Statutory and advance-repayment lines can't be removed here.</p>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setEditItem(null)}>Cancel</Button>
+            <Button onClick={handleSaveItem} disabled={actionLoading}>{actionLoading ? 'Saving...' : 'Save & Recalculate'}</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -9,6 +9,7 @@ import {
   // Runs
   fetchRuns, fetchRun, fetchRunItems, createPayrollRun, submitRunForApproval,
   approveRun, rejectRun, fetchApprovals, disburseRun, fetchAuditLog, deletePayrollRun,
+  addStaffToRun, updateRunItem, deleteRunItem,
   // Payslips
   fetchPayslips, generatePayslipsForRun, emailPayslip,
   // Advances
@@ -216,6 +217,47 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const result = await deletePayrollRun(id as string, actualTenantId, actor)
       if (!result.deleted) return res.status(400).json({ error: result.error })
       return res.status(200).json({ message: 'Run deleted' })
+    }
+    return methodNotAllowed(res)
+  }
+
+  // ── Run Items (add/edit/remove staff on a draft run) ───────────────────────
+  if (resource === 'items') {
+    if (req.method === 'POST') {
+      const body = parseBody(req)
+      if (!body?.runId || !body?.staffId) return res.status(400).json({ error: 'runId and staffId are required' })
+      try {
+        const item = await addStaffToRun(body.runId, body.staffId, actualTenantId, actor)
+        return res.status(201).json({ data: item })
+      } catch (err) {
+        if (err instanceof PayrollError) return res.status(400).json({ error: err.message })
+        throw err
+      }
+    }
+    if (req.method === 'PUT') {
+      if (!id) return res.status(400).json({ error: 'Item ID is required' })
+      const body = parseBody(req)
+      try {
+        const item = await updateRunItem(id as string, actualTenantId, {
+          basicSalary: body?.basicSalary != null ? Number(body.basicSalary) : undefined,
+          extraEarnings: Array.isArray(body?.extraEarnings) ? body.extraEarnings : undefined,
+          extraDeductions: Array.isArray(body?.extraDeductions) ? body.extraDeductions : undefined,
+        }, actor)
+        return res.status(200).json({ data: item })
+      } catch (err) {
+        if (err instanceof PayrollError) return res.status(400).json({ error: err.message })
+        throw err
+      }
+    }
+    if (req.method === 'DELETE') {
+      if (!id) return res.status(400).json({ error: 'Item ID is required' })
+      try {
+        await deleteRunItem(id as string, actualTenantId, actor)
+        return res.status(200).json({ message: 'Item removed' })
+      } catch (err) {
+        if (err instanceof PayrollError) return res.status(400).json({ error: err.message })
+        throw err
+      }
     }
     return methodNotAllowed(res)
   }

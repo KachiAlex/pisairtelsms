@@ -247,6 +247,11 @@ export const payrollApi = {
     apiPut('runs', id, { action: 'disburse', manualConfirmation: options?.manualConfirmation, manualReference: options?.manualReference }).then(r => r),
   deleteRun: (id: string) => apiDelete('runs', id),
 
+  // Run items
+  addStaffToRun: (runId: string, staffId: string) => apiPost('items', { runId, staffId }).then(r => r.data as PayrollRunItem),
+  updateRunItem: (id: string, data: { basicSalary?: number; extraEarnings?: EarningDeduction[]; extraDeductions?: EarningDeduction[] }) => apiPut('items', id, data).then(r => r.data as PayrollRunItem),
+  deleteRunItem: (id: string) => apiDelete('items', id),
+
   // Payslips
   getPayslips: (staffId?: string) => apiGet('payslips', staffId ? { staffId } : undefined).then(r => r.data as Payslip[]),
   generatePayslips: (runId: string) => apiPost('payslips', { runId }).then(r => r.data),

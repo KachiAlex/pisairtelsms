@@ -197,9 +197,9 @@ export function PayrollSchedules() {
       )}
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>New Payroll Schedule</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-4">
+        <DialogContent className="max-w-md flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0"><DialogTitle>New Payroll Schedule</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
             <div>
               <Label>Schedule Name *</Label>
               <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Monthly Salary Run" />
@@ -266,7 +266,7 @@ export function PayrollSchedules() {
               <span>Auto-disburse after approval</span>
             </label>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100 shrink-0">
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={!form.name}>Create</Button>
           </div>

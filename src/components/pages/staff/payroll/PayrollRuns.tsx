@@ -554,9 +554,9 @@ export function PayrollRuns() {
       {/* Edit Run Item Dialog — adjust basic salary + one-off earnings/deductions.
           Statutory deductions (PAYE, pension, NHF, NHIS) are recomputed server-side. */}
       <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) setEditItem(null) }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Edit — {editItem?.staffName}</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-4">
+        <DialogContent className="max-w-md flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0"><DialogTitle>Edit — {editItem?.staffName}</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
             <div>
               <Label>Basic Salary (₦)</Label>
               <Input type="number" value={editForm.basicSalary}
@@ -597,7 +597,7 @@ export function PayrollRuns() {
 
             <p className="text-xs text-gray-500">PAYE, pension, NHF and NHIS are recalculated automatically. Statutory and advance-repayment lines can't be removed here.</p>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100 shrink-0">
             <Button variant="outline" onClick={() => setEditItem(null)}>Cancel</Button>
             <Button onClick={handleSaveItem} disabled={actionLoading}>{actionLoading ? 'Saving...' : 'Save & Recalculate'}</Button>
           </div>

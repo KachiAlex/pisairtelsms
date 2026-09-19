@@ -44,6 +44,7 @@ const DialogContent = React.forwardRef<
       <div
         className={cn(
           'relative w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl outline-none',
+          'max-h-[calc(100vh-5rem)] overflow-y-auto sm:max-h-[calc(100vh-10rem)]',
           'dark:bg-slate-900',
           className,
         )}

@@ -1,3 +1,5 @@
+import { tenantApiGet, tenantApiPut } from './tenantApi'
+
 // Tenant configuration types and interfaces
 export interface TenantConfig {
   id: string
@@ -46,12 +48,12 @@ export class TenantDomainManager {
     // In production, try API first
     if (typeof window !== 'undefined' && !import.meta.env.DEV) {
       try {
-        const response = await fetch(`${this.API_BASE}/domain-config`)
+        const response = await tenantApiGet(`${this.API_BASE}/domain-config`)
         if (response.ok) {
           const data = await response.json()
           const config: TenantConfig = {
             id: tenantId,
-            name: `Tenant ${tenantId}`, // Would come from API
+            name: data.domainConfig.tenantName || tenantId,
             settings: data.domainConfig,
             createdAt: data.domainConfig.updatedAt,
             updatedAt: data.domainConfig.updatedAt
@@ -82,13 +84,7 @@ export class TenantDomainManager {
     // In production, try API first
     if (typeof window !== 'undefined' && !import.meta.env.DEV) {
       try {
-        const response = await fetch(`${this.API_BASE}/domain-config`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(config.settings)
-        })
+        const response = await tenantApiPut(`${this.API_BASE}/domain-config`, config.settings)
 
         if (response.ok) {
           this.tenantConfigs.set(tenantId, config)

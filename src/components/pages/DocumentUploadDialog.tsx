@@ -34,20 +34,16 @@ import {
 import { Progress } from '../ui/progress'
 import { Textarea } from '../ui/textarea'
 import { DocumentPreview } from './DocumentPreview'
-import { ApprovalWorkflowEngine, type StudentInfo, type UserInfo, type DocumentInfo } from '../../lib/approvalWorkflowEngine'
-import { StudentDocumentTrackingService } from '../../lib/studentDocumentTrackingService'
-import type { GuardianContact } from '../../lib/guardianNotificationEngine'
+import { DocumentClassifier, type DocumentClassification } from '../../lib/documentClassifier'
+import { tenantApiFetch } from '../../lib/tenantApi'
 
-interface DocumentClassification {
-  category: string
-  confidence: number
-  documentType: string
-}
-
-const DocumentClassifier = {
-  async classifyDocument(file: File | string, type?: string, text?: string, size?: number): Promise<DocumentClassification> {
-    return { category: 'general', confidence: 0.5, documentType: 'unknown' }
-  }
+const detectedTypeToCategory: Record<string, string> = {
+  academic: 'Academic',
+  medical: 'Medical',
+  financial: 'Finance',
+  conduct: 'Conduct',
+  administrative: 'Administrative',
+  other: 'Other',
 }
 
 function formatFileSize(bytes: number): string {
@@ -55,8 +51,6 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
-
-const mockStudents: Array<{ id: string; name: string; class: string }> = []
 
 interface UploadedFile {
   id: string
@@ -139,12 +133,6 @@ export function DocumentUploadDialog({
       console.warn('Failed to read auth context for upload dialog:', err);
     }
   }, [open])
-
-  // Initialize approval workflow engine
-  const workflowEngine = new ApprovalWorkflowEngine()
-
-  // Initialize document tracking service
-  const trackingService = new StudentDocumentTrackingService()
 
   const extractTextFromFile = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -243,7 +231,7 @@ export function DocumentUploadDialog({
         const extractedText = await extractTextFromFile(file)
         uploadedFile.extractedText = extractedText
 
-        // Classify the document
+        // Classify the document (keyword heuristic — suggests a category)
         const classification = await DocumentClassifier.classifyDocument(
           file.name,
           file.type,
@@ -252,8 +240,8 @@ export function DocumentUploadDialog({
         )
         uploadedFile.classification = classification
 
-        // Auto-suggest category
-        uploadedFile.category = classification.category
+        // Auto-suggest category from the detected document type
+        uploadedFile.category = detectedTypeToCategory[classification.metadata?.detectedType] || documentCategories[0]
 
         // Update status to completed
         uploadedFile.status = 'completed'
@@ -337,52 +325,78 @@ export function DocumentUploadDialog({
     })))
   }
 
+  const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        resolve(result.slice(result.indexOf(',') + 1))
+      }
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
+      reader.readAsDataURL(file)
+    })
+
   const startUpload = async () => {
     setIsUploading(true)
     setUploadStep('process')
 
-    // Simulate upload process
     for (const file of files) {
       if (file.status === 'error') continue
 
       file.status = 'uploading'
+      file.progress = 30
       setFiles(prev => [...prev])
 
-      // Simulate upload progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 200))
-        file.progress = progress
-        setFiles(prev => [...prev])
+      try {
+        const fileData = await readFileAsBase64(file.file)
+        const student = file.studentId ? students.find(s => s.id === file.studentId) : undefined
+
+        const response = await tenantApiFetch('/api/student-documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            docName: file.name,
+            studentId: file.studentId || undefined,
+            studentName: student?.name || '',
+            cohort: student?.class || '',
+            category: file.category || 'Other',
+            fileType: file.name.split('.').pop()?.toLowerCase() || '',
+            mimeType: file.type || undefined,
+            fileSize: file.size,
+            fileData,
+            notes: file.notes || undefined,
+          }),
+        })
+
+        if (!response.ok) {
+          const json = await response.json().catch(() => ({}))
+          throw new Error(json.error || 'Upload failed')
+        }
+
+        file.status = 'completed'
+        file.progress = 100
+      } catch (err) {
+        file.status = 'error'
+        file.errors = [...(file.errors || []), err instanceof Error ? err.message : 'Upload failed']
       }
-
-      file.status = 'processing'
-      setFiles(prev => [...prev])
-
-      // Simulate processing
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      file.status = 'completed'
       setFiles(prev => [...prev])
     }
 
     setIsUploading(false)
-
-    // Initiate approval workflows for completed documents
-    const completedFiles = files.filter(f => f.status === 'completed')
-    if (completedFiles.length > 0) {
-      await initiateApprovalWorkflows(completedFiles)
-    }
 
     // Call completion callback
     if (onUploadComplete) {
       onUploadComplete(files)
     }
 
-    // Reset dialog
-    setTimeout(() => {
-      onOpenChange(false)
-      resetDialog()
-    }, 2000)
+    // Auto-close only when every upload succeeded — on failure, stay open so
+    // the user can see the per-file errors instead of them flashing by.
+    if (files.length > 0 && files.every(f => f.status === 'completed')) {
+      setTimeout(() => {
+        onOpenChange(false)
+        resetDialog()
+      }, 2000)
+    }
   }
 
   const resetDialog = () => {
@@ -396,95 +410,6 @@ export function DocumentUploadDialog({
   const handlePreviewFile = (file: UploadedFile) => {
     setPreviewFile(file)
     setShowPreview(true)
-  }
-
-  const initiateApprovalWorkflows = async (completedFiles: UploadedFile[]) => {
-    // Mock current user (in production, get from auth context)
-    const currentUser: UserInfo = {
-      id: 'user_admin',
-      name: 'Admin User',
-      email: 'admin@school.com',
-      role: 'super_admin',
-      canApprove: true,
-      approvalLevel: 5
-    }
-
-    for (const file of completedFiles) {
-      try {
-        // Find student information
-        const student = file.studentId ? mockStudents.find(s => s.id === file.studentId) : null
-        if (!student) {
-          console.warn(`No student found for file ${file.name}, skipping workflow`)
-          continue
-        }
-
-        // Create student info
-        const studentInfo: StudentInfo = {
-          id: student.id,
-          name: student.name,
-          class: student.class,
-          age: 14, // Mock age - in production, get from student database
-          hasMedicalConditions: false, // Mock - in production, get from student records
-          isInternational: false, // Mock
-          hasSpecialNeeds: false, // Mock
-          guardianEmail: `guardian_${student.id}@example.com`,
-          guardianPhone: '+1234567890'
-        }
-
-        // Create guardian contact info
-        const guardian: GuardianContact = {
-          id: `guardian_${student.id}`,
-          relationship: 'Parent', // Default for workflow
-          studentId: student.id,
-          name: `Guardian of ${student.name}`,
-          email: `guardian_${student.id}@example.com`,
-          phone: '+1234567890',
-          preferredLanguage: 'en',
-          notificationPreferences: {
-            email: true,
-            sms: true,
-            inApp: true
-          },
-          timezone: 'Africa/Lagos',
-          lastContacted: undefined
-        }
-
-        // Create document info
-        const documentInfo: DocumentInfo = {
-          id: file.id,
-          name: file.name,
-          category: file.category || 'Other',
-          type: file.type,
-          requiresMedicalClearance: file.category?.includes('Medical') || false,
-          requiresGuardianConsent: file.category?.includes('Consent') || false,
-          studentId: student.id,
-          uploadedBy: currentUser.id,
-          uploadedAt: new Date().toISOString()
-        }
-
-        // Update document tracking
-        await trackingService.updateDocumentTracking(
-          student.id,
-          file.id,
-          file.name,
-          file.category || 'Other',
-          currentUser.id
-        )
-
-        // Initiate workflow with guardian information
-        const workflow = await workflowEngine.initiateWorkflow(
-          documentInfo,
-          studentInfo,
-          currentUser,
-          guardian
-        )
-
-        console.log(`Approval workflow initiated for ${file.name}:`, workflow.id)
-
-      } catch (error) {
-        console.error(`Failed to initiate workflow for ${file.name}:`, error)
-      }
-    }
   }
 
   const handleClose = () => {
@@ -699,9 +624,9 @@ export function DocumentUploadDialog({
                           <SelectValue placeholder="Select student" />
                         </SelectTrigger>
                         <SelectContent>
-                          {mockStudents.map(student => (
+                          {students.map(student => (
                             <SelectItem key={student.id} value={student.id}>
-                              {student.name} - {student.class}
+                              {student.name}{student.class ? ` - ${student.class}` : ''}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -810,7 +735,7 @@ export function DocumentUploadDialog({
         title={previewFile?.name}
         metadata={{
           category: previewFile?.category,
-          studentName: previewFile?.studentId ? mockStudents.find(s => s.id === previewFile.studentId)?.name : undefined,
+          studentName: previewFile?.studentId ? students.find(s => s.id === previewFile.studentId)?.name : undefined,
           validationStatus: previewFile?.errors && previewFile.errors.length > 0 ? 'error' : 'valid',
         }}
       />

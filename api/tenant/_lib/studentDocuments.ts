@@ -45,26 +45,52 @@ export async function fetchStudentDocuments(tenantId: string): Promise<StudentDo
 
 export async function createStudentDocument(
   tenantId: string,
-  data: { studentName: string; cohort?: string; category?: string; docName: string; owner?: string; status?: string; requirement?: string; fileType?: string }
+  data: {
+    studentName: string; studentId?: string; cohort?: string; category?: string;
+    docName: string; owner?: string; status?: string; requirement?: string;
+    fileType?: string; fileDataBase64?: string; fileSize?: number; mimeType?: string; notes?: string;
+  }
 ): Promise<StudentDocumentDTO> {
   const row = await queryOne<any>(
-    `INSERT INTO student_documents (tenant_id, student_name, cohort, category, doc_name, owner, status, requirement, file_type)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO student_documents
+       (tenant_id, student_id, student_name, cohort, category, doc_name, owner, status, requirement,
+        file_type, file_data, file_size, mime_type, notes, uploaded_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, decode($11, 'base64'), $12, $13, $14, NOW())
      RETURNING *`,
     [
       tenantId,
+      data.studentId || null,
       data.studentName,
       data.cohort || '',
       data.category || 'Academic',
       data.docName,
       data.owner || '',
-      data.status || 'Awaiting upload',
+      data.status || 'Pending review',
       data.requirement || '',
       data.fileType || '',
+      data.fileDataBase64 || '',
+      data.fileSize ?? null,
+      data.mimeType || null,
+      data.notes || null,
     ]
   );
   if (!row) throw new Error('Failed to create student document');
   return rowToDTO(row);
+}
+
+/**
+ * Fetch a document's stored file bytes for download (tenant-scoped).
+ */
+export async function fetchStudentDocumentFile(
+  id: string,
+  tenantId: string
+): Promise<{ docName: string; mimeType: string; data: Buffer } | null> {
+  const row = await queryOne<any>(
+    `SELECT doc_name, mime_type, file_data FROM student_documents WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
+  );
+  if (!row || !row.file_data) return null;
+  return { docName: row.doc_name, mimeType: row.mime_type || 'application/octet-stream', data: row.file_data };
 }
 
 export async function updateStudentDocumentStatus(

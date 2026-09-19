@@ -47,6 +47,7 @@ function buildResponse(
 
   return {
     domainConfig: {
+      tenantName: t.name,
       enableCustomDomain: !!t.settings.enableCustomDomain,
       enableSubdomain: !!t.settings.enableSubdomain,
       customApplicationUrl: t.settings.customApplicationUrl || undefined,

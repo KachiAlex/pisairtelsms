@@ -1,43 +1,101 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
-import { getTeacherSchedules, getTeacherScheduleById, updateTeacherSchedule } from './_lib/teacher-schedules.js'
+import { sql } from './_lib/db.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 
-function parseBody(req: ApiRequest) {
-  if (!req.body) return null
-  if (typeof req.body === 'string') { try { return JSON.parse(req.body) } catch { return null } }
-  return req.body
-}
-
+// Teacher schedules are derived from timetable_class_schedule_entries — the
+// single source of truth written by auto-schedule and manual entry. The
+// timetable_teacher_schedules table is not populated by any write path.
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  // Require authentication - only staff or tenant_admin can access tenant timetable
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
   const { method, query } = req
-  const id = query.id as string | undefined
 
-  if (method === 'GET') {
-    if (id) {
-      const schedule = await getTeacherScheduleById(id)
-      if (!schedule) return res.status(404).json({ error: 'Teacher schedule not found' })
-      return res.status(200).json({ data: schedule })
+  if (method !== 'GET') {
+    res.setHeader('Allow', 'GET')
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const teacherId = query.teacherId as string | undefined
+  const termId = query.termId as string | undefined
+
+  try {
+    if (teacherId) {
+      // Aggregated workload for one teacher
+      const result = await sql`
+        SELECT s.class_id,
+               COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), s.class_id::text) AS class_name,
+               e.subject_name,
+               array_agg(DISTINCT e.day_of_week ORDER BY e.day_of_week) AS days,
+               COALESCE(SUM(EXTRACT(EPOCH FROM (t.end_time::time - t.start_time::time)) / 3600.0), 0) AS hours
+        FROM timetable_class_schedule_entries e
+        JOIN timetable_class_schedules s ON s.id = e.schedule_id
+        JOIN timetable_time_slots t ON t.id = e.time_slot_id
+        LEFT JOIN classes c ON c.id::text = s.class_id::text
+        WHERE e.teacher_id = ${teacherId}
+          AND s.tenant_id = ${tenantId}
+          AND (${termId ?? null}::text IS NULL OR s.term_id = ${termId ?? null})
+        GROUP BY s.class_id, class_name, e.subject_name
+        ORDER BY class_name, e.subject_name
+      `
+      const workload = result.rows.map((r: any, i: number) => ({
+        id: `${teacherId}-${i}`,
+        classId: r.class_id,
+        className: r.class_name,
+        subjectName: r.subject_name,
+        hoursPerWeek: Math.round(Number(r.hours) * 10) / 10,
+        days: (r.days || []).map(Number),
+      }))
+      const totals = await sql`
+        SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (t.end_time::time - t.start_time::time)) / 3600.0), 0) AS total_hours,
+               COUNT(DISTINCT s.class_id) AS total_classes,
+               MAX(e.teacher_name) AS teacher_name
+        FROM timetable_class_schedule_entries e
+        JOIN timetable_class_schedules s ON s.id = e.schedule_id
+        JOIN timetable_time_slots t ON t.id = e.time_slot_id
+        WHERE e.teacher_id = ${teacherId}
+          AND s.tenant_id = ${tenantId}
+          AND (${termId ?? null}::text IS NULL OR s.term_id = ${termId ?? null})
+      `
+      const t = totals.rows[0] || {}
+      return res.status(200).json({
+        data: {
+          teacherId,
+          teacherName: t.teacher_name || '',
+          termId: termId || null,
+          totalHours: Math.round(Number(t.total_hours || 0) * 10) / 10,
+          totalClasses: Number(t.total_classes || 0),
+          maxHoursLimit: null,
+          workload,
+        },
+      })
     }
-    const teacherId = query.teacherId as string | undefined
-    const termId = query.termId as string | undefined
-    const schedules = await getTeacherSchedules(tenantId, teacherId, termId)
-    return res.status(200).json({ data: schedules })
-  }
 
-  if (method === 'PUT') {
-    if (!id) return res.status(400).json({ error: 'id query param is required' })
-    const body = parseBody(req)
-    if (!body) return res.status(400).json({ error: 'Request body is required' })
-    const updated = await updateTeacherSchedule(id, body)
-    if (!updated) return res.status(404).json({ error: 'Teacher schedule not found' })
-    return res.status(200).json({ data: updated })
+    // Per-teacher summary across the tenant
+    const summary = await sql`
+      SELECT e.teacher_id,
+             MAX(e.teacher_name) AS teacher_name,
+             COUNT(DISTINCT s.class_id) AS total_classes,
+             COALESCE(SUM(EXTRACT(EPOCH FROM (t.end_time::time - t.start_time::time)) / 3600.0), 0) AS total_hours
+      FROM timetable_class_schedule_entries e
+      JOIN timetable_class_schedules s ON s.id = e.schedule_id
+      JOIN timetable_time_slots t ON t.id = e.time_slot_id
+      WHERE s.tenant_id = ${tenantId}
+        AND (${termId ?? null}::text IS NULL OR s.term_id = ${termId ?? null})
+      GROUP BY e.teacher_id
+      ORDER BY teacher_name
+    `
+    return res.status(200).json({
+      data: summary.rows.map((r: any) => ({
+        teacherId: r.teacher_id,
+        teacherName: r.teacher_name,
+        totalClasses: Number(r.total_classes),
+        totalHours: Math.round(Number(r.total_hours) * 10) / 10,
+      })),
+    })
+  } catch (error) {
+    console.error('Teacher schedules error:', error)
+    return res.status(500).json({ error: 'Failed to load teacher schedules' })
   }
-
-  res.setHeader('Allow', 'GET,PUT')
-  return res.status(405).json({ error: 'Method not allowed' })
 }

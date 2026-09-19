@@ -20,36 +20,48 @@ interface WorkloadEntry {
   className: string
   subjectName: string
   hoursPerWeek: number
-  dayOfWeek: number
+  days: number[]
 }
 
 interface TeacherSchedule {
-  id: string
   teacherId: string
   teacherName: string
-  termId: string
+  termId: string | null
   totalHours: number
   totalClasses: number
   maxHoursLimit: number | null
   workload: WorkloadEntry[]
 }
 
+interface Term {
+  id: string
+  name: string
+  academicYear: string
+}
+
 const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 export function TeacherTimetableTab() {
   const [staff, setStaff] = useState<StaffMember[]>([])
+  const [terms, setTerms] = useState<Term[]>([])
   const [selectedTeacherId, setSelectedTeacherId] = useState('')
+  const [selectedTerm, setSelectedTerm] = useState('')
   const [schedule, setSchedule] = useState<TeacherSchedule | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    tenantApiGet('/api/tenant/staff')
-      .then(r => r.json())
-      .then(d => {
-        const members: StaffMember[] = Array.isArray(d.data) ? d.data : []
+    Promise.all([
+      tenantApiGet('/api/tenant/staff').then(r => r.json()),
+      tenantApiGet('/api/tenant/timetable/calendar?resource=terms').then(r => r.json()).catch(() => ({})),
+    ])
+      .then(([staffData, termsData]) => {
+        const members: StaffMember[] = Array.isArray(staffData.data) ? staffData.data : []
+        const termList: Term[] = Array.isArray(termsData.data) ? termsData.data : []
         setStaff(members)
+        setTerms(termList)
         if (members.length > 0) setSelectedTeacherId(members[0].id)
+        if (termList.length > 0) setSelectedTerm(termList[0].id)
       })
       .catch(() => setError('Failed to load staff'))
   }, [])
@@ -57,22 +69,16 @@ export function TeacherTimetableTab() {
   useEffect(() => {
     if (!selectedTeacherId) return
     loadSchedule()
-  }, [selectedTeacherId])
+  }, [selectedTeacherId, selectedTerm])
 
   async function loadSchedule() {
     setLoading(true)
     setError(null)
     try {
-      const res = await tenantApiGet(`/api/tenant/timetable/teacher-schedules?teacherId=${selectedTeacherId}`)
+      const qs = selectedTerm ? `&termId=${encodeURIComponent(selectedTerm)}` : ''
+      const res = await tenantApiGet(`/api/tenant/timetable/teacher-schedules?teacherId=${selectedTeacherId}${qs}`)
       const data = await res.json()
-      const schedules: TeacherSchedule[] = data.data || []
-      if (schedules.length > 0) {
-        const detailRes = await tenantApiGet(`/api/tenant/timetable/teacher-schedules?id=${schedules[0].id}`)
-        const detailData = await detailRes.json()
-        setSchedule(detailData.data)
-      } else {
-        setSchedule(null)
-      }
+      setSchedule(data.data || null)
     } catch {
       setError('Failed to load teacher schedule')
     } finally {
@@ -93,6 +99,12 @@ export function TeacherTimetableTab() {
           <SelectTrigger className="w-56"><SelectValue placeholder={staff.length === 0 ? 'No staff available' : undefined} /></SelectTrigger>
           <SelectContent>
             {staff.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.role}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={selectedTerm} onValueChange={setSelectedTerm}>
+          <SelectTrigger className="w-48"><SelectValue placeholder={terms.length === 0 ? 'No terms yet' : undefined} /></SelectTrigger>
+          <SelectContent>
+            {terms.map(t => <SelectItem key={t.id} value={t.id}>{t.name} ({t.academicYear})</SelectItem>)}
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={loadSchedule}>
@@ -156,7 +168,7 @@ export function TeacherTimetableTab() {
                     <div key={w.id} className="flex items-center justify-between rounded-xl border border-gray-200 p-3">
                       <div>
                         <p className="font-semibold text-gray-900 text-sm">{w.subjectName}</p>
-                        <p className="text-xs text-gray-500">{w.className} • {DAY_NAMES[w.dayOfWeek]}</p>
+                        <p className="text-xs text-gray-500">{w.className} • {w.days.map(d => DAY_NAMES[d]).filter(Boolean).join(', ') || '—'}</p>
                       </div>
                       <Badge className="bg-blue-100 text-blue-700 text-xs">{w.hoursPerWeek} hrs/wk</Badge>
                     </div>
@@ -169,7 +181,7 @@ export function TeacherTimetableTab() {
       ) : (
         <Card>
           <CardContent className="p-8 text-center text-gray-500">
-            <p className="text-sm">No schedule found for this teacher in the current term.</p>
+            <p className="text-sm">No schedule found for this teacher in the selected term.</p>
             <p className="text-xs mt-1">Assignments will appear here once class timetables are configured.</p>
           </CardContent>
         </Card>

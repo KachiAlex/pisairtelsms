@@ -73,19 +73,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const currentTerm = resolvedTermId || '';
 
     let schedule: ScheduleEntry[] = [];
-    // Primary source: Timetable & Scheduling teacher schedules
+    // Primary source: class schedule entries written by Timetable & Scheduling
     try {
       const tsResult = await sql`
-        SELECT tsch.id::text, tsch.day_of_week, tsch.subject_name,
+        SELECT e.id::text, e.day_of_week, e.subject_name, e.room_id,
                COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), '') AS class_name,
                t.start_time::text AS start_time, t.end_time::text AS end_time
-        FROM timetable_teacher_schedules tsch
-        JOIN timetable_time_slots t ON t.id = tsch.time_slot_id
-        LEFT JOIN classes c ON c.id::text = tsch.class_id
-        WHERE tsch.teacher_id = ${staffId}
-          AND tsch.tenant_id = ${tenantId}
-          AND (${resolvedTermId}::text IS NULL OR tsch.term_id = ${resolvedTermId})
-        ORDER BY tsch.day_of_week, t.start_time
+        FROM timetable_class_schedule_entries e
+        JOIN timetable_class_schedules s ON s.id = e.schedule_id
+        JOIN timetable_time_slots t ON t.id = e.time_slot_id
+        LEFT JOIN classes c ON c.id::text = s.class_id::text
+        WHERE e.teacher_id = ${staffId}
+          AND s.tenant_id = ${tenantId}
+          AND (${resolvedTermId}::text IS NULL OR s.term_id = ${resolvedTermId})
+        ORDER BY e.day_of_week, t.start_time
       `;
       schedule = tsResult.rows.map(r => ({
         id: r.id,
@@ -93,7 +94,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         timeSlot: `${r.start_time} - ${r.end_time}`,
         subject: r.subject_name,
         className: r.class_name,
-        room: '',
+        room: r.room_id || '',
         startTime: r.start_time,
         endTime: r.end_time,
       }));
@@ -150,11 +151,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 AND LOWER(tt.subject) = LOWER(e.title)
             )
             OR EXISTS (
-              SELECT 1 FROM timetable_teacher_schedules tsch
-              WHERE tsch.teacher_id = ${staffId}
-                AND tsch.tenant_id = ${tenantId}
+              SELECT 1 FROM timetable_class_schedule_entries en
+              JOIN timetable_class_schedules sc ON sc.id = en.schedule_id
+              WHERE en.teacher_id = ${staffId}
+                AND sc.tenant_id = ${tenantId}
                 AND e.title IS NOT NULL
-                AND LOWER(tsch.subject_name) = LOWER(e.title)
+                AND LOWER(en.subject_name) = LOWER(e.title)
             )
           )
         ORDER BY e.exam_date, e.start_time

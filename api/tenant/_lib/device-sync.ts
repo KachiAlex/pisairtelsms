@@ -11,7 +11,6 @@ import {
   logSync,
   incrementConsecutiveFailures,
   resetConsecutiveFailures,
-  getEnrollments,
   findStudentByBiometricId,
 } from './biometric-devices.js'
 import { upsertAttendanceBatch } from './attendance.js'
@@ -30,7 +29,7 @@ export interface SyncResult {
   durationMs: number
 }
 
-export interface MockDeviceRecord {
+export interface DeviceRecord {
   biometricId: string
   timestamp: string
   deviceId: string
@@ -50,41 +49,16 @@ const RETRY_DELAYS = [
 // ============================================================================
 
 /**
- * Simulate fetching records from a biometric device.
- * In production this would make an HTTP request to the device's API.
- * Returns mock records based on enrolled students.
+ * Fetch records from a biometric device.
+ * Real device API integration is not implemented yet — returns no records
+ * rather than fabricating attendance data. To integrate a device vendor,
+ * implement their HTTP/SDK pull here and return DeviceRecord[].
  */
 async function fetchDeviceRecords(
-  deviceId: string,
-  tenantId: string
-): Promise<MockDeviceRecord[]> {
-  // Get enrolled students to generate realistic mock data
-  const enrollments = await getEnrollments(deviceId)
-
-  if (enrollments.length === 0) {
-    return []
-  }
-
-  // Generate mock attendance records for today
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  // Simulate ~80% attendance rate
-  const records: MockDeviceRecord[] = []
-  for (const enrollment of enrollments) {
-    if (Math.random() > 0.2) {
-      // Present
-      const checkInTime = new Date(today)
-      checkInTime.setHours(7 + Math.floor(Math.random() * 2), Math.floor(Math.random() * 60))
-      records.push({
-        biometricId: enrollment.biometricId,
-        timestamp: checkInTime.toISOString(),
-        deviceId,
-      })
-    }
-  }
-
-  return records
+  _deviceId: string,
+  _tenantId: string
+): Promise<DeviceRecord[]> {
+  return []
 }
 
 /**
@@ -94,7 +68,7 @@ async function fetchDeviceRecords(
 async function processDeviceRecords(
   tenantId: string,
   deviceId: string,
-  records: MockDeviceRecord[],
+  records: DeviceRecord[],
   academicSession: string,
   term: string
 ): Promise<{ synced: number; failed: number; errors: string[] }> {
@@ -111,6 +85,15 @@ async function processDeviceRecords(
 
       if (!studentId) {
         errors.push(`Unmatched biometric ID: ${record.biometricId}`)
+        failed++
+        continue
+      }
+
+      // Resolve the student's real class — devices don't carry it
+      const studentRes = await sql`SELECT class FROM students WHERE id = ${studentId} AND tenant_id = ${tenantId} LIMIT 1`
+      const studentClass = studentRes.rows[0]?.class
+      if (!studentClass) {
+        errors.push(`Student ${studentId} has no class assignment`)
         failed++
         continue
       }
@@ -134,7 +117,7 @@ async function processDeviceRecords(
 
       attendancePayloads.push({
         studentId,
-        class: 'Unknown', // Device doesn't know class; will be resolved by admin
+        class: studentClass,
         date: dateStr,
         status,
         source: 'biometric_device' as const,

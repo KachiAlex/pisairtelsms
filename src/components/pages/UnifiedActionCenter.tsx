@@ -31,6 +31,7 @@ interface ActionItem {
 
 export function UnifiedActionCenter({ onNavigate }: { onNavigate: (page: string) => void }) {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [urgentItems, setUrgentItems] = useState<ActionItem[]>([]);
   const [stats, setStats] = useState({
     pendingApprovals: 0,
@@ -41,61 +42,78 @@ export function UnifiedActionCenter({ onNavigate }: { onNavigate: (page: string)
 
   const fetchSummary = async () => {
     setLoading(true);
+    setError(null);
     try {
       const auth = getAuthFromStorage();
-      const headers = { 'Authorization': `Bearer ${auth?.token}` };
-      
-      // In a real app, this might be a single "summary" endpoint
-      // For now, we'll mock the aggregated response
-      setTimeout(() => {
-        setUrgentItems([
-          {
-            id: '1',
-            source: 'system',
-            title: 'Database Latency Spike',
-            subtitle: 'Impact: Admin Portal login slowdowns',
-            severity: 'high',
-            timestamp: new Date().toISOString(),
-            link: 'system-alerts'
-          },
-          {
-            id: '2',
-            source: 'approval',
-            title: 'SS3 Fee Waiver (Lola Balogun)',
-            subtitle: 'SLA Breach in 45 mins',
-            severity: 'high',
-            timestamp: new Date().toISOString(),
-            link: 'pending-approvals'
-          },
-          {
-            id: '3',
-            source: 'task',
-            title: 'Review Mock Exam Results',
-            subtitle: 'Assigned to: Ibrahim Musa',
-            severity: 'medium',
-            timestamp: new Date(Date.now() - 3600000).toISOString(),
-            link: 'task-management'
-          },
-          {
-            id: '4',
-            source: 'notification',
-            title: 'New Staff Onboarding',
-            subtitle: 'Mr. Tunde joined the Science Dept',
-            severity: 'low',
-            timestamp: new Date(Date.now() - 7200000).toISOString(),
-            link: 'notifications'
-          }
-        ]);
-        setStats({
-          pendingApprovals: 12,
-          activeIncidents: 2,
-          overdueTasks: 5,
-          unreadNotifications: 8
-        });
-        setLoading(false);
-      }, 800);
+      const headers: Record<string, string> = {};
+      if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`;
+
+      const [approvalsRes, alertsRes, tasksRes, notifsRes] = await Promise.all([
+        fetch('/api/tenant/approvals?limit=50', { headers }),
+        fetch('/api/tenant/alerts?status=active', { headers }),
+        fetch('/api/tenant/tasks?limit=50', { headers }),
+        fetch('/api/tenant/notifications', { headers }),
+      ]);
+
+      const approvals = approvalsRes.ok ? (await approvalsRes.json()).data || [] : [];
+      const alerts = alertsRes.ok ? (await alertsRes.json()).data || [] : [];
+      const tasks = tasksRes.ok ? (await tasksRes.json()).data || [] : [];
+      const notifications = notifsRes.ok ? (await notifsRes.json()).data || [] : [];
+
+      const pendingApprovals = approvals.filter((a: any) => ['pending', 'in_review', 'escalated'].includes(a.status));
+      const overdueTasks = tasks.filter((t: any) => t.status !== 'completed' && t.due_date && new Date(t.due_date) < new Date());
+      const unread = notifications.filter((n: any) => n.status === 'unread');
+
+      const items: ActionItem[] = [
+        ...alerts.map((a: any): ActionItem => ({
+          id: `alert-${a.id}`,
+          source: 'system',
+          title: a.title,
+          subtitle: a.impact ? `Impact: ${a.impact}` : 'System alert',
+          severity: a.severity === 'high' || a.severity === 'critical' ? 'high' : a.severity === 'medium' ? 'medium' : 'low',
+          timestamp: a.created_at,
+          link: 'system-alerts',
+        })),
+        ...pendingApprovals.map((a: any): ActionItem => ({
+          id: `approval-${a.id}`,
+          source: 'approval',
+          title: `${a.type} (${a.requester || 'Unknown'})`,
+          subtitle: a.sla_deadline && new Date(a.sla_deadline) < new Date() ? 'SLA breached' : `Status: ${a.status}`,
+          severity: a.sla_deadline && new Date(a.sla_deadline) < new Date() ? 'high' : 'medium',
+          timestamp: a.submitted_at,
+          link: 'pending-approvals',
+        })),
+        ...overdueTasks.map((t: any): ActionItem => ({
+          id: `task-${t.id}`,
+          source: 'task',
+          title: t.title,
+          subtitle: `Overdue since ${new Date(t.due_date).toLocaleDateString()}`,
+          severity: t.priority === 'high' ? 'high' : 'medium',
+          timestamp: t.due_date,
+          link: 'task-management',
+        })),
+        ...unread.slice(0, 5).map((n: any): ActionItem => ({
+          id: `notif-${n.id}`,
+          source: 'notification',
+          title: n.title,
+          subtitle: n.message?.slice(0, 80) || '',
+          severity: 'low',
+          timestamp: n.createdAt,
+          link: 'notifications',
+        })),
+      ];
+
+      setUrgentItems(items);
+      setStats({
+        pendingApprovals: pendingApprovals.length,
+        activeIncidents: alerts.length,
+        overdueTasks: overdueTasks.length,
+        unreadNotifications: unread.length,
+      });
     } catch (err) {
       console.error(err);
+      setError('Failed to load action center data.');
+    } finally {
       setLoading(false);
     }
   };
@@ -169,7 +187,21 @@ export function UnifiedActionCenter({ onNavigate }: { onNavigate: (page: string)
             </Button>
           </div>
 
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
           <div className="space-y-4">
+            {urgentItems.length === 0 && !error && (
+              <Card className="border-dashed">
+                <CardContent className="h-32 flex flex-col items-center justify-center text-gray-500 gap-2">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                  <p className="text-sm">You're all caught up. Nothing needs your attention.</p>
+                </CardContent>
+              </Card>
+            )}
             {urgentItems.map((item) => (
               <Card key={item.id} className={`group border-l-4 transition-all hover:bg-gray-50/50 ${
                 item.severity === 'high' ? 'border-l-rose-500' : 
@@ -210,56 +242,24 @@ export function UnifiedActionCenter({ onNavigate }: { onNavigate: (page: string)
         </div>
 
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">Today's Progress</h2>
+          <h2 className="text-xl font-bold text-gray-900">Queue Summary</h2>
           <Card className="border-none ring-1 ring-gray-100 shadow-sm">
-            <CardContent className="p-6 space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm font-bold">
-                  <span className="text-gray-700">Daily Goal Completion</span>
-                  <span className="text-blue-600">68%</span>
-                </div>
-                <Progress value={68} className="h-2 bg-blue-50" />
-                <p className="text-xs text-gray-500">14/22 priority items resolved.</p>
-              </div>
-
-              <div className="space-y-4 pt-4 border-t border-gray-50">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Team Health</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">Staff Capacity</span>
-                  </div>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-none">Optimal</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <LayoutDashboard className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">API Uptime</span>
-                  </div>
-                  <Badge className="bg-blue-50 text-blue-700 border-none">99.98%</Badge>
-                </div>
-              </div>
-
-              <div className="pt-6">
-                <div className="rounded-2xl bg-gray-900 p-6 text-white relative overflow-hidden">
-                  <div className="relative z-10">
-                    <h5 className="font-bold text-lg mb-2">Smart Insights</h5>
-                    <p className="text-xs text-gray-400 leading-relaxed mb-4">
-                      Based on current velocity, all high-priority tasks will be resolved by 4:00 PM.
-                    </p>
-                    <Button size="sm" className="w-full bg-white text-gray-900 hover:bg-gray-100 rounded-xl font-bold">
-                      Analyze Rota
-                    </Button>
-                  </div>
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Zap className="w-24 h-24 text-blue-400" />
-                  </div>
-                </div>
-              </div>
+            <CardContent className="p-6 space-y-4">
+              {[
+                { label: 'Pending approvals', value: stats.pendingApprovals, link: 'pending-approvals' },
+                { label: 'Active incidents', value: stats.activeIncidents, link: 'system-alerts' },
+                { label: 'Overdue tasks', value: stats.overdueTasks, link: 'task-management' },
+                { label: 'Unread notifications', value: stats.unreadNotifications, link: 'notifications' },
+              ].map((row) => (
+                <button
+                  key={row.label}
+                  onClick={() => onNavigate(row.link)}
+                  className="w-full flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-sm font-medium text-gray-700">{row.label}</span>
+                  <span className={`text-lg font-bold ${row.value > 0 ? 'text-gray-900' : 'text-gray-300'}`}>{row.value}</span>
+                </button>
+              ))}
             </CardContent>
           </Card>
         </div>

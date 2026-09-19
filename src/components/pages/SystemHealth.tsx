@@ -64,7 +64,7 @@ interface VendorDependency {
 
 export function SystemHealth() {
   const { toast } = useToast()
-  const [stats, setStats] = useState({ overallStatus: 'Green', incidents24h: 0, slaConverage: '99.4%', upcomingMaintenance: 2 })
+  const [stats, setStats] = useState({ overallStatus: '—', incidents24h: 0, slaConverage: '—', upcomingMaintenance: 0 })
   const [services, setServices] = useState<ServiceHealth[]>([])
   const [vitals, setVitals] = useState<InfrastructureVital[]>([])
   const [incidents, setIncidents] = useState<IncidentRecord[]>([])
@@ -170,7 +170,7 @@ export function SystemHealth() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Overall status</p>
-            <p className={`text-3xl font-semibold ${stats.overallStatus === 'Green' ? 'text-emerald-600' : 'text-amber-600'}`}>
+            <p className={`text-3xl font-semibold ${stats.overallStatus === 'Green' ? 'text-emerald-600' : stats.overallStatus === '—' ? 'text-gray-400' : 'text-amber-600'}`}>
               {stats.overallStatus}
             </p>
             <p className="text-xs text-gray-500">All critical surfaces responding</p>
@@ -180,13 +180,13 @@ export function SystemHealth() {
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Incidents (24h)</p>
             <p className="text-3xl font-semibold text-gray-900">{stats.incidents24h}</p>
-            <p className="text-xs text-gray-500">Avg MTTR 32 mins</p>
+            <p className="text-xs text-gray-500">Reported in the last 24 hours</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">SLA coverage</p>
-            <p className="text-3xl font-semibold text-emerald-600">{stats.slaConverage}%</p>
+            <p className="text-3xl font-semibold text-emerald-600">{stats.slaConverage === '—' ? '—' : `${stats.slaConverage}%`}</p>
             <p className="text-xs text-gray-500">Rolling 7 days</p>
           </CardContent>
         </Card>
@@ -324,30 +324,6 @@ export function SystemHealth() {
         </Card>
       )}
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5" />
-          <p>Notifications API latency breaching SLA. Coordinate with vendor and enable SMS throttling fallback.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Wifi className="h-4 w-4 mr-2" /> Activate fallback
-          </Button>
-          <Button size="sm">
-            <CloudLightning className="h-4 w-4 mr-2" /> Spin up burst nodes
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-slate-200 bg-white p-4 text-sm text-gray-700">
-        <div className="flex items-center gap-3">
-          <Activity className="h-5 w-5 text-slate-500" />
-          <p>Need deeper insight? Export raw metrics to your observability stack.</p>
-        </div>
-        <Button variant="outline" size="sm">
-          <Server className="h-4 w-4 mr-2" /> Download snapshot
-        </Button>
-      </div>
     </div>
   )
 }

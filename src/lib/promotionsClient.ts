@@ -120,7 +120,7 @@ export async function deletePromotionRecord(id: string): Promise<void> {
   }
 }
 
-export async function fetchPromotionRules(tenantId: string): Promise<PromotionRule[]> {
+export async function fetchPromotionRules(): Promise<PromotionRule[]> {
   const response = await tenantApiGet('/api/tenant/promotion-rules')
   const result = await parseResponse<PromotionRule[]>(response)
   return result.data ?? []
@@ -144,7 +144,7 @@ export async function createPromotionRule(rule: Omit<PromotionRule, 'id' | 'crea
   return result.data
 }
 
-export async function deletePromotionRule(id: string, tenantId: string): Promise<void> {
+export async function deletePromotionRule(id: string): Promise<void> {
   const response = await tenantApiFetch(`/api/tenant/promotion-rules?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
   })

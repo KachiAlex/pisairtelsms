@@ -6,17 +6,18 @@ import { Timetable } from './Timetable'
 import { ParentContextProvider } from '../../../contexts/ParentContext'
 
 const mockTimetableData = {
-  classSchedule: [
-    { day: 'Monday', time: '08:00', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101' },
-    { day: 'Tuesday', time: '09:00', subject: 'English', teacher: 'Mrs. Johnson', room: '102' },
+  schedule: [
+    { id: 's1', dayOfWeek: 1, timeSlot: '08:00', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101', startTime: '08:00', endTime: '08:45' },
+    { id: 's2', dayOfWeek: 2, timeSlot: '09:00', subject: 'English', teacher: 'Mrs. Johnson', room: '102', startTime: '09:00', endTime: '09:45' },
   ],
   examSchedule: [
-    { subject: 'Mathematics', date: '2024-05-15', time: '09:00', duration: 120, room: 'Hall A' },
+    { id: 'e1', subject: 'Mathematics', date: '2024-05-15', time: '09:00', duration: 120, room: 'Hall A', invigilator: '' },
   ],
   holidays: [
     { date: '2024-05-01', name: 'Workers Day' },
   ],
-  terms: [
+  currentTermId: 'term-1',
+  availableTerms: [
     { id: 'term-1', name: 'First Term', startDate: '2024-01-08', endDate: '2024-04-05' },
     { id: 'term-2', name: 'Second Term', startDate: '2024-04-22', endDate: '2024-07-19' },
   ],

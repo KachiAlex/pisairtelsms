@@ -41,12 +41,6 @@ export function NotificationsDashboard() {
       setNotifications(data.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while loading notifications.');
-      // Mock data if API fails (for demo/development)
-      setNotifications([
-        { id: '1', title: 'System Maintenance', message: 'Scheduled maintenance this Saturday at 2:00 AM UTC.', type: 'system', status: 'unread', createdAt: new Date().toISOString() },
-        { id: '2', title: 'New Fee Waiver Request', message: 'Lola Balogun submitted a fee waiver request for SS3.', type: 'alert', status: 'unread', createdAt: new Date(Date.now() - 3600000).toISOString(), actionLink: 'pending-approvals' },
-        { id: '3', title: 'Teacher Message', message: 'Mr. Tunde sent a message regarding the upcoming mock exams.', type: 'message', status: 'read', createdAt: new Date(Date.now() - 86400000).toISOString() },
-      ]);
     } finally {
       setLoading(false);
     }

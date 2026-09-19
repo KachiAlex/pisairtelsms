@@ -8,6 +8,7 @@ import {
   BookOpen,
   Loader2,
 } from 'lucide-react';
+import { tenantApiGet } from '../../lib/tenantApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import {
@@ -27,13 +28,6 @@ import {
 } from 'recharts';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
-
-function tenantHeaders(): Record<string, string> {
-  const tenantId =
-    (typeof window !== 'undefined' && localStorage.getItem('tenantId')) ||
-    'default-tenant';
-  return { 'Content-Type': 'application/json' };
-}
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
@@ -63,10 +57,9 @@ export default function DashboardOverview() {
   const [finance, setFinance] = useState<FinancialData | null>(null);
 
   useEffect(() => {
-    const headers = tenantHeaders();
     Promise.all([
-      fetch('/api/tenant/integrated-dashboard', { headers }).then((r) => r.json()),
-      fetch('/api/tenant/analytics/financial', { headers }).then((r) => r.json()),
+      tenantApiGet('/api/tenant/integrated-dashboard').then((r) => r.json()),
+      tenantApiGet('/api/tenant/analytics/financial').then((r) => r.json()),
     ])
       .then(([dashRes, finRes]) => {
         if (dashRes.data) setDash(dashRes.data);

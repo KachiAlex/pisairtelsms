@@ -50,38 +50,41 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       cohort: 'All',
       scope: row.scope,
       requestedBy: row.requested_by,
-      eta: row.status === 'completed' ? 'Ready' : row.status === 'processing' ? 'In 40 mins' : 'Awaiting approval',
+      eta: row.status === 'completed' ? 'Ready' : row.status === 'processing' ? 'In progress' : 'Awaiting approval',
       status: row.status === 'completed' ? 'Ready' : row.status === 'processing' ? 'Processing' : row.status === 'approved' ? 'Approved' : 'Pending',
     }))
 
-    // Get redundancy matrix (mock data for now)
-    const redundancyMatrix = [
-      { id: 'tier-1', label: 'Primary cloud', region: 'Azure West EU', retention: '35 days', integrity: 99 },
-      { id: 'tier-2', label: 'Secondary cloud', region: 'AWS eu-west-2', retention: '180 days', integrity: 96 },
-      { id: 'tier-3', label: 'On-prem NAS', region: 'Lagos data room', retention: '14 days', integrity: 91 },
-    ]
-
     // Get compliance signals
     const complianceResult = await sql`
-      SELECT task_name, task_type, owner, due_date, status
+      SELECT id, task_name, task_type, owner, due_date, status
       FROM compliance_tasks
       WHERE tenant_id = ${tenantId} AND task_type = 'bcp_drill'
       AND status NOT IN ('completed', 'overdue')
       ORDER BY due_date ASC
     `
     const complianceSignals = complianceResult.rows.map(row => ({
-      id: `cmp-${Math.floor(Math.random() * 100)}`,
+      id: `cmp-${row.id.substring(0, 8)}`,
       label: row.task_name,
       owner: row.owner,
       due: new Date(row.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       status: row.status === 'due_soon' ? 'Due soon' : 'Scheduled',
     }))
 
+    // BCP compliance: share of bcp_drill tasks completed
+    const bcpResult = await sql`
+      SELECT COUNT(*) as total,
+             COUNT(*) FILTER (WHERE status = 'completed') as completed
+      FROM compliance_tasks
+      WHERE tenant_id = ${tenantId} AND task_type = 'bcp_drill'
+    `
+    const bcpTotal = parseInt(bcpResult.rows[0]?.total || '0')
+    const bcpDone = parseInt(bcpResult.rows[0]?.completed || '0')
+
     // Calculate metrics
     const successfulJobs = backupJobs.filter(j => j.status === 'Succeeded').length
     const restoreRequestsActive = restoreRequests.filter(r => r.status !== 'Completed').length
-    const storageUtilization = 62 // Mock value
-    const bcpCompliance = 95 // Mock value
+    const storageUtilization = null // No storage quota is configured to measure against
+    const bcpCompliance = bcpTotal > 0 ? Math.round((bcpDone / bcpTotal) * 100) : null
 
     const data = {
       successfulJobs,
@@ -90,7 +93,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       bcpCompliance,
       backupJobs,
       restoreRequests,
-      redundancyMatrix,
+      redundancyMatrix: [],
       complianceSignals,
     }
 

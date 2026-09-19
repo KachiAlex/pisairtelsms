@@ -11,8 +11,8 @@ import { Progress } from '../ui/progress'
 interface BackupRestoreData {
   successfulJobs: number
   restoreRequestsActive: number
-  storageUtilization: number
-  bcpCompliance: number
+  storageUtilization: number | null
+  bcpCompliance: number | null
   backupJobs: Array<{
     id: string
     type: string
@@ -44,12 +44,6 @@ interface BackupRestoreData {
     status: string
   }>
 }
-
-const redundancyMatrix = [
-  { id: 'tier-1', label: 'Primary cloud', region: 'Azure West EU', retention: '35 days', integrity: 99 },
-  { id: 'tier-2', label: 'Secondary cloud', region: 'AWS eu-west-2', retention: '180 days', integrity: 96 },
-  { id: 'tier-3', label: 'On-prem NAS', region: 'Lagos data room', retention: '14 days', integrity: 91 },
-]
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'warning'> = {
   Succeeded: 'default',
@@ -138,28 +132,28 @@ export function BackupRestore() {
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Successful jobs (24h)</p>
             <p className="text-3xl font-semibold text-gray-900">{data?.successfulJobs || 0}</p>
-            <p className="text-xs text-gray-500">100% success rate</p>
+            <p className="text-xs text-gray-500">Completed successfully</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Restore requests</p>
             <p className="text-3xl font-semibold text-gray-900">{data?.restoreRequestsActive || 0} active</p>
-            <p className="text-xs text-gray-500">1 awaiting approval</p>
+            <p className="text-xs text-gray-500">Open restore requests</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Storage utilization</p>
-            <p className="text-3xl font-semibold text-gray-900">{data?.storageUtilization || 0}%</p>
-            <p className="text-xs text-gray-500">Across 3 tiers</p>
+            <p className="text-3xl font-semibold text-gray-900">{data?.storageUtilization != null ? `${data.storageUtilization}%` : '—'}</p>
+            <p className="text-xs text-gray-500">No storage quota configured</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">BCP compliance</p>
-            <p className="text-3xl font-semibold text-emerald-600">{data?.bcpCompliance || 0}%</p>
-            <p className="text-xs text-gray-500">Next drill in 12 days</p>
+            <p className="text-3xl font-semibold text-emerald-600">{data?.bcpCompliance != null ? `${data.bcpCompliance}%` : '—'}</p>
+            <p className="text-xs text-gray-500">BCP drills completed</p>
           </CardContent>
         </Card>
       </div>
@@ -228,7 +222,10 @@ export function BackupRestore() {
             <CardDescription>Layered storage with integrity scoring.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {redundancyMatrix.map((tier) => (
+            {(data?.redundancyMatrix ?? []).length === 0 && (
+              <p className="text-sm text-gray-500">No redundancy tiers configured.</p>
+            )}
+            {(data?.redundancyMatrix ?? []).map((tier) => (
               <div key={tier.id} className="rounded-xl border border-gray-100 p-4">
                 <div className="flex items-center justify-between mb-1">
                   <p className="font-medium text-gray-900">{tier.label}</p>

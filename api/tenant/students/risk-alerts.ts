@@ -1,73 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
-
-interface RiskAlert {
-  id: string;
-  tenantId: string;
-  studentId?: string;
-  surface: string;
-  signal: string;
-  likelihood: 'high' | 'medium' | 'low';
-  riskScore: number;
-  eta: string;
-  owner: string;
-  interventions: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface ModelPerformance {
-  id: string;
-  tenantId: string;
-  model: string;
-  precision: number;
-  recall: number;
-  f1Score: number;
-  accuracy: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface MitigationPlaybook {
-  id: string;
-  tenantId: string;
-  title: string;
-  steps: number;
-  coverage: number;
-  status: string;
-  automationLevel: 'manual' | 'semi-automated' | 'fully-automated';
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface SignalCluster {
-  id: string;
-  tenantId: string;
-  cluster: string;
-  confidence: number;
-  incidents: number;
-  trend: 'increasing' | 'stable' | 'decreasing';
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface InterventionRecommendation {
-  id: string;
-  tenantId: string;
-  riskAlertId: string;
-  action: string;
-  priority: 'urgent' | 'high' | 'medium' | 'low';
-  expectedOutcome: string;
-  owner: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const alerts: RiskAlert[] = [];
-const models: ModelPerformance[] = [];
-const playbooks: MitigationPlaybook[] = [];
-const clusters: SignalCluster[] = [];
-const interventions: InterventionRecommendation[] = [];
+import { sql } from '../../_lib/sql.js';
 
 // Risk scoring algorithm
 const calculateRiskScore = (likelihood: 'high' | 'medium' | 'low'): number => {
@@ -75,194 +6,241 @@ const calculateRiskScore = (likelihood: 'high' | 'medium' | 'low'): number => {
   return scores[likelihood];
 };
 
+const toAlert = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  studentId: r.student_id,
+  surface: r.surface,
+  signal: r.signal,
+  likelihood: r.likelihood,
+  riskScore: parseFloat(r.risk_score || '0'),
+  eta: r.eta,
+  owner: r.owner,
+  interventions: Array.isArray(r.interventions) ? r.interventions : [],
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toModel = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  model: r.model,
+  precision: parseFloat(r.precision || '0'),
+  recall: parseFloat(r.recall || '0'),
+  f1Score: parseFloat(r.f1_score || '0'),
+  accuracy: parseFloat(r.accuracy || '0'),
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toPlaybook = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  title: r.title,
+  steps: r.steps,
+  coverage: parseFloat(r.coverage || '0'),
+  status: r.status,
+  automationLevel: r.automation_level,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toCluster = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  cluster: r.cluster,
+  confidence: parseFloat(r.confidence || '0'),
+  incidents: r.incidents,
+  trend: r.trend,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toIntervention = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  riskAlertId: r.risk_alert_id,
+  action: r.action,
+  priority: r.priority,
+  expectedOutcome: r.expected_outcome,
+  owner: r.owner,
+  status: r.status,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
 export const riskAlertsApi = {
   // List risk alerts
-  listAlerts: (tenantId: string, filters?: { likelihood?: string; limit?: number; offset?: number }) => {
+  listAlerts: async (tenantId: string, filters?: { likelihood?: string; limit?: number; offset?: number }) => {
     if (!tenantId) throw new Error('Missing tenant ID');
 
     const { likelihood, limit = 50, offset = 0 } = filters || {};
 
-    let filtered = alerts.filter(a => a.tenantId === tenantId);
-    if (likelihood) filtered = filtered.filter(a => a.likelihood === likelihood);
+    const params: any[] = [tenantId];
+    let query = `SELECT * FROM risk_alerts WHERE tenant_id = $1`;
+    if (likelihood) {
+      query += ` AND likelihood = $2`;
+      params.push(likelihood);
+    }
+    query += ` ORDER BY risk_score DESC, created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
 
-    const data = filtered
-      .sort((a, b) => b.riskScore - a.riskScore)
-      .slice(offset, offset + limit);
+    const result = await sql.query(query, params);
+    const countResult = await sql.query(
+      `SELECT COUNT(*) as total FROM risk_alerts WHERE tenant_id = $1${likelihood ? ' AND likelihood = $2' : ''}`,
+      likelihood ? [tenantId, likelihood] : [tenantId]
+    );
 
-    return { data, total: filtered.length };
+    return { data: result.rows.map(toAlert), total: parseInt(countResult.rows[0]?.total || '0') };
   },
 
   // Create risk alert with scoring
-  createAlert: (tenantId: string, payload: { studentId?: string; surface: string; signal: string; likelihood: string; eta: string; owner: string; interventions?: string[] }) => {
+  createAlert: async (tenantId: string, payload: { studentId?: string; surface: string; signal: string; likelihood: string; eta: string; owner: string; interventions?: string[] }) => {
     if (!tenantId || !payload.surface || !payload.signal) {
       throw new Error('Missing required fields');
     }
 
     const riskScore = calculateRiskScore(payload.likelihood as any);
 
-    const alert: RiskAlert = {
-      id: uuidv4(),
-      tenantId,
-      studentId: payload.studentId,
-      surface: payload.surface,
-      signal: payload.signal,
-      likelihood: payload.likelihood as any,
-      riskScore,
-      eta: payload.eta,
-      owner: payload.owner,
-      interventions: payload.interventions || [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    alerts.push(alert);
-    return alert;
+    const result = await sql.query(
+      `INSERT INTO risk_alerts (id, tenant_id, student_id, surface, signal, likelihood, risk_score, eta, owner, interventions, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.studentId || null, payload.surface, payload.signal, payload.likelihood, riskScore, payload.eta || null, payload.owner || null, JSON.stringify(payload.interventions || [])]
+    );
+    return toAlert(result.rows[0]);
   },
 
   // List model performance
-  listModelPerformance: (tenantId: string) => {
+  listModelPerformance: async (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
-
-    return models
-      .filter(m => m.tenantId === tenantId)
-      .sort((a, b) => b.f1Score - a.f1Score);
+    const result = await sql.query(
+      `SELECT * FROM risk_model_performance WHERE tenant_id = $1 ORDER BY f1_score DESC`,
+      [tenantId]
+    );
+    return result.rows.map(toModel);
   },
 
   // Create model performance
-  createModelPerformance: (tenantId: string, payload: { model: string; precision: number; recall: number; accuracy?: number }) => {
+  createModelPerformance: async (tenantId: string, payload: { model: string; precision: number; recall: number; accuracy?: number }) => {
     if (!tenantId || !payload.model) {
       throw new Error('Missing required fields');
     }
 
     const f1Score = 2 * (payload.precision * payload.recall) / (payload.precision + payload.recall || 1);
 
-    const model: ModelPerformance = {
-      id: uuidv4(),
-      tenantId,
-      model: payload.model,
-      precision: payload.precision,
-      recall: payload.recall,
-      f1Score,
-      accuracy: payload.accuracy || 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    models.push(model);
-    return model;
+    const result = await sql.query(
+      `INSERT INTO risk_model_performance (id, tenant_id, model, precision, recall, f1_score, accuracy, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.model, payload.precision, payload.recall, f1Score, payload.accuracy || 0]
+    );
+    return toModel(result.rows[0]);
   },
 
   // List mitigation playbooks
-  listPlaybooks: (tenantId: string) => {
+  listPlaybooks: async (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
-
-    return playbooks
-      .filter(p => p.tenantId === tenantId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const result = await sql.query(
+      `SELECT * FROM risk_playbooks WHERE tenant_id = $1 ORDER BY updated_at DESC`,
+      [tenantId]
+    );
+    return result.rows.map(toPlaybook);
   },
 
   // Create playbook
-  createPlaybook: (tenantId: string, payload: { title: string; steps: number; coverage: number; status: string; automationLevel?: string }) => {
+  createPlaybook: async (tenantId: string, payload: { title: string; steps: number; coverage: number; status: string; automationLevel?: string }) => {
     if (!tenantId || !payload.title) {
       throw new Error('Missing required fields');
     }
 
-    const playbook: MitigationPlaybook = {
-      id: uuidv4(),
-      tenantId,
-      title: payload.title,
-      steps: payload.steps,
-      coverage: payload.coverage,
-      status: payload.status,
-      automationLevel: (payload.automationLevel as any) || 'manual',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    playbooks.push(playbook);
-    return playbook;
+    const result = await sql.query(
+      `INSERT INTO risk_playbooks (id, tenant_id, title, steps, coverage, status, automation_level, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.title, payload.steps || 0, payload.coverage || 0, payload.status || null, payload.automationLevel || 'manual']
+    );
+    return toPlaybook(result.rows[0]);
   },
 
   // List signal clusters
-  listClusters: (tenantId: string) => {
+  listClusters: async (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
-
-    return clusters
-      .filter(c => c.tenantId === tenantId)
-      .sort((a, b) => b.confidence - a.confidence);
+    const result = await sql.query(
+      `SELECT * FROM risk_signal_clusters WHERE tenant_id = $1 ORDER BY confidence DESC`,
+      [tenantId]
+    );
+    return result.rows.map(toCluster);
   },
 
   // Create signal cluster
-  createCluster: (tenantId: string, payload: { cluster: string; confidence: number; incidents: number; trend?: string }) => {
+  createCluster: async (tenantId: string, payload: { cluster: string; confidence: number; incidents: number; trend?: string }) => {
     if (!tenantId || !payload.cluster) {
       throw new Error('Missing required fields');
     }
 
-    const cluster: SignalCluster = {
-      id: uuidv4(),
-      tenantId,
-      cluster: payload.cluster,
-      confidence: payload.confidence,
-      incidents: payload.incidents,
-      trend: (payload.trend as any) || 'stable',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    clusters.push(cluster);
-    return cluster;
+    const result = await sql.query(
+      `INSERT INTO risk_signal_clusters (id, tenant_id, cluster, confidence, incidents, trend, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.cluster, payload.confidence || 0, payload.incidents || 0, payload.trend || 'stable']
+    );
+    return toCluster(result.rows[0]);
   },
 
   // Create intervention recommendation
-  createIntervention: (tenantId: string, payload: { riskAlertId: string; action: string; priority: string; expectedOutcome: string; owner: string }) => {
+  createIntervention: async (tenantId: string, payload: { riskAlertId: string; action: string; priority: string; expectedOutcome: string; owner: string }) => {
     if (!tenantId || !payload.riskAlertId || !payload.action) {
       throw new Error('Missing required fields');
     }
 
-    const intervention: InterventionRecommendation = {
-      id: uuidv4(),
-      tenantId,
-      riskAlertId: payload.riskAlertId,
-      action: payload.action,
-      priority: (payload.priority as any) || 'medium',
-      expectedOutcome: payload.expectedOutcome,
-      owner: payload.owner,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    interventions.push(intervention);
-    return intervention;
+    const result = await sql.query(
+      `INSERT INTO risk_interventions (id, tenant_id, risk_alert_id, action, priority, expected_outcome, owner, status, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.riskAlertId, payload.action, payload.priority || 'medium', payload.expectedOutcome || null, payload.owner || null]
+    );
+    return toIntervention(result.rows[0]);
   },
 
   // List interventions for alert
-  listInterventions: (tenantId: string, riskAlertId: string) => {
+  listInterventions: async (tenantId: string, riskAlertId: string) => {
     if (!tenantId || !riskAlertId) throw new Error('Missing required fields');
-
-    return interventions
-      .filter(i => i.tenantId === tenantId && i.riskAlertId === riskAlertId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const result = await sql.query(
+      `SELECT * FROM risk_interventions WHERE tenant_id = $1 AND risk_alert_id = $2 ORDER BY updated_at DESC`,
+      [tenantId, riskAlertId]
+    );
+    return result.rows.map(toIntervention);
   },
 
   // Get risk statistics
-  getStatistics: (tenantId: string) => {
+  getStatistics: async (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
 
-    const tenantAlerts = alerts.filter(a => a.tenantId === tenantId);
-    const criticalAlerts = tenantAlerts.filter(a => a.likelihood === 'high');
-    const tenantPlaybooks = playbooks.filter(p => p.tenantId === tenantId);
+    const alertsResult = await sql.query(
+      `SELECT COUNT(*) as total,
+              COUNT(*) FILTER (WHERE likelihood = 'high') as critical,
+              AVG(risk_score) as avg_score
+       FROM risk_alerts WHERE tenant_id = $1`,
+      [tenantId]
+    );
+    const playbooksResult = await sql.query(
+      `SELECT COUNT(*) as total,
+              COUNT(*) FILTER (WHERE status = 'Ready') as ready,
+              AVG(coverage) as avg_coverage
+       FROM risk_playbooks WHERE tenant_id = $1`,
+      [tenantId]
+    );
+
+    const a = alertsResult.rows[0];
+    const p = playbooksResult.rows[0];
 
     return {
-      activeAlerts: tenantAlerts.length,
-      criticalAlerts: criticalAlerts.length,
-      averageRiskScore: tenantAlerts.length > 0 
-        ? (tenantAlerts.reduce((sum, a) => sum + a.riskScore, 0) / tenantAlerts.length).toFixed(2)
-        : '0',
-      playbooksReady: tenantPlaybooks.filter(p => p.status === 'Ready').length,
-      automationCoverage: tenantPlaybooks.length > 0
-        ? (tenantPlaybooks.reduce((sum, p) => sum + p.coverage, 0) / tenantPlaybooks.length).toFixed(1)
-        : '0',
+      activeAlerts: parseInt(a?.total || '0'),
+      criticalAlerts: parseInt(a?.critical || '0'),
+      averageRiskScore: a?.avg_score ? parseFloat(a.avg_score).toFixed(2) : '0',
+      playbooksReady: parseInt(p?.ready || '0'),
+      automationCoverage: p?.avg_coverage ? parseFloat(p.avg_coverage).toFixed(1) : '0',
     };
   },
 };

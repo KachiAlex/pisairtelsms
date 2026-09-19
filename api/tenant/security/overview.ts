@@ -42,8 +42,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       privilegedIdentities = parseInt(privilegedResult.rows[0]?.count || '0')
     } catch (e) { console.error('role_assignments query error:', e) }
 
-    // Get MFA coverage (mock calculation - in production, query user MFA status)
-    const mfaCoverage = 92
+    // Get MFA coverage: enrolled users / total tenant users
+    let mfaCoverage: number | null = null
+    try {
+      const mfaResult = await poolQuery(
+        `SELECT
+           (SELECT COUNT(*) FROM user_mfa WHERE tenant_id = $1 AND is_enabled = true) as enabled,
+           (SELECT COUNT(*) FROM tenant_users WHERE tenant_id = $1) as total_users`,
+        [tenantId]
+      )
+      const enabled = parseInt(mfaResult.rows[0]?.enabled || '0')
+      const totalUsers = parseInt(mfaResult.rows[0]?.total_users || '0')
+      mfaCoverage = totalUsers > 0 ? Math.round((enabled / totalUsers) * 100) : null
+    } catch (e) { console.error('user_mfa query error:', e) }
 
     // Get encryption coverage
     let encryptionCoverage = 0
@@ -77,8 +88,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       pendingReviews = parseInt(reviewsResult.rows[0]?.count || '0')
     } catch (e) { console.error('privileged_roles query error:', e) }
 
-    // Get backup success rate
-    let backupSuccessRate = 100
+    // Get backup success rate (null when no backups ran in the window)
+    let backupSuccessRate: number | null = null
     try {
       const backupResult = await poolQuery(
         "SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'succeeded' THEN 1 END) as succeeded FROM backup_jobs WHERE tenant_id = $1 AND created_at > NOW() - INTERVAL '24 hours'",
@@ -86,7 +97,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       )
       const totalBackups = parseInt(backupResult.rows[0]?.total || '0')
       const succeededBackups = parseInt(backupResult.rows[0]?.succeeded || '0')
-      backupSuccessRate = totalBackups > 0 ? Math.round((succeededBackups / totalBackups) * 100) : 100
+      backupSuccessRate = totalBackups > 0 ? Math.round((succeededBackups / totalBackups) * 100) : null
     } catch (e) { console.error('backup_jobs query error:', e) }
 
     // Get compliance tasks

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { BadgeCheck, ShieldCheck, RefreshCcw, Search, HardDriveDownload, Share2, AlertTriangle, Fingerprint, Trash2 } from 'lucide-react'
 
+import { tenantApiGet } from '../../lib/tenantApi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -28,8 +29,6 @@ export function CertificateVerification() {
   const [certificateCode, setCertificateCode] = useState('')
   const [verifyResult, setVerifyResult] = useState<any>(null)
 
-  const tenantId = 'default-tenant'
-
   useEffect(() => {
     fetchData()
   }, [])
@@ -38,10 +37,10 @@ export function CertificateVerification() {
     try {
       setLoading(true)
       const [verificationsRes, registriesRes, fraudRes, statsRes] = await Promise.all([
-        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=verifications`),
-        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=registries`),
-        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=fraud-signals`),
-        fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&type=statistics`),
+        tenantApiGet(`/api/tenant/certificates/verification?type=verifications`),
+        tenantApiGet(`/api/tenant/certificates/verification?type=registries`),
+        tenantApiGet(`/api/tenant/certificates/verification?type=fraud-signals`),
+        tenantApiGet(`/api/tenant/certificates/verification?type=statistics`),
       ])
 
       if (!verificationsRes.ok || !registriesRes.ok || !fraudRes.ok || !statsRes.ok) {
@@ -71,9 +70,7 @@ export function CertificateVerification() {
     }
 
     try {
-      const res = await fetch(`/api/tenant/certificates/verification?tenantId=${tenantId}&code=${certificateCode}`, {
-        method: 'GET',
-      })
+      const res = await tenantApiGet(`/api/tenant/certificates/verification?type=verify&code=${encodeURIComponent(certificateCode)}`)
 
       if (!res.ok) {
         throw new Error('Certificate not found or invalid')

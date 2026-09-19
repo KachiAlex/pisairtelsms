@@ -52,7 +52,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(403).json({ error: 'Forbidden: You do not have access to this child' });
     }
 
-    const childRes = await sql`SELECT name, class FROM students WHERE id = ${childId as string} AND deleted_at IS NULL LIMIT 1`;
+    const tenantId = decoded.tenantId || 'default-tenant';
+    const childRes = await sql`SELECT name, class FROM students WHERE id = ${childId as string} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1`;
     const childName = childRes.rows[0]?.name || '';
     const studentClass = childRes.rows[0]?.class || '';
 
@@ -60,7 +61,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       exam_date::text AS date, start_time::text AS start_time, end_time::text AS end_time,
       room AS venue, COALESCE(student_class, '') AS student_class
       FROM exams
-      WHERE student_class = ${studentClass} OR student_class IS NULL
+      WHERE tenant_id = ${tenantId}
+        AND (student_class = ${studentClass} OR student_class IS NULL)
       ORDER BY exam_date, start_time`;
 
     const now = new Date();

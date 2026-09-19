@@ -147,14 +147,6 @@ export function TaskManagement() {
     } catch (err) {
       console.error('Error fetching task data:', err)
       setError('Failed to load task management data. Please try again.')
-      // Fallback/Mock for UI development
-      if (tasks.length === 0) {
-        setTasks([
-          { id: '1', title: 'Review exam papers', status: 'in_progress', priority: 'high', assigned_to: 'user-1', assigned_to_name: 'Ibrahim Musa', due_date: new Date().toISOString() },
-          { id: '2', title: 'Update fee structure', status: 'open', priority: 'medium', assigned_to: null, assigned_to_name: null, due_date: null },
-          { id: '3', title: 'Parent-Teacher conference setup', status: 'completed', priority: 'low', assigned_to: 'user-2', assigned_to_name: 'Adaeze Nwosu', due_date: new Date().toISOString() },
-        ]);
-      }
     } finally {
       setLoading(false)
     }
@@ -189,6 +181,54 @@ export function TaskManagement() {
       loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreateSquad = async () => {
+    if (!squadForm.squadName.trim() || !squadForm.owner.trim()) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const data = await fetchWithAuth('/api/tenant/tasks/squads', {
+        method: 'POST',
+        body: JSON.stringify({
+          squadName: squadForm.squadName,
+          owner: squadForm.owner,
+          focus: squadForm.focus || undefined,
+          risk: squadForm.risk,
+        })
+      });
+      if (!data.success) throw new Error(data.error || 'Failed to create squad');
+      setCreateSquadOpen(false)
+      resetSquadForm()
+      loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create squad.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreateWorkstream = async () => {
+    if (!workstreamForm.label.trim()) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const data = await fetchWithAuth('/api/tenant/tasks/workstreams', {
+        method: 'POST',
+        body: JSON.stringify({
+          label: workstreamForm.label,
+          nextMilestone: workstreamForm.nextMilestone || undefined,
+        })
+      });
+      if (!data.success) throw new Error(data.error || 'Failed to create workstream');
+      setCreateWorkstreamOpen(false)
+      resetWorkstreamForm()
+      loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create workstream.')
     } finally {
       setSubmitting(false)
     }
@@ -246,6 +286,12 @@ export function TaskManagement() {
           </Button>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="hover:shadow-md transition-all">
@@ -435,7 +481,6 @@ export function TaskManagement() {
                           <span>Focus: {squad.focus || 'General'}</span>
                           <span>{squad.task_count} active tasks</span>
                         </div>
-                        <Progress value={Math.random() * 100} className="h-1.5" />
                       </div>
                       <div className="flex gap-2 pt-2">
                         <Button variant="outline" size="sm" className="w-full text-xs">Manage</Button>
@@ -582,7 +627,7 @@ export function TaskManagement() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateSquadOpen(false)}>Cancel</Button>
-            <Button onClick={() => setCreateSquadOpen(false)} disabled={submitting || !squadForm.squadName.trim() || !squadForm.owner.trim()}>{submitting ? 'Creating...' : 'Create Squad'}</Button>
+            <Button onClick={handleCreateSquad} disabled={submitting || !squadForm.squadName.trim() || !squadForm.owner.trim()}>{submitting ? 'Creating...' : 'Create Squad'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -606,7 +651,7 @@ export function TaskManagement() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateWorkstreamOpen(false)}>Cancel</Button>
-            <Button onClick={() => setCreateWorkstreamOpen(false)} disabled={submitting || !workstreamForm.label.trim()}>{submitting ? 'Creating...' : 'Create Workstream'}</Button>
+            <Button onClick={handleCreateWorkstream} disabled={submitting || !workstreamForm.label.trim()}>{submitting ? 'Creating...' : 'Create Workstream'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

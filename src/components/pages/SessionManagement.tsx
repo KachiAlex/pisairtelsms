@@ -41,12 +41,6 @@ interface SessionManagementData {
   }>
 }
 
-const sessionControls = [
-  { id: 'control-1', label: 'Adaptive idle timeout', value: '15 mins (critical roles)', status: 'Live' },
-  { id: 'control-2', label: 'Device trust checks', value: 'Last seen < 30 days', status: 'Live' },
-  { id: 'control-3', label: 'Emergency kill switch', value: 'Available', status: 'Ready' },
-]
-
 const severityVariant: Record<string, 'default' | 'warning' | 'destructive'> = {
   Low: 'default',
   Medium: 'warning',
@@ -154,7 +148,7 @@ export function SessionManagement() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Avg. session length</p>
-            <p className="text-3xl font-semibold text-gray-900">{data?.avgSessionLength || 0} mins</p>
+            <p className="text-3xl font-semibold text-gray-900">{data ? `${data.avgSessionLength} mins` : '—'}</p>
             <p className="text-xs text-gray-500">Adaptive threshold</p>
           </CardContent>
         </Card>
@@ -228,7 +222,10 @@ export function SessionManagement() {
             <CardDescription>Adaptive policies tuned per role sensitivity.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {sessionControls.map((control) => (
+            {(data?.sessionControls ?? []).length === 0 && (
+              <p className="text-sm text-gray-500">No session controls configured.</p>
+            )}
+            {(data?.sessionControls ?? []).map((control) => (
               <div key={control.id} className="rounded-xl border border-gray-100 p-4">
                 <div className="flex items-center justify-between mb-1">
                   <p className="font-medium text-gray-900">{control.label}</p>

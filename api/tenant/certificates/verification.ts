@@ -1,70 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
-
-interface VerificationRecord {
-  id: string;
-  tenantId: string;
-  certificateCode: string;
-  holder: string;
-  credential: string;
-  status: 'validated' | 'manual_review' | 'rejected';
-  method: string;
-  latency: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface RegistryIntegration {
-  id: string;
-  tenantId: string;
-  provider: string;
-  status: 'live' | 'sync_lag' | 'offline';
-  uptime: number;
-  coverage: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface FraudSignal {
-  id: string;
-  tenantId: string;
-  flag: string;
-  severity: 'high' | 'medium' | 'low';
-  volume: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface IssuanceRecord {
-  id: string;
-  tenantId: string;
-  certificateCode: string;
-  studentId: string;
-  examId: string;
-  issuedAt: Date;
-  blockchainAnchor?: string;
-  revoked: boolean;
-  revokedAt?: Date;
-  revokedReason?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface AuditLog {
-  id: string;
-  tenantId: string;
-  certificateCode: string;
-  action: 'issued' | 'verified' | 'revoked' | 'manual_review';
-  actor: string;
-  details: string;
-  createdAt: Date;
-}
-
-const verifications: VerificationRecord[] = [];
-const registries: RegistryIntegration[] = [];
-const fraudSignals: FraudSignal[] = [];
-const issuances: IssuanceRecord[] = [];
-const auditLogs: AuditLog[] = [];
+import { sql } from '../../_lib/sql.js';
 
 // Certificate code generation with checksum
 const generateCertificateCode = (): string => {
@@ -74,227 +9,277 @@ const generateCertificateCode = (): string => {
   return `CERT-${timestamp}-${random}-${checksum}`;
 };
 
+const toVerification = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  certificateCode: r.certificate_code,
+  holder: r.holder,
+  credential: r.credential,
+  status: r.status,
+  method: r.method,
+  latency: r.latency,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toRegistry = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  provider: r.provider,
+  status: r.status,
+  uptime: parseFloat(r.uptime || '0'),
+  coverage: r.coverage,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toFraudSignal = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  flag: r.flag,
+  severity: r.severity,
+  volume: r.volume,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toIssuance = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  certificateCode: r.certificate_code,
+  studentId: r.student_id,
+  examId: r.exam_id,
+  issuedAt: r.issued_at,
+  blockchainAnchor: r.blockchain_anchor,
+  revoked: r.revoked,
+  revokedAt: r.revoked_at,
+  revokedReason: r.revoked_reason,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toAuditLog = (r: any) => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  certificateCode: r.certificate_code,
+  action: r.action,
+  actor: r.actor,
+  details: r.details,
+  createdAt: r.created_at,
+});
+
+async function writeAuditLog(tenantId: string, certificateCode: string, action: string, actor: string, details: string) {
+  await sql.query(
+    `INSERT INTO certificate_audit_log (id, tenant_id, certificate_code, action, actor, details, created_at)
+     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, NOW())`,
+    [tenantId, certificateCode, action, actor, details]
+  );
+}
+
 export const certificateVerificationApi = {
   // List verification records
-  listVerifications: (tenantId: string, filters?: { status?: string; limit?: number; offset?: number }) => {
+  listVerifications: async (tenantId: string, filters?: { status?: string; limit?: number; offset?: number }) => {
     if (!tenantId) throw new Error('Missing tenant ID');
 
     const { status, limit = 50, offset = 0 } = filters || {};
 
-    let filtered = verifications.filter(v => v.tenantId === tenantId);
-    if (status) filtered = filtered.filter(v => v.status === status);
+    const params: any[] = [tenantId];
+    let query = `SELECT * FROM certificate_verifications WHERE tenant_id = $1`;
+    if (status) {
+      query += ` AND status = $2`;
+      params.push(status);
+    }
+    query += ` ORDER BY updated_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
 
-    const data = filtered
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(offset, offset + limit);
+    const result = await sql.query(query, params);
+    const countResult = await sql.query(
+      `SELECT COUNT(*) as total FROM certificate_verifications WHERE tenant_id = $1${status ? ' AND status = $2' : ''}`,
+      status ? [tenantId, status] : [tenantId]
+    );
 
-    return { data, total: filtered.length };
+    return { data: result.rows.map(toVerification), total: parseInt(countResult.rows[0]?.total || '0') };
   },
 
   // Create verification record
-  createVerification: (tenantId: string, payload: { certificateCode: string; holder: string; credential: string; status: string; method: string; latency: string }) => {
+  createVerification: async (tenantId: string, payload: { certificateCode: string; holder: string; credential: string; status: string; method: string; latency: string }) => {
     if (!tenantId || !payload.certificateCode || !payload.holder) {
       throw new Error('Missing required fields');
     }
 
-    const verification: VerificationRecord = {
-      id: uuidv4(),
-      tenantId,
-      certificateCode: payload.certificateCode,
-      holder: payload.holder,
-      credential: payload.credential,
-      status: payload.status as any,
-      method: payload.method,
-      latency: payload.latency,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    const result = await sql.query(
+      `INSERT INTO certificate_verifications (id, tenant_id, certificate_code, holder, credential, status, method, latency, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.certificateCode, payload.holder, payload.credential || null, payload.status || 'validated', payload.method || null, payload.latency || null]
+    );
 
-    verifications.push(verification);
-    
-    // Log audit
-    auditLogs.push({
-      id: uuidv4(),
-      tenantId,
-      certificateCode: payload.certificateCode,
-      action: 'verified',
-      actor: 'system',
-      details: `Certificate verified via ${payload.method}`,
-      createdAt: new Date(),
-    });
+    await writeAuditLog(tenantId, payload.certificateCode, 'verified', 'system', `Certificate verified via ${payload.method}`);
 
-    return verification;
+    return toVerification(result.rows[0]);
   },
 
   // Verify certificate code
-  verifyCertificate: (tenantId: string, certificateCode: string) => {
+  verifyCertificate: async (tenantId: string, certificateCode: string) => {
     if (!tenantId || !certificateCode) throw new Error('Missing required fields');
 
-    const issuance = issuances.find(i => i.tenantId === tenantId && i.certificateCode === certificateCode && !i.revoked);
+    const result = await sql.query(
+      `SELECT * FROM certificate_issuances WHERE tenant_id = $1 AND certificate_code = $2 AND revoked = false`,
+      [tenantId, certificateCode]
+    );
+    const issuance = result.rows[0];
     if (!issuance) throw new Error('Certificate not found or revoked');
 
     return {
       valid: true,
-      certificateCode: issuance.certificateCode,
-      studentId: issuance.studentId,
-      examId: issuance.examId,
-      issuedAt: issuance.issuedAt,
-      blockchainAnchor: issuance.blockchainAnchor,
+      certificateCode: issuance.certificate_code,
+      studentId: issuance.student_id,
+      examId: issuance.exam_id,
+      issuedAt: issuance.issued_at,
+      blockchainAnchor: issuance.blockchain_anchor,
     };
   },
 
   // List registry integrations
-  listRegistries: (tenantId: string) => {
+  listRegistries: async (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
-
-    return registries
-      .filter(r => r.tenantId === tenantId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const result = await sql.query(
+      `SELECT * FROM certificate_registries WHERE tenant_id = $1 ORDER BY updated_at DESC`,
+      [tenantId]
+    );
+    return result.rows.map(toRegistry);
   },
 
   // Create registry integration
-  createRegistry: (tenantId: string, payload: { provider: string; status: string; uptime: number; coverage: string }) => {
+  createRegistry: async (tenantId: string, payload: { provider: string; status: string; uptime: number; coverage: string }) => {
     if (!tenantId || !payload.provider) {
       throw new Error('Missing required fields');
     }
 
-    const registry: RegistryIntegration = {
-      id: uuidv4(),
-      tenantId,
-      provider: payload.provider,
-      status: payload.status as any,
-      uptime: payload.uptime,
-      coverage: payload.coverage,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    registries.push(registry);
-    return registry;
+    const result = await sql.query(
+      `INSERT INTO certificate_registries (id, tenant_id, provider, status, uptime, coverage, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.provider, payload.status || 'live', payload.uptime || 0, payload.coverage || null]
+    );
+    return toRegistry(result.rows[0]);
   },
 
   // List fraud signals
-  listFraudSignals: (tenantId: string) => {
+  listFraudSignals: async (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
-
-    return fraudSignals
-      .filter(f => f.tenantId === tenantId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const result = await sql.query(
+      `SELECT * FROM certificate_fraud_signals WHERE tenant_id = $1 ORDER BY updated_at DESC`,
+      [tenantId]
+    );
+    return result.rows.map(toFraudSignal);
   },
 
   // Create fraud signal
-  createFraudSignal: (tenantId: string, payload: { flag: string; severity: string; volume: number }) => {
+  createFraudSignal: async (tenantId: string, payload: { flag: string; severity: string; volume: number }) => {
     if (!tenantId || !payload.flag) {
       throw new Error('Missing required fields');
     }
 
-    const signal: FraudSignal = {
-      id: uuidv4(),
-      tenantId,
-      flag: payload.flag,
-      severity: payload.severity as any,
-      volume: payload.volume,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    fraudSignals.push(signal);
-    return signal;
+    const result = await sql.query(
+      `INSERT INTO certificate_fraud_signals (id, tenant_id, flag, severity, volume, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, payload.flag, payload.severity || 'low', payload.volume || 0]
+    );
+    return toFraudSignal(result.rows[0]);
   },
 
   // Issue certificate with generated code
-  issueCertificate: (tenantId: string, payload: { studentId: string; examId: string; blockchainAnchor?: string }) => {
+  issueCertificate: async (tenantId: string, payload: { studentId: string; examId: string; blockchainAnchor?: string }) => {
     if (!tenantId || !payload.studentId || !payload.examId) {
       throw new Error('Missing required fields');
     }
 
     const certificateCode = generateCertificateCode();
 
-    const issuance: IssuanceRecord = {
-      id: uuidv4(),
-      tenantId,
-      certificateCode,
-      studentId: payload.studentId,
-      examId: payload.examId,
-      issuedAt: new Date(),
-      blockchainAnchor: payload.blockchainAnchor,
-      revoked: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    const result = await sql.query(
+      `INSERT INTO certificate_issuances (id, tenant_id, certificate_code, student_id, exam_id, issued_at, blockchain_anchor, revoked, created_at, updated_at)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, NOW(), $5, false, NOW(), NOW())
+       RETURNING *`,
+      [tenantId, certificateCode, payload.studentId, payload.examId, payload.blockchainAnchor || null]
+    );
 
-    issuances.push(issuance);
+    await writeAuditLog(tenantId, certificateCode, 'issued', 'system', `Certificate issued to student ${payload.studentId}`);
 
-    // Log audit
-    auditLogs.push({
-      id: uuidv4(),
-      tenantId,
-      certificateCode,
-      action: 'issued',
-      actor: 'system',
-      details: `Certificate issued to student ${payload.studentId}`,
-      createdAt: new Date(),
-    });
-
-    return issuance;
+    return toIssuance(result.rows[0]);
   },
 
   // Revoke certificate
-  revokeCertificate: (tenantId: string, certificateCode: string, payload: { reason: string; actor: string }) => {
+  revokeCertificate: async (tenantId: string, certificateCode: string, payload: { reason: string; actor: string }) => {
     if (!tenantId || !certificateCode) throw new Error('Missing required fields');
 
-    const issuance = issuances.find(i => i.tenantId === tenantId && i.certificateCode === certificateCode);
+    const result = await sql.query(
+      `UPDATE certificate_issuances
+       SET revoked = true, revoked_at = NOW(), revoked_reason = $3, updated_at = NOW()
+       WHERE tenant_id = $1 AND certificate_code = $2
+       RETURNING *`,
+      [tenantId, certificateCode, payload.reason || null]
+    );
+    const issuance = result.rows[0];
     if (!issuance) throw new Error('Certificate not found');
 
-    issuance.revoked = true;
-    issuance.revokedAt = new Date();
-    issuance.revokedReason = payload.reason;
-    issuance.updatedAt = new Date();
+    await writeAuditLog(tenantId, certificateCode, 'revoked', payload.actor, `Certificate revoked: ${payload.reason}`);
 
-    // Log audit
-    auditLogs.push({
-      id: uuidv4(),
-      tenantId,
-      certificateCode,
-      action: 'revoked',
-      actor: payload.actor,
-      details: `Certificate revoked: ${payload.reason}`,
-      createdAt: new Date(),
-    });
-
-    return issuance;
+    return toIssuance(issuance);
   },
 
   // List audit logs
-  listAuditLogs: (tenantId: string, filters?: { certificateCode?: string; limit?: number; offset?: number }) => {
+  listAuditLogs: async (tenantId: string, filters?: { certificateCode?: string; limit?: number; offset?: number }) => {
     if (!tenantId) throw new Error('Missing tenant ID');
 
     const { certificateCode, limit = 50, offset = 0 } = filters || {};
 
-    let filtered = auditLogs.filter(l => l.tenantId === tenantId);
-    if (certificateCode) filtered = filtered.filter(l => l.certificateCode === certificateCode);
+    const params: any[] = [tenantId];
+    let query = `SELECT * FROM certificate_audit_log WHERE tenant_id = $1`;
+    if (certificateCode) {
+      query += ` AND certificate_code = $2`;
+      params.push(certificateCode);
+    }
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
 
-    const data = filtered
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(offset, offset + limit);
+    const result = await sql.query(query, params);
+    const countResult = await sql.query(
+      `SELECT COUNT(*) as total FROM certificate_audit_log WHERE tenant_id = $1${certificateCode ? ' AND certificate_code = $2' : ''}`,
+      certificateCode ? [tenantId, certificateCode] : [tenantId]
+    );
 
-    return { data, total: filtered.length };
+    return { data: result.rows.map(toAuditLog), total: parseInt(countResult.rows[0]?.total || '0') };
   },
 
   // Get verification statistics
-  getStatistics: (tenantId: string) => {
+  getStatistics: async (tenantId: string) => {
     if (!tenantId) throw new Error('Missing tenant ID');
 
-    const tenantIssuances = issuances.filter(i => i.tenantId === tenantId);
-    const tenantVerifications = verifications.filter(v => v.tenantId === tenantId);
-    const validatedCount = tenantVerifications.filter(v => v.status === 'validated').length;
-    const revokedCount = tenantIssuances.filter(i => i.revoked).length;
+    const issuanceResult = await sql.query(
+      `SELECT COUNT(*) as total,
+              COUNT(*) FILTER (WHERE revoked) as revoked,
+              COUNT(*) FILTER (WHERE blockchain_anchor IS NOT NULL) as anchored
+       FROM certificate_issuances WHERE tenant_id = $1`,
+      [tenantId]
+    );
+    const verificationResult = await sql.query(
+      `SELECT COUNT(*) as total,
+              COUNT(*) FILTER (WHERE status = 'validated') as validated
+       FROM certificate_verifications WHERE tenant_id = $1`,
+      [tenantId]
+    );
+
+    const i = issuanceResult.rows[0];
+    const v = verificationResult.rows[0];
+    const totalVerifications = parseInt(v?.total || '0');
 
     return {
-      certificatesIssued: tenantIssuances.length,
-      certificatesRevoked: revokedCount,
-      validationSuccess: tenantVerifications.length > 0 ? ((validatedCount / tenantVerifications.length) * 100).toFixed(0) : '0',
-      blockchainAnchor: tenantIssuances.filter(i => i.blockchainAnchor).length,
+      certificatesIssued: parseInt(i?.total || '0'),
+      certificatesRevoked: parseInt(i?.revoked || '0'),
+      validationSuccess: totalVerifications > 0 ? Math.round((parseInt(v?.validated || '0') / totalVerifications) * 100).toString() : '0',
+      blockchainAnchor: parseInt(i?.anchored || '0'),
     };
   },
 };

@@ -208,7 +208,7 @@ export function StudentPromotion() {
         setPromotionRecords(records)
 
         // Load promotion rules
-        const rules = await fetchPromotionRules(tenantId || 'default-tenant')
+        const rules = await fetchPromotionRules()
         setPromotionRules(rules)
 
       } catch (err) {

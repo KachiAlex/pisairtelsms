@@ -56,17 +56,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const anomalySignals = anomaliesResult.rows.map(row => ({
       id: row.id,
       label: row.description,
-      owner: 'Security Ops',
+      owner: row.owner || 'Unassigned',
       severity: row.severity,
-      action: row.severity === 'critical' ? 'Auto terminate session' : 'Force MFA challenge',
+      action: 'Review required',
     }))
-
-    // Get session controls (mock data for now)
-    const sessionControls = [
-      { id: 'control-1', label: 'Adaptive idle timeout', value: '15 mins (critical roles)', status: 'Live' },
-      { id: 'control-2', label: 'Device trust checks', value: 'Last seen < 30 days', status: 'Live' },
-      { id: 'control-3', label: 'Emergency kill switch', value: 'Available', status: 'Ready' },
-    ]
 
     // Get session history
     const historyResult = await sql`
@@ -84,11 +77,29 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       time: getTimeAgo(row.created_at),
     }))
 
+    // Sessions terminated today
+    const terminatedResult = await sql`
+      SELECT COUNT(*) as count
+      FROM security_events
+      WHERE tenant_id = ${tenantId}
+        AND event_type IN ('session_terminated', 'session_timeout', 'logout')
+        AND created_at >= CURRENT_DATE
+    `
+    const terminatedToday = parseInt(terminatedResult.rows[0]?.count || '0')
+
+    // Average session length across sessions ended in the last 30 days
+    const avgResult = await sql`
+      SELECT AVG(EXTRACT(EPOCH FROM (COALESCE(terminated_at, last_activity) - created_at)) / 60) as avg_minutes
+      FROM user_sessions
+      WHERE tenant_id = ${tenantId}
+        AND created_at > NOW() - INTERVAL '30 days'
+        AND (terminated_at IS NOT NULL OR last_activity IS NOT NULL)
+    `
+    const avgSessionLength = Math.round(parseFloat(avgResult.rows[0]?.avg_minutes || '0'))
+
     // Calculate metrics
     const activeCount = activeSessions.length
-    const terminatedToday = historyLog.filter(h => h.time.includes('hr') || h.time.includes('min')).length
     const highRiskSignals = anomalySignals.filter(a => a.severity === 'high').length
-    const avgSessionLength = 47 // Mock calculation
 
     const data = {
       activeSessions,
@@ -97,7 +108,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       highRiskSignals,
       avgSessionLength,
       anomalySignals,
-      sessionControls,
+      sessionControls: [],
       historyLog,
     }
 

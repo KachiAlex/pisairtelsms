@@ -82,6 +82,7 @@ export function PlansTab() {
   const [plans, setPlans] = useState<PlanConfigRow[]>([])
   const [originalPlans, setOriginalPlans] = useState<PlanConfigRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
   const [resetting, setResetting] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
@@ -102,28 +103,11 @@ export function PlansTab() {
         setPlans(data.data)
         setOriginalPlans(data.data)
       } else {
-        // Fallback to static config
-        const fallback: PlanConfigRow[] = (Object.keys(PLAN_CONFIG) as PlanType[]).map((plan) => ({
-          planName: plan,
-          features: PLAN_CONFIG[plan],
-          rate: PLAN_RATES[plan],
-          isActive: true,
-          updatedAt: new Date().toISOString(),
-        }))
-        setPlans(fallback)
-        setOriginalPlans(fallback)
+        setLoadError(data.error || 'Failed to load plan configuration')
       }
     } catch (e) {
       console.error('Failed to load plans:', e)
-      const fallback: PlanConfigRow[] = (Object.keys(PLAN_CONFIG) as PlanType[]).map((plan) => ({
-        planName: plan,
-        features: PLAN_CONFIG[plan],
-        rate: PLAN_RATES[plan],
-        isActive: true,
-        updatedAt: new Date().toISOString(),
-      }))
-      setPlans(fallback)
-      setOriginalPlans(fallback)
+      setLoadError(e instanceof Error ? e.message : 'Failed to load plan configuration')
     } finally {
       setLoading(false)
     }
@@ -222,6 +206,15 @@ export function PlansTab() {
   }
 
   const allCategories = plans.length > 0 ? getFeatureKeys(plans[0].features) : []
+
+  if (loadError) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 space-y-3">
+        <p className="text-sm text-red-700">Failed to load plan configuration: {loadError}</p>
+        <Button variant="outline" size="sm" onClick={fetchPlans}>Retry</Button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

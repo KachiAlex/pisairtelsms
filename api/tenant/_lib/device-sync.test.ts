@@ -121,8 +121,7 @@ describe('syncDevice', () => {
   })
 
   it('increments failures on sync error', async () => {
-    mockGetDevice.mockResolvedValueOnce(mockDevice)
-    mockGetEnrollments.mockRejectedValueOnce(new Error('DB connection failed'))
+    mockGetDevice.mockRejectedValueOnce(new Error('DB connection failed'))
 
     const result = await syncDevice('tenant-1', 'device-1')
 

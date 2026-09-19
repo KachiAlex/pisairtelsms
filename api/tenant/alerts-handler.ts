@@ -52,8 +52,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         data: {
           openIncidents:    parseInt(row.open_incidents   || '0'),
           resolvedToday:    parseInt(row.resolved_today   || '0'),
-          avgMttr:          row.avg_mttr ? `${Math.round(parseFloat(row.avg_mttr))} mins` : '0 mins',
-          pagerDutyCoverage: '100%',
+          avgMttr:          row.avg_mttr ? `${Math.round(parseFloat(row.avg_mttr))} mins` : null,
+          pagerDutyCoverage: null,
           channelHealth:    ch.rows,
         },
       });

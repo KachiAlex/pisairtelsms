@@ -100,13 +100,6 @@ export function PendingApprovals() {
     } catch (err) {
       console.error('Error fetching approval data:', err)
       setError('Failed to load approval queues. Please try again.')
-      // Mock data for UI development
-      if (requests.length === 0) {
-        setRequests([
-          { id: 'APP-001', type: 'Fee Waiver', requester: 'Lola Balogun', submitted_at: new Date().toISOString(), sla_deadline: new Date(Date.now() + 86400000).toISOString(), status: 'In review', description: 'SS3 Mock exam fee waiver for merit student.' },
-          { id: 'APP-002', type: 'Leave Request', requester: 'Tunde Ajayi', submitted_at: new Date().toISOString(), sla_deadline: null, status: 'Queued', description: 'Annual leave request for April.' },
-        ]);
-      }
     } finally {
       setLoading(false)
     }

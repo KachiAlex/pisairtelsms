@@ -19,7 +19,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const { type, likelihood, limit, offset, riskAlertId } = req.query;
 
       if (type === 'alerts') {
-        const result = riskAlertsApi.listAlerts(tenantId, {
+        const result = await riskAlertsApi.listAlerts(tenantId, {
           likelihood: likelihood as string,
           limit: limit ? parseInt(limit as string) : 50,
           offset: offset ? parseInt(offset as string) : 0,
@@ -28,27 +28,27 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       if (type === 'models') {
-        const result = riskAlertsApi.listModelPerformance(tenantId);
+        const result = await riskAlertsApi.listModelPerformance(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'playbooks') {
-        const result = riskAlertsApi.listPlaybooks(tenantId);
+        const result = await riskAlertsApi.listPlaybooks(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'clusters') {
-        const result = riskAlertsApi.listClusters(tenantId);
+        const result = await riskAlertsApi.listClusters(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'interventions' && riskAlertId) {
-        const result = riskAlertsApi.listInterventions(tenantId, riskAlertId as string);
+        const result = await riskAlertsApi.listInterventions(tenantId, riskAlertId as string);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'statistics') {
-        const result = riskAlertsApi.getStatistics(tenantId);
+        const result = await riskAlertsApi.getStatistics(tenantId);
         return res.status(200).json(result);
       }
 
@@ -59,27 +59,27 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const { action, payload } = req.body || {};
 
       if (action === 'create-alert') {
-        const alert = riskAlertsApi.createAlert(tenantId, payload);
+        const alert = await riskAlertsApi.createAlert(tenantId, payload);
         return res.status(201).json(alert);
       }
 
       if (action === 'create-model') {
-        const model = riskAlertsApi.createModelPerformance(tenantId, payload);
+        const model = await riskAlertsApi.createModelPerformance(tenantId, payload);
         return res.status(201).json(model);
       }
 
       if (action === 'create-playbook') {
-        const playbook = riskAlertsApi.createPlaybook(tenantId, payload);
+        const playbook = await riskAlertsApi.createPlaybook(tenantId, payload);
         return res.status(201).json(playbook);
       }
 
       if (action === 'create-cluster') {
-        const cluster = riskAlertsApi.createCluster(tenantId, payload);
+        const cluster = await riskAlertsApi.createCluster(tenantId, payload);
         return res.status(201).json(cluster);
       }
 
       if (action === 'create-intervention') {
-        const intervention = riskAlertsApi.createIntervention(tenantId, payload);
+        const intervention = await riskAlertsApi.createIntervention(tenantId, payload);
         return res.status(201).json(intervention);
       }
 

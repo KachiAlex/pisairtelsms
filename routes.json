@@ -305,6 +305,14 @@
       "destination": "/api/tenant/approvals/statistics.ts"
     },
     {
+      "source": "/api/tenant/approvals",
+      "destination": "/api/tenant/approvals/index.ts"
+    },
+    {
+      "source": "/api/tenant/tasks",
+      "destination": "/api/tenant/tasks/index.ts"
+    },
+    {
       "source": "/api/tenant/cbt/questions/import",
       "destination": "/api/tenant/cbt/questions/import.ts"
     },
@@ -644,10 +652,7 @@
       "source": "/api/tenant/live-meetings",
       "destination": "/api/tenant/live-meetings.ts"
     },
-    {
-      "source": "/api/tenant/tasks-handler",
-      "destination": "/api/tenant/tasks-handler.ts"
-    },
+
     {
       "source": "/api/admin/admin-handler",
       "destination": "/api/admin/admin-handler.ts"

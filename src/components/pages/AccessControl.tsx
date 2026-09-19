@@ -135,8 +135,8 @@ export function AccessControl() {
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">MFA Adoption</p>
-            <p className="text-3xl font-semibold text-green-600">{data?.mfaCoverage || 0}%</p>
-            <p className="text-xs text-gray-500">+6% vs last audit</p>
+            <p className="text-3xl font-semibold text-green-600">{data?.mfaCoverage != null ? `${data.mfaCoverage}%` : '—'}</p>
+            <p className="text-xs text-gray-500">Enrolled users</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">

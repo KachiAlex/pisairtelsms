@@ -19,12 +19,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       if (type === 'verify' && (code || certificateCode)) {
         const certCode = (code || certificateCode) as string;
-        const result = certificateVerificationApi.verifyCertificate(tenantId, certCode);
+        const result = await certificateVerificationApi.verifyCertificate(tenantId, certCode);
         return res.status(200).json(result);
       }
 
       if (type === 'verifications') {
-        const result = certificateVerificationApi.listVerifications(tenantId, {
+        const result = await certificateVerificationApi.listVerifications(tenantId, {
           status: status as string,
           limit: limit ? parseInt(limit as string) : 50,
           offset: offset ? parseInt(offset as string) : 0,
@@ -33,17 +33,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       if (type === 'registries') {
-        const result = certificateVerificationApi.listRegistries(tenantId);
+        const result = await certificateVerificationApi.listRegistries(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'fraud-signals') {
-        const result = certificateVerificationApi.listFraudSignals(tenantId);
+        const result = await certificateVerificationApi.listFraudSignals(tenantId);
         return res.status(200).json({ data: result });
       }
 
       if (type === 'audit-logs') {
-        const result = certificateVerificationApi.listAuditLogs(tenantId, {
+        const result = await certificateVerificationApi.listAuditLogs(tenantId, {
           certificateCode: certificateCode as string,
           limit: limit ? parseInt(limit as string) : 50,
           offset: offset ? parseInt(offset as string) : 0,
@@ -52,7 +52,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       if (type === 'statistics') {
-        const result = certificateVerificationApi.getStatistics(tenantId);
+        const result = await certificateVerificationApi.getStatistics(tenantId);
         return res.status(200).json(result);
       }
 
@@ -63,27 +63,27 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const { action, payload } = req.body || {};
 
       if (action === 'create-verification') {
-        const verification = certificateVerificationApi.createVerification(tenantId, payload);
+        const verification = await certificateVerificationApi.createVerification(tenantId, payload);
         return res.status(201).json(verification);
       }
 
       if (action === 'create-registry') {
-        const registry = certificateVerificationApi.createRegistry(tenantId, payload);
+        const registry = await certificateVerificationApi.createRegistry(tenantId, payload);
         return res.status(201).json(registry);
       }
 
       if (action === 'create-fraud-signal') {
-        const signal = certificateVerificationApi.createFraudSignal(tenantId, payload);
+        const signal = await certificateVerificationApi.createFraudSignal(tenantId, payload);
         return res.status(201).json(signal);
       }
 
       if (action === 'issue-certificate') {
-        const issuance = certificateVerificationApi.issueCertificate(tenantId, payload);
+        const issuance = await certificateVerificationApi.issueCertificate(tenantId, payload);
         return res.status(201).json(issuance);
       }
 
       if (action === 'revoke-certificate') {
-        const issuance = certificateVerificationApi.revokeCertificate(tenantId, payload.certificateCode, payload);
+        const issuance = await certificateVerificationApi.revokeCertificate(tenantId, payload.certificateCode, payload);
         return res.status(200).json(issuance);
       }
 

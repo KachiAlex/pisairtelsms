@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Activity, AlertOctagon, ShieldCheck, BellRing, TrendingUp, RefreshCcw, Zap, Eye, MapPin } from 'lucide-react'
 
+import { tenantApiGet } from '../../lib/tenantApi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -27,8 +28,6 @@ export function PredictiveRiskAlerts() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const tenantId = 'default-tenant'
-
   useEffect(() => {
     fetchData()
   }, [])
@@ -37,11 +36,11 @@ export function PredictiveRiskAlerts() {
     try {
       setLoading(true)
       const [alertsRes, modelsRes, playbooksRes, clustersRes, statsRes] = await Promise.all([
-        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=alerts`),
-        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=models`),
-        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=playbooks`),
-        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=clusters`),
-        fetch(`/api/tenant/students/risk-alerts?tenantId=${tenantId}&type=statistics`),
+        tenantApiGet(`/api/tenant/students/risk-alerts?type=alerts`),
+        tenantApiGet(`/api/tenant/students/risk-alerts?type=models`),
+        tenantApiGet(`/api/tenant/students/risk-alerts?type=playbooks`),
+        tenantApiGet(`/api/tenant/students/risk-alerts?type=clusters`),
+        tenantApiGet(`/api/tenant/students/risk-alerts?type=statistics`),
       ])
 
       if (!alertsRes.ok || !modelsRes.ok || !playbooksRes.ok || !clustersRes.ok || !statsRes.ok) {

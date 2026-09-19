@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
+import { tenantApiFetch } from '../../lib/tenantApi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -56,21 +57,14 @@ type UploadStatus = 'idle' | 'preview' | 'uploading' | 'success' | 'error'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getTenantHeaders(): Record<string, string> {
-  try {
-    const auth = localStorage.getItem('auth')
-    const tenantId = auth ? JSON.parse(auth).tenantId || 'default-tenant' : 'default-tenant'
-    return { 'Content-Type': 'application/json' }
-  } catch {
-    return { 'Content-Type': 'application/json' }
-  }
+function csvBody(csvContent: string): string {
+  return JSON.stringify({ csvContent })
 }
 
 function downloadTemplate() {
   const headers = ['studentId', 'class', 'date', 'status', 'academicSession', 'term', 'absenceReason']
   const today = new Date().toISOString().split('T')[0]
-  const currentYear = new Date().getFullYear()
-  const sampleRow = ['STU001', 'JSS 1', today, 'present', `${currentYear}/${currentYear + 1}`, '1', '']
+  const sampleRow = ['STU001', 'JSS 1', today, 'present', 'YYYY/YYYY', '1', '']
 
   const csv = [headers.join(','), sampleRow.join(',')].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -152,10 +146,10 @@ export function AttendanceBatchUpload() {
     setError(null)
 
     try {
-      const response = await fetch('/api/tenant/attendance/batch-upload?preview=true', {
+      const response = await tenantApiFetch('/api/tenant/attendance/batch-upload?preview=true', {
         method: 'POST',
-        headers: getTenantHeaders(),
-        body: csvContent,
+        headers: { 'Content-Type': 'application/json' },
+        body: csvBody(csvContent),
       })
 
       const json = await response.json()
@@ -196,10 +190,10 @@ export function AttendanceBatchUpload() {
         setUploadProgress((prev) => Math.min(prev + 10, 90))
       }, 200)
 
-      const response = await fetch('/api/tenant/attendance/batch-upload', {
+      const response = await tenantApiFetch('/api/tenant/attendance/batch-upload', {
         method: 'POST',
-        headers: getTenantHeaders(),
-        body: csvContent,
+        headers: { 'Content-Type': 'application/json' },
+        body: csvBody(csvContent),
       })
 
       clearInterval(progressInterval)

@@ -16,10 +16,10 @@ import {
 import { tenantApiGet } from '../../lib/tenantApi'
 
 const fallbackSettings: TenantSettingsPayload = {
-  schoolName: 'Excellence Academy',
-  schoolAddress: '123 Education Road, Lagos, Nigeria',
-  schoolEmail: 'info@excellenceacademy.edu.ng',
-  schoolPhone: '+234-801-234-5678',
+  schoolName: '',
+  schoolAddress: '',
+  schoolEmail: '',
+  schoolPhone: '',
   currentSession: '',
   currentTerm: '',
   enableSMS: true,
@@ -44,6 +44,7 @@ export function SystemSettings() {
   const [settings, setSettings] = useState<TenantSettingsPayload | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [academicYears, setAcademicYears] = useState<{ id: string; name: string }[]>([])
   const [terms, setTerms] = useState<{ id: string; name: string }[]>([])
@@ -68,8 +69,8 @@ export function SystemSettings() {
         if (cancelled) return
         const message = error instanceof Error ? error.message : 'Unable to load settings.'
         toast({ variant: 'destructive', title: 'Failed to load settings', description: message })
-        setSettings(cloneFallback())
-        setLastUpdated(new Date().toISOString())
+        setLoadError(message)
+        setSettings(null)
       })
       .finally(() => { if (!cancelled) setIsLoading(false) })
 
@@ -109,7 +110,14 @@ export function SystemSettings() {
   if (!settings) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">Loading tenant settings…</p>
+        {loadError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-3">
+            <p className="text-sm text-red-700">Failed to load settings: {loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">Loading tenant settings…</p>
+        )}
       </div>
     )
   }

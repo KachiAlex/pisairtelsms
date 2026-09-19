@@ -11,11 +11,11 @@ import { Progress } from '../ui/progress';
 interface SecurityOverview {
   activeSessions: number;
   privilegedIdentities: number;
-  mfaCoverage: number;
+  mfaCoverage: number | null;
   encryptionCoverage: number;
   criticalAlerts: number;
   pendingReviews: number;
-  backupSuccessRate: number;
+  backupSuccessRate: number | null;
   complianceTasks: number;
 }
 
@@ -169,7 +169,7 @@ export function SecurityCompliance() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-gray-500">MFA Coverage</p>
-                    <p className="text-3xl font-semibold text-gray-900">{overview?.mfaCoverage || 0}%</p>
+                    <p className="text-3xl font-semibold text-gray-900">{overview?.mfaCoverage != null ? `${overview.mfaCoverage}%` : '—'}</p>
                   </div>
                   <div className="p-3 bg-green-50 rounded-xl text-green-600">
                     <ShieldCheck className="w-5 h-5" />

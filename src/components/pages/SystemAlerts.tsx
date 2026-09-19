@@ -92,18 +92,6 @@ export function SystemAlerts() {
     } catch (err) {
       console.error('Error fetching system alerts:', err)
       setError('Failed to load system telemetry. Please try again.')
-      // Mock data for UI development
-      if (alerts.length === 0) {
-        setAlerts([
-          { id: 'ALT-001', title: 'High Latency: Database EU-West-1', impact: 'Admin Portal login slowdowns', owner: 'Infrastructure', severity: 'high', eta: '15m', status: 'investigating', createdAt: new Date().toISOString() },
-          { id: 'ALT-002', title: 'API Rate Limit Warning', impact: 'Potential mobile app disruption', owner: 'DevOps', severity: 'medium', eta: null, status: 'open', createdAt: new Date().toISOString() },
-        ]);
-        setChannelHealth([
-          { id: '1', channel: 'SMS Gateway', status: 'Healthy', latency: '1.2s', uptime: 99.9 },
-          { id: '2', channel: 'Email Dispatch', status: 'Degraded', latency: '45s', uptime: 94.2 },
-          { id: '3', channel: 'Push Notifications', status: 'Healthy', latency: '0.1s', uptime: 99.9 },
-        ]);
-      }
     } finally {
       setLoading(false)
     }
@@ -172,14 +160,14 @@ export function SystemAlerts() {
         <Card className="hover:shadow-md transition-all">
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500 font-medium">Avg. MTTR</p>
-            <p className="text-3xl font-semibold text-gray-900">{metrics?.avgMttr || '28m'}</p>
+            <p className="text-3xl font-semibold text-gray-900">{metrics?.avgMttr || '—'}</p>
             <p className="text-xs text-gray-500 mt-1">Time to resolution</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-all">
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500 font-medium">On-Call Readiness</p>
-            <p className="text-3xl font-semibold text-gray-900">{metrics?.pagerDutyCoverage || '100%'}</p>
+            <p className="text-3xl font-semibold text-gray-900">{metrics?.pagerDutyCoverage || '—'}</p>
             <p className="text-xs text-emerald-600 mt-1">Staff paged via SMS</p>
           </CardContent>
         </Card>

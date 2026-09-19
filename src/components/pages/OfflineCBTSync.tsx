@@ -217,54 +217,6 @@ export function OfflineCBTSync() {
         </Card>
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5" />
-          <p>Microwave uplink degraded. Preload Annex Hall exams via portable SSD and trigger offline attendance guard.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <HardDriveDownload className="h-4 w-4 mr-2" /> Generate SSD image
-          </Button>
-          <Button size="sm">
-            <Plug className="h-4 w-4 mr-2" /> Assign field engineer
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Integrity drills</CardTitle>
-          <CardDescription>Ensure offline clients can reconnect and publish scripts post exam.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-gray-100 p-4">
-            <p className="text-sm text-gray-500">Failover test</p>
-            <p className="text-2xl font-semibold text-gray-900">Completed</p>
-            <p className="text-xs text-gray-400">Last run: 18 Feb</p>
-          </div>
-          <div className="rounded-2xl border border-gray-100 p-4">
-            <p className="text-sm text-gray-500">Script upload dry run</p>
-            <p className="text-2xl font-semibold text-emerald-600">98%</p>
-            <p className="text-xs text-gray-400">Within SLA</p>
-          </div>
-          <div className="rounded-2xl border border-gray-100 p-4">
-            <p className="text-sm text-gray-500">Server capacity</p>
-            <p className="text-2xl font-semibold text-gray-900">1.2×</p>
-            <p className="text-xs text-gray-400">Headroom for uploads</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-slate-200 bg-white p-4 text-sm text-gray-700">
-        <div className="flex items-center gap-3">
-          <WifiOff className="h-5 w-5 text-slate-500" />
-          <p>Need to keep devices offline after sync? Toggle watch mode so clients don't pull live updates mid-session.</p>
-        </div>
-        <Button variant="outline" size="sm">
-          <Server className="h-4 w-4 mr-2" /> Configure watch mode
-        </Button>
-      </div>
     </div>
   )
 }

@@ -244,7 +244,7 @@ describe('PDF Content Generation', () => {
     const pdf = generatePDFContent(mockReportData)
 
     expect(pdf).toContain('ATTENDANCE RECORDS')
-    expect(pdf).toContain('Student ID')
+    expect(pdf).toContain('Admission No')
     expect(pdf).toContain('Class')
     expect(pdf).toContain('Date')
     expect(pdf).toContain('Status')

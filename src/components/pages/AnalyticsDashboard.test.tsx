@@ -42,7 +42,9 @@ describe('AnalyticsDashboard', () => {
     const fetchMock = mockFetch()
     render(<AnalyticsDashboard />)
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(6)
+      const analyticsCalls = fetchMock.mock.calls.filter(([url]) =>
+        typeof url === 'string' && url.includes('/api/tenant/analytics?metric='))
+      expect(analyticsCalls).toHaveLength(6)
     })
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringMatching(/\/api\/tenant\/analytics\?metric=academic/),

@@ -77,17 +77,17 @@ TIMETABLE FOR ${selectedChild?.name}
 Generated: ${new Date().toLocaleDateString()}
 
 CLASS SCHEDULE:
-${timetable?.schedule.map(slot =>
+${(timetable?.schedule ?? []).map(slot =>
   `${days[slot.dayOfWeek - 1] || slot.dayOfWeek} ${slot.startTime}-${slot.endTime}: ${slot.subject} (${slot.teacher}) - Room ${slot.room}`
 ).join('\n')}
 
 EXAM SCHEDULE:
-${timetable?.examSchedule.map(exam =>
+${(timetable?.examSchedule ?? []).map(exam =>
   `${exam.subject}: ${exam.date} at ${exam.time} (${exam.duration}min) - Room ${exam.room}`
 ).join('\n')}
 
 HOLIDAYS:
-${timetable?.holidays.map(h => `${h.date}: ${h.name}`).join('\n')}
+${(timetable?.holidays ?? []).map(h => `${h.date}: ${h.name}`).join('\n')}
     `
     const blob = new Blob([content], { type: 'text/plain' })
     const url = window.URL.createObjectURL(blob)
@@ -139,7 +139,7 @@ ${timetable?.holidays.map(h => `${h.date}: ${h.name}`).join('\n')}
               onChange={e => setSelectedTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {timetable?.availableTerms.map(term => (
+              {(timetable?.availableTerms ?? []).map(term => (
                 <option key={term.id} value={term.id}>
                   {term.name} ({term.startDate} - {term.endDate})
                 </option>
@@ -194,7 +194,7 @@ ${timetable?.holidays.map(h => `${h.date}: ${h.name}`).join('\n')}
                 <tr key={time} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-700">{time}</td>
                   {days.map((day, dayIdx) => {
-                    const slot = timetable?.schedule.find(
+                    const slot = (timetable?.schedule ?? []).find(
                       s => s.dayOfWeek === dayIdx + 1 && s.startTime?.slice(0, 5) === time
                     )
                     return (

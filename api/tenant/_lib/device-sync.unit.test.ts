@@ -206,9 +206,8 @@ describe('syncDevice — Device Status Checks', () => {
 // ============================================================================
 
 describe('syncDevice — Error Handling (Req 13)', () => {
-  it('returns failed when getEnrollments throws', async () => {
-    mockGetDevice.mockResolvedValueOnce(activeDevice)
-    mockGetEnrollments.mockRejectedValueOnce(new Error('DB connection failed'))
+  it('returns failed when the device lookup throws', async () => {
+    mockGetDevice.mockRejectedValueOnce(new Error('DB connection failed'))
 
     const result = await syncDevice('tenant-1', 'device-1')
 
@@ -216,9 +215,8 @@ describe('syncDevice — Error Handling (Req 13)', () => {
     expect(result.errorDetails).toContain('DB connection failed')
   })
 
-  it('increments failures when getEnrollments throws', async () => {
-    mockGetDevice.mockResolvedValueOnce(activeDevice)
-    mockGetEnrollments.mockRejectedValueOnce(new Error('Network error'))
+  it('increments failures when the device lookup throws', async () => {
+    mockGetDevice.mockRejectedValueOnce(new Error('Network error'))
 
     await syncDevice('tenant-1', 'device-1')
 
@@ -226,8 +224,7 @@ describe('syncDevice — Error Handling (Req 13)', () => {
   })
 
   it('still logs sync even when an error occurs', async () => {
-    mockGetDevice.mockResolvedValueOnce(activeDevice)
-    mockGetEnrollments.mockRejectedValueOnce(new Error('Unexpected error'))
+    mockGetDevice.mockRejectedValueOnce(new Error('Unexpected error'))
 
     await syncDevice('tenant-1', 'device-1')
 

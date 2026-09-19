@@ -69,7 +69,6 @@ export function TeacherAttendanceEntry() {
 
   const auth = localStorage.getItem('auth')
   const token = auth ? JSON.parse(auth).token : null
-  const tenantId = auth ? JSON.parse(auth).tenantId || 'default-tenant' : 'default-tenant'
   const userId = auth ? JSON.parse(auth).userId || '' : ''
 
   // Get max date (today)
@@ -161,7 +160,7 @@ export function TeacherAttendanceEntry() {
     }
 
     fetchData()
-  }, [token, tenantId])
+  }, [token])
 
   // Filter and sort students
   const filteredStudents = students

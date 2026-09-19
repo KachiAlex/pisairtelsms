@@ -7,31 +7,12 @@
  * - Internal scheduled tasks
  * - Manual admin triggers
  * 
- * Authentication: Requires x-tenant-id header or API key
+ * Authentication: Requires an authenticated staff or tenant_admin session.
  */
 
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { syncTenantDevices, formatSyncResult } from '../_lib/sync-scheduler.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
-
-
-
-/**
- * Verify request is authorized (basic check)
- * In production, implement proper API key validation
- */
-function isAuthorized(req: ApiRequest): boolean {
-  // Check for API key in header
-  const apiKey = req.headers['x-api-key'] as string | undefined
-  if (apiKey) {
-    // In production, validate against stored API keys
-    return true
-  }
-
-  // Check for tenant context (less secure but acceptable for internal use)
-  const tenantId = decoded.tenantId || 'default-tenant'
-  return !!tenantId
-}
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
@@ -40,14 +21,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ success: false, error: 'Method not allowed' })
-  }
-
-  // Check authorization
-  if (!isAuthorized(req)) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized. Provide x-tenant-id header or x-api-key.',
-    })
   }
 
   const tenantId = decoded.tenantId || 'default-tenant'

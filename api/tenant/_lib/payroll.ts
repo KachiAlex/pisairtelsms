@@ -343,12 +343,14 @@ export async function ensurePayrollTables() {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `
-    // Insert default tax config if none exists
+    // Insert default tax config if none exists — ON CONFLICT guards both the
+    // concurrent-request race and an existing row sharing the fixed id
     await sql`
       INSERT INTO tax_config (id, tenant_id, tax_year, brackets)
       SELECT 'tax_default_2025', 'default-tenant', 2025,
         '[{"min":0,"max":300000,"rate":7},{"min":300000,"max":600000,"rate":11},{"min":600000,"max":1100000,"rate":15},{"min":1100000,"max":1600000,"rate":19},{"min":1600000,"max":3200000,"rate":21},{"min":3200000,"max":null,"rate":24}]'::jsonb
       WHERE NOT EXISTS (SELECT 1 FROM tax_config WHERE tenant_id = 'default-tenant' LIMIT 1)
+      ON CONFLICT (id) DO NOTHING
     `
     await sql`
       ALTER TABLE payroll_run_items

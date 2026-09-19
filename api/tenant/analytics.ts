@@ -63,13 +63,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   try {
     const selectedHandler = METRIC_HANDLERS[metric]
-    const result = await selectedHandler(req, mockRes as unknown as ApiResponse)
+    await selectedHandler(req, mockRes as unknown as ApiResponse)
 
-    // If the handler returned a response explicitly, prefer that
-    if (result && typeof (result as any).status === 'function' && typeof (result as any).json === 'function') {
-      return result as unknown as ApiResponse
-    }
-
+    // Always write the captured response to the real res — sub-handlers
+    // return the mock res object itself, which must never be returned to
+    // the framework or the HTTP response is never written.
     return res.status(mockRes.statusCode).json(mockRes.body ?? { success: false, error: 'No response from metric handler' })
   } catch (error) {
     console.error(`Error routing analytics metric ${metric}:`, error)

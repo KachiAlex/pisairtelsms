@@ -63,6 +63,7 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
   const [result, setResult] = useState<{ created: number; failed: { subjectName: string; reason: string }[]; capacity?: number; requested?: number } | null>(null)
   const [clearExisting, setClearExisting] = useState(false)
   const [teachingSlotsPerDay, setTeachingSlotsPerDay] = useState<number | null>(null)
+  const [periodsAdjusted, setPeriodsAdjusted] = useState(false)
 
   // staff.subjects may arrive as a JSON string or already-parsed array
   function parseTeacherSubjects(raw: string[] | string | undefined): string[] {
@@ -157,8 +158,34 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
       return
     }
 
+    // Distribute the weekly grid fairly: every subject gets 1 period, then the
+    // remainder is shared round-robin (Core subjects first) up to the desired
+    // load — so generation never requests more periods than the grid can hold.
+    const desired = (s: Subject) => (s.type === 'Core' ? 5 : 3)
+    const allocs: number[] = applicableSubjects.map(desired)
+    if (weeklyCapacity !== null && allocs.reduce((a, b) => a + b, 0) > weeklyCapacity) {
+      for (let i = 0; i < allocs.length; i++) allocs[i] = 1
+      let remaining = weeklyCapacity - allocs.length
+      const order = applicableSubjects
+        .map((_, i) => i)
+        .sort((a, b) => desired(applicableSubjects[b]) - desired(applicableSubjects[a]))
+      let progressed = true
+      while (remaining > 0 && progressed) {
+        progressed = false
+        for (const i of order) {
+          if (remaining <= 0) break
+          if (allocs[i] < desired(applicableSubjects[i])) {
+            allocs[i]++
+            remaining--
+            progressed = true
+          }
+        }
+      }
+    }
+    const adjusted = allocs.some((a, i) => a < desired(applicableSubjects[i]))
+
     // Create subject rows with suggested teachers
-    const generatedRows: SubjectRow[] = applicableSubjects.map(subject => {
+    const generatedRows: SubjectRow[] = applicableSubjects.map((subject, idx) => {
       const suggestedTeacherId = findBestTeacher(subject)
       return {
         id: crypto.randomUUID(),
@@ -166,12 +193,13 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
         subjectCode: subject.code,
         subjectId: subject.id,
         teacherId: suggestedTeacherId,
-        periodsPerWeek: subject.type === 'Core' ? 5 : 3,
+        periodsPerWeek: weeklyCapacity === null ? desired(subject) : allocs[idx],
         suggested: !!suggestedTeacherId
       }
     })
-    
+
     setSubjects(generatedRows)
+    setPeriodsAdjusted(adjusted)
     setGenerating(false)
     setResult(null)
   }
@@ -318,6 +346,16 @@ export function AutoScheduleDialog({ classId, className, termId, open, onClose, 
                   Add more teaching periods in Timetable → Time Slots, or reduce periods per subject.
                 </p>
               )}
+            </div>
+          )}
+
+          {periodsAdjusted && !result && (
+            <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-sm text-blue-700 flex items-start gap-2">
+              <Sparkles className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span>
+                Periods were adjusted to fit this class's <strong>{weeklyCapacity} slots/week</strong> —
+                Core subjects get up to 5, Electives share the remainder. Edit any value before scheduling.
+              </span>
             </div>
           )}
 

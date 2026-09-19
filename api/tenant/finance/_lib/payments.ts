@@ -796,38 +796,260 @@ export async function createPaymentReconciliation(
   bankDepositDate: string,
   bankDepositAmount: number,
   bankReference: string,
-  matchedBy: string
+  matchedBy: string,
+  tenantId?: string,
+  bankDepositId?: string
 ): Promise<PaymentReconciliation> {
   await ensurePaymentTables()
   const id = uuidv4()
 
   const result = await sql<PaymentReconciliationRow>`
     INSERT INTO payment_reconciliation
-      (id, payment_id, bank_deposit_date, bank_deposit_amount, bank_reference, matched_at, matched_by, status)
+      (id, tenant_id, payment_id, bank_deposit_id, bank_deposit_date, bank_deposit_amount, bank_reference, matched_at, matched_by, status)
     VALUES
-      (${id}, ${paymentId}, ${bankDepositDate}, ${bankDepositAmount}, ${bankReference}, NOW(), ${matchedBy}, 'matched')
+      (${id}, ${tenantId || null}, ${paymentId}, ${bankDepositId || null}, ${bankDepositDate}, ${bankDepositAmount}, ${bankReference}, NOW(), ${matchedBy}, 'matched')
     RETURNING *
   `
 
   return rowToPaymentReconciliation(result.rows[0])
 }
 
-export async function getPaymentReconciliations(status?: string): Promise<PaymentReconciliation[]> {
+export async function getPaymentReconciliations(tenantId?: string, status?: string): Promise<PaymentReconciliation[]> {
   await ensurePaymentTables()
 
-  let query = sql<PaymentReconciliationRow>`SELECT * FROM payment_reconciliation`
-
-  if (status) {
-    query = sql<PaymentReconciliationRow>`
+  let result
+  if (tenantId && status) {
+    result = await sql<PaymentReconciliationRow>`
+      SELECT * FROM payment_reconciliation WHERE tenant_id = ${tenantId} AND status = ${status}
+      ORDER BY created_at DESC
+    `
+  } else if (tenantId) {
+    result = await sql<PaymentReconciliationRow>`
+      SELECT * FROM payment_reconciliation WHERE tenant_id = ${tenantId}
+      ORDER BY created_at DESC
+    `
+  } else if (status) {
+    result = await sql<PaymentReconciliationRow>`
       SELECT * FROM payment_reconciliation WHERE status = ${status}
       ORDER BY created_at DESC
     `
   } else {
-    query = sql<PaymentReconciliationRow>`SELECT * FROM payment_reconciliation ORDER BY created_at DESC`
+    result = await sql<PaymentReconciliationRow>`SELECT * FROM payment_reconciliation ORDER BY created_at DESC`
   }
 
-  const result = await query
   return result.rows.map(rowToPaymentReconciliation)
+}
+
+// ─── Bank Deposits & Reconciliation Matching ────────────────────────────────
+
+export interface BankDeposit {
+  id: string
+  tenantId: string
+  depositDate: string
+  amount: number
+  reference: string
+  description: string | null
+  matchedPaymentId: string | null
+  createdAt: string
+}
+
+export interface BankDepositRow {
+  id: string
+  tenant_id: string
+  deposit_date: Date
+  amount: string
+  reference: string
+  description: string | null
+  matched_payment_id: string | null
+  created_at: Date
+}
+
+function rowToBankDeposit(row: BankDepositRow): BankDeposit {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    depositDate: row.deposit_date.toISOString().split('T')[0],
+    amount: parseFloat(row.amount),
+    reference: row.reference,
+    description: row.description,
+    matchedPaymentId: row.matched_payment_id,
+    createdAt: row.created_at.toISOString(),
+  }
+}
+
+export async function createBankDeposit(
+  tenantId: string,
+  depositDate: string,
+  amount: number,
+  reference: string,
+  description?: string
+): Promise<BankDeposit> {
+  await ensurePaymentTables()
+  const id = uuidv4()
+
+  const result = await sql<BankDepositRow>`
+    INSERT INTO bank_deposits (id, tenant_id, deposit_date, amount, reference, description)
+    VALUES (${id}, ${tenantId}, ${depositDate}, ${amount}, ${reference}, ${description || null})
+    RETURNING *
+  `
+
+  return rowToBankDeposit(result.rows[0])
+}
+
+export interface ReconciliationData {
+  unmatched: Array<{
+    id: string
+    type: 'payment' | 'deposit'
+    amount: number
+    date: string
+    reference: string
+    description: string
+    status: 'pending'
+  }>
+  matched: Array<{
+    id: string
+    paymentId: string
+    depositId: string | null
+    amount: number
+    paymentDate: string | null
+    depositDate: string
+    bankReference: string
+    matchedAt: string
+    matchedBy: string
+    status: string
+  }>
+}
+
+// Confirmed payments not yet reconciled + unlinked bank deposits, tenant-scoped.
+export async function getReconciliationData(tenantId: string): Promise<ReconciliationData> {
+  await ensurePaymentTables()
+
+  const paymentsRes = await sql<PaymentRow>`
+    SELECT p.* FROM payments p
+    WHERE p.tenant_id = ${tenantId}
+      AND p.status = 'success'
+      AND NOT EXISTS (
+        SELECT 1 FROM payment_reconciliation r
+        WHERE r.payment_id = p.id AND r.status = 'matched'
+      )
+    ORDER BY p.payment_date DESC
+  `
+
+  const depositsRes = await sql<BankDepositRow>`
+    SELECT * FROM bank_deposits
+    WHERE tenant_id = ${tenantId} AND matched_payment_id IS NULL
+    ORDER BY deposit_date DESC
+  `
+
+  const matchedRes = await sql<any>`
+    SELECT r.*, p.payment_date AS payment_date_joined
+    FROM payment_reconciliation r
+    LEFT JOIN payments p ON p.id = r.payment_id
+    WHERE r.tenant_id = ${tenantId} AND r.status = 'matched'
+    ORDER BY r.matched_at DESC
+  `
+
+  const unmatched = [
+    ...paymentsRes.rows.map((p) => ({
+      id: p.id,
+      type: 'payment' as const,
+      amount: parseFloat(p.amount),
+      date: p.payment_date.toISOString().split('T')[0],
+      reference: p.reference_number || p.receipt_number,
+      description: `Recorded ${p.payment_method.replace('_', ' ')} payment — ${p.receipt_number}`,
+      status: 'pending' as const,
+    })),
+    ...depositsRes.rows.map((d) => ({
+      id: d.id,
+      type: 'deposit' as const,
+      amount: parseFloat(d.amount),
+      date: d.deposit_date.toISOString().split('T')[0],
+      reference: d.reference,
+      description: d.description || 'Bank deposit',
+      status: 'pending' as const,
+    })),
+  ]
+
+  const matched = matchedRes.rows.map((r) => ({
+    id: r.id,
+    paymentId: r.payment_id,
+    depositId: r.bank_deposit_id || null,
+    amount: parseFloat(r.bank_deposit_amount),
+    paymentDate: r.payment_date_joined ? r.payment_date_joined.toISOString().split('T')[0] : null,
+    depositDate: r.bank_deposit_date.toISOString().split('T')[0],
+    bankReference: r.bank_reference,
+    matchedAt: r.matched_at.toISOString(),
+    matchedBy: r.matched_by,
+    status: r.status,
+  }))
+
+  return { unmatched, matched }
+}
+
+// Match a recorded payment to a bank deposit. Both must belong to the tenant,
+// be currently unmatched, and have equal amounts.
+export async function matchPaymentToDeposit(
+  tenantId: string,
+  paymentId: string,
+  depositId: string,
+  bankReference: string | undefined,
+  matchedBy: string
+): Promise<PaymentReconciliation> {
+  await ensurePaymentTables()
+
+  const paymentRes = await sql<PaymentRow>`
+    SELECT * FROM payments WHERE id = ${paymentId} AND tenant_id = ${tenantId}
+  `
+  const payment = paymentRes.rows[0]
+  if (!payment) throw new PaymentValidationError('Payment not found')
+  if (!['success', 'verified'].includes(payment.status)) {
+    throw new PaymentValidationError(`Payment is ${payment.status} — only confirmed payments can be reconciled`)
+  }
+
+  const depositRes = await sql<BankDepositRow>`
+    SELECT * FROM bank_deposits WHERE id = ${depositId} AND tenant_id = ${tenantId}
+  `
+  const deposit = depositRes.rows[0]
+  if (!deposit) throw new PaymentValidationError('Bank deposit not found')
+  if (deposit.matched_payment_id) {
+    throw new PaymentValidationError('This deposit is already matched to a payment')
+  }
+
+  const paymentAmount = parseFloat(payment.amount)
+  const depositAmount = parseFloat(deposit.amount)
+  if (paymentAmount !== depositAmount) {
+    throw new PaymentValidationError(
+      `Amount mismatch — payment is ${paymentAmount}, deposit is ${depositAmount}`
+    )
+  }
+
+  const existing = await sql`
+    SELECT id FROM payment_reconciliation
+    WHERE payment_id = ${paymentId} AND status = 'matched'
+  `
+  if (existing.rows.length > 0) {
+    throw new PaymentValidationError('This payment is already reconciled')
+  }
+
+  const reconciliation = await createPaymentReconciliation(
+    paymentId,
+    deposit.deposit_date.toISOString().split('T')[0],
+    depositAmount,
+    bankReference || deposit.reference,
+    matchedBy,
+    tenantId,
+    depositId
+  )
+
+  await sql`
+    UPDATE bank_deposits SET matched_payment_id = ${paymentId}
+    WHERE id = ${depositId} AND tenant_id = ${tenantId}
+  `
+  await sql`
+    UPDATE payments SET status = 'reconciled' WHERE id = ${paymentId} AND tenant_id = ${tenantId}
+  `
+
+  return reconciliation
 }
 
 export async function createPaymentPlan(

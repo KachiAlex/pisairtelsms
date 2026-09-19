@@ -261,6 +261,10 @@
       "destination": "/api/tenant/finance/fee-structures.ts"
     },
     {
+      "source": "/api/tenant/finance/reconciliation/:action",
+      "destination": "/api/tenant/finance/reconciliation.ts?action=:action"
+    },
+    {
       "source": "/api/tenant/finance/reconciliation",
       "destination": "/api/tenant/finance/reconciliation.ts"
     },

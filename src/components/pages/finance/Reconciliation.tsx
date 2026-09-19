@@ -49,6 +49,12 @@ export function Reconciliation() {
   const [bankReference, setBankReference] = useState('');
   const [matching, setMatching] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'exception'>('all');
+  const [showDepositForm, setShowDepositForm] = useState(false);
+  const [depositDate, setDepositDate] = useState('');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositReference, setDepositReference] = useState('');
+  const [depositDescription, setDepositDescription] = useState('');
+  const [savingDeposit, setSavingDeposit] = useState(false);
 
   useEffect(() => {
     fetchReconciliationData();
@@ -99,7 +105,8 @@ export function Reconciliation() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to match transactions');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to match transactions');
       }
 
       // Reset form and refresh data
@@ -115,19 +122,36 @@ export function Reconciliation() {
   };
 
   const handleBulkMatch = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
     setMatching(true);
     setError(null);
     try {
+      const text = await file.text();
+      const rows = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !/^payment id/i.test(line))
+        .map((line) => {
+          const [paymentId, depositId, bankReference] = line.split(',').map((c) => c.trim());
+          return { paymentId, depositId, bankReference: bankReference || undefined };
+        })
+        .filter((r) => r.paymentId && r.depositId);
+
+      if (rows.length === 0) {
+        throw new Error('No valid rows found — expected "Payment ID,Deposit ID,Bank Reference"');
+      }
+
       const response = await financeApiFetch('/api/tenant/finance/reconciliation/bulk-match', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reconciliations: rows }),
       });
 
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error('Failed to bulk match transactions');
+        throw new Error(result.error || 'Failed to bulk match transactions');
+      }
+      if (result.errors?.length) {
+        setError(`Applied ${result.data?.length ?? 0} of ${rows.length} matches — ${result.errors[0]}`);
       }
 
       await fetchReconciliationData();
@@ -135,6 +159,41 @@ export function Reconciliation() {
       setError(err instanceof Error ? err.message : 'Failed to bulk match transactions');
     } finally {
       setMatching(false);
+    }
+  };
+
+  const handleRecordDeposit = async () => {
+    if (!depositDate || !depositAmount || !depositReference) {
+      setError('Deposit date, amount, and reference are required');
+      return;
+    }
+    setSavingDeposit(true);
+    setError(null);
+    try {
+      const response = await financeApiFetch('/api/tenant/finance/reconciliation/deposits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          depositDate,
+          amount: parseFloat(depositAmount),
+          reference: depositReference,
+          description: depositDescription || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to record deposit');
+      }
+      setDepositDate('');
+      setDepositAmount('');
+      setDepositReference('');
+      setDepositDescription('');
+      setShowDepositForm(false);
+      await fetchReconciliationData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to record deposit');
+    } finally {
+      setSavingDeposit(false);
     }
   };
 
@@ -272,10 +331,55 @@ export function Reconciliation() {
 
             {/* Deposits Column */}
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base">Unmatched Deposits ({deposits.length})</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setShowDepositForm((v) => !v)}>
+                  {showDepositForm ? 'Hide' : '+ Record Deposit'}
+                </Button>
               </CardHeader>
               <CardContent>
+                {showDepositForm && (
+                  <div className="mb-4 p-3 border border-gray-200 rounded-lg space-y-2 bg-gray-50">
+                    <p className="text-xs text-gray-600">
+                      Record a deposit that hit the school bank account (from a bank statement or alert).
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="date"
+                        value={depositDate}
+                        onChange={(e) => setDepositDate(e.target.value)}
+                        max={new Date().toISOString().split('T')[0]}
+                      />
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Amount (₦)"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                      />
+                    </div>
+                    <Input
+                      placeholder="Bank reference / narration"
+                      value={depositReference}
+                      onChange={(e) => setDepositReference(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Description (optional)"
+                      value={depositDescription}
+                      onChange={(e) => setDepositDescription(e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleRecordDeposit}
+                      disabled={savingDeposit}
+                      className="w-full"
+                    >
+                      {savingDeposit ? 'Saving…' : 'Save Deposit'}
+                    </Button>
+                  </div>
+                )}
+
                 {loading ? (
                   <div className="flex justify-center py-8">
                     <Loader className="w-6 h-6 animate-spin text-blue-600" />

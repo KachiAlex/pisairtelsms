@@ -59,6 +59,7 @@ services:
       CLOUDFLARE_REALTIME_HOST_PRESET: ${CLOUDFLARE_REALTIME_HOST_PRESET:-host}
       CLOUDFLARE_REALTIME_PARTICIPANT_PRESET: ${CLOUDFLARE_REALTIME_PARTICIPANT_PRESET:-participant}
       BACKUP_DIR: /app/backups
+      PG_DUMP_PATH: /usr/lib/postgresql/16/bin/pg_dump
     volumes:
       - ./backups:/app/backups
     ports:

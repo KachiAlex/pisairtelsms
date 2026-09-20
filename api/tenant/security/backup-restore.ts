@@ -153,7 +153,8 @@ async function runDatabaseBackup(jobId: string, tenantId: string, outputPath: st
       const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || ''
       const parsedUrl = new URL(databaseUrl)
       parsedUrl.searchParams.delete('pooling')
-      const child = spawn('pg_dump', ['--format=custom', '--file', outputPath, parsedUrl.toString()], {
+      const pgDump = process.env.PG_DUMP_PATH || 'pg_dump'
+      const child = spawn(pgDump, ['--format=custom', '--file', outputPath, parsedUrl.toString()], {
         env: process.env,
         stdio: ['ignore', 'ignore', 'pipe'],
       })

@@ -78,7 +78,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       SELECT COUNT(*) FILTER (WHERE um.is_enabled = true) AS enabled,
              COUNT(tu.id) AS total
       FROM tenant_users tu
-      LEFT JOIN user_mfa um ON um.tenant_id = tu.tenant_id AND um.user_id = tu.id
+      LEFT JOIN user_mfa um ON um.tenant_id = tu.tenant_id AND um.user_id = tu.id::text
       WHERE tu.tenant_id = ${tenantId} AND tu.status = 'active'
     `
     const mfaTotal = Number(mfaResult.rows[0]?.total || 0)

@@ -107,7 +107,7 @@ const attendanceRecordArbitrary = () =>
   fc.record({
     studentId: fc.uuid(),
     class: fc.constantFrom('Primary 1', 'Primary 2', 'JSS 1', 'SS 1'),
-    date: fc.date().map(d => d.toISOString().split('T')[0]),
+    date: fc.date({ min: new Date(2000, 0, 1), max: new Date(2100, 11, 31) }).map(d => d.toISOString().split('T')[0]),
     status: fc.constantFrom('present', 'absent', 'late'),
   })
 
@@ -124,7 +124,7 @@ const announcementArbitrary = () =>
     id: fc.uuid(),
     title: fc.string({ minLength: 5, maxLength: 100 }),
     body: fc.string({ minLength: 10, maxLength: 500 }),
-    sentAt: fc.date().map(d => d.toISOString()),
+    sentAt: fc.date({ min: new Date(2000, 0, 1), max: new Date(2100, 11, 31) }).map(d => d.toISOString()),
   })
 
 describe('Dashboard Data Aggregation - Property Tests', () => {

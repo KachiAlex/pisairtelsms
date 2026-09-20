@@ -5,6 +5,7 @@
 
 import { queryAll, queryOne, query, transaction } from '../cbt/_lib/db.js'
 import { v4 as uuidv4 } from 'uuid'
+import { normalizeClassName } from './class-names.js'
 
 // ============================================================================
 // Type Definitions
@@ -445,7 +446,7 @@ export async function upsertAttendanceBatch(
               id,
               tenantId,
               record.studentId,
-              record.class,
+              normalizeClassName(record.class),
               record.date,
               record.status,
               record.absenceReasonId || null,

@@ -1,4 +1,5 @@
 import { sql } from '../../_lib/sql.js';
+import { normalizeClassName } from './class-names.js';
 
 export interface PromotionRecord {
   id: string;
@@ -254,8 +255,8 @@ export async function createPromotionRecord(tenantId: string, record: PromotionP
         teacher_recommendation, reason
       )
       VALUES (
-        ${id}, ${tenantId}, ${record.studentId}, ${record.studentName}, ${record.fromClass},
-        ${record.toClass}, ${record.action}, ${record.academicSession}, ${record.term},
+        ${id}, ${tenantId}, ${record.studentId}, ${record.studentName}, ${normalizeClassName(record.fromClass)},
+        ${normalizeClassName(record.toClass)}, ${record.action}, ${record.academicSession}, ${record.term},
         ${record.averageScore ?? null}, ${record.attendance ?? null}, ${record.teacherRecommendation ?? null}, ${record.reason ?? null}
       )
       RETURNING
@@ -309,7 +310,7 @@ export async function updatePromotionRecord(tenantId: string, id: string, update
     const result = await sql<PromotionRecord>`
       UPDATE promotion_records SET
         action = COALESCE(${updates.action ?? null}, action),
-        to_class = COALESCE(${updates.toClass ?? null}, to_class),
+        to_class = COALESCE(${updates.toClass ? normalizeClassName(updates.toClass) : null}, to_class),
         reason = COALESCE(${updates.reason ?? null}, reason),
         status = COALESCE(${updates.status ?? null}, status),
         approved_by = COALESCE(${approvedBy}, approved_by),

@@ -88,6 +88,10 @@ vi.mock('./_lib/csv-parser.js', () => ({
   generateCsvTemplate: vi.fn(),
 }))
 
+vi.mock('./_lib/analytics/engine.js', () => ({
+  getAttendanceAnalytics: vi.fn(),
+}))
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -526,7 +530,8 @@ describe('5.2.4 Analytics Accuracy (Req 14, 15, 16, 22)', () => {
   })
 
   it('GET /analytics/dashboard - returns present/absent/late rates (Req 22)', async () => {
-    attendanceMod.calculateSummaryStats.mockResolvedValue({
+    const engineMod: any = await import('./_lib/analytics/engine.js')
+    engineMod.getAttendanceAnalytics.mockResolvedValue({
       presentRate: 92.5,
       absentRate: 5.2,
       lateRate: 2.3,

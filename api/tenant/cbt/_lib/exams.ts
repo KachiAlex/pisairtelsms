@@ -11,6 +11,7 @@ import {
   ExamFilter,
   ExamQuestion,
 } from './types.js';
+import { normalizeClassName } from '../../_lib/class-names.js';
 
 /**
  * Get all exams with filtering and pagination
@@ -136,7 +137,7 @@ export async function createExam(
       tenantId,
       input.title,
       input.subject,
-      input.class,
+      normalizeClassName(input.class),
       input.description || null,
       input.duration,
       input.passMark,
@@ -205,7 +206,7 @@ export async function updateExam(
     [
       input.title,
       input.subject,
-      input.class,
+      input.class !== undefined ? normalizeClassName(input.class) : undefined,
       input.description,
       input.duration,
       input.passMark,

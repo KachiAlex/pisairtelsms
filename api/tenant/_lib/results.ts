@@ -1,5 +1,6 @@
 import { poolQuery } from '../../_lib/pg-pool.js'
 import { getTenantCAConfig, type CAConfig } from './ca-config.js'
+import { normalizeClassName } from './class-names.js'
 import {
   getGradeBands,
   assignGradeFromBands,
@@ -467,6 +468,7 @@ export async function fetchTeacherSubmissions(
 
 export async function createScore(tenantId: string, payload: ScorePayload): Promise<StudentScore> {
   await ensureResultsTable()
+  payload.class = normalizeClassName(payload.class)
   const id = `score_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
   // Normalize each component: when a "marked out of" max is supplied the

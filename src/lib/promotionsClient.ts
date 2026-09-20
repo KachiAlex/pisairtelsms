@@ -199,7 +199,11 @@ export function getNextClass(currentClass: string, action: 'promote' | 'repeat' 
     'SS 1', 'SS 2', 'SS 3'
   ]
 
-  const currentIndex = classProgression.findIndex(c => c === currentClass)
+  // Normalize input: strip arm suffix ('JSS 1 A' → 'JSS 1') and fix spacing ('JSS1' → 'JSS 1')
+  const baseClass = (currentClass || '').trim().replace(/\s+/g, ' ')
+    .replace(/^([A-Za-z]+)\s*([0-9]+).*/, (_m, band, num) => `${band.toUpperCase()} ${num}`)
+
+  const currentIndex = classProgression.findIndex(c => c === baseClass)
 
   if (currentIndex === -1) return currentClass
 

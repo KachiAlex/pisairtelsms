@@ -6,6 +6,7 @@
 import { queryAll, queryOne, query, transaction } from '../cbt/_lib/db.js';
 import { fetchTenantSettings } from './tenant-settings.js';
 import { createOrLinkParent } from './parents.js';
+import { normalizeClassName } from './class-names.js';
 
 // Internal API-layer Student type (camelCase, for API responses only)
 interface StudentDTO {
@@ -229,7 +230,7 @@ async function insertStudent(tenantId: string, admissionNo: string, studentData:
       tenantId,
       admissionNo,
       studentData.name,
-      studentData.class,
+      normalizeClassName(studentData.class),
       studentData.arm,
       studentData.gender,
       studentData.status,
@@ -305,7 +306,7 @@ export async function updateStudent(
     }
     if (studentData.class !== undefined) {
       updates.push(`class = $${paramIndex++}`);
-      values.push(studentData.class);
+      values.push(normalizeClassName(studentData.class));
     }
     if (studentData.arm !== undefined) {
       updates.push(`arm = $${paramIndex++}`);

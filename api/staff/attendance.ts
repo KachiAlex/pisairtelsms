@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
 import { requireAuth } from '../_lib/auth-middleware.js';
+import { normalizeClassName } from '../tenant/_lib/class-names.js';
 
 interface StudentAttendanceRecord {
   id: string;
@@ -141,11 +142,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ error: 'No term configured — create terms in Timetable & Scheduling first' });
       }
 
+      const canonicalClass = normalizeClassName(classId);
       for (const record of records) {
         const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await sql`
           INSERT INTO attendance_records (id, tenant_id, student_id, class, date, status, source, user_id, academic_session, term, created_at, updated_at)
-          VALUES (${id}, ${tenantId}, ${record.studentId}, ${classId}, ${date}, ${record.status}, 'teacher_entry', ${staffId}, ${academicSession}, ${term}, NOW(), NOW())
+          VALUES (${id}, ${tenantId}, ${record.studentId}, ${canonicalClass}, ${date}, ${record.status}, 'teacher_entry', ${staffId}, ${academicSession}, ${term}, NOW(), NOW())
           ON CONFLICT DO NOTHING
         `;
       }

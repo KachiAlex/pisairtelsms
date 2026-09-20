@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Filter, RotateCcw } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
@@ -6,18 +6,30 @@ import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import type { AnalyticsFilters } from '../../../hooks/useAnalytics'
 import { useAcademicYears, useTimetableTerms } from '../../../hooks/useTimetableTerms'
+import { tenantApiGet } from '../../../lib/tenantApi'
 
 export interface DashboardFiltersProps {
   filters: AnalyticsFilters
   onChange: (filters: AnalyticsFilters) => void
 }
 
-const CLASSES = ['All', 'JSS 1', 'JSS 2', 'JSS 3', 'SSS 1', 'SSS 2', 'SSS 3']
-
 export function DashboardFilters({ filters, onChange }: DashboardFiltersProps) {
   // Sessions/terms from Timetable & Scheduling — the single source of truth.
   const { termNames } = useTimetableTerms(filters.term)
   const { years } = useAcademicYears()
+
+  // Class names from the classes table — the single source of truth.
+  // Base names only ('JSS 1'); the backend matches arm-suffixed rows too.
+  const [classNames, setClassNames] = useState<string[]>([])
+  useEffect(() => {
+    tenantApiGet('/api/tenant/academics/classes')
+      .then(r => (r.ok ? r.json() : null))
+      .then(json => {
+        const rows: { name: string }[] = json?.data || []
+        setClassNames([...new Set(rows.map(c => c.name).filter(Boolean))].sort())
+      })
+      .catch(() => {})
+  }, [])
   const sessionNames = filters.academicSession && !years.some(y => y.name === filters.academicSession)
     ? [filters.academicSession, ...years.map(y => y.name)]
     : years.map(y => y.name)
@@ -78,7 +90,8 @@ export function DashboardFilters({ filters, onChange }: DashboardFiltersProps) {
               <SelectValue placeholder="Select class" />
             </SelectTrigger>
             <SelectContent>
-              {CLASSES.map((c) => (
+              <SelectItem value="All">All</SelectItem>
+              {classNames.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
             </SelectContent>

@@ -1,5 +1,6 @@
 import { sql } from '../../../_lib/sql.js'
 import { calculateSummaryStats, type SummaryStats } from '../attendance'
+import { classMatches } from '../class-names.js'
 
 export interface AnalyticsFilters {
   academicSession?: string
@@ -28,7 +29,7 @@ function buildStudentScoreFilters(tenantId: string, filters: AnalyticsFilters): 
     params.push(filters.term)
   }
   if (filters.class) {
-    where.push(`class = $${p++}`)
+    where.push(`(${classMatches('class', p++)})`)
     params.push(filters.class)
   }
 
@@ -214,7 +215,7 @@ export async function getFinancialAnalytics(
   }
   if (filters.class) {
     faParams.push(filters.class)
-    faConditions.push(`s.class = $${faParams.length}`)
+    faConditions.push(`(${classMatches('s.class', faParams.length)})`)
   }
   if (filters.startDate) {
     faParams.push(filters.startDate)
@@ -706,7 +707,7 @@ export async function getStudentProgressAnalytics(
   const studentsResult = await sql.query<{ count: string }>(
     `SELECT COUNT(*) as count FROM students
      WHERE tenant_id = $1 AND deleted_at IS NULL
-       AND ($2::text IS NULL OR class = $2)`,
+       AND ($2::text IS NULL OR ${classMatches('class', 2)})`,
     [tenantId, filters.class || null]
   )
   const totalStudents = parseInt(studentsResult.rows[0]?.count || '0')
@@ -737,7 +738,7 @@ export async function getStudentProgressAnalytics(
     LEFT JOIN exam_results er ON er.student_id = s.id::text
     LEFT JOIN exams e ON e.id = er.exam_id AND e.tenant_id = $1 AND e.deleted_at IS NULL
     WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
-      AND ($3::text IS NULL OR s.class = $3)
+      AND ($3::text IS NULL OR ${classMatches('s.class', 3)})
     GROUP BY s.id, s.class, ss.total_score, ss.attendance_percentage`,
     [tenantId, filters.academicSession || null, filters.class || null, filters.term || null]
   )
@@ -865,7 +866,7 @@ export async function getStudentProgressAnalytics(
       AND ss.tenant_id = $1
       AND ss.academic_session = COALESCE($2, (SELECT MAX(academic_session) FROM student_scores WHERE tenant_id = $1))
     WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
-      AND ($3::text IS NULL OR s.class = $3)
+      AND ($3::text IS NULL OR ${classMatches('s.class', 3)})
     GROUP BY s.class
     ORDER BY attendance_rate DESC NULLS LAST`,
     [tenantId, filters.academicSession || null, filters.class || null]
@@ -893,7 +894,7 @@ export async function getStudentProgressAnalytics(
     LEFT JOIN student_exam_progress sep ON e.id = sep.exam_id
     LEFT JOIN exam_results er ON e.id = er.exam_id
     WHERE e.tenant_id = $1 AND e.deleted_at IS NULL
-      AND ($2::text IS NULL OR e.class = $2)
+      AND ($2::text IS NULL OR ${classMatches('e.class', 2)})
     GROUP BY e.class
     ORDER BY students_completed DESC NULLS LAST`,
     [tenantId, filters.class || null]
@@ -926,7 +927,7 @@ export async function getStudentProgressAnalytics(
     FROM students s
     LEFT JOIN fee_assignments fa ON s.id::text = fa.student_id
     WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
-      AND ($2::text IS NULL OR s.class = $2)`,
+      AND ($2::text IS NULL OR ${classMatches('s.class', 2)})`,
     [tenantId, filters.class || null]
   )
   const financialImpact = {
@@ -950,7 +951,7 @@ export async function getStudentProgressAnalytics(
     FROM promotion_records
     WHERE tenant_id = $1
       AND academic_session = COALESCE($2, (SELECT MAX(academic_session) FROM promotion_records WHERE tenant_id = $1))
-      AND ($3::text IS NULL OR to_class = $3)
+      AND ($3::text IS NULL OR ${classMatches('to_class', 3)})
     GROUP BY to_class, action
     ORDER BY to_class, action`,
     [tenantId, filters.academicSession || null, filters.class || null]
@@ -1011,7 +1012,7 @@ export async function getAttendanceAnalytics(
   }
   if (filters.class) {
     termParams.push(filters.class)
-    termConditions.push(`class = $${termParams.length}`)
+    termConditions.push(`(${classMatches('class', termParams.length)})`)
   }
   const termWhere = termConditions.join(' AND ')
 

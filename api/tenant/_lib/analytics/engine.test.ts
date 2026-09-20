@@ -44,7 +44,7 @@ describe('analytics engine', () => {
       expect(data.passRate).toBe(72)
 
       const overallCall = (sql as any).query.mock.calls[0]
-      expect(overallCall[0]).toContain('WHERE tenant_id = $1 AND academic_session = $2 AND term = $3 AND class = $4')
+      expect(overallCall[0]).toContain("WHERE tenant_id = $1 AND academic_session = $2 AND term = $3 AND (class = $4 OR class LIKE $4 || ' %')")
       expect(overallCall[1]).toEqual(['tenant-1', '2024/2025', '1', 'JSS 1'])
     })
   })

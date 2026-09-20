@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { normalizeClassName } from './_lib/class-names.js'
 
 // staff.subjects is a TEXT column holding a JSON array — parse it safely.
 function parseSubjectList(raw: unknown): string[] {
@@ -333,11 +334,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         // subjects, so the matrix has rows to assign against. Idempotent: skips
         // (tenant, class, subject) combos that already exist.
         const { body } = req
-        const classes = body?.classes
+        const rawClasses = body?.classes
         const subjects = body?.subjects
-        if (!Array.isArray(classes) || !Array.isArray(subjects) || classes.length === 0 || subjects.length === 0) {
+        if (!Array.isArray(rawClasses) || !Array.isArray(subjects) || rawClasses.length === 0 || subjects.length === 0) {
           return res.status(400).json({ success: false, error: 'classes and subjects arrays are required' })
         }
+        // Canonical spelling ('JSS1' -> 'JSS 1') so slots match the classes table.
+        const classes = rawClasses.map((c: string) => normalizeClassName(c))
 
         // Validate that classes exist for this tenant (by name)
         const validClasses = await sql`
@@ -404,18 +407,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
         let created = 0
         for (const c of classRows.rows) {
-          const token = levelToken(c.name)
+          const className = normalizeClassName(c.name)
+          const token = levelToken(className)
           if (!token) continue // class name doesn't map to a JSS/SS level — skip
           for (const s of subjectRows.rows) {
             const levels = parseSubjectList(s.levels)
             if (!levels.includes(token)) continue
             const existing = await sql`
               SELECT 1 FROM teacher_allocation_slots
-              WHERE tenant_id = ${tenantId} AND class = ${c.name} AND subject = ${s.name}`
+              WHERE tenant_id = ${tenantId} AND class = ${className} AND subject = ${s.name}`
             if (existing.rows.length === 0) {
               await sql`
                 INSERT INTO teacher_allocation_slots (id, tenant_id, class, subject, coverage, warnings)
-                VALUES (gen_random_uuid()::text, ${tenantId}, ${c.name}, ${s.name}, 'Open', 0)`
+                VALUES (gen_random_uuid()::text, ${tenantId}, ${className}, ${s.name}, 'Open', 0)`
               created += 1
             }
           }

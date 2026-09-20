@@ -4,6 +4,7 @@
  */
 
 import { query } from './db.js'
+import { normalizeClassName } from '../../_lib/class-names.js'
 
 export interface Class {
   id: string
@@ -84,6 +85,7 @@ export async function createClass(
   arm: string,
   level: string
 ): Promise<Class> {
+  name = normalizeClassName(name)
   const exists = await checkClassExists(tenantId, name, arm)
   if (exists) {
     throw new Error('A class with this name and arm already exists')
@@ -117,6 +119,9 @@ export async function updateClass(
 ): Promise<Class> {
   // Fetch current record once for duplicate check and cascade updates
   const current = await getClassById(tenantId, classId)
+  if (updates.name !== undefined) {
+    updates.name = normalizeClassName(updates.name)
+  }
 
   // Check for duplicate name+arm if either is being changed
   if (updates.name !== undefined || updates.arm !== undefined) {
@@ -175,19 +180,20 @@ export async function updateClass(
   if (updates.name !== undefined && current && updates.name !== current.name) {
     const oldName = current.name
     const newName = updates.name
-    // Update teacher allocation slots
+    // Dependents store either the base name ('JSS 1') or the arm-suffixed
+    // display form ('JSS 1 A') — swap the base prefix in both.
     await query(
-      `UPDATE teacher_allocation_slots SET class = $1 WHERE tenant_id = $2 AND class = $3`,
+      `UPDATE teacher_allocation_slots SET class = $1 || SUBSTRING(class FROM CHAR_LENGTH($3) + 1) WHERE tenant_id = $2 AND (class = $3 OR class LIKE $3 || ' %')`,
       [newName, tenantId, oldName]
     )
     // Update students (class column stores the class name)
     await query(
-      `UPDATE students SET class = $1 WHERE tenant_id = $2 AND class = $3 AND deleted_at IS NULL`,
+      `UPDATE students SET class = $1 || SUBSTRING(class FROM CHAR_LENGTH($3) + 1) WHERE tenant_id = $2 AND (class = $3 OR class LIKE $3 || ' %') AND deleted_at IS NULL`,
       [newName, tenantId, oldName]
     )
     // Update student_scores (class column stores the class name)
     await query(
-      `UPDATE student_scores SET class = $1 WHERE tenant_id = $2 AND class = $3`,
+      `UPDATE student_scores SET class = $1 || SUBSTRING(class FROM CHAR_LENGTH($3) + 1) WHERE tenant_id = $2 AND (class = $3 OR class LIKE $3 || ' %')`,
       [newName, tenantId, oldName]
     )
   }
@@ -207,7 +213,7 @@ export async function deleteClass(tenantId: string, classId: string): Promise<vo
 
   // Check for dependent students (students.class stores the class name)
   const studentCheck = await query(
-    `SELECT 1 FROM students WHERE tenant_id = $1 AND class = $2 AND deleted_at IS NULL LIMIT 1`,
+    `SELECT 1 FROM students WHERE tenant_id = $1 AND (class = $2 OR class LIKE $2 || ' %') AND deleted_at IS NULL LIMIT 1`,
     [tenantId, classEntity.name]
   )
   if (studentCheck.rows.length > 0) {
@@ -216,7 +222,7 @@ export async function deleteClass(tenantId: string, classId: string): Promise<vo
 
   // Check for dependent student scores
   const scoreCheck = await query(
-    `SELECT 1 FROM student_scores WHERE tenant_id = $1 AND class = $2 LIMIT 1`,
+    `SELECT 1 FROM student_scores WHERE tenant_id = $1 AND (class = $2 OR class LIKE $2 || ' %') LIMIT 1`,
     [tenantId, classEntity.name]
   )
   if (scoreCheck.rows.length > 0) {
@@ -225,7 +231,7 @@ export async function deleteClass(tenantId: string, classId: string): Promise<vo
 
   // Check for dependent teacher allocation slots (uses class name)
   const slotCheck = await query(
-    `SELECT 1 FROM teacher_allocation_slots WHERE tenant_id = $1 AND class = $2 LIMIT 1`,
+    `SELECT 1 FROM teacher_allocation_slots WHERE tenant_id = $1 AND (class = $2 OR class LIKE $2 || ' %') LIMIT 1`,
     [tenantId, classEntity.name]
   )
   if (slotCheck.rows.length > 0) {

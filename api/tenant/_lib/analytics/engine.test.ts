@@ -27,13 +27,13 @@ describe('analytics engine', () => {
   describe('getAcademicAnalytics', () => {
     it('uses student_scores for overall metrics and maps results', async () => {
       ;(sql as any)
-        .mockResolvedValueOnce(mockRow({ count: '120' })) // students
         .mockResolvedValueOnce(mockRow({ count: '18' })) // subjects
+        .mockResolvedValueOnce(mockRows([])) // term distinct
       ;(sql as any).query
+        .mockResolvedValueOnce(mockRow({ count: '120' })) // students
         .mockResolvedValueOnce(mockRow({ average_score: '65.5', pass_rate: '72.3' })) // overall
         .mockResolvedValueOnce(mockRows([{ subject: 'Math', average_score: '70.0', pass_rate: '80.0' }]))
         .mockResolvedValueOnce(mockRows([{ class: 'JSS 1', average_score: '60.0', pass_rate: '75.0' }]))
-        .mockResolvedValueOnce(mockRows([])) // term distinct
         .mockResolvedValueOnce(mockRow({ average_score: '0' })) // previous term
 
       const data = await getAcademicAnalytics('tenant-1', { academicSession: '2024/2025', term: '1', class: 'JSS 1' })
@@ -43,7 +43,7 @@ describe('analytics engine', () => {
       expect(data.averageScore).toBe(65.5)
       expect(data.passRate).toBe(72)
 
-      const overallCall = (sql as any).query.mock.calls[0]
+      const overallCall = (sql as any).query.mock.calls[1]
       expect(overallCall[0]).toContain("WHERE tenant_id = $1 AND academic_session = $2 AND term = $3 AND (class = $4 OR class LIKE $4 || ' %')")
       expect(overallCall[1]).toEqual(['tenant-1', '2024/2025', '1', 'JSS 1'])
     })

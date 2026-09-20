@@ -63,7 +63,12 @@ export async function getAcademicAnalytics(
   const where = toWhereClause(baseFilter)
 
   const [studentsRes, subjectsRes, overallRes, subjectRes, classRes] = await Promise.all([
-    sql`SELECT COUNT(*) as count FROM students WHERE tenant_id = ${tenantId} AND deleted_at IS NULL`,
+    sql.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM students
+       WHERE tenant_id = $1 AND deleted_at IS NULL
+         AND ($2::text IS NULL OR ${classMatches('class', 2)})`,
+      [tenantId, filters.class || null]
+    ),
     sql`SELECT COUNT(*) as count FROM subjects WHERE tenant_id = ${tenantId} AND deleted_at IS NULL`,
     sql.query<{
       average_score: string

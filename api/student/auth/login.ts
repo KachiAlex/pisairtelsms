@@ -61,14 +61,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const tenantId = student.tenant_id
 
     if (student.status === 'Suspended') {
-      await logLoginFailure(req, admissionNumber, 'Account suspended')
+      await logLoginFailure(req, admissionNumber, 'Account suspended', tenantId)
       return res.status(403).json({ error: 'Your account has been suspended. Contact your school administrator.' })
     }
 
     if (!student.password_hash) {
       // First-time login: admission number as default password
       if (password !== admissionNumber.trim()) {
-        await logLoginFailure(req, admissionNumber, 'Default password incorrect')
+        await logLoginFailure(req, admissionNumber, 'Default password incorrect', tenantId)
         return res.status(401).json({ error: 'Invalid admission number or password' })
       }
       // Auto-set the password on first use
@@ -77,7 +77,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     } else {
       const valid = await verifyPassword(password, student.password_hash)
       if (!valid) {
-        await logLoginFailure(req, admissionNumber, 'Invalid password')
+        await logLoginFailure(req, admissionNumber, 'Invalid password', tenantId)
         return res.status(401).json({ error: 'Invalid admission number or password' })
       }
       // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
@@ -96,7 +96,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       .setExpirationTime(`${expiresIn}s`)
       .sign(jwtSecret)
 
-    await logLoginSuccess(req, student.id, 'student')
+    await logLoginSuccess(req, student.id, 'student', tenantId)
     
     // Set httpOnly cookie with JWT token
     setCookie(res, 'auth_token', token, {

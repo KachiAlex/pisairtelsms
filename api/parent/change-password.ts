@@ -59,7 +59,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const newHash = await hashPasswordSecurely(newPassword)
     await sql`UPDATE parents SET password_hash = ${newHash} WHERE id = ${parentInfo.parentId}`
     if (parentInfo.parentId) {
-      await logPasswordChange(req, parentInfo.parentId, 'parent')
+      await logPasswordChange(req, parentInfo.parentId, 'parent', decoded.tenantId)
     }
     return res.status(200).json({ success: true })
   } catch (error) {

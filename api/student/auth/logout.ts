@@ -32,7 +32,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     await logAuditEvent('logout', {
       userId,
       role: decoded.role,
-      ...extractAuditContext(req, userId, decoded.role),
+      ...extractAuditContext(req, userId, decoded.role, decoded.tenantId),
     })
 
     // Clear httpOnly cookie

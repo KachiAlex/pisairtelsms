@@ -63,6 +63,22 @@ export function AuditLogs() {
     loadLogs()
   }, [loadLogs])
 
+  const exportCsv = () => {
+    const escape = (value: string) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const rows = filteredEntries.map((entry) => [
+      new Date(entry.time).toISOString(), entry.actor, entry.action, entry.surface, entry.meta, entry.severity,
+    ])
+    const csv = [['Timestamp', 'Actor', 'Action', 'Surface', 'Meta', 'Severity'], ...rows]
+      .map((row) => row.map(escape).join(','))
+      .join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
       const matchesSurface = surfaceFilter === 'all' || entry.surface === surfaceFilter
@@ -87,7 +103,7 @@ export function AuditLogs() {
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={exportCsv} disabled={filteredEntries.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -123,13 +139,11 @@ export function AuditLogs() {
                 onChange={(event) => setSurfaceFilter(event.target.value)}
               >
                 <option value="all">All surfaces</option>
-                <option value="Finance">Finance</option>
+                <option value="Access">Access</option>
                 <option value="Security">Security</option>
                 <option value="Examinations">Examinations</option>
-                <option value="Access">Access</option>
-                <option value="Platform">Platform</option>
+                <option value="Academics">Academics</option>
               </select>
-              <Button variant="ghost" size="sm">Live feed</Button>
             </div>
           </div>
         </CardHeader>

@@ -43,7 +43,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // Existing staff with no password: use email as one-time default password.
       // On success, auto-set it so future logins use the real hash.
       if (password !== email.trim().toLowerCase()) {
-        await logLoginFailure(req, email, 'Default password incorrect')
+        await logLoginFailure(req, email, 'Default password incorrect', staff.tenantId)
         return res.status(401).json({
           error: 'No password has been set for this account. Use your email address as your temporary password to log in for the first time.',
         })
@@ -52,7 +52,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     } else {
       const valid = await verifyStaffPassword(password, staff.passwordHash)
       if (!valid) {
-        await logLoginFailure(req, email, 'Invalid password')
+        await logLoginFailure(req, email, 'Invalid password', staff.tenantId)
         return res.status(401).json({ error: 'Invalid email or password' })
       }
       // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
@@ -78,7 +78,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       .setExpirationTime(`${expiresIn}s`)
       .sign(jwtSecret)
 
-    await logLoginSuccess(req, staff.id, 'staff')
+    await logLoginSuccess(req, staff.id, 'staff', tenantId)
     await logSecurityEvent(tenantId, staff.id, 'login_success', `Staff login: ${staff.name} (${staff.email})`, 'low')
 
     // Set httpOnly cookie with JWT token

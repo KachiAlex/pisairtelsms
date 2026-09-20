@@ -66,7 +66,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const passwordValid = await verifyPassword(password, parent.passwordHash)
     if (!passwordValid) {
-      await logLoginFailure(req, email, 'Invalid password')
+      await logLoginFailure(req, email, 'Invalid password', tenantId)
       return res.status(401).json({ error: 'Unauthorized: Invalid email or password' })
     }
 
@@ -102,7 +102,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       expiresAt
     }
 
-    await logLoginSuccess(req, parent.id, 'parent')
+    await logLoginSuccess(req, parent.id, 'parent', tenantId)
     
     // Set httpOnly cookie with JWT token
     setCookie(res, 'auth_token', token, {

@@ -529,8 +529,14 @@ export default function App() {
                 <DropdownMenuItem onClick={() => navigate('/tenant/audit-logs')}>Activity Log</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={() => {
-                  clearAuthFromStorage();
-                  navigate('/login');
+                  const auth = getAuthFromStorage();
+                  void fetch('/api/tenant/auth/logout', {
+                    method: 'POST',
+                    headers: auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined,
+                  }).finally(() => {
+                    clearAuthFromStorage();
+                    navigate('/login');
+                  });
                 }}>
                   Sign Out
                 </DropdownMenuItem>

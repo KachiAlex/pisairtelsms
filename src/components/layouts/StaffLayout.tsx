@@ -74,8 +74,14 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   }
 
   const handleSignOut = () => {
-    clearAuthFromStorage()
-    navigate('/login')
+    const currentAuth = getAuthFromStorage()
+    void fetch('/api/staff/auth/logout', {
+      method: 'POST',
+      headers: currentAuth?.token ? { Authorization: `Bearer ${currentAuth.token}` } : undefined,
+    }).finally(() => {
+      clearAuthFromStorage()
+      navigate('/login')
+    })
   }
 
   const renderPage = () => {

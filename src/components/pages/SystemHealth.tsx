@@ -62,9 +62,11 @@ interface VendorDependency {
   status: 'operational' | 'watch' | 'degraded'
 }
 
+const DEFAULT_STATS = { overallStatus: '—', incidents24h: 0, slaConverage: '—', upcomingMaintenance: 0 }
+
 export function SystemHealth() {
   const { toast } = useToast()
-  const [stats, setStats] = useState({ overallStatus: '—', incidents24h: 0, slaConverage: '—', upcomingMaintenance: 0 })
+  const [stats, setStats] = useState(DEFAULT_STATS)
   const [services, setServices] = useState<ServiceHealth[]>([])
   const [vitals, setVitals] = useState<InfrastructureVital[]>([])
   const [incidents, setIncidents] = useState<IncidentRecord[]>([])
@@ -92,7 +94,7 @@ export function SystemHealth() {
         fetch('/api/tenant/system-health?type=dependencies', { headers }),
       ])
 
-      const statsData = statsRes.ok ? await statsRes.json() : stats
+      const statsData = statsRes.ok ? await statsRes.json() : DEFAULT_STATS
       const servicesData = servicesRes.ok ? await servicesRes.json() : { data: [] }
       const vitalsData = vitalsRes.ok ? await vitalsRes.json() : { data: [] }
       const incidentsData = incidentsRes.ok ? await incidentsRes.json() : { data: [] }
@@ -123,7 +125,7 @@ export function SystemHealth() {
     } finally {
       setLoading(false)
     }
-  }, [toast, stats])
+  }, [toast])
 
   useEffect(() => {
     loadHealthData()

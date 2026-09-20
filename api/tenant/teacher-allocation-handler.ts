@@ -74,7 +74,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (action === 'matrix' && req.method === 'GET') {
       try {
         const r = await sql`
-          SELECT class, subject, teacher, coverage, warnings
+          SELECT class, subject, teacher, coverage, warnings,
+            (COUNT(*) OVER (PARTITION BY class, subject) - 1)::int AS conflicts
           FROM teacher_allocation_slots WHERE tenant_id = ${tenantId}
           ORDER BY class ASC, subject ASC`
         return res.json({ success: true, data: r.rows })
@@ -139,12 +140,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         }
         for (const a of assignments) {
           const teacherName = a.teacher || ''
+          const cls = normalizeClassName(a.class)
           await sql`
             UPDATE teacher_allocation_slots
             SET teacher = NULLIF(${teacherName}, ''),
                 coverage = CASE WHEN ${teacherName} = '' THEN 'Open' ELSE 'Assigned' END,
                 warnings = GREATEST(warnings - 1, 0)
-            WHERE tenant_id = ${tenantId} AND class = ${a.class} AND subject = ${a.subject}`
+            WHERE tenant_id = ${tenantId} AND class = ${cls} AND subject = ${a.subject}`
+          // Self-heal legacy duplicate slots for this class+subject: keep the
+          // newest row so the matrix stays one row per class/subject.
+          await sql`
+            DELETE FROM teacher_allocation_slots
+            WHERE tenant_id = ${tenantId} AND class = ${cls} AND subject = ${a.subject}
+              AND id NOT IN (
+                SELECT id FROM teacher_allocation_slots
+                WHERE tenant_id = ${tenantId} AND class = ${cls} AND subject = ${a.subject}
+                ORDER BY created_at DESC LIMIT 1
+              )`
         }
         // Recompute allocation_periods / risk_flag for affected teachers, and
         // sync staff.subjects from their assigned slots so analytics and
@@ -373,7 +385,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             if (existing.rows.length === 0) {
               await sql`
                 INSERT INTO teacher_allocation_slots (id, tenant_id, class, subject, coverage, warnings)
-                VALUES (gen_random_uuid()::text, ${tenantId}, ${cls}, ${subj}, 'Open', 0)`
+                VALUES (gen_random_uuid()::text, ${tenantId}, ${cls}, ${subj}, 'Open', 0)
+                ON CONFLICT DO NOTHING`
               created += 1
             }
           }
@@ -419,7 +432,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             if (existing.rows.length === 0) {
               await sql`
                 INSERT INTO teacher_allocation_slots (id, tenant_id, class, subject, coverage, warnings)
-                VALUES (gen_random_uuid()::text, ${tenantId}, ${className}, ${s.name}, 'Open', 0)`
+                VALUES (gen_random_uuid()::text, ${tenantId}, ${className}, ${s.name}, 'Open', 0)
+                ON CONFLICT DO NOTHING`
               created += 1
             }
           }

@@ -44,7 +44,7 @@ const BASE = '/api/tenant/teacher-allocation-handler'
 
 interface CoverageStat { label: string; value: string; detail: string; color: string }
 interface TeacherCard { name: string; level: string; risk: string; subjects: string[]; allocation: number; contractHours: number }
-interface AllocationRow { class: string; subject: string; teacher: string; coverage: string; warnings: number }
+interface AllocationRow { class: string; subject: string; teacher: string; coverage: string; warnings: number; conflicts?: number }
 interface PeriodBucket { day: string; periods: number }
 interface SubLog { slot: string; priority: string; action: string; relief: string; eta: string; impacted: string[] }
 
@@ -378,9 +378,16 @@ export function TeacherAllocation() {
                     </TableRow>
                   )}
                   {filteredMatrix.map((row) => (
-                    <TableRow key={`${row.class}-${row.subject}`}>
+                    <TableRow key={`${row.class}-${row.subject}-${row.teacher || 'open'}`}>
                       <TableCell className="font-semibold text-gray-900">{row.class}</TableCell>
-                      <TableCell>{row.subject}</TableCell>
+                      <TableCell>
+                        {row.subject}
+                        {(row.conflicts ?? 0) > 0 && (
+                          <Badge variant="outline" className="ml-2 text-xs border-amber-300 text-amber-700 bg-amber-50">
+                            <AlertTriangle className="h-3 w-3 mr-1" /> {1 + (row.conflicts ?? 0)} teachers
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Select
                           value={row.teacher || '__vacant__'}

@@ -47,11 +47,11 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
   return data
 }
 
-export async function createApplication(applicationData: ApplicationPayload): Promise<Application> {
+export async function createApplication(applicationData: ApplicationPayload, slug?: string): Promise<Application> {
   const response = await fetch('/api/tenant/applications', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ application: applicationData }),
+    body: JSON.stringify({ application: applicationData, ...(slug ? { slug } : {}) }),
   })
   const result = await parseResponse<Application>(response)
   if (!result.data) {

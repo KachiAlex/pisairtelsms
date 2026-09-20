@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { createLead, fetchLeads } from './_lib/lead.js'
 import { requireRole } from '../_lib/auth-middleware.js'
-import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js'
+import { resolveTenantFromRequest, resolveShortCode } from '../_lib/tenant-resolver.js'
 
 function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST')
@@ -50,7 +50,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Request body is required' })
     }
 
-    const { studentName, parentName, contactPhone, contactEmail, classInterested, source, status } = body
+    const { studentName, parentName, contactPhone, contactEmail, classInterested, source, status, slug } = body
 
     // Only studentName is truly mandatory
     if (!studentName || !String(studentName).trim()) {
@@ -61,9 +61,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     try {
-      // Public form — derive the school from the Host so the lead feeds the
-      // right school's admissions pipeline (no auth, no client-claimed tenant).
+      // Public form — derive the school from the Host, or from the path-based
+      // form slug (/inquiry/<slug>) resolved server-side through the alias
+      // registry; a client can never claim a tenant id directly.
       const resolved = await resolveTenantFromRequest(req)
+      let tenantId = resolved.tenantId
+      if (slug) {
+        const bySlug = await resolveShortCode(String(slug).trim().toLowerCase())
+        if (!bySlug) {
+          return res.status(404).json({ error: 'School not found for this link' })
+        }
+        tenantId = bySlug.tenantId
+      }
       const id = `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       const result = await createLead({
         id,
@@ -74,7 +83,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         classInterested: classInterested || '',
         source: source || 'website',
         status: status || 'new',
-        tenantId: resolved.tenantId,
+        tenantId,
       })
       return res.status(201).json({ data: result })
     } catch (error) {

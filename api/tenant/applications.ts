@@ -2,7 +2,7 @@ import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchApplications, createApplication, updateApplicationStatus, type ApplicationPayload } from './_lib/applications.js'
 import { requireRole } from '../_lib/auth-middleware.js'
-import { resolveTenantFromRequest } from '../_lib/tenant-resolver.js'
+import { resolveTenantFromRequest, resolveShortCode } from '../_lib/tenant-resolver.js'
 
 function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST,PUT')
@@ -83,9 +83,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     try {
-      // Public form — derive the school from the Host so the application feeds
-      // the right school's admissions pipeline (no auth, no client-claimed tenant).
+      // Public form — derive the school from the Host, or from the path-based
+      // form slug (/apply/<slug>). Slugs resolve server-side through the alias
+      // registry; a client can never claim a tenant id directly.
       const resolved = await resolveTenantFromRequest(req)
+      let tenantId = resolved.tenantId
+      if (data.slug) {
+        const bySlug = await resolveShortCode(String(data.slug).trim().toLowerCase())
+        if (!bySlug) {
+          return res.status(404).json({ error: 'School not found for this link' })
+        }
+        tenantId = bySlug.tenantId
+      }
       const payload: ApplicationPayload & { tenantId?: string | null } = {
         studentName,
         parentName,
@@ -94,7 +103,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         classApplying,
         academicSession: data.academicSession,
         source: data.source,
-        tenantId: resolved.tenantId,
+        tenantId,
       }
       const created = await createApplication(payload)
       return res.status(201).json({ data: created })

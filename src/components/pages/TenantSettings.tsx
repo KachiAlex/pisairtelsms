@@ -164,6 +164,33 @@ export function TenantSettings({ tenantId, tenantName }: TenantSettingsProps) {
 
           <Separator />
 
+          {/* School Link Slug */}
+          <div>
+            <h3 className="text-lg font-medium mb-3">School Link</h3>
+            <div className="space-y-2">
+              <Label htmlFor="school-slug">URL slug</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-mono whitespace-nowrap">
+                  {window.location.origin}/apply/
+                </span>
+                <Input
+                  id="school-slug"
+                  placeholder="kreatix"
+                  className="font-mono"
+                  value={config.settings.subdomain || ''}
+                  onChange={(e) =>
+                    updateSettings({ subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })
+                  }
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Lowercase letters, numbers and hyphens. Changing this changes the school's public form links — update any shared links or QR codes afterwards.
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Custom Domain Settings */}
           <div>
             <h3 className="text-lg font-medium mb-3">Custom Domain Settings</h3>

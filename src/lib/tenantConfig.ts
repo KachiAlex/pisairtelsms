@@ -12,9 +12,15 @@ export interface TenantConfig {
 }
 
 export interface TenantSettings {
+  // School link slug — powers per-school form URLs (/apply/<slug>, /inquiry/<slug>)
+  subdomain?: string
+
   // Form URLs
   customApplicationUrl?: string // Full custom URL for application form
   customInquiryUrl?: string // Full custom URL for inquiry form
+
+  // Resolved URLs returned by the domain-config API
+  urls?: { application: string; inquiry: string }
 
   // Branding
   logo?: string
@@ -54,10 +60,12 @@ export class TenantDomainManager {
           const config: TenantConfig = {
             id: tenantId,
             name: data.domainConfig.tenantName || tenantId,
+            subdomain: data.domainConfig.subdomain,
             settings: data.domainConfig,
             createdAt: data.domainConfig.updatedAt,
             updatedAt: data.domainConfig.updatedAt
           }
+          this.tenantConfigs.set(tenantId, config)
           return config
         }
       } catch (error) {
@@ -118,13 +126,14 @@ export class TenantDomainManager {
    */
   static getTenantFormUrls(tenantId: string): { application: string; inquiry: string } {
     const config = this.tenantConfigs.get(tenantId)
+    const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin
 
     if (config?.settings.enableCustomDomain) {
       // Use tenant's custom URLs if configured
       const applicationUrl = config.settings.customApplicationUrl ||
-        `${config.domain || window.location.origin}/apply`
+        `${config.domain || baseUrl}/apply`
       const inquiryUrl = config.settings.customInquiryUrl ||
-        `${config.domain || window.location.origin}/inquiry`
+        `${config.domain || baseUrl}/inquiry`
 
       return {
         application: applicationUrl,
@@ -132,8 +141,21 @@ export class TenantDomainManager {
       }
     }
 
+    // Server-resolved URLs take precedence when the API provided them
+    if (config?.settings.urls?.application) {
+      return config.settings.urls
+    }
+
+    // Per-school path URLs: /apply/<slug>, /inquiry/<slug>
+    const slug = config?.subdomain || config?.settings.subdomain
+    if (slug) {
+      return {
+        application: `${baseUrl}/apply/${slug}`,
+        inquiry: `${baseUrl}/inquiry/${slug}`
+      }
+    }
+
     // Fall back to default URLs
-    const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin
     return {
       application: `${baseUrl}/apply`,
       inquiry: `${baseUrl}/inquiry`

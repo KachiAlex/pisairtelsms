@@ -82,9 +82,19 @@ export function StudentEnrollment() {
   const [lastSuccessfulState, setLastSuccessfulState] = useState<ApiApplication[]>([])
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
+  // Per-school public form URLs (resolved server-side from the tenant's slug)
+  const [formUrls, setFormUrls] = useState<{ application: string; inquiry: string }>(FORM_URLS)
+
   // Fetch applications on mount
   useEffect(() => {
     fetchApplications()
+    fetch('/api/tenant/domain-config')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        const urls = data?.domainConfig?.urls
+        if (urls?.application && urls?.inquiry) setFormUrls(urls)
+      })
+      .catch(() => {/* keep default URLs */})
   }, [])
 
   const fetchApplications = async () => {
@@ -404,11 +414,11 @@ export function StudentEnrollment() {
               )}
             </DialogContent>
           </Dialog>
-          <Button onClick={() => window.open('/apply', '_blank')}>
+          <Button onClick={() => window.open(formUrls.application, '_blank')}>
             <Users className="h-4 w-4 mr-2" />
             New application
           </Button>
-          <Button onClick={() => window.open('/inquiry', '_blank')}>
+          <Button onClick={() => window.open(formUrls.inquiry, '_blank')}>
             <Mail className="h-4 w-4 mr-2" />
             Inquiry Form
           </Button>
@@ -499,8 +509,8 @@ export function StudentEnrollment() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-2">Share this link for full enrollment applications:</p>
-            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{FORM_URLS.application}</p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(FORM_URLS.application)}>Copy Link</Button>
+            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{formUrls.application}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(formUrls.application)}>Copy Link</Button>
           </CardContent>
         </Card>
         <Card>
@@ -509,8 +519,8 @@ export function StudentEnrollment() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-2">Share this link for initial interest inquiries:</p>
-            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{FORM_URLS.inquiry}</p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(FORM_URLS.inquiry)}>Copy Link</Button>
+            <p className="font-mono bg-gray-100 p-2 rounded text-sm break-all">{formUrls.inquiry}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => navigator.clipboard.writeText(formUrls.inquiry)}>Copy Link</Button>
           </CardContent>
         </Card>
       </div>

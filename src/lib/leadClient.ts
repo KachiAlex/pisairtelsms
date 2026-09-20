@@ -7,6 +7,7 @@ interface LeadPayload {
   classInterested: string
   source: string
   status: string
+  slug?: string
 }
 
 export const createLead = async (payload: LeadPayload) => {

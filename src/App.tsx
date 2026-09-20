@@ -560,7 +560,9 @@ export default function App() {
           element={<AccessPortalPage onLoginSuccess={handleLoginSuccess} onBackToMarketing={() => navigate('/')} />}
         />
         <Route path="/apply" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense></ErrorBoundary>} />
+        <Route path="/apply/:slug" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicApplicationForm /></Suspense></ErrorBoundary>} />
         <Route path="/inquiry" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense></ErrorBoundary>} />
+        <Route path="/inquiry/:slug" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense></ErrorBoundary>} />
         <Route path="/demo" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><DemoRequestForm /></Suspense></ErrorBoundary>} />
         <Route path="/join/:alias" element={<JoinLinkResolver />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />

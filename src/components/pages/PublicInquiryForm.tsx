@@ -1,26 +1,34 @@
 import React, { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { CheckCircle, School } from 'lucide-react'
+import { CheckCircle, School, AlertCircle } from 'lucide-react'
 import { Lead } from '../../types'
 import { createLead } from '../../lib/leadClient'
-import { getPublicSchoolMeta } from '../../lib/tenantUrlResolver'
+import { getPublicSchoolMeta, getSchoolMetaBySlug } from '../../lib/tenantUrlResolver'
 
 export function PublicInquiryForm() {
+  const { slug } = useParams<{ slug: string }>()
   const [schoolName, setSchoolName] = useState<string | null>(null)
   const [schoolSubdomain, setSchoolSubdomain] = useState<string | null>(null)
+  const [schoolNotFound, setSchoolNotFound] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    getPublicSchoolMeta().then((meta) => {
-      if (cancelled || !meta || meta.notFound) return
+    const fetchMeta = slug ? getSchoolMetaBySlug(slug) : getPublicSchoolMeta()
+    fetchMeta.then((meta) => {
+      if (cancelled || !meta) return
+      if (meta.notFound || !meta.tenant) {
+        if (slug) setSchoolNotFound(true)
+        return
+      }
       if (meta.tenant?.name) setSchoolName(meta.tenant.name)
       if (meta.subdomain) setSchoolSubdomain(meta.subdomain)
     })
     return () => { cancelled = true }
-  }, [])
+  }, [slug])
 
   const [formData, setFormData] = useState({
     studentName: '',
@@ -51,6 +59,7 @@ export function PublicInquiryForm() {
         classInterested: formData.classInterested,
         source: formData.source,
         status: 'new',
+        ...(slug ? { slug } : {}),
       }
       // Save to cloud
       await createLead(leadPayload)
@@ -67,6 +76,22 @@ export function PublicInquiryForm() {
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  if (schoolNotFound) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">School not found</h2>
+            <p className="text-gray-600">
+              This inquiry link doesn't match a school on this platform. Check the link with the school and try again.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (submitted) {

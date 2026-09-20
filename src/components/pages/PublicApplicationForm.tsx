@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
@@ -6,8 +7,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { CheckCircle, Upload, AlertCircle } from 'lucide-react'
 import { Application } from '../../types'
 import { createApplication, type ApplicationPayload } from '../../lib/applicationsClient'
+import { getSchoolMetaBySlug } from '../../lib/tenantUrlResolver'
 
 export function PublicApplicationForm() {
+  const { slug } = useParams<{ slug: string }>()
+  const [schoolName, setSchoolName] = useState<string | null>(null)
+  const [schoolNotFound, setSchoolNotFound] = useState(false)
+
+  useEffect(() => {
+    if (!slug) return
+    let cancelled = false
+    getSchoolMetaBySlug(slug).then(meta => {
+      if (cancelled) return
+      if (!meta || meta.notFound || !meta.tenant) {
+        setSchoolNotFound(true)
+      } else {
+        setSchoolName(meta.tenant.name)
+      }
+    })
+    return () => { cancelled = true }
+  }, [slug])
+
   const [formData, setFormData] = useState({
     // Student Info
     fullName: '',
@@ -57,7 +77,7 @@ export function PublicApplicationForm() {
         transportation: formData.transportation,
       }
 
-      const createdApplication = await createApplication(applicationPayload)
+      const createdApplication = await createApplication(applicationPayload, slug)
 
       // Update form with tracking ID from database
       setFormData(prev => ({
@@ -98,6 +118,22 @@ export function PublicApplicationForm() {
     }
   }
 
+  if (schoolNotFound) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">School not found</h2>
+            <p className="text-gray-600">
+              This application link doesn't match a school on this platform. Check the link with the school and try again.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -124,6 +160,7 @@ export function PublicApplicationForm() {
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Admission Application</h1>
+          {schoolName && <p className="text-lg font-medium text-indigo-700 mb-1">{schoolName}</p>}
           <p className="text-gray-600">Fill out the form below to apply for admission</p>
         </div>
 

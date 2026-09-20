@@ -42,8 +42,11 @@ function buildResponse(
   const customDomains = aliases.filter(a => a.kind === 'custom_domain').map(a => a.alias)
   const primaryDomain = customDomains[0]
   const subdomain = t.subdomain
-  const application = (t.settings.customApplicationUrl as string) || `https://${subdomain}.${rootDomainFor()}`
-  const inquiry = (t.settings.customInquiryUrl as string) || `${application}/inquiry`
+  const root = rootDomainFor()
+  const application = (t.settings.customApplicationUrl as string)
+    || (subdomain ? `https://${root}/apply/${subdomain}` : `https://${root}/apply`)
+  const inquiry = (t.settings.customInquiryUrl as string)
+    || (subdomain ? `https://${root}/inquiry/${subdomain}` : `https://${root}/inquiry`)
 
   return {
     domainConfig: {
@@ -130,7 +133,7 @@ async function handlePut(tenantId: string, req: ApiRequest, res: ApiResponse) {
   const next: { subdomain?: string; customApplicationUrl?: string | null; customInquiryUrl?: string | null; domain?: string } = {}
 
   // --- Validate & prepare subdomain --------------------------------
-  if (body.subdomain !== undefined) {
+  if (body.subdomain !== undefined && String(body.subdomain).trim() !== '') {
     const subdomain = String(body.subdomain).trim().toLowerCase()
     if (!SUBDOMAIN_RE.test(subdomain)) {
       return res.status(400).json({ error: 'Invalid subdomain. Use lowercase letters, numbers and hyphens only.' })

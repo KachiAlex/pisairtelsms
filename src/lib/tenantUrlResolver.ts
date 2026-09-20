@@ -85,6 +85,25 @@ export async function getPublicSchoolMeta(force = false): Promise<PublicSchoolMe
   return cached?.data ?? null
 }
 
+/**
+ * Fetch the school identity card for a path-based form URL
+ * (/apply/<slug>, /inquiry/<slug>). Resolved server-side — the slug maps to a
+ * tenant through the alias registry, never to a client-claimed tenant id.
+ */
+export async function getSchoolMetaBySlug(slug: string): Promise<PublicSchoolMeta | null> {
+  try {
+    const res = await fetch(`/api/public/meta?slug=${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (res.ok) {
+      return (await res.json()) as PublicSchoolMeta
+    }
+  } catch (error) {
+    console.warn('Failed to fetch school meta by slug:', error)
+  }
+  return null
+}
+
 /** Resolve a /join/<code> handle to the school's canonical URL. */
 export async function resolveJoinLink(alias: string): Promise<JoinResolution> {
   try {

@@ -38,8 +38,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const t = row.rows[0]
     const settings = t?.settings ? (typeof t.settings === 'string' ? JSON.parse(t.settings) : t.settings) : {}
     const subdomain = t?.subdomain || found.slug
-    const application = (settings.customApplicationUrl as string) || `https://${subdomain}.${rootDomainFor()}`
-    const inquiry = (settings.customInquiryUrl as string) || `${application}/inquiry`
+    const root = rootDomainFor()
+    const application = (settings.customApplicationUrl as string) || `https://${root}/apply/${subdomain}`
+    const inquiry = (settings.customInquiryUrl as string) || `https://${root}/inquiry/${subdomain}`
 
     const redirectTo = to === 'apply' ? application : inquiry
 

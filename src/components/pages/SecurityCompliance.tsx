@@ -103,9 +103,7 @@ export function SecurityCompliance() {
           <Button variant="outline" onClick={loadOverview}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
           </Button>
-          <Button>
-            <ShieldCheck className="h-4 w-4 mr-2" /> Compliance Audit
-          </Button>
+
         </div>
       </div>
 

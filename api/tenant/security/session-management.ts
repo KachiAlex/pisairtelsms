@@ -154,13 +154,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
 function formatDeviceInfo(deviceInfo: any): string {
   if (!deviceInfo) return 'Unknown Device'
-  const info = typeof deviceInfo === 'string' ? JSON.parse(deviceInfo) : deviceInfo
-  return `${info.type || 'Device'} • ${info.os || 'Unknown OS'}`
+  try {
+    const info = typeof deviceInfo === 'string' ? JSON.parse(deviceInfo) : deviceInfo
+    return `${info.type || 'Device'} • ${info.os || 'Unknown OS'}`
+  } catch {
+    return 'Unknown Device'
+  }
 }
 
-function getTimeAgo(date: Date): string {
+function getTimeAgo(date: Date | null | undefined): string {
+  const timestamp = date ? new Date(date).getTime() : NaN
+  if (!Number.isFinite(timestamp)) return 'Unknown'
   const now = new Date()
-  const diff = now.getTime() - new Date(date).getTime()
+  const diff = now.getTime() - timestamp
   const minutes = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)

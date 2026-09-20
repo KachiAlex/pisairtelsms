@@ -32,7 +32,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       surface: row.surface,
       algorithm: row.algorithm,
       keyRotation: `${row.rotation_days} days`,
-      owner: 'Data Ops',
+      owner: 'Unassigned',
       status: row.status === 'active' ? 'Healthy' : row.status === 'expiring' ? 'Review due' : 'Degraded',
     }))
 
@@ -60,10 +60,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       ORDER BY due_date ASC
     `
     const complianceTasks = complianceResult.rows.map(row => ({
-      id: `task-${row.task_name.substring(0, 5).toLowerCase()}`,
-      label: row.task_name,
-      owner: row.owner,
-      due: new Date(row.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      id: `task-${row.task_name || row.task_type || crypto.randomUUID()}`.substring(0, 40),
+      label: row.task_name || row.task_type || 'Untitled task',
+      owner: row.owner || 'Unassigned',
+      due: row.due_date ? new Date(row.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No due date',
       status: row.status === 'due_soon' ? 'Due soon' : row.status === 'in_progress' ? 'In progress' : 'Scheduled',
     }))
 

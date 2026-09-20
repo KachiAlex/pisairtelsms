@@ -28,12 +28,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         pr.description,
         pr.mfa_required,
         pr.last_review_date,
+        pr.next_review_date,
         COUNT(ra.id) as members,
         COUNT(CASE WHEN ra.is_active = true THEN 1 END) as active_members
       FROM privileged_roles pr
       LEFT JOIN role_assignments ra ON pr.id = ra.role_id AND ra.tenant_id = pr.tenant_id
       WHERE pr.tenant_id = ${tenantId} AND pr.is_active = true
-      GROUP BY pr.id, pr.role_name, pr.description, pr.mfa_required, pr.last_review_date
+      GROUP BY pr.id, pr.role_name, pr.description, pr.mfa_required, pr.last_review_date, pr.next_review_date
       ORDER BY pr.role_name
     `
     const privilegedRoles = rolesResult.rows.map(row => ({
@@ -84,7 +85,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const mfaTotal = Number(mfaResult.rows[0]?.total || 0)
     const mfaCoverage = mfaTotal > 0 ? Math.round(Number(mfaResult.rows[0]?.enabled || 0) / mfaTotal * 100) : null
     const privilegedIdentities = privilegedRoles.reduce((sum, r) => sum + r.members, 0)
-    const pendingReviews = privilegedRoles.filter(r => r.lastReview === 'Never').length
+    const pendingReviews = rolesResult.rows.filter(row => {
+      if (!row.next_review_date) return true
+      return new Date(row.next_review_date).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000
+    }).length
     const anomalyAlerts = eventsResult.rows.filter(r => ['anomaly_detected', 'login_failed'].includes(r.event_type)).length
 
     const data = {
@@ -108,9 +112,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 }
 
-function getTimeAgo(date: Date): string {
+function getTimeAgo(date: Date | null | undefined): string {
+  const timestamp = date ? new Date(date).getTime() : NaN
+  if (!Number.isFinite(timestamp)) return 'Unknown'
   const now = new Date()
-  const diff = now.getTime() - new Date(date).getTime()
+  const diff = now.getTime() - timestamp
   const minutes = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)

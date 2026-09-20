@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from './http-types.js'
 import { jwtVerify } from 'jose'
 import { getJwtSecret } from './jwt-secret.js'
-import { touchSession } from './session-tracker.js'
+import { touchSession, adoptLegacySession } from './session-tracker.js'
 
 export type UserRole = 'super_admin' | 'tenant_admin' | 'student' | 'staff' | 'parent'
 
@@ -27,10 +27,18 @@ export interface DecodedToken {
  * force-logout actually takes effect. A database error fails open (log +
  * allow) so an outage doesn't lock everyone out.
  */
-async function sessionStillValid(decoded: DecodedToken): Promise<boolean> {
-  if (!decoded.sid) return true
+/**
+ * Validates the session backing this request. Tokens with a sid check the row
+ * directly; sid-less tokens issued before tracking went live are adopted into
+ * user_sessions (keyed by a token hash) so they show up in session management
+ * and respect termination. A database error fails open (log + allow) so an
+ * outage doesn't lock everyone out.
+ */
+async function sessionStillValid(decoded: DecodedToken, token: string, req: ApiRequest): Promise<boolean> {
   try {
-    return await touchSession(decoded.sid)
+    if (decoded.sid) return await touchSession(decoded.sid)
+    if (decoded.tenantId) return await adoptLegacySession(decoded, token, req)
+    return true
   } catch (error) {
     console.error('Session validation error:', error)
     return true
@@ -109,7 +117,7 @@ export async function requireRole(
     return null
   }
 
-  if (!(await sessionStillValid(decoded))) {
+  if (!(await sessionStillValid(decoded, token, req))) {
     res.status(401).json({ error: 'Session terminated' })
     return null
   }
@@ -138,7 +146,7 @@ export async function requireAuth(req: ApiRequest, res: ApiResponse): Promise<De
     return null
   }
 
-  if (!(await sessionStillValid(decoded))) {
+  if (!(await sessionStillValid(decoded, token, req))) {
     res.status(401).json({ error: 'Session terminated' })
     return null
   }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { ApiRequest } from './http-types.js'
 import { sql } from './sql.js'
 
@@ -66,6 +67,55 @@ export async function touchSession(sessionId: string): Promise<boolean> {
   const result = await sql`
     UPDATE user_sessions SET last_activity = NOW()
     WHERE id = ${sessionId} AND terminated_at IS NULL AND expires_at > NOW()
+    RETURNING id
+  `
+  return result.rows.length > 0
+}
+
+/**
+ * Deterministic session id for JWTs issued before tracking existed (no sid
+ * claim): sha256 of the raw token, formatted as a UUID. Stable per token, so
+ * every request maps to the same row and termination works identically.
+ */
+function legacySessionId(token: string): string {
+  const hex = createHash('sha256').update(token).digest('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+}
+
+interface LegacyTokenClaims {
+  tenantId?: string
+  userId?: string
+  staffId?: string
+  studentId?: string
+  parentId?: string
+  sub?: string
+  exp?: number
+}
+
+/**
+ * Adopt a sid-less token into user_sessions so pre-tracking logins appear in
+ * active sessions and can be terminated. Creates the row once, then behaves
+ * like touchSession: false when the row is terminated or expired.
+ */
+export async function adoptLegacySession(
+  claims: LegacyTokenClaims,
+  token: string,
+  req: ApiRequest
+): Promise<boolean> {
+  const sid = legacySessionId(token)
+  const userId = claims.staffId ?? claims.userId ?? claims.studentId ?? claims.parentId ?? claims.sub ?? 'unknown'
+  const expiresAt = claims.exp ? new Date(claims.exp * 1000).toISOString() : null
+  const deviceInfo = parseDeviceInfo(req.headers['user-agent'] as string)
+  const ip = clientIp(req)
+  const result = await sql`
+    WITH ins AS (
+      INSERT INTO user_sessions (id, tenant_id, user_id, device_info, ip_address, risk_level, last_activity, created_at, expires_at)
+      VALUES (${sid}, ${claims.tenantId ?? 'unknown'}, ${userId}, ${JSON.stringify(deviceInfo)}::jsonb, ${ip}, 'Low', NOW(), NOW(),
+              COALESCE(${expiresAt}::timestamptz, NOW() + interval '24 hours'))
+      ON CONFLICT (id) DO NOTHING
+    )
+    UPDATE user_sessions SET last_activity = NOW()
+    WHERE id = ${sid} AND terminated_at IS NULL AND expires_at > NOW()
     RETURNING id
   `
   return result.rows.length > 0

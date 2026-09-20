@@ -524,7 +524,12 @@ export async function getTeacherPerformanceAnalytics(
       attributed AS (
         SELECT tas.teacher as teacher_name, fs.id as score_id, fs.total_score
         FROM teacher_allocation_slots tas
-        JOIN filtered_scores fs ON fs.class = tas.class AND fs.subject = tas.subject
+        JOIN filtered_scores fs
+          -- Normalize class names: strip spaces and a trailing arm letter so
+          -- 'JSS 1 A' (scores) matches 'JSS 1'/'JSS1' (allocation slots).
+          ON fs.subject = tas.subject
+          AND REGEXP_REPLACE(UPPER(REPLACE(fs.class, ' ', '')), '([0-9])[A-Z]$', '\\1')
+            = REGEXP_REPLACE(UPPER(REPLACE(tas.class, ' ', '')), '([0-9])[A-Z]$', '\\1')
         WHERE tas.tenant_id = $1 AND tas.coverage = 'Assigned'
         UNION
         SELECT s2.name, fs.id, fs.total_score
@@ -533,8 +538,10 @@ export async function getTeacherPerformanceAnalytics(
         WHERE s2.tenant_id = $1
           AND NOT EXISTS (
             SELECT 1 FROM teacher_allocation_slots tas
-            WHERE tas.tenant_id = $1 AND tas.class = fs.class
+            WHERE tas.tenant_id = $1
               AND tas.subject = fs.subject AND tas.coverage = 'Assigned'
+              AND REGEXP_REPLACE(UPPER(REPLACE(tas.class, ' ', '')), '([0-9])[A-Z]$', '\\1')
+                = REGEXP_REPLACE(UPPER(REPLACE(fs.class, ' ', '')), '([0-9])[A-Z]$', '\\1')
           )
       )
       SELECT

@@ -107,13 +107,16 @@ export async function adoptLegacySession(
   const expiresAt = claims.exp ? new Date(claims.exp * 1000).toISOString() : null
   const deviceInfo = parseDeviceInfo(req.headers['user-agent'] as string)
   const ip = clientIp(req)
+  // INSERT and UPDATE run as separate statements: data-modifying CTEs share
+  // the same snapshot, so an UPDATE cannot see a row inserted in the same
+  // statement.
+  await sql`
+    INSERT INTO user_sessions (id, tenant_id, user_id, device_info, ip_address, risk_level, last_activity, created_at, expires_at)
+    VALUES (${sid}, ${claims.tenantId ?? 'unknown'}, ${userId}, ${JSON.stringify(deviceInfo)}::jsonb, ${ip}, 'Low', NOW(), NOW(),
+            COALESCE(${expiresAt}::timestamptz, NOW() + interval '24 hours'))
+    ON CONFLICT (id) DO NOTHING
+  `
   const result = await sql`
-    WITH ins AS (
-      INSERT INTO user_sessions (id, tenant_id, user_id, device_info, ip_address, risk_level, last_activity, created_at, expires_at)
-      VALUES (${sid}, ${claims.tenantId ?? 'unknown'}, ${userId}, ${JSON.stringify(deviceInfo)}::jsonb, ${ip}, 'Low', NOW(), NOW(),
-              COALESCE(${expiresAt}::timestamptz, NOW() + interval '24 hours'))
-      ON CONFLICT (id) DO NOTHING
-    )
     UPDATE user_sessions SET last_activity = NOW()
     WHERE id = ${sid} AND terminated_at IS NULL AND expires_at > NOW()
     RETURNING id

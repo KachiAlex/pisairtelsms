@@ -1,5 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
-import { fetchTenantSettings, updateTenantSettings } from '../_lib/tenant-settings'
+import { fetchTenantSettings, updateTenantSettings } from './_lib/tenant-settings.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
 interface TenantSettingsPayload {

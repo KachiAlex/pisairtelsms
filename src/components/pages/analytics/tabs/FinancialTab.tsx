@@ -6,7 +6,12 @@ import {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-const formatCurrency = (amount: number) => `₦${(amount / 1000000).toFixed(1)}M`;
+const formatCurrency = (amount: number | undefined | null) => {
+  if (amount == null || isNaN(amount)) return '—';
+  if (amount >= 1_000_000) return `₦${(amount / 1_000_000).toFixed(1)}M`;
+  if (amount >= 1_000) return `₦${(amount / 1_000).toFixed(1)}K`;
+  return `₦${amount.toLocaleString()}`;
+};
 
 export function FinancialTab({ data, loading }: { data: any; loading: boolean; onRefresh: () => void }) {
   if (loading && !data) {
@@ -31,7 +36,7 @@ export function FinancialTab({ data, loading }: { data: any; loading: boolean; o
           <CardHeader><CardTitle>Monthly Revenue</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.monthlyRevenue}>
+              <BarChart data={data.monthlyRevenue ?? []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -49,11 +54,47 @@ export function FinancialTab({ data, loading }: { data: any; loading: boolean; o
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={data.feeStructureBreakdown} cx="50%" cy="50%" labelLine={false} label={({ category, percentage }) => `${category} (${percentage}%)`} outerRadius={80} fill="#8884d8" dataKey="amount">
-                  {data.feeStructureBreakdown.map((entry: any, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                <Pie data={data.feeStructureBreakdown ?? []} cx="50%" cy="50%" labelLine={false} label={({ category, percentage }) => `${category} (${percentage}%)`} outerRadius={80} fill="#8884d8" dataKey="amount">
+                  {(data.feeStructureBreakdown ?? []).map((entry: any, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
               </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader><CardTitle>Payment Methods</CardTitle></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.paymentMethods ?? []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="method" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="amount" fill="#3b82f6" name="Amount (₦)" />
+                <Bar dataKey="count" fill="#10b981" name="Transactions" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Outstanding by Class</CardTitle></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.classOutstanding ?? []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="class" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="collected" fill="#10b981" name="Collected (₦)" />
+                <Bar dataKey="outstanding" fill="#ef4444" name="Outstanding (₦)" />
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

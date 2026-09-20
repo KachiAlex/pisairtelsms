@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { DashboardFilters } from './analytics/DashboardFilters';
 import type { AnalyticsFilters } from '../../hooks/useAnalytics';
@@ -34,9 +34,11 @@ export function AnalyticsDashboard({ initialTab }: { initialTab?: string }) {
     const auth = JSON.parse(localStorage.getItem('auth') || '{}');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-        const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('Failed to fetch data');
-    return response.json();
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    const body = await response.json();
+    if (body?.success === false) throw new Error(body.error || 'Request failed');
+    return body;
   };
 
   const buildMetricUrl = useCallback((metric: string, f: AnalyticsFilters) => {
@@ -49,31 +51,42 @@ export function AnalyticsDashboard({ initialTab }: { initialTab?: string }) {
     return `/api/tenant/analytics?${params.toString()}`;
   }, []);
 
+  const requestIdRef = useRef(0);
+
   const loadAllData = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
-    try {
-      const [academic, performance, studentProgress, teacherPerformance, attendance, financial] = await Promise.allSettled([
-        fetchWithAuth(buildMetricUrl('academic', filters)),
-        fetchWithAuth(buildMetricUrl('performance', filters)),
-        fetchWithAuth(buildMetricUrl('student-progress', filters)),
-        fetchWithAuth(buildMetricUrl('teacher-performance', filters)),
-        fetchWithAuth(buildMetricUrl('attendance', filters)),
-        fetchWithAuth(buildMetricUrl('financial', filters)),
-      ]);
 
-      if (academic.status === 'fulfilled' && academic.value?.data != null) setAcademicData(academic.value.data);
-      if (performance.status === 'fulfilled' && performance.value?.data != null) setPerformanceData(performance.value.data);
-      if (studentProgress.status === 'fulfilled' && studentProgress.value?.data != null) setStudentProgressData(studentProgress.value.data);
-      if (teacherPerformance.status === 'fulfilled' && teacherPerformance.value?.data != null) setTeacherPerformanceData(teacherPerformance.value.data);
-      if (attendance.status === 'fulfilled' && attendance.value?.data != null) setAttendanceData(attendance.value.data);
-      if (financial.status === 'fulfilled' && financial.value?.data != null) setFinancialData(financial.value.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load analytics data');
-      console.error('Error loading analytics data:', err);
-    } finally {
-      setLoading(false);
+    const metrics: [string, React.Dispatch<React.SetStateAction<any>>][] = [
+      ['academic', setAcademicData],
+      ['performance', setPerformanceData],
+      ['student-progress', setStudentProgressData],
+      ['teacher-performance', setTeacherPerformanceData],
+      ['attendance', setAttendanceData],
+      ['financial', setFinancialData],
+    ];
+
+    const results = await Promise.allSettled(
+      metrics.map(([metric]) => fetchWithAuth(buildMetricUrl(metric, filters)))
+    );
+
+    if (requestId !== requestIdRef.current) return; // a newer request superseded this one
+
+    const failed: string[] = [];
+    results.forEach((result, i) => {
+      const [metric, setter] = metrics[i];
+      if (result.status === 'fulfilled' && result.value?.data != null) {
+        setter(result.value.data);
+      } else {
+        failed.push(metric);
+      }
+    });
+
+    if (failed.length > 0) {
+      setError(`Failed to load: ${failed.join(', ')}`);
     }
+    setLoading(false);
   }, [filters, buildMetricUrl]);
 
   useEffect(() => {

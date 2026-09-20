@@ -27,10 +27,10 @@ export function AttendanceTab({ data, loading }: { data: any; loading: boolean; 
           <CardHeader><CardTitle>Monthly Trend</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.monthlyTrend}>
+              <LineChart data={data.monthlyTrend ?? []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis domain={[80, 100]} />
+                <YAxis domain={[0, 100]} />
                 <Tooltip />
                 <Line type="monotone" dataKey="attendanceRate" stroke="#3b82f6" strokeWidth={2} name="Attendance %" />
               </LineChart>
@@ -42,7 +42,7 @@ export function AttendanceTab({ data, loading }: { data: any; loading: boolean; 
           <CardHeader><CardTitle>Class Attendance</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.classAttendance}>
+              <BarChart data={data.classAttendance ?? []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="class" />
                 <YAxis />

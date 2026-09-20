@@ -48,12 +48,16 @@ export function useAnalytics<T = unknown>(
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Serialize filters so a new object identity each render doesn't refetch
+  const filtersKey = JSON.stringify(filters)
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(buildUrl(metric, filters), {
+      const res = await fetch(buildUrl(metric, JSON.parse(filtersKey)), {
         headers: buildAuthHeaders(),
+        signal: AbortSignal.timeout(30000),
       })
       if (!res.ok) throw new Error(`Failed to fetch ${metric}`)
       const json = await res.json()
@@ -63,7 +67,7 @@ export function useAnalytics<T = unknown>(
     } finally {
       setLoading(false)
     }
-  }, [metric, filters])
+  }, [metric, filtersKey])
 
   useEffect(() => {
     fetchData()

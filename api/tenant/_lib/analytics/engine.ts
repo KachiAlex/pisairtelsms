@@ -291,12 +291,15 @@ export async function getFinancialAnalytics(
       total: string
       count: string
     }>(
-      `SELECT p.status as method, COALESCE(SUM(p.amount), 0) as total, COUNT(*) as count
+      `SELECT COALESCE(p.payment_method, 'unknown') as method, COALESCE(SUM(p.amount), 0) as total, COUNT(*) as count
        FROM payments p
-       JOIN fee_records fr ON fr.id = p.fee_assignment_id
-       WHERE fr.tenant_id = $1
-       GROUP BY p.status`,
-      [tenantId]
+       WHERE p.tenant_id = $1
+         AND p.status IN ('success', 'verified', 'reconciled', 'paid')
+         AND ($2::date IS NULL OR p.payment_date >= $2::date)
+         AND ($3::date IS NULL OR p.payment_date <= $3::date)
+       GROUP BY COALESCE(p.payment_method, 'unknown')
+       ORDER BY total DESC`,
+      [tenantId, filters.startDate || null, filters.endDate || null]
     ),
   ])
 
@@ -476,12 +479,13 @@ export async function getPerformanceAnalytics(
 
 export interface TeacherPerformanceAnalytics {
   totalTeachers: number
-  averageRating: number
+  teachersAssessed: number
+  averageRating: number | null
   topPerformers: number
   needsImprovement: number
   teacherRanking: { teacher: string; subject: string; averageScore: number; passRate: number; rating: string }[]
-  subjectComparison: { subject: string; teacherAverage: number; schoolAverage: number }[]
-  performanceTrend: { month: string; averageRating: number; studentSatisfaction: number }[]
+  subjectComparison: { subject: string; subjectAverage: number; schoolAverage: number }[]
+  termTrend: { term: string; averageScore: number; passRate: number }[]
 }
 
 export async function getTeacherPerformanceAnalytics(
@@ -491,71 +495,116 @@ export async function getTeacherPerformanceAnalytics(
   const baseFilter = buildStudentScoreFilters(tenantId, filters)
   const where = toWhereClause(baseFilter)
 
-  const [teachersRes, rankingRes, subjectRes] = await Promise.all([
+  const [teachersRes, deptRes, subjectRes, trendRes] = await Promise.all([
     sql`SELECT COUNT(*) as count FROM staff WHERE tenant_id = ${tenantId}`,
+    // Department-linked assessment: a teacher is assessed by the filtered scores
+    // recorded for the subject matching their staff department.
     sql.query<{
       teacher: string
       subject: string
       average_score: string
       pass_rate: string
     }>(
-      `SELECT 
+      `SELECT
         s.name as teacher,
         s.department as subject,
         AVG(ss.total_score) as average_score,
         COUNT(CASE WHEN ss.total_score >= 50 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as pass_rate
       FROM staff s
-      JOIN student_scores ss ON ss.subject = s.department
-      WHERE s.tenant_id = $1 AND ss.tenant_id = $1
+      JOIN (SELECT subject, total_score FROM student_scores ${where}) ss
+        ON ss.subject = s.department
+      WHERE s.tenant_id = $1
       GROUP BY s.id, s.name, s.department
-      ORDER BY average_score DESC
-      LIMIT 5`,
-      [tenantId]
+      ORDER BY average_score DESC`,
+      baseFilter.params
     ),
     sql.query<{
       subject: string
-      school_average: string
+      subject_average: string
+      count: string
     }>(
-      `SELECT 
+      `SELECT
         subject,
-        AVG(total_score) as school_average
+        AVG(total_score) as subject_average,
+        COUNT(*) as count
       FROM student_scores
       ${where}
       GROUP BY subject
-      ORDER BY school_average DESC`,
+      ORDER BY subject_average DESC`,
       baseFilter.params
+    ),
+    sql.query<{
+      academic_session: string
+      term: string
+      average: string
+      pass_rate: string
+    }>(
+      `SELECT
+        academic_session,
+        term,
+        AVG(total_score) as average,
+        COUNT(CASE WHEN total_score >= 50 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as pass_rate
+      FROM student_scores
+      WHERE tenant_id = $1
+      GROUP BY academic_session, term
+      ORDER BY academic_session DESC, term DESC
+      LIMIT 6`,
+      [tenantId]
     ),
   ])
 
   const totalTeachers = parseInt(teachersRes.rows[0]?.count || '0')
-  const teacherRanking = rankingRes.rows.map((row, index) => ({
+
+  const deptStats = deptRes.rows.map(row => ({
     teacher: row.teacher,
     subject: row.subject,
-    averageScore: parseFloat(row.average_score || '0'),
-    passRate: parseFloat(row.pass_rate || '0'),
-    rating: (4.8 - index * 0.2).toFixed(1),
+    averageScore: Math.round(parseFloat(row.average_score || '0') * 10) / 10,
+    passRate: Math.round(parseFloat(row.pass_rate || '0')),
   }))
+
+  // Rating is derived from real student outcomes (avg score mapped to a 5-point scale)
+  const ratingOf = (avg: number) => (avg / 20).toFixed(1)
+  const teacherRanking = deptStats.slice(0, 5).map(row => ({
+    ...row,
+    rating: ratingOf(row.averageScore),
+  }))
+
+  const assessed = deptStats.filter(row => row.averageScore > 0)
+  const averageRating = assessed.length > 0
+    ? parseFloat((assessed.reduce((sum, row) => sum + row.averageScore, 0) / assessed.length / 20).toFixed(1))
+    : null
+  const topPerformers = deptStats.filter(row => row.averageScore >= 70).length
+  const needsImprovement = deptStats.filter(row => row.averageScore > 0 && row.averageScore < 50).length
+
+  const totalScoreCount = subjectRes.rows.reduce((sum, row) => sum + parseInt(row.count || '0'), 0)
+  const schoolAverage = totalScoreCount > 0
+    ? subjectRes.rows.reduce((sum, row) => sum + parseFloat(row.subject_average || '0') * parseInt(row.count || '0'), 0) / totalScoreCount
+    : 0
 
   const subjectComparison = subjectRes.rows.map(row => ({
     subject: row.subject,
-    teacherAverage: parseFloat(row.school_average || '0') * 1.05,
-    schoolAverage: parseFloat(row.school_average || '0'),
+    subjectAverage: Math.round(parseFloat(row.subject_average || '0') * 10) / 10,
+    schoolAverage: Math.round(schoolAverage * 10) / 10,
   }))
+
+  const termTrend = trendRes.rows
+    .slice()
+    .sort((a, b) => (a.academic_session > b.academic_session ? 1 : -1) || (a.term > b.term ? 1 : -1))
+    .map(row => ({
+      term: `${row.academic_session} - ${row.term}`,
+      averageScore: Math.round(parseFloat(row.average || '0') * 10) / 10,
+      passRate: Math.round(parseFloat(row.pass_rate || '0')),
+    }))
 
   return {
     totalTeachers,
-    averageRating: 4.2,
-    topPerformers: Math.round(totalTeachers * 0.35),
-    needsImprovement: Math.round(totalTeachers * 0.11),
+    teachersAssessed: deptStats.length,
+    averageRating,
+    topPerformers,
+    needsImprovement,
     teacherRanking,
     subjectComparison,
-    performanceTrend: [
-      { month: 'Jan', averageRating: 4.1, studentSatisfaction: 85 },
-      { month: 'Feb', averageRating: 4.2, studentSatisfaction: 87 },
-      { month: 'Mar', averageRating: 4.1, studentSatisfaction: 86 },
-      { month: 'Apr', averageRating: 4.3, studentSatisfaction: 88 },
-      { month: 'May', averageRating: 4.2, studentSatisfaction: 87 },
-    ],
+    termTrend,
   }
 }
 
@@ -563,7 +612,7 @@ export interface StudentProgressAnalytics {
   totalStudents: number
   improvingStudents: number
   decliningStudents: number
-  stableStudents: number
+  unassessedStudents: number
   progressByClass: {
     class: string
     totalStudents: number
@@ -580,7 +629,6 @@ export interface StudentProgressAnalytics {
     currentAverage: number
     averagePercentage: string
     totalExams: number
-    improvement: number
   }[]
   riskCategories: { category: string; count: number; percentage: number }[]
   attendanceImpact: { class: string; attendanceRate: string; averageScore: string }[]
@@ -612,42 +660,77 @@ export interface StudentProgressAnalytics {
 
 export async function getStudentProgressAnalytics(
   tenantId: string,
-  _filters: AnalyticsFilters = {}
+  filters: AnalyticsFilters = {}
 ): Promise<StudentProgressAnalytics> {
-  const studentsResult = await sql`
-    SELECT COUNT(*) as count FROM students WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
-  `
+  const studentsResult = await sql.query<{ count: string }>(
+    `SELECT COUNT(*) as count FROM students
+     WHERE tenant_id = $1 AND deleted_at IS NULL
+       AND ($2::text IS NULL OR class = $2)`,
+    [tenantId, filters.class || null]
+  )
   const totalStudents = parseInt(studentsResult.rows[0]?.count || '0')
 
-  const academicPerformanceResult = await sql`
-    SELECT
+  // exam_results has no tenant_id — it is scoped through exams.tenant_id,
+  // and er.percentage (0-100) is used so exams with different total_marks
+  // contribute comparable values.
+  const academicPerformanceResult = await sql.query<{
+    student_id: string
+    class: string
+    total_score: string
+    attendance_percentage: string
+    exams_taken: string
+    avg_exam_score: string
+  }>(
+    `SELECT
       s.id as student_id,
       s.class,
       COALESCE(ss.total_score, 0) as total_score,
       COALESCE(ss.attendance_percentage, 0) as attendance_percentage,
-      COUNT(DISTINCT er.id) as exams_taken,
-      AVG(CAST(er.score AS NUMERIC)) as avg_exam_score
+      COUNT(DISTINCT CASE WHEN e.id IS NOT NULL THEN er.id END) as exams_taken,
+      AVG(CASE WHEN e.id IS NOT NULL THEN CAST(er.percentage AS NUMERIC) END) as avg_exam_score
     FROM students s
     LEFT JOIN student_scores ss ON s.id::text = ss.student_id
-      AND ss.academic_session = (SELECT MAX(academic_session) FROM student_scores)
-    LEFT JOIN exam_results er ON s.id::text = er.student_id
-    LEFT JOIN exams e ON er.exam_id = e.id
-    WHERE s.tenant_id = ${tenantId} AND s.deleted_at IS NULL
-    GROUP BY s.id, s.class, ss.total_score, ss.attendance_percentage
-  `
+      AND ss.tenant_id = $1
+      AND ss.academic_session = COALESCE($2, (SELECT MAX(academic_session) FROM student_scores WHERE tenant_id = $1))
+      AND ($4::text IS NULL OR ss.term = $4)
+    LEFT JOIN exam_results er ON er.student_id = s.id::text
+    LEFT JOIN exams e ON e.id = er.exam_id AND e.tenant_id = $1 AND e.deleted_at IS NULL
+    WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
+      AND ($3::text IS NULL OR s.class = $3)
+    GROUP BY s.id, s.class, ss.total_score, ss.attendance_percentage`,
+    [tenantId, filters.academicSession || null, filters.class || null, filters.term || null]
+  )
 
   let excelling = 0
   let onTrack = 0
   let atRisk = 0
   let critical = 0
+  let unassessed = 0
+
+  const classBuckets = new Map<string, {
+    totalStudents: number
+    sumScore: number
+    scoredStudents: number
+    sumAttendance: number
+    sumExamScore: number
+    examScoredStudents: number
+    totalExamsTaken: number
+    onTrack: number
+    behind: number
+  }>()
+
   const studentCategories = academicPerformanceResult.rows.map(row => {
     const totalScore = parseFloat(row.total_score || '0')
     const attendance = parseFloat(row.attendance_percentage || '0')
     const avgExamScore = parseFloat(row.avg_exam_score || '0')
+    const examsTaken = parseInt(row.exams_taken || '0')
     const overallScore = totalScore * 0.4 + attendance * 0.3 + avgExamScore * 0.3
 
     let category: string
-    if (overallScore >= 75 && attendance >= 75) {
+    if (totalScore === 0 && attendance === 0 && avgExamScore === 0 && examsTaken === 0) {
+      category = 'unassessed'
+      unassessed++
+    } else if (overallScore >= 75 && attendance >= 75) {
       category = 'excelling'
       excelling++
     } else if (overallScore >= 50 && attendance >= 60) {
@@ -660,6 +743,19 @@ export async function getStudentProgressAnalytics(
       category = 'critical'
       critical++
     }
+
+    const bucket = classBuckets.get(row.class) ?? {
+      totalStudents: 0, sumScore: 0, scoredStudents: 0, sumAttendance: 0,
+      sumExamScore: 0, examScoredStudents: 0, totalExamsTaken: 0, onTrack: 0, behind: 0,
+    }
+    bucket.totalStudents++
+    if (totalScore > 0) { bucket.sumScore += totalScore; bucket.scoredStudents++ }
+    bucket.sumAttendance += attendance
+    if (avgExamScore > 0) { bucket.sumExamScore += avgExamScore; bucket.examScoredStudents++ }
+    bucket.totalExamsTaken += examsTaken
+    if (category === 'excelling' || category === 'on_track') bucket.onTrack++
+    else if (category === 'at_risk' || category === 'critical') bucket.behind++
+    classBuckets.set(row.class, bucket)
 
     return {
       studentId: row.student_id,
@@ -674,42 +770,19 @@ export async function getStudentProgressAnalytics(
 
   const improvingStudents = onTrack + excelling
   const decliningStudents = atRisk + critical
-  const stableStudents = totalStudents - improvingStudents - decliningStudents
 
-  const progressByClassResult = await sql`
-    SELECT
-      s.class,
-      COUNT(DISTINCT s.id) as total_students,
-      AVG(CAST(ss.total_score AS NUMERIC)) as avg_total_score,
-      AVG(CAST(ss.attendance_percentage AS NUMERIC)) as avg_attendance,
-      AVG(CAST(er.score AS NUMERIC)) as avg_exam_score,
-      COUNT(DISTINCT er.id) as total_exams_taken
-    FROM students s
-    LEFT JOIN student_scores ss ON s.id::text = ss.student_id
-      AND ss.academic_session = (SELECT MAX(academic_session) FROM student_scores)
-    LEFT JOIN exam_results er ON s.id::text = er.student_id
-    LEFT JOIN exams e ON er.exam_id = e.id
-    WHERE s.tenant_id = ${tenantId} AND s.deleted_at IS NULL
-    GROUP BY s.class
-    ORDER BY avg_total_score DESC NULLS LAST
-  `
-  const progressByClass = progressByClassResult.rows.map(row => {
-    const avgScore = parseFloat(row.avg_total_score || '0')
-    const avgAttendance = parseFloat(row.avg_attendance || '0')
-    const totalStudentsInClass = parseInt(row.total_students || '0')
-    const studentsOnTrack = Math.round(totalStudentsInClass * 0.7)
-    const studentsBehind = totalStudentsInClass - studentsOnTrack
-    return {
-      class: row.class,
-      totalStudents: totalStudentsInClass,
-      averageScore: avgScore.toFixed(1),
-      averageAttendance: avgAttendance.toFixed(1),
-      averageExamScore: parseFloat(row.avg_exam_score || '0').toFixed(1),
-      totalExamsTaken: parseInt(row.total_exams_taken || '0'),
-      studentsOnTrack,
-      studentsBehind,
-    }
-  })
+  const progressByClass = Array.from(classBuckets.entries())
+    .map(([cls, b]) => ({
+      class: cls,
+      totalStudents: b.totalStudents,
+      averageScore: (b.scoredStudents > 0 ? b.sumScore / b.scoredStudents : 0).toFixed(1),
+      averageAttendance: (b.totalStudents > 0 ? b.sumAttendance / b.totalStudents : 0).toFixed(1),
+      averageExamScore: (b.examScoredStudents > 0 ? b.sumExamScore / b.examScoredStudents : 0).toFixed(1),
+      totalExamsTaken: b.totalExamsTaken,
+      studentsOnTrack: b.onTrack,
+      studentsBehind: b.behind,
+    }))
+    .sort((a, b) => parseFloat(b.averageScore) - parseFloat(a.averageScore))
 
   const subjectProgressResult = await sql`
     SELECT
@@ -720,7 +793,7 @@ export async function getStudentProgressAnalytics(
       COUNT(DISTINCT e.id) as total_exams
     FROM exam_results er
     JOIN exams e ON er.exam_id = e.id
-    WHERE e.tenant_id = ${tenantId}
+    WHERE e.tenant_id = ${tenantId} AND e.deleted_at IS NULL
     GROUP BY e.subject
     ORDER BY avg_score DESC NULLS LAST
   `
@@ -730,31 +803,46 @@ export async function getStudentProgressAnalytics(
     currentAverage: parseFloat(row.avg_score || '0'),
     averagePercentage: parseFloat(row.avg_percentage || '0').toFixed(1),
     totalExams: parseInt(row.total_exams || '0'),
-    improvement: 0,
   }))
 
-  const attendanceImpactResult = await sql`
-    SELECT
+  const attendanceImpactResult = await sql.query<{
+    class: string
+    total_students: string
+    attendance_rate: string
+    avg_score: string
+  }>(
+    `SELECT
       s.class,
       COUNT(DISTINCT s.id) as total_students,
       AVG(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END) * 100 as attendance_rate,
       AVG(CAST(ss.total_score AS NUMERIC)) as avg_score
     FROM students s
     LEFT JOIN attendance_records ar ON s.id::text = ar.student_id
+      AND ar.tenant_id = $1
       AND ar.date >= CURRENT_DATE - INTERVAL '30 days'
     LEFT JOIN student_scores ss ON s.id::text = ss.student_id
-    WHERE s.tenant_id = ${tenantId} AND s.deleted_at IS NULL
+      AND ss.tenant_id = $1
+      AND ss.academic_session = COALESCE($2, (SELECT MAX(academic_session) FROM student_scores WHERE tenant_id = $1))
+    WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
+      AND ($3::text IS NULL OR s.class = $3)
     GROUP BY s.class
-    ORDER BY attendance_rate DESC NULLS LAST
-  `
+    ORDER BY attendance_rate DESC NULLS LAST`,
+    [tenantId, filters.academicSession || null, filters.class || null]
+  )
   const attendanceImpact = attendanceImpactResult.rows.map(row => ({
     class: row.class,
     attendanceRate: parseFloat(row.attendance_rate || '0').toFixed(1),
     averageScore: parseFloat(row.avg_score || '0').toFixed(1),
   }))
 
-  const examParticipationResult = await sql`
-    SELECT
+  const examParticipationResult = await sql.query<{
+    class: string
+    total_exams: string
+    students_started: string
+    students_completed: string
+    avg_questions_answered: string
+  }>(
+    `SELECT
       e.class,
       COUNT(DISTINCT e.id) as total_exams,
       COUNT(DISTINCT sep.student_id) as students_started,
@@ -763,10 +851,12 @@ export async function getStudentProgressAnalytics(
     FROM exams e
     LEFT JOIN student_exam_progress sep ON e.id = sep.exam_id
     LEFT JOIN exam_results er ON e.id = er.exam_id
-    WHERE e.tenant_id = ${tenantId} AND e.deleted_at IS NULL
+    WHERE e.tenant_id = $1 AND e.deleted_at IS NULL
+      AND ($2::text IS NULL OR e.class = $2)
     GROUP BY e.class
-    ORDER BY students_completed DESC NULLS LAST
-  `
+    ORDER BY students_completed DESC NULLS LAST`,
+    [tenantId, filters.class || null]
+  )
   const examParticipation = examParticipationResult.rows.map(row => {
     const studentsStarted = parseInt(row.students_started || '0')
     const studentsCompleted = parseInt(row.students_completed || '0')
@@ -781,16 +871,23 @@ export async function getStudentProgressAnalytics(
     }
   })
 
-  const financialImpactResult = await sql`
-    SELECT
+  const financialImpactResult = await sql.query<{
+    total_students: string
+    fully_paid: string
+    partially_paid: string
+    pending_payment: string
+  }>(
+    `SELECT
       COUNT(DISTINCT s.id) as total_students,
       COUNT(DISTINCT CASE WHEN fa.status = 'paid' THEN s.id END) as fully_paid,
       COUNT(DISTINCT CASE WHEN fa.status = 'partial' THEN s.id END) as partially_paid,
-      COUNT(DISTINCT CASE WHEN fa.status = 'pending' THEN s.id END) as pending_payment
+      COUNT(DISTINCT CASE WHEN fa.status IN ('pending', 'overdue') THEN s.id END) as pending_payment
     FROM students s
     LEFT JOIN fee_assignments fa ON s.id::text = fa.student_id
-    WHERE s.tenant_id = ${tenantId} AND s.deleted_at IS NULL
-  `
+    WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
+      AND ($2::text IS NULL OR s.class = $2)`,
+    [tenantId, filters.class || null]
+  )
   const financialImpact = {
     totalStudents: parseInt(financialImpactResult.rows[0]?.total_students || '0'),
     fullyPaid: parseInt(financialImpactResult.rows[0]?.fully_paid || '0'),
@@ -798,17 +895,25 @@ export async function getStudentProgressAnalytics(
     pendingPayment: parseInt(financialImpactResult.rows[0]?.pending_payment || '0'),
   }
 
-  const promotionTrendsResult = await sql`
-    SELECT
+  const promotionTrendsResult = await sql.query<{
+    to_class: string
+    action: string
+    count: string
+    avg_score: string
+  }>(
+    `SELECT
       to_class,
       action,
       COUNT(*) as count,
       AVG(CAST(average_score AS NUMERIC)) as avg_score
     FROM promotion_records
-    WHERE academic_session = (SELECT MAX(academic_session) FROM promotion_records)
+    WHERE tenant_id = $1
+      AND academic_session = COALESCE($2, (SELECT MAX(academic_session) FROM promotion_records WHERE tenant_id = $1))
+      AND ($3::text IS NULL OR to_class = $3)
     GROUP BY to_class, action
-    ORDER BY to_class, action
-  `
+    ORDER BY to_class, action`,
+    [tenantId, filters.academicSession || null, filters.class || null]
+  )
   const promotionTrends = promotionTrendsResult.rows.map(row => ({
     toClass: row.to_class,
     action: row.action,
@@ -821,13 +926,14 @@ export async function getStudentProgressAnalytics(
     { category: 'At Risk', count: atRisk, percentage: totalStudents > 0 ? Math.round((atRisk / totalStudents) * 100) : 0 },
     { category: 'Critical', count: critical, percentage: totalStudents > 0 ? Math.round((critical / totalStudents) * 100) : 0 },
     { category: 'Excelling', count: excelling, percentage: totalStudents > 0 ? Math.round((excelling / totalStudents) * 100) : 0 },
+    { category: 'Unassessed', count: unassessed, percentage: totalStudents > 0 ? Math.round((unassessed / totalStudents) * 100) : 0 },
   ]
 
   return {
     totalStudents,
     improvingStudents,
     decliningStudents,
-    stableStudents,
+    unassessedStudents: unassessed,
     progressByClass,
     subjectProgress,
     riskCategories,
@@ -839,11 +945,99 @@ export async function getStudentProgressAnalytics(
   }
 }
 
-export interface AttendanceAnalytics extends SummaryStats {}
+export interface AttendanceAnalytics extends SummaryStats {
+  overallAttendanceRate: number
+  presentToday: number
+  absentToday: number
+  lateToday: number
+  monthlyTrend: { month: string; attendanceRate: number }[]
+  classAttendance: { class: string; attendanceRate: number; present: number; absent: number; late: number }[]
+}
 
 export async function getAttendanceAnalytics(
   tenantId: string,
   filters: AnalyticsFilters = {}
 ): Promise<AttendanceAnalytics> {
-  return calculateSummaryStats(tenantId, filters.term, filters.academicSession)
+  const termConditions: string[] = ['tenant_id = $1']
+  const termParams: any[] = [tenantId]
+  if (filters.term) {
+    termParams.push(filters.term)
+    termConditions.push(`term = $${termParams.length}`)
+  }
+  if (filters.academicSession) {
+    termParams.push(filters.academicSession)
+    termConditions.push(`academic_session = $${termParams.length}`)
+  }
+  if (filters.class) {
+    termParams.push(filters.class)
+    termConditions.push(`class = $${termParams.length}`)
+  }
+  const termWhere = termConditions.join(' AND ')
+
+  const [summary, todayRes, monthlyRes, classRes] = await Promise.all([
+    calculateSummaryStats(tenantId, filters.term, filters.academicSession),
+    sql.query<{ status: string; count: string }>(
+      `SELECT status, COUNT(*) as count
+       FROM attendance_records
+       WHERE tenant_id = $1 AND date = CURRENT_DATE
+       GROUP BY status`,
+      [tenantId]
+    ),
+    sql.query<{ month: string; attendance_rate: string }>(
+      `SELECT
+        TO_CHAR(date_trunc('month', date), 'Mon YYYY') as month,
+        date_trunc('month', date) as month_start,
+        COUNT(CASE WHEN status = 'present' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as attendance_rate
+       FROM attendance_records
+       WHERE tenant_id = $1
+       GROUP BY month_start
+       ORDER BY month_start DESC
+       LIMIT 6`,
+      [tenantId]
+    ),
+    sql.query<{
+      class: string
+      attendance_rate: string
+      present: string
+      absent: string
+      late: string
+    }>(
+      `SELECT
+        class,
+        COUNT(CASE WHEN status = 'present' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as attendance_rate,
+        COUNT(CASE WHEN status = 'present' THEN 1 END) as present,
+        COUNT(CASE WHEN status = 'absent' THEN 1 END) as absent,
+        COUNT(CASE WHEN status = 'late' THEN 1 END) as late
+       FROM attendance_records
+       WHERE ${termWhere}
+       GROUP BY class
+       ORDER BY class`,
+      termParams
+    ),
+  ])
+
+  const todayCount = (status: string) =>
+    parseInt(todayRes.rows.find(r => r.status === status)?.count || '0', 10)
+
+  return {
+    ...summary,
+    overallAttendanceRate: summary.presentRate,
+    presentToday: todayCount('present'),
+    absentToday: todayCount('absent'),
+    lateToday: todayCount('late'),
+    monthlyTrend: monthlyRes.rows
+      .slice()
+      .reverse()
+      .map(row => ({
+        month: row.month,
+        attendanceRate: Math.round(parseFloat(row.attendance_rate || '0') * 10) / 10,
+      })),
+    classAttendance: classRes.rows.map(row => ({
+      class: row.class,
+      attendanceRate: Math.round(parseFloat(row.attendance_rate || '0') * 10) / 10,
+      present: parseInt(row.present || '0', 10),
+      absent: parseInt(row.absent || '0', 10),
+      late: parseInt(row.late || '0', 10),
+    })),
+  }
 }

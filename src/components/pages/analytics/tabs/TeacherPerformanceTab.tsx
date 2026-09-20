@@ -16,25 +16,25 @@ export function TeacherPerformanceTab({ data, loading }: { data: any; loading: b
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Total Teachers</p><p className="text-2xl font-bold">{data.totalTeachers}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Average Rating</p><p className="text-2xl font-bold">{data.averageRating}/5</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Total Teachers</p><p className="text-2xl font-bold">{data.totalTeachers}</p><p className="text-xs text-gray-500">{data.teachersAssessed ?? 0} assessed via dept scores</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Average Rating</p><p className="text-2xl font-bold">{data.averageRating != null ? `${data.averageRating}/5` : 'N/A'}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Top Performers</p><p className="text-2xl font-bold">{data.topPerformers}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Needs Improvement</p><p className="text-2xl font-bold">{data.needsImprovement}</p></CardContent></Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><CardTitle>Performance Trend</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Student Score Trend</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.performanceTrend}>
+              <LineChart data={data.termTrend ?? []}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="term" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="averageRating" stroke="#3b82f6" strokeWidth={2} name="Avg Rating" />
-                <Line type="monotone" dataKey="studentSatisfaction" stroke="#10b981" strokeWidth={2} name="Student Satisfaction %" />
+                <Line type="monotone" dataKey="averageScore" stroke="#3b82f6" strokeWidth={2} name="Avg Score" />
+                <Line type="monotone" dataKey="passRate" stroke="#10b981" strokeWidth={2} name="Pass Rate %" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -44,7 +44,7 @@ export function TeacherPerformanceTab({ data, loading }: { data: any; loading: b
           <CardHeader><CardTitle>Teacher Ranking</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {data.teacherRanking.map((teacher: any, index: number) => (
+              {(data.teacherRanking ?? []).map((teacher: any, index: number) => (
                 <div key={teacher.teacher} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${

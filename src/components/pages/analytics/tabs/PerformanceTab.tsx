@@ -27,7 +27,7 @@ export function PerformanceTab({ data, loading }: { data: any; loading: boolean;
           <CardHeader><CardTitle>Performance Trend</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.termTrend}>
+              <LineChart data={data.termTrend ?? []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="term" />
                 <YAxis />
@@ -44,7 +44,7 @@ export function PerformanceTab({ data, loading }: { data: any; loading: boolean;
           <CardHeader><CardTitle>Grade Distribution</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.gradeDistribution}>
+              <BarChart data={data.gradeDistribution ?? []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="grade" />
                 <YAxis />

@@ -93,9 +93,16 @@ export async function updateTenantSettings(tenantId: string, settings: TenantSet
   try {
     await ensureTenantSettingsTable();
 
+    // Guard against a wrapped body ({settings: {...}}) being persisted as a
+    // nested object — unwrap so the stored row always holds the flat payload.
+    const payload =
+      settings && typeof (settings as any).settings === 'object' && (settings as any).settings !== null
+        ? ((settings as any).settings as TenantSettingsPayload)
+        : settings;
+
     const result = await sql<TenantSettingsRow>`
       INSERT INTO tenant_settings (tenant_id, settings, updated_at)
-      VALUES (${tenantId}, ${JSON.stringify(settings)}, NOW())
+      VALUES (${tenantId}, ${JSON.stringify(payload)}, NOW())
       ON CONFLICT (tenant_id) DO UPDATE
         SET settings = EXCLUDED.settings,
             updated_at = NOW()

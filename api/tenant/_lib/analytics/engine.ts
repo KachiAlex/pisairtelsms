@@ -531,6 +531,11 @@ export async function getTeacherPerformanceAnalytics(
         FROM staff s2
         JOIN filtered_scores fs ON COALESCE(NULLIF(s2.subjects, ''), '[]')::jsonb ? fs.subject
         WHERE s2.tenant_id = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM teacher_allocation_slots tas
+            WHERE tas.tenant_id = $1 AND tas.class = fs.class
+              AND tas.subject = fs.subject AND tas.coverage = 'Assigned'
+          )
       )
       SELECT
         s.name as teacher,

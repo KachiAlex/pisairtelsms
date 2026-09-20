@@ -112,7 +112,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     // ── Generate QR Session ──────────────────────────────────────────────
     if (action === 'generate') {
       // Only admins can generate QR codes
-      if (userRole !== 'tenant_admin' && userRole !== 'super_admin') {
+      if (userRole !== 'tenant_admin') {
         return res.status(403).json({ success: false, error: 'Only administrators can generate QR codes' })
       }
 
@@ -256,7 +256,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // ── Admin Bulk Manual Mark ──────────────────────────────────────────
     if (action === 'bulk-mark') {
-      if (userRole !== 'tenant_admin' && userRole !== 'super_admin') {
+      if (userRole !== 'tenant_admin') {
         return res.status(403).json({ success: false, error: 'Only administrators can bulk mark attendance' })
       }
 

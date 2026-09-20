@@ -6,7 +6,6 @@ async function ensureRolesTables() {
   }
 
 const DEFAULT_ROLES = [
-  { id: 'super-admin', name: 'Super Admin', description: 'Full platform control with guardrails on destructive actions.', critical: true },
   { id: 'school-admin', name: 'School Admin', description: 'Runs day-to-day school operations and approvals.', critical: true },
   { id: 'faculty-lead', name: 'Faculty Lead', description: 'Manages teachers, classes, and assessments.', critical: false },
   { id: 'finance-officer', name: 'Finance Officer', description: 'Controls billing, payouts, and arrears workflows.', critical: false },

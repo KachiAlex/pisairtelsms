@@ -26,7 +26,7 @@ import { emailTemplates, EmailTemplateKey } from '../_lib/email-templates.js'
  */
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['tenant_admin', 'super_admin', 'staff'])
+  const decoded = await requireRole(req, res, ['tenant_admin', 'staff'])
   if (!decoded) return
 
   if (req.method === 'GET') {

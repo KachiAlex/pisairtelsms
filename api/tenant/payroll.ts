@@ -45,7 +45,7 @@ const APPROVER_ROLE_KEYWORDS: Record<string, string[]> = {
 }
 
 async function resolveApproverRoles(decoded: { userId?: string; sub?: string; staffId?: string; email?: string; role?: string }, tenantId: string): Promise<string[]> {
-  if (decoded.role === 'tenant_admin' || decoded.role === 'super_admin') {
+  if (decoded.role === 'tenant_admin') {
     return Object.keys(APPROVER_ROLE_KEYWORDS)
   }
   const userId = decoded.staffId || decoded.userId || decoded.sub || ''

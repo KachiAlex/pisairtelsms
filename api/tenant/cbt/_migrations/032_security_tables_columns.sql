@@ -84,6 +84,11 @@ CREATE TABLE IF NOT EXISTS compliance_tasks (
   status VARCHAR(20) DEFAULT 'scheduled',
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+ALTER TABLE compliance_tasks ADD COLUMN IF NOT EXISTS task_name TEXT;
+ALTER TABLE compliance_tasks ADD COLUMN IF NOT EXISTS task_type TEXT;
+ALTER TABLE compliance_tasks ADD COLUMN IF NOT EXISTS owner TEXT;
+ALTER TABLE compliance_tasks ADD COLUMN IF NOT EXISTS due_date TIMESTAMP;
+ALTER TABLE compliance_tasks ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
 CREATE INDEX IF NOT EXISTS idx_compliance_tasks_tenant ON compliance_tasks(tenant_id, status);
 
 INSERT INTO schema_migrations (version, description)

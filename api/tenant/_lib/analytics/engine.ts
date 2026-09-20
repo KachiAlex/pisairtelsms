@@ -529,13 +529,13 @@ export async function getTeacherPerformanceAnalytics(
         UNION
         SELECT s2.name, fs.id, fs.total_score
         FROM staff s2
-        JOIN filtered_scores fs ON s2.subjects ? fs.subject
+        JOIN filtered_scores fs ON COALESCE(NULLIF(s2.subjects, ''), '[]')::jsonb ? fs.subject
         WHERE s2.tenant_id = $1
       )
       SELECT
         s.name as teacher,
         COALESCE(
-          NULLIF((SELECT string_agg(value, ', ') FROM jsonb_array_elements_text(s.subjects)), ''),
+          NULLIF((SELECT string_agg(value, ', ') FROM jsonb_array_elements_text(COALESCE(NULLIF(s.subjects, ''), '[]')::jsonb)), ''),
           s.department
         ) as subject,
         AVG(a.total_score) as average_score,

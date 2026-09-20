@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from './http-types.js'
 import { jwtVerify } from 'jose'
 import { getJwtSecret } from './jwt-secret.js'
+import { touchSession } from './session-tracker.js'
 
 export type UserRole = 'super_admin' | 'tenant_admin' | 'student' | 'staff' | 'parent'
 
@@ -16,6 +17,24 @@ export interface DecodedToken {
   sub?: string
   iat?: number
   exp?: number
+  /** Tracked session id (user_sessions.id). Present on tokens issued after session tracking went live. */
+  sid?: string
+}
+
+/**
+ * When the token carries a tracked session id, validate it against
+ * user_sessions: terminated or expired sessions are rejected immediately so
+ * force-logout actually takes effect. A database error fails open (log +
+ * allow) so an outage doesn't lock everyone out.
+ */
+async function sessionStillValid(decoded: DecodedToken): Promise<boolean> {
+  if (!decoded.sid) return true
+  try {
+    return await touchSession(decoded.sid)
+  } catch (error) {
+    console.error('Session validation error:', error)
+    return true
+  }
 }
 
 /**
@@ -90,6 +109,11 @@ export async function requireRole(
     return null
   }
 
+  if (!(await sessionStillValid(decoded))) {
+    res.status(401).json({ error: 'Session terminated' })
+    return null
+  }
+
   if (!allowedRoles.includes(decoded.role)) {
     res.status(403).json({ error: 'Forbidden: Insufficient permissions' })
     return null
@@ -111,6 +135,11 @@ export async function requireAuth(req: ApiRequest, res: ApiResponse): Promise<De
   const decoded = await verifyToken(token)
   if (!decoded) {
     res.status(401).json({ error: 'Unauthorized: Invalid or expired token' })
+    return null
+  }
+
+  if (!(await sessionStillValid(decoded))) {
+    res.status(401).json({ error: 'Session terminated' })
     return null
   }
 

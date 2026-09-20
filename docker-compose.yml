@@ -58,6 +58,9 @@ services:
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
       CLOUDFLARE_REALTIME_HOST_PRESET: ${CLOUDFLARE_REALTIME_HOST_PRESET:-host}
       CLOUDFLARE_REALTIME_PARTICIPANT_PRESET: ${CLOUDFLARE_REALTIME_PARTICIPANT_PRESET:-participant}
+      BACKUP_DIR: /app/backups
+    volumes:
+      - ./backups:/app/backups
     ports:
       - "3000:3000"
     networks:

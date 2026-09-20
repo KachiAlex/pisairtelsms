@@ -13,7 +13,7 @@ import { Label } from '../ui/label'
 interface AccessControlData {
   privilegedIdentities: number
   pendingReviews: number
-  mfaCoverage: number
+  mfaCoverage: number | null
   anomalyAlerts: number
   privilegedRoles: Array<{
     role: string
@@ -35,12 +35,7 @@ interface AccessControlData {
   }>
 }
 
-const securityPolicies = [
-  { id: 'pol-1', name: 'Global MFA Enforcement', description: 'Require multi-factor authentication for all staff and admin accounts.', icon: Fingerprint, enabled: true },
-  { id: 'pol-2', name: 'Strict Password Complexity', description: 'Minimum 12 characters, including symbols and numbers (NIST 800-63).', icon: Lock, enabled: true },
-  { id: 'pol-3', name: 'Session Idle Timeout', description: 'Automatically log out users after 30 minutes of inactivity.', icon: Activity, enabled: true },
-  { id: 'pol-4', name: 'Account Lockout Threshold', description: 'Suspend accounts after 5 consecutive failed login attempts.', icon: ShieldAlert, enabled: false },
-];
+const securityPolicies: Array<{ id: string; name: string; description: string; icon: any; enabled: boolean }> = [];
 
 export function AccessControl() {
   const navigate = useNavigate()
@@ -129,7 +124,7 @@ export function AccessControl() {
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Pending Reviews</p>
             <p className="text-3xl font-semibold text-rose-600">{data?.pendingReviews || 0}</p>
-            <p className="text-xs text-gray-500">Must close by end of week</p>
+            <p className="text-xs text-gray-500">Reviews due within 7 days</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -174,6 +169,13 @@ export function AccessControl() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {privilegedRoles.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-gray-500 py-8">
+                        No privileged roles configured yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {privilegedRoles.map((role) => (
                     <TableRow key={role.role}>
                       <TableCell className="font-medium text-gray-900">{role.role}</TableCell>
@@ -183,9 +185,7 @@ export function AccessControl() {
                         <Badge variant={role.mfa === '100%' ? 'default' : 'warning'}>{role.mfa}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm">
-                          <KeyRound className="h-4 w-4 mr-2" /> Review Access
-                        </Button>
+                        <Badge variant="outline">Tracked</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -196,6 +196,13 @@ export function AccessControl() {
         </TabsContent>
 
         <TabsContent value="policies" className="space-y-6">
+          {securityPolicies.length === 0 && (
+            <Card>
+              <CardContent className="py-10 text-center text-sm text-gray-500">
+                No configurable security policies are defined yet. Platform security settings (rate limiting, password hashing, session expiry) are enforced at the infrastructure level.
+              </CardContent>
+            </Card>
+          )}
           <div className="grid gap-6 md:grid-cols-2">
             {securityPolicies.map((policy) => {
               const Icon = policy.icon;
@@ -218,7 +225,6 @@ export function AccessControl() {
                       <Badge variant={policy.enabled ? 'default' : 'secondary'}>
                         {policy.enabled ? 'Active' : 'Disabled'}
                       </Badge>
-                      <Button variant="ghost" size="sm">Configure</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -226,30 +232,6 @@ export function AccessControl() {
             })}
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Conditional Access Rules</CardTitle>
-              <CardDescription>Define environment-based restrictions for platform access.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                { label: 'Dormant Staff Cleanup', detail: 'Revoke accounts inactive > 45 days', status: 'Live' },
-                { label: 'Impossible Travel Detection', detail: 'Flag logins from geographic distances too large for time elapsed', status: 'Live' },
-                { label: 'Privilege Escalation Sandbox', detail: 'Require ticket reference ID for temporary elevation', status: 'Paused' }
-              ].map((rule, idx) => (
-                <div key={idx} className="flex items-start justify-between rounded-xl border p-4">
-                  <div>
-                    <p className="font-semibold text-gray-900">{rule.label}</p>
-                    <p className="text-sm text-gray-500">{rule.detail}</p>
-                  </div>
-                  <Badge variant={rule.status === 'Live' ? 'default' : 'secondary'}>{rule.status}</Badge>
-                </div>
-              ))}
-              <Button variant="outline" size="sm" className="w-full">
-                <Activity className="h-4 w-4 mr-2" /> Manage All Policy Playbooks
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="approvals" className="space-y-6">
@@ -269,6 +251,13 @@ export function AccessControl() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {approvalMatrix.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-sm text-gray-500 py-8">
+                        No approval policies configured yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {approvalMatrix.map((row) => (
                     <TableRow key={row.action}>
                       <TableCell className="font-medium">{row.action}</TableCell>
@@ -292,6 +281,9 @@ export function AccessControl() {
               <CardDescription>Real-time stream of sensitive identity and permission changes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {activityFeed.length === 0 && (
+                <p className="text-sm text-gray-500 py-4 text-center">No privileged access activity recorded yet.</p>
+              )}
               {activityFeed.map((event) => (
                 <div key={event.id} className="flex items-center justify-between rounded-xl border p-3 hover:bg-gray-50 transition-colors">
                   <div>
@@ -315,13 +307,10 @@ export function AccessControl() {
             <UserCheck className="h-6 w-6" />
           </div>
           <div>
-            <p className="font-bold text-lg">Identity Governance Review</p>
-            <p className="text-emerald-800/80">Next quarterly privileged access review auto-starts in 12 days. Ensure reviewers are assigned.</p>
+            <p className="font-bold text-lg">Identity Governance</p>
+            <p className="text-emerald-800/80">Privileged roles, approval policies, and access activity are tracked here as they are recorded.</p>
           </div>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6">
-          Assign Reviewers
-        </Button>
       </div>
     </div>
   )

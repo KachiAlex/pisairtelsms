@@ -57,14 +57,49 @@ export function BackupRestore() {
   const [data, setData] = useState<BackupRestoreData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [runningBackup, setRunningBackup] = useState(false)
+  const [requestingRestore, setRequestingRestore] = useState(false)
 
-  const fetchWithAuth = async (url: string) => {
+  const fetchWithAuth = async (url: string, options?: RequestInit) => {
     const auth = getAuthFromStorage()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
-        const response = await fetch(url, { headers })
-    if (!response.ok) throw new Error('Failed to fetch data')
-    return response.json()
+        const response = await fetch(url, { ...options, headers: { ...headers, ...(options?.headers || {}) } })
+    const json = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(json?.error || 'Request failed')
+    return json
+  }
+
+  const runBackup = async () => {
+    setActionError(null)
+    setRunningBackup(true)
+    try {
+      await fetchWithAuth('/api/tenant/security/backup-restore?action=run-backup', { method: 'POST' })
+      await loadData()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to start backup')
+    } finally {
+      setRunningBackup(false)
+    }
+  }
+
+  const requestRestore = async () => {
+    const scope = window.prompt('Describe the backup scope to restore (approval is required):')
+    if (!scope?.trim()) return
+    setActionError(null)
+    setRequestingRestore(true)
+    try {
+      await fetchWithAuth('/api/tenant/security/backup-restore?action=request-restore', {
+        method: 'POST',
+        body: JSON.stringify({ scope: scope.trim() }),
+      })
+      await loadData()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to request restore')
+    } finally {
+      setRequestingRestore(false)
+    }
   }
 
   const loadData = async () => {
@@ -121,11 +156,12 @@ export function BackupRestore() {
           <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh status
           </Button>
-          <Button>
-            <CloudUpload className="h-4 w-4 mr-2" /> Run backup now
+          <Button onClick={runBackup} disabled={runningBackup}>
+            {runningBackup ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CloudUpload className="h-4 w-4 mr-2" />} Run backup now
           </Button>
         </div>
       </div>
+      {actionError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</div>}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -176,6 +212,13 @@ export function BackupRestore() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {backupJobs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-sm text-gray-500 py-8">
+                    No backup jobs recorded yet.
+                  </TableCell>
+                </TableRow>
+              )}
               {backupJobs.map((job) => (
                 <TableRow key={job.id}>
                   <TableCell className="font-medium text-gray-900">{job.id}</TableCell>
@@ -200,6 +243,12 @@ export function BackupRestore() {
             <CardDescription>Prioritize requests and keep stakeholders updated.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {restoreRequests.length === 0 && (
+              <p className="text-sm text-gray-500 py-4 text-center">No restore requests.</p>
+            )}
+            <Button variant="outline" size="sm" className="w-full" onClick={requestRestore} disabled={requestingRestore}>
+              {requestingRestore ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CloudDownload className="h-4 w-4 mr-2" />} Request restore approval
+            </Button>
             {restoreRequests.map((request) => (
               <div key={request.id} className="rounded-xl border border-gray-100 p-4">
                 <div className="flex items-center justify-between mb-1">
@@ -210,9 +259,6 @@ export function BackupRestore() {
                 <p className="text-xs text-gray-400">Requester: {request.requestedBy} • ETA {request.eta}</p>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full">
-              <CloudDownload className="h-4 w-4 mr-2" /> Start new restore
-            </Button>
           </CardContent>
         </Card>
 
@@ -246,6 +292,9 @@ export function BackupRestore() {
           <CardDescription>Upcoming drills and verifications linked to backups.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {complianceSignals.length === 0 && (
+            <p className="text-sm text-gray-500 py-4 text-center">No upcoming drills or verifications.</p>
+          )}
           {complianceSignals.map((signal) => (
             <div key={signal.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
               <div>
@@ -258,65 +307,8 @@ export function BackupRestore() {
               </div>
             </div>
           ))}
-          <Button variant="ghost" size="sm" className="w-full">
-            <Shield className="h-4 w-4 mr-2" /> View BCP calendar
-          </Button>
         </CardContent>
       </Card>
-
-      <Card className="border-indigo-100 bg-indigo-50/10">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-indigo-900">Disaster Recovery (DR) Drills</CardTitle>
-              <CardDescription className="text-indigo-700/70">Validate Business Continuity Plans (BCP) with scheduled recovery simulations.</CardDescription>
-            </div>
-            <Badge variant="outline" className="bg-indigo-100 text-indigo-700 border-indigo-200">ISO 27001 A.17</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              { label: 'Last Drill', value: '2026-01-15', status: 'Success' },
-              { label: 'Recovery Time Obj (RTO)', value: '4h 12m', status: 'Optimal' },
-              { label: 'Recovery Point Obj (RPO)', value: '15m', status: 'Optimal' }
-            ].map((metric, idx) => (
-              <div key={idx} className="p-3 border rounded-xl bg-white/50">
-                <p className="text-xs text-gray-500 uppercase">{metric.label}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-lg font-bold text-gray-900">{metric.value}</p>
-                  <Badge variant="secondary" className="text-[10px]">{metric.status}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between p-4 border border-indigo-200 rounded-xl bg-white">
-            <div className="flex items-center gap-3">
-              <RefreshCcw className="w-5 h-5 text-indigo-600 animate-spin-slow" />
-              <div>
-                <p className="font-semibold text-sm">Next Automated Drill: Virtual Classroom Failover</p>
-                <p className="text-xs text-gray-500">Scheduled for March 1st, 2026 at 02:00 UTC</p>
-              </div>
-            </div>
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">Configure Drill</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800">
-        <div className="flex items-center gap-3">
-          <ArchiveRestore className="h-5 w-5" />
-          <p>Need point-in-time recovery for guardian portal? Launch a sandbox restore without impacting prod.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" /> Preview snapshot
-          </Button>
-          <Button size="sm">
-            <Upload className="h-4 w-4 mr-2" /> Restore to sandbox
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }

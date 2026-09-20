@@ -1,6 +1,9 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
+import { mkdir, stat } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
+import path from 'node:path'
 
 /**
  * GET /api/tenant/security/backup-restore
@@ -10,12 +13,48 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET')
-    return res.status(405).json({ success: false, error: 'Method not allowed' })
+  const tenantId = decoded.tenantId
+  if (!tenantId) {
+    return res.status(401).json({ success: false, error: 'Tenant context required' })
   }
 
-  const tenantId = decoded.tenantId || 'default-tenant'
+  if (req.method === 'POST') {
+    const action = String(req.query.action || '')
+    const userId = decoded.userId || decoded.staffId || 'system'
+    try {
+      if (action === 'run-backup') {
+        const jobId = crypto.randomUUID()
+        const backupDir = process.env.BACKUP_DIR || '/app/backups'
+        await mkdir(backupDir, { recursive: true })
+        const outputPath = path.join(backupDir, `${tenantId}-${jobId}.dump`)
+        await sql`
+          INSERT INTO backup_jobs (id, tenant_id, job_type, schedule, status, location, started_at)
+          VALUES (${jobId}, ${tenantId}, 'full_database', 'manual', 'running', ${outputPath}, NOW())
+        `
+        void runDatabaseBackup(jobId, tenantId, outputPath)
+        return res.status(202).json({ success: true, data: { id: jobId, status: 'Running' }, message: 'Database backup started' })
+      }
+      if (action === 'request-restore') {
+        const scope = String(req.body?.scope || '').trim()
+        if (!scope) return res.status(400).json({ success: false, error: 'Restore scope is required' })
+        const id = crypto.randomUUID()
+        await sql`
+          INSERT INTO restore_requests (id, tenant_id, scope, requested_by, status)
+          VALUES (${id}, ${tenantId}, ${scope}, ${userId}, 'pending')
+        `
+        return res.status(201).json({ success: true, data: { id, status: 'Pending approval' } })
+      }
+      return res.status(400).json({ success: false, error: 'Unknown backup action' })
+    } catch (error) {
+      console.error('Backup action error:', error)
+      return res.status(500).json({ success: false, error: 'Failed to process backup action' })
+    }
+  }
+
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET, POST')
+    return res.status(405).json({ success: false, error: 'Method not allowed' })
+  }
 
   try {
     // Get backup jobs
@@ -105,6 +144,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       error: 'Failed to fetch backup restore data',
       details: error instanceof Error ? error.message : undefined,
     })
+  }
+}
+
+async function runDatabaseBackup(jobId: string, tenantId: string, outputPath: string): Promise<void> {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn('pg_dump', ['--format=custom', '--file', outputPath, process.env.DATABASE_URL || process.env.POSTGRES_URL || ''], {
+        env: process.env,
+        stdio: ['ignore', 'ignore', 'pipe'],
+      })
+      let stderr = ''
+      child.stderr?.on('data', chunk => { stderr += String(chunk).slice(0, 1000) })
+      child.on('error', reject)
+      child.on('exit', code => code === 0 ? resolve() : reject(new Error(`pg_dump exited with ${code}: ${stderr}`)))
+    })
+    const file = await stat(outputPath)
+    await sql`
+      UPDATE backup_jobs SET status = 'succeeded', size_bytes = ${file.size}, completed_at = NOW()
+      WHERE id = ${jobId} AND tenant_id = ${tenantId}
+    `
+  } catch (error) {
+    console.error('Database backup failed:', error)
+    await sql`
+      UPDATE backup_jobs SET status = 'failed', completed_at = NOW()
+      WHERE id = ${jobId} AND tenant_id = ${tenantId}
+    `.catch(() => undefined)
   }
 }
 

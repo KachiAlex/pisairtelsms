@@ -16,7 +16,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
 
-  const tenantId = decoded.tenantId || 'default-tenant';
+  const tenantId = decoded.tenantId
+  if (!tenantId) {
+    return res.status(401).json({ success: false, error: 'Tenant context required' })
+  };
 
   const userId = decoded.userId || decoded.staffId || 'system';
 

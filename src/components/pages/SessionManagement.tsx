@@ -76,6 +76,48 @@ export function SessionManagement() {
     }
   }
 
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [terminatingId, setTerminatingId] = useState<string | null>(null)
+  const [terminatingAll, setTerminatingAll] = useState(false)
+
+  const postAction = async (action: string, id?: string) => {
+    const auth = getAuthFromStorage()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`
+    const url = `/api/tenant/security/session-management?action=${action}${id ? `&id=${encodeURIComponent(id)}` : ''}`
+    const response = await fetch(url, { method: 'POST', headers })
+    const json = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(json?.error || 'Action failed')
+    return json
+  }
+
+  const terminateSession = async (id: string) => {
+    setActionError(null)
+    setTerminatingId(id)
+    try {
+      await postAction('terminate', id)
+      await loadData()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to terminate session')
+    } finally {
+      setTerminatingId(null)
+    }
+  }
+
+  const terminateAll = async () => {
+    if (!window.confirm('Force logout all active sessions (except yours)? Users will need to sign in again.')) return
+    setActionError(null)
+    setTerminatingAll(true)
+    try {
+      await postAction('terminate-all')
+      await loadData()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to terminate sessions')
+    } finally {
+      setTerminatingAll(false)
+    }
+  }
+
   useEffect(() => {
     loadData()
   }, [])
@@ -117,39 +159,43 @@ export function SessionManagement() {
           <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh sessions
           </Button>
-          <Button>
-            <LogOut className="h-4 w-4 mr-2" /> Force logout all
+          <Button onClick={terminateAll} disabled={terminatingAll || activeSessions.length === 0}>
+            {terminatingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />} Force logout all
           </Button>
         </div>
       </div>
+
+      {actionError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</div>
+      )}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Active sessions</p>
             <p className="text-3xl font-semibold text-gray-900">{data?.activeCount || 0}</p>
-            <p className="text-xs text-gray-500">+12 vs last hour</p>
+            <p className="text-xs text-gray-500">Signed-in devices right now</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Terminated today</p>
             <p className="text-3xl font-semibold text-gray-900">{data?.terminatedToday || 0}</p>
-            <p className="text-xs text-gray-500">Auto by guardrails</p>
+            <p className="text-xs text-gray-500">Logouts and force-terminations today</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">High-risk signals</p>
             <p className="text-3xl font-semibold text-rose-600">{data?.highRiskSignals || 0}</p>
-            <p className="text-xs text-gray-500">Escalations in progress</p>
+            <p className="text-xs text-gray-500">High-severity events in the last 24 hours</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Avg. session length</p>
             <p className="text-3xl font-semibold text-gray-900">{data ? `${data.avgSessionLength} mins` : '—'}</p>
-            <p className="text-xs text-gray-500">Adaptive threshold</p>
+            <p className="text-xs text-gray-500">Across the last 30 days</p>
           </CardContent>
         </Card>
       </div>
@@ -172,6 +218,13 @@ export function SessionManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {activeSessions.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-sm text-gray-500 py-8">
+                    No active sessions. Sessions appear here when staff sign in.
+                  </TableCell>
+                </TableRow>
+              )}
               {activeSessions.map((session) => (
                 <TableRow key={session.id}>
                   <TableCell className="font-medium text-gray-900">{session.user}</TableCell>
@@ -182,8 +235,8 @@ export function SessionManagement() {
                     <Badge variant={severityVariant[session.risk] || 'default'}>{session.risk}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm">
-                      <Zap className="h-4 w-4 mr-2" /> Terminate
+                    <Button variant="ghost" size="sm" onClick={() => terminateSession(session.id)} disabled={terminatingId === session.id}>
+                      {terminatingId === session.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />} Terminate
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -200,6 +253,9 @@ export function SessionManagement() {
             <CardDescription>AI heuristics flag suspicious device behavior.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {anomalySignals.length === 0 && (
+              <p className="text-sm text-gray-500 py-4 text-center">No high-severity security events in the last 24 hours.</p>
+            )}
             {anomalySignals.map((signal) => (
               <div key={signal.id} className="flex items-start justify-between rounded-xl border border-gray-100 p-4">
                 <div>
@@ -210,9 +266,6 @@ export function SessionManagement() {
                 <Badge variant={severityVariant[signal.severity] || 'warning'}>{signal.severity}</Badge>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full">
-              <Shield className="h-4 w-4 mr-2" /> Configure heuristics
-            </Button>
           </CardContent>
         </Card>
 
@@ -234,9 +287,6 @@ export function SessionManagement() {
                 <p className="text-sm text-gray-500">{control.value}</p>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="w-full">
-              <MonitorSmartphone className="h-4 w-4 mr-2" /> Update rules
-            </Button>
           </CardContent>
         </Card>
       </div>
@@ -247,6 +297,9 @@ export function SessionManagement() {
           <CardDescription>Immutable trail of resets, terminations, and adjustments.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {historyLog.length === 0 && (
+            <p className="text-sm text-gray-500 py-4 text-center">No session events recorded yet.</p>
+          )}
           {historyLog.map((log) => (
             <div key={log.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-3">
               <div>
@@ -256,21 +309,8 @@ export function SessionManagement() {
               <p className="text-xs text-gray-400">{log.time}</p>
             </div>
           ))}
-          <Button variant="ghost" size="sm" className="w-full">
-            <Clock3 className="h-4 w-4 mr-2" /> View full history
-          </Button>
         </CardContent>
       </Card>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900">
-        <div className="flex items-center gap-3">
-          <Smartphone className="h-5 w-5" />
-          <p>Enable trusted device program to skip MFA for short periods while staying compliant.</p>
-        </div>
-        <Button size="sm">
-          <Activity className="h-4 w-4 mr-2" /> Enroll devices
-        </Button>
-      </div>
     </div>
   )
 }

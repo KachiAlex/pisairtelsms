@@ -19,35 +19,18 @@ interface SecurityOverview {
   complianceTasks: number;
 }
 
-const complianceFrameworks = [
-  {
-    id: 'iso27001',
-    name: 'ISO/IEC 27001',
-    description: 'Information security management systems',
-    progress: 82,
-    controls: 114,
-    implemented: 93,
-    status: 'In Progress'
-  },
-  {
-    id: 'gdpr',
-    name: 'GDPR',
-    description: 'General Data Protection Regulation',
-    progress: 95,
-    controls: 99,
-    implemented: 94,
-    status: 'Compliant'
-  },
-  {
-    id: 'nist',
-    name: 'NIST CSF',
-    description: 'Cybersecurity Framework',
-    progress: 68,
-    controls: 108,
-    implemented: 73,
-    status: 'Action Required'
-  }
-];
+// Compliance frameworks are intentionally not fabricated here. Framework
+// status requires tenant evidence and configured controls, not product-wide
+// assumptions. The tab renders an honest empty state until that data exists.
+const complianceFrameworks: Array<{
+  id: string
+  name: string
+  description: string
+  progress: number
+  controls: number
+  implemented: number
+  status: string
+}> = []
 
 export function SecurityCompliance() {
   const navigate = useNavigate();
@@ -271,6 +254,13 @@ export function SecurityCompliance() {
 
         <TabsContent value="frameworks" className="space-y-6">
           <div className="grid gap-6">
+            {complianceFrameworks.length === 0 && (
+              <Card>
+                <CardContent className="py-10 text-center text-sm text-gray-500">
+                  No compliance framework assessments have been configured for this tenant.
+                </CardContent>
+              </Card>
+            )}
             {complianceFrameworks.map((fw) => (
               <Card key={fw.id}>
                 <CardHeader>
@@ -325,34 +315,9 @@ export function SecurityCompliance() {
               <CardDescription>Track and resolve security events in real-time.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { id: 'INC-2026-001', title: 'Brute force attempt detected', severity: 'High', status: 'Active', time: '10 mins ago', actor: 'System' },
-                  { id: 'INC-2026-002', title: 'Unauthorized file access attempt', severity: 'Critical', status: 'Triage', time: '45 mins ago', actor: 'System' },
-                  { id: 'INC-2026-003', title: 'Bulk data export initiated', severity: 'Medium', status: 'Review', time: '2 hours ago', actor: 'Adaeze Nwosu' }
-                ].map((inc) => (
-                  <div key={inc.id} className="flex items-center justify-between p-4 border rounded-2xl hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-xl ${inc.severity === 'Critical' ? 'bg-red-50 text-red-600' : inc.severity === 'High' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
-                        <AlertTriangle className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">{inc.title}</p>
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span className="font-mono">{inc.id}</span>
-                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {inc.time}</span>
-                          <span>Actor: {inc.actor}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant={inc.status === 'Active' ? 'destructive' : 'secondary'}>{inc.status}</Badge>
-                      <Button variant="outline" size="sm" onClick={() => navigate('/tenant/incident-management')}>Manage</Button>
-                    </div>
-                  </div>
-                ))}
-                <Button variant="ghost" className="w-full text-gray-500 text-sm">View incident archive →</Button>
-              </div>
+              <p className="text-sm text-gray-500 py-8 text-center">
+                No security incidents have been recorded for this tenant.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

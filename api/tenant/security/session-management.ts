@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
+import { terminateSession, terminateAllSessions, logSecurityEvent } from '../../_lib/session-tracker.js'
 
 /**
  * GET /api/tenant/security/session-management
@@ -10,12 +11,40 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET')
-    return res.status(405).json({ success: false, error: 'Method not allowed' })
+  const tenantId = decoded.tenantId
+  if (!tenantId) {
+    return res.status(401).json({ success: false, error: 'Tenant context required' })
   }
 
-  const tenantId = decoded.tenantId || 'default-tenant'
+  // POST ?action=terminate&id=<sessionId> — force-logout one session.
+  // POST ?action=terminate-all — force-logout every session but the caller's.
+  if (req.method === 'POST') {
+    const { action, id } = req.query as { action?: string; id?: string }
+    try {
+      if (action === 'terminate' && id) {
+        const closed = await terminateSession(tenantId, String(id))
+        if (!closed) {
+          return res.status(404).json({ success: false, error: 'Session not found or already terminated' })
+        }
+        await logSecurityEvent(tenantId, decoded.userId || decoded.staffId || null, 'session_terminated', 'Session terminated by administrator', 'medium')
+        return res.status(200).json({ success: true, message: 'Session terminated' })
+      }
+      if (action === 'terminate-all') {
+        const count = await terminateAllSessions(tenantId, decoded.sid)
+        await logSecurityEvent(tenantId, decoded.userId || decoded.staffId || null, 'session_terminated', `All sessions terminated by administrator (${count} closed)`, 'high')
+        return res.status(200).json({ success: true, message: `${count} session(s) terminated` })
+      }
+      return res.status(400).json({ success: false, error: 'Unknown action' })
+    } catch (error) {
+      console.error('Error terminating session:', error)
+      return res.status(500).json({ success: false, error: 'Failed to terminate session' })
+    }
+  }
+
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET, POST')
+    return res.status(405).json({ success: false, error: 'Method not allowed' })
+  }
 
   try {
     // Get active sessions
@@ -31,7 +60,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         us.last_activity,
         us.expires_at
       FROM user_sessions us
-      JOIN users u ON us.user_id = u.id
+      LEFT JOIN staff u ON us.user_id = u.id
       WHERE us.tenant_id = ${tenantId} AND us.terminated_at IS NULL AND us.expires_at > NOW()
       ORDER BY us.last_activity DESC
       LIMIT 20
@@ -55,8 +84,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     `
     const anomalySignals = anomaliesResult.rows.map(row => ({
       id: row.id,
-      label: row.description,
-      owner: row.owner || 'Unassigned',
+      label: row.description || row.event_type,
+      owner: 'Unassigned',
       severity: row.severity,
       action: 'Review required',
     }))
@@ -65,7 +94,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const historyResult = await sql`
       SELECT se.id, se.event_type, se.description, u.name as actor, se.created_at
       FROM security_events se
-      LEFT JOIN users u ON se.user_id = u.id
+      LEFT JOIN staff u ON se.user_id = u.id
       WHERE se.tenant_id = ${tenantId} AND se.event_type IN ('session_terminated', 'session_timeout', 'logout')
       ORDER BY se.created_at DESC
       LIMIT 10

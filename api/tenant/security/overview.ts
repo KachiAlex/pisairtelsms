@@ -15,7 +15,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
 
-  const tenantId = decoded.tenantId || 'default-tenant'
+  const tenantId = decoded.tenantId
+  if (!tenantId) {
+    return res.status(401).json({ success: false, error: 'Tenant context required' })
+  }
 
   try {
     // Note: "ensure tables exist" bootstrap was removed — it was an empty

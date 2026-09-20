@@ -7,6 +7,7 @@ import { getJwtSecret } from '../../_lib/jwt-secret.js'
 import { needsTransparentUpgrade } from '../../_lib/password-hashing.js'
 import { fetchStaffByEmail, verifyStaffPassword, hashPassword } from '../../tenant/_lib/staff.js'
 import { poolQuery } from '../../_lib/pg-pool.js'
+import { recordSession, logSecurityEvent } from '../../_lib/session-tracker.js'
 
 const ADMIN_ROLES = new Set(['tenant_admin', 'Admin', 'Principal', 'admin', 'principal'])
 
@@ -43,14 +44,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const staff = await fetchStaffByEmail(normalizedEmail)
 
     if (!staff) {
+      await logSecurityEvent('unknown', null, 'login_failed', `Failed admin login for ${normalizedEmail}: account not found`, 'medium')
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
     if (!ADMIN_ROLES.has(staff.role)) {
+      await logSecurityEvent(staff.tenantId, staff.id, 'login_failed', `Failed admin login for ${normalizedEmail}: insufficient privileges`, 'medium')
       return res.status(403).json({ error: 'Account does not have admin privileges' })
     }
 
     if (staff.status !== 'active') {
+      await logSecurityEvent(staff.tenantId, staff.id, 'login_failed', `Failed admin login for ${normalizedEmail}: account inactive`, 'medium')
       return res.status(403).json({ error: 'Account is inactive or suspended' })
     }
 
@@ -58,6 +62,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!staff.passwordHash) {
       // No password set — allow email-as-password for first login
       if (password !== normalizedEmail) {
+        await logSecurityEvent(staff.tenantId, staff.id, 'login_failed', `Failed admin login for ${normalizedEmail}: bad temporary password`, 'medium')
         return res.status(401).json({
           error: 'No password set. Use your email address as your temporary password.',
         })
@@ -68,6 +73,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     } else {
       const valid = await verifyStaffPassword(password, staff.passwordHash)
       if (!valid) {
+        await logSecurityEvent(staff.tenantId, staff.id, 'login_failed', `Failed admin login for ${normalizedEmail}: invalid password`, 'medium')
         return res.status(401).json({ error: 'Invalid email or password' })
       }
       // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
@@ -85,11 +91,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000
 
+    // Track the session so it appears in Session Management and can be
+    // force-terminated (the sid claim is validated on every request).
+    const sessionId = await recordSession(resolvedTenantId, staff.id, req, expiresIn)
+    await logSecurityEvent(resolvedTenantId, staff.id, 'login_success', `Admin login: ${staff.name} (${normalizedEmail})`, 'low')
+
     const token = await new SignJWT({
       userId: staff.id,
       role: 'tenant_admin',
       tenantId: resolvedTenantId,
       email: staff.email,
+      ...(sessionId ? { sid: sessionId } : {}),
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime(`${expiresIn}s`)

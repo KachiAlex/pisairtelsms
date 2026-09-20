@@ -36,7 +36,7 @@ interface DataEncryptionData {
   }>
   coverageMetrics: Array<{
     label: string
-    value: number
+    value: number | null
   }>
 }
 
@@ -116,9 +116,7 @@ export function DataEncryption() {
           <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Sync KMS status
           </Button>
-          <Button>
-            <Lock className="h-4 w-4 mr-2" /> Rotate master keys
-          </Button>
+
         </div>
       </div>
 
@@ -127,28 +125,28 @@ export function DataEncryption() {
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Encrypted services</p>
             <p className="text-3xl font-semibold text-gray-900">{data?.encryptedServices || 0}</p>
-            <p className="text-xs text-gray-500">+4 added this term</p>
+            <p className="text-xs text-gray-500">Managed encryption keys</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Keys expiring soon</p>
             <p className="text-3xl font-semibold text-rose-600">{data?.keysExpiringSoon || 0}</p>
-            <p className="text-xs text-gray-500">Auto alerts sent</p>
+            <p className="text-xs text-gray-500">Rotation overdue or nearing expiry</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">Compliance tasks</p>
             <p className="text-3xl font-semibold text-gray-900">{data?.complianceTasksOpen || 0} open</p>
-            <p className="text-xs text-gray-500">Two due this week</p>
+            <p className="text-xs text-gray-500">Open encryption evidence tasks</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">TLS adoption</p>
             <p className="text-3xl font-semibold text-emerald-600">{data?.tlsAdoption || 0}%</p>
-            <p className="text-xs text-gray-500">Target 100% by April</p>
+            <p className="text-xs text-gray-500">Enforced at the edge</p>
           </CardContent>
         </Card>
       </div>
@@ -170,6 +168,13 @@ export function DataEncryption() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {encryptionInventory.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-sm text-gray-500 py-8">
+                    No encryption keys registered yet.
+                  </TableCell>
+                </TableRow>
+              )}
               {encryptionInventory.map((item) => (
                 <TableRow key={item.surface}>
                   <TableCell className="font-medium text-gray-900">{item.surface}</TableCell>
@@ -193,6 +198,9 @@ export function DataEncryption() {
             <CardDescription>Primary KMS and backup HSM health overview.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {keyVaults.length === 0 && (
+              <p className="text-sm text-gray-500 py-4 text-center">No key vaults configured.</p>
+            )}
             {keyVaults.map((vault) => (
               <div key={vault.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
                 <div>
@@ -205,9 +213,6 @@ export function DataEncryption() {
                 </div>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full">
-              <ServerCog className="h-4 w-4 mr-2" /> Manage vault connections
-            </Button>
           </CardContent>
         </Card>
 
@@ -221,9 +226,9 @@ export function DataEncryption() {
               <div key={metric.label}>
                 <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
                   <span>{metric.label}</span>
-                  <span>{metric.value}%</span>
+                  <span>{metric.value != null ? `${metric.value}%` : '—'}</span>
                 </div>
-                <Progress value={metric.value} />
+                <Progress value={metric.value ?? 0} />
               </div>
             ))}
           </CardContent>
@@ -236,6 +241,9 @@ export function DataEncryption() {
           <CardDescription>Encryption evidence packages and attestations.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {complianceTasks.length === 0 && (
+            <p className="text-sm text-gray-500 py-4 text-center">No open compliance tasks.</p>
+          )}
           {complianceTasks.map((task) => (
             <div key={task.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-4">
               <div>
@@ -248,21 +256,8 @@ export function DataEncryption() {
               </div>
             </div>
           ))}
-          <Button variant="ghost" size="sm" className="w-full">
-            <ClipboardList className="h-4 w-4 mr-2" /> Export evidence pack
-          </Button>
         </CardContent>
       </Card>
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
-        <div className="flex items-center gap-3">
-          <GlobeLock className="h-5 w-5" />
-          <p>Enable regional key residency to satisfy EU/UK data localization requirements.</p>
-        </div>
-        <Button size="sm">
-          <ShieldCheck className="h-4 w-4 mr-2" /> Configure residency
-        </Button>
-      </div>
     </div>
   )
 }

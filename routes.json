@@ -818,6 +818,10 @@
       "destination": "/api/tenant/auth/login.ts"
     },
     {
+      "source": "/api/tenant/auth/logout",
+      "destination": "/api/tenant/auth/logout.ts"
+    },
+    {
       "source": "/api/tenant/cbt/health",
       "destination": "/api/tenant/cbt/health.ts"
     },

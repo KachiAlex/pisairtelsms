@@ -8,6 +8,7 @@ import { validate, Schemas } from '../../_lib/validator.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
 import { needsTransparentUpgrade } from '../../_lib/password-hashing.js'
+import { recordSession, logSecurityEvent } from '../../_lib/session-tracker.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
@@ -68,12 +69,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(403).json({ error: 'No tenant associated with this account' })
     }
 
-    const token = await new SignJWT({ staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email, tenantId })
+    // Track the session so it appears in Session Management and can be
+    // force-terminated (the sid claim is validated on every request).
+    const sessionId = await recordSession(tenantId, staff.id, req, expiresIn)
+
+    const token = await new SignJWT({ staffId: staff.id, userId: staff.id, role: 'staff', department: staff.department, email: staff.email, tenantId, ...(sessionId ? { sid: sessionId } : {}) })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime(`${expiresIn}s`)
       .sign(jwtSecret)
 
     await logLoginSuccess(req, staff.id, 'staff')
+    await logSecurityEvent(tenantId, staff.id, 'login_success', `Staff login: ${staff.name} (${staff.email})`, 'low')
 
     // Set httpOnly cookie with JWT token
     setCookie(res, 'auth_token', token, {

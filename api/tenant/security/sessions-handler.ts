@@ -1,88 +1,81 @@
-import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js';
-import sessionsLib from './sessions';
-import { requireRole } from '../../_lib/auth-middleware.js';
+import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
+import { sql } from '../../_lib/sql.js'
+import { requireRole } from '../../_lib/auth-middleware.js'
+import { recordSession, terminateSession, logSecurityEvent } from '../../_lib/session-tracker.js'
 
-/**
- * Sessions API Handler
- * Routes:
- *   GET    /api/tenant/security/sessions           - List active sessions
- *   POST   /api/tenant/security/sessions           - Create session
- *   GET    /api/tenant/security/sessions/policy    - Get session policy
- *   PUT    /api/tenant/security/sessions/policy    - Update session policy
- *   GET    /api/tenant/security/sessions/history   - Get session history
- *   POST   /api/tenant/security/sessions/:id/logout - Force logout session
- */
+/** Persistent session-management API. The old implementation used process
+ * memory, which lost sessions on restart and could not terminate JWT sessions. */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
-  if (!decoded) return;
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+  const tenantId = decoded.tenantId
+  if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context required' })
 
-  const tenantId = decoded.tenantId || 'default-tenant';
-
-  const userId = decoded.userId || decoded.staffId || 'system';
-
-  const { action, id } = req.query;
+  const userId = decoded.userId || decoded.staffId || 'system'
+  const action = String(req.query.action || '')
+  const id = req.query.id ? String(req.query.id) : null
 
   try {
-    // GET /api/tenant/security/sessions/policy
     if (req.method === 'GET' && action === 'policy') {
-      const policy = sessionsLib.getSessionPolicy(tenantId);
-      return res.status(200).json({ data: policy });
+      const result = await sql`SELECT timeout_minutes AS "timeoutMinutes", max_sessions AS "maxSessions", updated_at AS "updatedAt" FROM security_session_policies WHERE tenant_id = ${tenantId}`
+      return res.status(200).json({ data: result.rows[0] || { timeoutMinutes: 30, maxSessions: 10 } })
     }
 
-    // PUT /api/tenant/security/sessions/policy
     if (req.method === 'PUT' && action === 'policy') {
-      const { timeoutMinutes, maxSessions } = req.body || {};
-      const policy = sessionsLib.updateSessionPolicy(
-        tenantId,
-        userId,
-        timeoutMinutes,
-        maxSessions
-      );
-      return res.status(200).json({ data: policy });
+      const timeoutMinutes = Math.max(5, Math.min(1440, Number(req.body?.timeoutMinutes) || 30))
+      const maxSessions = Math.max(1, Math.min(100, Number(req.body?.maxSessions) || 10))
+      const result = await sql`
+        INSERT INTO security_session_policies (id, tenant_id, timeout_minutes, max_sessions, updated_by)
+        VALUES (${crypto.randomUUID()}, ${tenantId}, ${timeoutMinutes}, ${maxSessions}, ${userId})
+        ON CONFLICT (tenant_id) DO UPDATE SET timeout_minutes = EXCLUDED.timeout_minutes,
+          max_sessions = EXCLUDED.max_sessions, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+        RETURNING timeout_minutes AS "timeoutMinutes", max_sessions AS "maxSessions", updated_at AS "updatedAt"
+      `
+      await logSecurityEvent(tenantId, userId, 'session_policy_updated', `Session policy updated: ${timeoutMinutes} minutes, ${maxSessions} sessions`, 'medium')
+      return res.status(200).json({ data: result.rows[0] })
     }
 
-    // GET /api/tenant/security/sessions/history
     if (req.method === 'GET' && action === 'history') {
-      const limit = parseInt((req.query.limit as string) || '100');
-      const offset = parseInt((req.query.offset as string) || '0');
-      const actionFilter = req.query.action as string | undefined;
-      const history = sessionsLib.getSessionHistory(tenantId, limit, offset, actionFilter);
-      return res.status(200).json(history);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100))
+      const result = await sql`
+        SELECT se.id, COALESCE(s.name, 'System') AS "user", se.event_type AS action,
+          se.description, se.created_at AS "createdAt"
+        FROM security_events se LEFT JOIN staff s ON se.user_id = s.id
+        WHERE se.tenant_id = ${tenantId} AND se.event_type IN ('session_terminated', 'session_timeout', 'logout')
+        ORDER BY se.created_at DESC LIMIT ${limit}
+      `
+      return res.status(200).json({ data: result.rows })
     }
 
-    // POST /api/tenant/security/sessions/:id/logout
-    if (req.method === 'POST' && id && action === 'logout') {
-      const { reason } = req.body || {};
-      const result = sessionsLib.logoutSession(tenantId, id as string, userId, reason);
-      return res.status(200).json(result);
+    if (req.method === 'POST' && action === 'logout' && id) {
+      const closed = await terminateSession(tenantId, id)
+      if (!closed) return res.status(404).json({ error: 'Session not found or already terminated' })
+      await logSecurityEvent(tenantId, userId, 'session_terminated', 'Session terminated by administrator', 'medium')
+      return res.status(200).json({ success: true })
     }
 
-    // GET /api/tenant/security/sessions - List active sessions
     if (req.method === 'GET') {
-      const limit = parseInt((req.query.limit as string) || '50');
-      const offset = parseInt((req.query.offset as string) || '0');
-      const sessions = sessionsLib.listSessions(tenantId, userId, limit, offset);
-      return res.status(200).json(sessions);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50))
+      const result = await sql`
+        SELECT us.id, COALESCE(s.name, us.user_id, 'Unknown user') AS "user", COALESCE(s.role, 'Unknown') AS role,
+          us.device_info AS "deviceInfo", us.ip_address AS "ipAddress", us.location,
+          us.risk_level AS risk, us.last_activity AS "lastActivity", us.expires_at AS "expiresAt"
+        FROM user_sessions us LEFT JOIN staff s ON us.user_id = s.id
+        WHERE us.tenant_id = ${tenantId} AND us.terminated_at IS NULL AND us.expires_at > NOW()
+        ORDER BY us.last_activity DESC NULLS LAST LIMIT ${limit}
+      `
+      return res.status(200).json({ data: result.rows })
     }
 
-    // POST /api/tenant/security/sessions - Create session
-    if (req.method === 'POST') {
-      const { deviceInfo, ipAddress, userAgent } = req.body || {};
-      const session = sessionsLib.createSession(
-        tenantId,
-        userId,
-        deviceInfo || null,
-        ipAddress || (req.headers['x-forwarded-for'] as string) || null,
-        userAgent || (req.headers['user-agent'] as string) || null
-      );
-      return res.status(201).json({ data: session });
+    if (req.method === 'POST' && !action) {
+      const sessionId = await recordSession(tenantId, userId, req, 86400)
+      return sessionId ? res.status(201).json({ data: { id: sessionId } }) : res.status(500).json({ error: 'Failed to create session' })
     }
 
-    res.setHeader('Allow', 'GET, POST, PUT');
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.setHeader('Allow', 'GET, POST, PUT')
+    return res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    const status = message.includes('not found') ? 404 : 400;
-    return res.status(status).json({ error: message });
+    console.error('Security sessions handler error:', error)
+    return res.status(500).json({ error: 'Failed to process session request' })
   }
 }

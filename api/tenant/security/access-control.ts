@@ -15,7 +15,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
 
-  const tenantId = decoded.tenantId || 'default-tenant'
+  const tenantId = decoded.tenantId
+  if (!tenantId) {
+    return res.status(401).json({ success: false, error: 'Tenant context required' })
+  }
 
   try {
     // Get privileged roles with member counts
@@ -58,7 +61,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const eventsResult = await sql`
       SELECT se.id, se.event_type, se.description, se.created_at, u.name as actor
       FROM security_events se
-      LEFT JOIN users u ON se.user_id = u.id
+      LEFT JOIN staff u ON se.user_id = u.id
       WHERE se.tenant_id = ${tenantId}
       ORDER BY se.created_at DESC
       LIMIT 10
@@ -70,13 +73,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       time: getTimeAgo(row.created_at),
     }))
 
-    // Calculate metrics
+    // Calculate metrics from tenant records, not role configuration defaults.
+    const mfaResult = await sql`
+      SELECT COUNT(*) FILTER (WHERE um.is_enabled = true) AS enabled,
+             COUNT(tu.id) AS total
+      FROM tenant_users tu
+      LEFT JOIN user_mfa um ON um.tenant_id = tu.tenant_id AND um.user_id = tu.id
+      WHERE tu.tenant_id = ${tenantId} AND tu.status = 'active'
+    `
+    const mfaTotal = Number(mfaResult.rows[0]?.total || 0)
+    const mfaCoverage = mfaTotal > 0 ? Math.round(Number(mfaResult.rows[0]?.enabled || 0) / mfaTotal * 100) : null
     const privilegedIdentities = privilegedRoles.reduce((sum, r) => sum + r.members, 0)
     const pendingReviews = privilegedRoles.filter(r => r.lastReview === 'Never').length
-    const mfaCoverage = privilegedRoles.length > 0 
-      ? Math.round((privilegedRoles.filter(r => r.mfa === '100%').length / privilegedRoles.length) * 100)
-      : 0
-    const anomalyAlerts = eventsResult.rows.filter(r => r.event_type === 'anomaly_detected').length
+    const anomalyAlerts = eventsResult.rows.filter(r => ['anomaly_detected', 'login_failed'].includes(r.event_type)).length
 
     const data = {
       privilegedIdentities,

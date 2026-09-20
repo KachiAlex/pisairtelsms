@@ -15,11 +15,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   if (req.method === 'GET') {
     try {
+      // Unified account directory: invited tenant accounts plus the staff and
+      // student records that actually hold credentials. `type` distinguishes
+      // manageable tenant_users rows from staff/student directory entries.
       const result = await sql`
-        SELECT id, name, email, role, status,
-               last_active, invited_at, created_at
+        SELECT id, name, email, role, status, last_active, invited_at, created_at, 'user' AS type
         FROM tenant_users
         WHERE tenant_id = ${tenantId}
+        UNION ALL
+        SELECT id, name, email, role, status, NULL AS last_active, NULL AS invited_at, created_at, 'staff' AS type
+        FROM staff
+        WHERE tenant_id = ${tenantId}
+        UNION ALL
+        SELECT id, name, guardian_email AS email,
+               ('Student' || COALESCE(' — ' || class, '')) AS role,
+               LOWER(status) AS status,
+               NULL AS last_active, NULL AS invited_at, created_at, 'student' AS type
+        FROM students
+        WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
         ORDER BY created_at DESC
       `
       return res.status(200).json({ data: result.rows })

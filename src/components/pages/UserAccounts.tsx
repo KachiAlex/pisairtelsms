@@ -14,9 +14,11 @@ interface UserAccount {
   name: string
   email: string
   role: string
-  status: 'active' | 'invited' | 'suspended'
+  status: 'active' | 'invited' | 'suspended' | 'graduated'
   last_active: string | null
   created_at: string
+  /** 'user' rows are tenant_users accounts (manageable here); 'staff'/'student' are directory entries managed in their own sections. */
+  type: 'user' | 'staff' | 'student'
 }
 
 function getApiHeaders() {
@@ -35,6 +37,13 @@ const statusColors: Record<UserAccount['status'], string> = {
   active: 'bg-emerald-100 text-emerald-700',
   invited: 'bg-amber-100 text-amber-700',
   suspended: 'bg-rose-100 text-rose-700',
+  graduated: 'bg-sky-100 text-sky-700',
+}
+
+const typeColors: Record<UserAccount['type'], string> = {
+  user: 'bg-violet-100 text-violet-700',
+  staff: 'bg-blue-100 text-blue-700',
+  student: 'bg-gray-100 text-gray-600',
 }
 
 const ROLES = ['School Admin', 'Finance Officer', 'Faculty Lead', 'Read Only Auditor', 'Staff']
@@ -262,7 +271,7 @@ export function UserAccounts() {
     return users.filter((user) => {
       const matchesSearch =
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.role.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === 'all' || user.status === statusFilter
       return matchesSearch && matchesStatus
@@ -316,6 +325,7 @@ export function UserAccounts() {
                   <option value="active">Active</option>
                   <option value="invited">Invited</option>
                   <option value="suspended">Suspended</option>
+                  <option value="graduated">Graduated</option>
                 </select>
               </div>
             </CardTitle>
@@ -326,64 +336,75 @@ export function UserAccounts() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Last active</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader className="h-6 w-6 animate-spin mx-auto text-blue-600" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-10"><Loader className="h-6 w-6 animate-spin mx-auto text-blue-600" /></TableCell></TableRow>
                   ) : filteredUsers.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-10 text-gray-500"><Users className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>No users found.</p></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-10 text-gray-500"><Users className="h-8 w-8 mx-auto mb-2 opacity-40" /><p>No users found.</p></TableCell></TableRow>
                   ) : filteredUsers.map((user) => (
                     <TableRow key={user.id} className="hover:bg-gray-50">
                       <TableCell>
                         <p className="text-sm font-semibold text-gray-900">{user.name}</p>
-                        <p className="text-xs text-gray-500">{user.email}</p>
+                        <p className="text-xs text-gray-500">{user.email || '—'}</p>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${typeColors[user.type] || 'bg-gray-100 text-gray-600'}`}>
+                          {user.type || 'user'}
+                        </span>
                       </TableCell>
                       <TableCell className="text-sm text-gray-600">{user.role}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[user.status]}`}>
-                          {user.status === 'active' && 'Active'}
-                          {user.status === 'invited' && 'Invited'}
-                          {user.status === 'suspended' && 'Suspended'}
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusColors[user.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {user.status}
                         </span>
                       </TableCell>
                       <TableCell className="text-right text-sm text-gray-500">
                         {user.last_active ? new Date(user.last_active).toLocaleString() : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <EditUserDialog user={user} onUpdated={loadUsers} />
-                          {user.status === 'invited' ? (
+                        {user.type === 'user' ? (
+                          <div className="flex justify-end gap-1">
+                            <EditUserDialog user={user} onUpdated={loadUsers} />
+                            {user.status === 'invited' ? (
+                              <Button
+                                size="sm" variant="ghost"
+                                className="text-amber-600"
+                                disabled={togglingId === user.id}
+                                onClick={() => handleResendInvite(user)}
+                              >
+                                {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : <><Send className="h-3 w-3 mr-1" />Resend</>}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm" variant="ghost"
+                                className={user.status === 'suspended' ? 'text-emerald-600' : 'text-rose-600'}
+                                disabled={togglingId === user.id}
+                                onClick={() => handleToggleStatus(user)}
+                              >
+                                {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                              </Button>
+                            )}
                             <Button
                               size="sm" variant="ghost"
-                              className="text-amber-600"
+                              className="text-gray-400 hover:text-rose-600"
                               disabled={togglingId === user.id}
-                              onClick={() => handleResendInvite(user)}
+                              onClick={() => handleDeleteUser(user.id)}
                             >
-                              {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : <><Send className="h-3 w-3 mr-1" />Resend</>}
+                              <Trash2 className="h-3 w-3" />
                             </Button>
-                          ) : (
-                            <Button
-                              size="sm" variant="ghost"
-                              className={user.status === 'suspended' ? 'text-emerald-600' : 'text-rose-600'}
-                              disabled={togglingId === user.id}
-                              onClick={() => handleToggleStatus(user)}
-                            >
-                              {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
-                            </Button>
-                          )}
-                          <Button
-                            size="sm" variant="ghost"
-                            className="text-gray-400 hover:text-rose-600"
-                            disabled={togglingId === user.id}
-                            onClick={() => handleDeleteUser(user.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            Managed in {user.type === 'staff' ? 'Staff' : 'Students'}
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

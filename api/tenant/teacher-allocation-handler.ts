@@ -145,13 +145,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 warnings = GREATEST(warnings - 1, 0)
             WHERE tenant_id = ${tenantId} AND class = ${a.class} AND subject = ${a.subject}`
         }
-        // Recompute allocation_periods / risk_flag for affected teachers.
+        // Recompute allocation_periods / risk_flag for affected teachers, and
+        // sync staff.subjects from their assigned slots so analytics and
+        // auto-suggest stay consistent with the allocation matrix.
         await sql`
           UPDATE staff s SET
             allocation_periods = COALESCE((
               SELECT COUNT(*) FROM teacher_allocation_slots tas
               WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
             ), 0),
+            subjects = COALESCE((
+              SELECT jsonb_agg(DISTINCT tas.subject) FROM teacher_allocation_slots tas
+              WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+            ), '[]'::jsonb),
             risk_flag = CASE
               WHEN COALESCE((
                 SELECT COUNT(*) FROM teacher_allocation_slots tas
@@ -222,13 +228,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           covered += 1
         }
 
-        // Recompute allocation_periods / risk_flag for all teachers.
+        // Recompute allocation_periods / risk_flag for all teachers and sync
+        // staff.subjects from their assigned slots.
         await sql`
           UPDATE staff s SET
             allocation_periods = COALESCE((
               SELECT COUNT(*) FROM teacher_allocation_slots tas
               WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
             ), 0),
+            subjects = COALESCE((
+              SELECT jsonb_agg(DISTINCT tas.subject) FROM teacher_allocation_slots tas
+              WHERE tas.teacher = s.name AND tas.coverage = 'Assigned' AND tas.tenant_id = ${tenantId}
+            ), '[]'::jsonb),
             risk_flag = CASE
               WHEN COALESCE((
                 SELECT COUNT(*) FROM teacher_allocation_slots tas

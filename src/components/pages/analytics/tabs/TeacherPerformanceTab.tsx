@@ -16,7 +16,7 @@ export function TeacherPerformanceTab({ data, loading }: { data: any; loading: b
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Total Teachers</p><p className="text-2xl font-bold">{data.totalTeachers}</p><p className="text-xs text-gray-500">{data.teachersAssessed ?? 0} assessed via dept scores</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Total Teachers</p><p className="text-2xl font-bold">{data.totalTeachers}</p><p className="text-xs text-gray-500">{data.teachersAssessed ?? 0} with attributed scores</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Average Rating</p><p className="text-2xl font-bold">{data.averageRating != null ? `${data.averageRating}/5` : 'N/A'}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Top Performers</p><p className="text-2xl font-bold">{data.topPerformers}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-sm text-gray-600">Needs Improvement</p><p className="text-2xl font-bold">{data.needsImprovement}</p></CardContent></Card>

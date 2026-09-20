@@ -35,35 +35,6 @@ function buildStudentScoreFilters(tenantId: string, filters: AnalyticsFilters): 
   return { where, params }
 }
 
-function buildFeeRecordFilters(tenantId: string, filters: AnalyticsFilters): FilterSqlParts {
-  const where: string[] = ['tenant_id = $1']
-  const params: (string | number | null)[] = [tenantId]
-  let p = 2
-
-  if (filters.academicSession) {
-    where.push(`academic_session = $${p++}`)
-    params.push(filters.academicSession)
-  }
-  if (filters.term) {
-    where.push(`term = $${p++}`)
-    params.push(filters.term)
-  }
-  if (filters.class) {
-    where.push(`class = $${p++}`)
-    params.push(filters.class)
-  }
-  if (filters.startDate) {
-    where.push(`created_at >= $${p++}`)
-    params.push(filters.startDate)
-  }
-  if (filters.endDate) {
-    where.push(`created_at <= $${p++}`)
-    params.push(`${filters.endDate}T23:59:59.999Z`)
-  }
-
-  return { where, params }
-}
-
 function toWhereClause(parts: FilterSqlParts) {
   return parts.where.length ? `WHERE ${parts.where.join(' AND ')}` : ''
 }
@@ -228,63 +199,91 @@ export async function getFinancialAnalytics(
   tenantId: string,
   filters: AnalyticsFilters = {}
 ): Promise<FinancialAnalytics> {
-  const feeFilter = buildFeeRecordFilters(tenantId, filters)
-  const feeWhere = toWhereClause(feeFilter)
+  // Billing is sourced from fee_assignments (the live table populated by the
+  // finance module) — fee_records is a legacy table that is no longer written.
+  // Collections come from settled rows in payments.
+  const faConditions: string[] = ['fa.tenant_id = $1']
+  const faParams: (string | null)[] = [tenantId]
+  if (filters.academicSession) {
+    faParams.push(filters.academicSession)
+    faConditions.push(`fa.academic_session = $${faParams.length}`)
+  }
+  if (filters.term) {
+    faParams.push(filters.term)
+    faConditions.push(`fa.term = $${faParams.length}`)
+  }
+  if (filters.class) {
+    faParams.push(filters.class)
+    faConditions.push(`s.class = $${faParams.length}`)
+  }
+  if (filters.startDate) {
+    faParams.push(filters.startDate)
+    faConditions.push(`fa.created_at >= $${faParams.length}::date`)
+  }
+  if (filters.endDate) {
+    faParams.push(filters.endDate)
+    faConditions.push(`fa.created_at < ($${faParams.length}::date + INTERVAL '1 day')`)
+  }
+  const faWhere = `WHERE ${faConditions.join(' AND ')}`
+  const faFrom = `FROM fee_assignments fa
+    LEFT JOIN students s ON s.id::text = fa.student_id AND s.tenant_id = fa.tenant_id AND s.deleted_at IS NULL`
 
-  const [revenueRes, collectedRes, monthlyRes, feeBreakdownRes, classOutstandingRes, paymentMethodsRes] = await Promise.all([
-    sql.query<{ total: string }>(
-      `SELECT COALESCE(SUM(amount), 0) as total
-       FROM fee_records
-       ${feeWhere}`,
-      feeFilter.params
+  const [totalsRes, billedMonthlyRes, collectedMonthlyRes, feeBreakdownRes, classOutstandingRes, paymentMethodsRes] = await Promise.all([
+    sql.query<{ revenue: string; collected: string; outstanding: string }>(
+      `SELECT
+        COALESCE(SUM(fa.total_amount), 0) as revenue,
+        COALESCE(SUM(fa.total_paid), 0) as collected,
+        COALESCE(SUM(fa.total_balance), 0) as outstanding
+       ${faFrom}
+       ${faWhere}`,
+      faParams
     ),
-    sql.query<{ total: string }>(
-      `SELECT COALESCE(SUM(paid), 0) as total
-       FROM fee_records
-       ${feeWhere}`,
-      feeFilter.params
+    sql.query<{ month: string; month_start: string; revenue: string }>(
+      `SELECT
+        TO_CHAR(date_trunc('month', fa.created_at), 'Mon YYYY') as month,
+        date_trunc('month', fa.created_at) as month_start,
+        COALESCE(SUM(fa.total_amount), 0) as revenue
+       ${faFrom}
+       ${faWhere}
+       GROUP BY month_start
+       ORDER BY month_start`,
+      faParams
     ),
-    sql.query<{
-      month: string
-      revenue: string
-      collected: string
-    }>(
-      `SELECT 
-        TO_CHAR(created_at, 'Mon YYYY') as month,
-        COALESCE(SUM(amount), 0) as revenue,
-        COALESCE(SUM(paid), 0) as collected
-      FROM fee_records
-      ${feeWhere}
-      GROUP BY TO_CHAR(created_at, 'Mon YYYY')
-      ORDER BY MIN(created_at)`,
-      feeFilter.params
+    sql.query<{ month: string; month_start: string; collected: string }>(
+      `SELECT
+        TO_CHAR(date_trunc('month', p.payment_date), 'Mon YYYY') as month,
+        date_trunc('month', p.payment_date) as month_start,
+        COALESCE(SUM(p.amount), 0) as collected
+       FROM payments p
+       WHERE p.tenant_id = $1
+         AND p.status IN ('success', 'verified', 'reconciled', 'paid')
+         AND ($2::date IS NULL OR p.payment_date >= $2::date)
+         AND ($3::date IS NULL OR p.payment_date <= $3::date)
+       GROUP BY month_start
+       ORDER BY month_start`,
+      [tenantId, filters.startDate || null, filters.endDate || null]
     ),
-    sql.query<{
-      fee_type: string
-      total: string
-    }>(
-      `SELECT 
-        fee_type,
-        COALESCE(SUM(amount), 0) as total
-      FROM fee_records
-      ${feeWhere}
-      GROUP BY fee_type`,
-      feeFilter.params
+    sql.query<{ category: string; total: string }>(
+      `SELECT
+        COALESCE(fs.category, fs.name, 'Uncategorized') as category,
+        COALESCE(SUM(fa.total_amount), 0) as total
+       ${faFrom}
+       LEFT JOIN fee_structures fs ON fs.id = fa.fee_structure_id AND fs.tenant_id = fa.tenant_id
+       ${faWhere}
+       GROUP BY COALESCE(fs.category, fs.name, 'Uncategorized')
+       ORDER BY total DESC`,
+      faParams
     ),
-    sql.query<{
-      class: string
-      outstanding: string
-      collected: string
-    }>(
-      `SELECT 
-        class,
-        COALESCE(SUM(balance), 0) as outstanding,
-        COALESCE(SUM(paid), 0) as collected
-      FROM fee_records
-      ${feeWhere}
-      GROUP BY class
-      ORDER BY outstanding DESC`,
-      feeFilter.params
+    sql.query<{ class: string; outstanding: string; collected: string }>(
+      `SELECT
+        COALESCE(s.class, 'Unassigned') as class,
+        COALESCE(SUM(fa.total_balance), 0) as outstanding,
+        COALESCE(SUM(fa.total_paid), 0) as collected
+       ${faFrom}
+       ${faWhere}
+       GROUP BY s.class
+       ORDER BY outstanding DESC`,
+      faParams
     ),
     sql.query<{
       method: string
@@ -303,10 +302,25 @@ export async function getFinancialAnalytics(
     ),
   ])
 
-  const totalRevenue = parseFloat(revenueRes.rows[0]?.total || '0')
-  const totalCollected = parseFloat(collectedRes.rows[0]?.total || '0')
-  const outstandingBalance = totalRevenue - totalCollected
+  const totalRevenue = parseFloat(totalsRes.rows[0]?.revenue || '0')
+  const totalCollected = parseFloat(totalsRes.rows[0]?.collected || '0')
+  const outstandingBalance = parseFloat(totalsRes.rows[0]?.outstanding || '0')
   const collectionRate = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0
+
+  // Merge billed (fee_assignments.created_at) and collected (payments.payment_date)
+  // into a single chronological monthly series.
+  const monthMap = new Map<string, { start: string; revenue: number; collected: number }>()
+  for (const row of billedMonthlyRes.rows) {
+    monthMap.set(row.month, { start: row.month_start, revenue: parseFloat(row.revenue || '0'), collected: 0 })
+  }
+  for (const row of collectedMonthlyRes.rows) {
+    const entry = monthMap.get(row.month) ?? { start: row.month_start, revenue: 0, collected: 0 }
+    entry.collected = parseFloat(row.collected || '0')
+    monthMap.set(row.month, entry)
+  }
+  const monthlyRevenue = Array.from(monthMap.entries())
+    .sort((a, b) => a[1].start.localeCompare(b[1].start))
+    .map(([month, v]) => ({ month, revenue: v.revenue, collected: v.collected }))
 
   const totalFees = feeBreakdownRes.rows.reduce((sum, row) => sum + parseFloat(row.total || '0'), 0)
 
@@ -315,13 +329,9 @@ export async function getFinancialAnalytics(
     totalCollected,
     outstandingBalance,
     collectionRate,
-    monthlyRevenue: monthlyRes.rows.map(row => ({
-      month: row.month,
-      revenue: parseFloat(row.revenue || '0'),
-      collected: parseFloat(row.collected || '0'),
-    })),
+    monthlyRevenue,
     feeStructureBreakdown: feeBreakdownRes.rows.map(row => ({
-      category: row.fee_type,
+      category: row.category,
       amount: parseFloat(row.total || '0'),
       percentage: totalFees > 0 ? Math.round((parseFloat(row.total || '0') / totalFees) * 100) : 0,
     })),
@@ -497,23 +507,42 @@ export async function getTeacherPerformanceAnalytics(
 
   const [teachersRes, deptRes, subjectRes, trendRes] = await Promise.all([
     sql`SELECT COUNT(*) as count FROM staff WHERE tenant_id = ${tenantId}`,
-    // Department-linked assessment: a teacher is assessed by the filtered scores
-    // recorded for the subject matching their staff department.
+    // Attribute each filtered score to a teacher via (a) assigned
+    // teacher_allocation_slots rows matching class+subject, or (b) the
+    // staff.subjects JSONB list as a subject-level fallback. teacher in
+    // allocation slots stores the staff name (same convention as migration 018).
     sql.query<{
       teacher: string
       subject: string
       average_score: string
       pass_rate: string
+      score_count: string
     }>(
-      `SELECT
+      `WITH filtered_scores AS (
+        SELECT * FROM student_scores ${where}
+      ),
+      attributed AS (
+        SELECT tas.teacher as teacher_name, fs.id as score_id, fs.total_score
+        FROM teacher_allocation_slots tas
+        JOIN filtered_scores fs ON fs.class = tas.class AND fs.subject = tas.subject
+        WHERE tas.tenant_id = $1 AND tas.coverage = 'Assigned'
+        UNION
+        SELECT s2.name, fs.id, fs.total_score
+        FROM staff s2
+        JOIN filtered_scores fs ON s2.subjects ? fs.subject
+        WHERE s2.tenant_id = $1
+      )
+      SELECT
         s.name as teacher,
-        s.department as subject,
-        AVG(ss.total_score) as average_score,
-        COUNT(CASE WHEN ss.total_score >= 50 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as pass_rate
-      FROM staff s
-      JOIN (SELECT subject, total_score FROM student_scores ${where}) ss
-        ON ss.subject = s.department
-      WHERE s.tenant_id = $1
+        COALESCE(
+          NULLIF((SELECT string_agg(value, ', ') FROM jsonb_array_elements_text(s.subjects)), ''),
+          s.department
+        ) as subject,
+        AVG(a.total_score) as average_score,
+        COUNT(CASE WHEN a.total_score >= 50 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) as pass_rate,
+        COUNT(*) as score_count
+      FROM attributed a
+      JOIN staff s ON s.name = a.teacher_name AND s.tenant_id = $1
       GROUP BY s.id, s.name, s.department
       ORDER BY average_score DESC`,
       baseFilter.params

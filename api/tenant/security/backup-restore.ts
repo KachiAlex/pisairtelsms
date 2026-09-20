@@ -150,7 +150,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 async function runDatabaseBackup(jobId: string, tenantId: string, outputPath: string): Promise<void> {
   try {
     await new Promise<void>((resolve, reject) => {
-      const child = spawn('pg_dump', ['--format=custom', '--file', outputPath, process.env.DATABASE_URL || process.env.POSTGRES_URL || ''], {
+      const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || ''
+      const parsedUrl = new URL(databaseUrl)
+      parsedUrl.searchParams.delete('pooling')
+      const child = spawn('pg_dump', ['--format=custom', '--file', outputPath, parsedUrl.toString()], {
         env: process.env,
         stdio: ['ignore', 'ignore', 'pipe'],
       })

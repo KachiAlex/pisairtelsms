@@ -57,7 +57,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           se.created_at AS time
         FROM security_events se
         LEFT JOIN staff s ON s.id = se.user_id AND s.tenant_id::text = se.tenant_id
-        LEFT JOIN students st ON st.id = se.user_id AND st.tenant_id::text = se.tenant_id
+        LEFT JOIN students st ON st.id::text = se.user_id AND st.tenant_id::text = se.tenant_id
         WHERE se.tenant_id = ${tenantId}
 
         UNION ALL
@@ -72,7 +72,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           al.created_at
         FROM audit_logs al
         LEFT JOIN staff s2 ON s2.id = al.user_id AND s2.tenant_id::text = al.tenant_id::text
-        LEFT JOIN students st2 ON st2.id = al.user_id AND st2.tenant_id::text = al.tenant_id::text
+        LEFT JOIN students st2 ON st2.id::text = al.user_id AND st2.tenant_id::text = al.tenant_id::text
         WHERE al.tenant_id::text = ${tenantId}
 
         UNION ALL

@@ -58,6 +58,19 @@ UPDATE classes
 SET name = TRIM(REGEXP_REPLACE(name, '^([A-Za-z]+)\s*([0-9]+)\s*', '\1 \2 '))
 WHERE deleted_at IS NULL AND name ~ '^[A-Za-z]+\s*[0-9]';
 
+-- 3. Dedupe allocation slots that became exact duplicates after
+--    normalization (same tenant+class+subject+teacher). Rows where the
+--    duplicate assigns a DIFFERENT teacher are kept — resolving which
+--    teacher owns the slot is a human decision.
+DELETE FROM teacher_allocation_slots a
+USING teacher_allocation_slots b
+WHERE a.id < b.id
+  AND a.tenant_id = b.tenant_id
+  AND a.class = b.class
+  AND a.subject = b.subject
+  AND a.teacher IS NOT DISTINCT FROM b.teacher
+  AND a.day_of_week IS NOT DISTINCT FROM b.day_of_week;
+
 INSERT INTO schema_migrations (version, description)
 VALUES (30, 'Normalize class names to canonical spelling across all tables')
 ON CONFLICT (version) DO NOTHING;

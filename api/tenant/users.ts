@@ -19,15 +19,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // student records that actually hold credentials. `type` distinguishes
       // manageable tenant_users rows from staff/student directory entries.
       const result = await sql`
-        SELECT id, name, email, role, status, last_active, invited_at, created_at, 'user' AS type
+        SELECT id::text AS id, name, email, role, status, last_active, invited_at, created_at, 'user' AS type
         FROM tenant_users
         WHERE tenant_id = ${tenantId}
         UNION ALL
-        SELECT id, name, email, role, status, NULL AS last_active, NULL AS invited_at, created_at, 'staff' AS type
+        SELECT id::text AS id, name, email, role, status, NULL AS last_active, NULL AS invited_at, created_at, 'staff' AS type
         FROM staff
         WHERE tenant_id = ${tenantId}
         UNION ALL
-        SELECT id, name, guardian_email AS email,
+        SELECT id::text AS id, name, guardian_email AS email,
                ('Student' || COALESCE(' — ' || class, '')) AS role,
                LOWER(status) AS status,
                NULL AS last_active, NULL AS invited_at, created_at, 'student' AS type

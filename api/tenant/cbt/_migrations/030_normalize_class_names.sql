@@ -12,9 +12,16 @@ UPDATE student_scores
 SET class = TRIM(REGEXP_REPLACE(class, '^([A-Za-z]+)\s*([0-9]+)\s*', '\1 \2 '))
 WHERE class ~ '^[A-Za-z]+\s*[0-9]';
 
+-- check_scheduled_date (scheduled_date >= CURRENT_DATE) blocks updates to
+-- past exams; drop it, normalize, re-add NOT VALID for future enforcement.
+ALTER TABLE exams DROP CONSTRAINT IF EXISTS check_scheduled_date;
+
 UPDATE exams
 SET class = TRIM(REGEXP_REPLACE(class, '^([A-Za-z]+)\s*([0-9]+)\s*', '\1 \2 '))
 WHERE class ~ '^[A-Za-z]+\s*[0-9]' AND deleted_at IS NULL;
+
+ALTER TABLE exams ADD CONSTRAINT check_scheduled_date
+  CHECK (scheduled_date IS NULL OR scheduled_date >= CURRENT_DATE) NOT VALID;
 
 UPDATE students
 SET class = TRIM(REGEXP_REPLACE(class, '^([A-Za-z]+)\s*([0-9]+)\s*', '\1 \2 '))

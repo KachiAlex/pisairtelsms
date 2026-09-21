@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 
 import { Button } from '../ui/button'
+import { PageHint } from '../ui/page-hint'
 import { ConfigureTab } from './timetable/ConfigureTab'
 import { ClassTimetableTab } from './timetable/ClassTimetableTab'
 import { TeacherTimetableTab } from './timetable/TeacherTimetableTab'
@@ -51,6 +52,16 @@ export function TimetableScheduling({ initialView = 'class' }: TimetableScheduli
           <p className="text-sm text-gray-600">{config.description}</p>
         </div>
       </div>
+
+      <PageHint
+        id="timetable"
+        title="Build timetables in order"
+        tips={[
+          'Start in Configure: set the academic period, school days, and period times — everything else builds on this.',
+          'Then open Class view to fill each period with subject and teacher. Classes and teachers must exist first (Classes & Arms, Staff Management).',
+          'Teacher view shows workloads per educator; Exam view schedules CBT and paper assessments.',
+        ]}
+      />
 
       <div className="flex flex-wrap gap-2">
         {(['configure', 'class', 'teacher', 'exam'] as TimetableView[]).map((view) => (

@@ -16,6 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Pencil, Trash2 } from 'lucide-react'
+import { EmptyState } from '../ui/empty-state'
+import { PageHint } from '../ui/page-hint'
 import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../lib/tenantApi'
 
 type ClassArm = {
@@ -175,8 +177,20 @@ export function ClassesAndArms() {
     }
   }
 
+  const showEmptyState = !loading && filteredClasses.length === 0
+
   return (
     <div className="space-y-6">
+      <PageHint
+        id="classes-arms"
+        title="Class names are the source of truth"
+        tips={[
+          'Names created here (e.g. "JSS 1") feed every class dropdown — enrollment, timetables, attendance, results, and analytics.',
+          'Create each level once, then add arms (A, B, C…) as separate rows. Avoid spelling variants like "JSS1" — they split your data.',
+          'Deleting a class arm affects every module that references it — audit logs record the change.',
+        ]}
+      />
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Level orchestration</p>
@@ -347,10 +361,23 @@ export function ClassesAndArms() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!loading && filteredClasses.length === 0 && (
+                {showEmptyState && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-sm text-gray-500">
-                      No classes match the current filters.
+                    <TableCell colSpan={6} className="p-0">
+                      {classes.length === 0 ? (
+                        <EmptyState
+                          icon={Building2}
+                          title="No classes created yet"
+                          description="Create your first class arm (e.g. JSS 1 A). Class names from this list appear everywhere else in the app."
+                          action={{ label: 'Add class arm', onClick: () => setIsDialogOpen(true), icon: Plus }}
+                        />
+                      ) : (
+                        <EmptyState
+                          icon={Search}
+                          title="No classes match the current filters"
+                          description="Try a different search term or clear the filters."
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 )}

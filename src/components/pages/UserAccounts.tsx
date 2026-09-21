@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
+import { PageHint } from '../ui/page-hint'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Label } from '../ui/label'
 import { Switch } from '../ui/switch'
@@ -294,6 +295,16 @@ export function UserAccounts() {
           <InviteUserDialog onInvited={loadUsers} />
         </div>
       </div>
+
+      <PageHint
+        id="user-accounts"
+        title="What this directory shows"
+        tips={[
+          'Everyone with credentials appears here — the Type badge distinguishes invited Users, Staff, and Students.',
+          'Suspend/Edit/Delete apply to invited user accounts. Staff and student records are managed in Staff Management and Students.',
+          'Suspending blocks the next login; to end a live session right now use Security & Compliance → Session Management.',
+        ]}
+      />
 
       {error && (
         <div className="rounded-lg bg-red-50 p-4 text-sm text-red-900 flex items-center gap-2">

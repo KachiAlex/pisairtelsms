@@ -35,6 +35,8 @@ import {
 } from '../ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 import { Label } from '../ui/label'
+import { EmptyState } from '../ui/empty-state'
+import { PageHint } from '../ui/page-hint'
 import { BulkImportStudents } from './BulkImportStudents'
 import { fetchStudents, createStudent, createStudents, updateStudent, deleteStudent, exportStudentsToCSV, type Student, type StudentPayload } from '../../lib/studentsClient'
 
@@ -265,6 +267,16 @@ export default function StudentsList() {
         </div>
       </div>
 
+      <PageHint
+        id="students-list"
+        title="Managing students"
+        tips={[
+          'Admission numbers are generated automatically from the format in System Controls — leave the field blank unless you need a specific one.',
+          'New students sign in with their admission number as both username and initial password.',
+          'For many students at once, use Import Students with a CSV — every row gets a generated admission number.',
+        ]}
+      />
+
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
@@ -420,6 +432,31 @@ export default function StudentsList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {!loading && filteredStudents.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="p-0">
+                      {students.length === 0 ? (
+                        <EmptyState
+                          icon={UserPlus}
+                          title="No students enrolled yet"
+                          description="Enroll your first student to start building the register. Admission numbers are generated automatically from your format."
+                          action={{ label: 'Add student', onClick: () => setIsAddDialogOpen(true), icon: UserPlus }}
+                          secondaryAction={{ label: 'Import CSV', onClick: () => setIsBulkImportOpen(true), icon: Upload }}
+                        />
+                      ) : (
+                        <EmptyState
+                          icon={Search}
+                          title="No students match your filters"
+                          description="Try a different search term, or clear the class and status filters."
+                          secondaryAction={{
+                            label: 'Clear filters',
+                            onClick: () => { setSearchTerm(''); setClassFilter('all'); setStatusFilter('all') },
+                          }}
+                        />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )}
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">{student.admissionNo}</TableCell>

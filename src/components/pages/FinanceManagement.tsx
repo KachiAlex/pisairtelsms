@@ -8,6 +8,8 @@ import { Input } from '../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { financeApiGet, financeApiPost } from '../../lib/financeApi';
 import { useToast } from '../ui/use-toast';
+import { EmptyState } from '../ui/empty-state';
+import { PageHint } from '../ui/page-hint';
 import {
   Table,
   TableBody,
@@ -238,6 +240,16 @@ export function FinanceManagement() {
         </div>
       </div>
 
+      <PageHint
+        id="finance-management"
+        title="How billing works here"
+        tips={[
+          'Fee Config defines each fee; assigning it to classes or students creates the balances families owe.',
+          'Payments tab records money received; Pending holds unconfirmed payments; Reconciliation matches payments to outstanding fees.',
+          'Only confirmed payments reduce balances — check Reconciliation if a family still shows as owing.',
+        ]}
+      />
+
       {/* Error State */}
       {error && (
         <Card className="border-red-200 bg-red-50">
@@ -326,10 +338,13 @@ export function FinanceManagement() {
           {/* Empty State */}
           {!loading && !error && feeRecords.length === 0 && (
             <Card>
-              <CardContent className="p-12 text-center">
-                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 font-medium">No fee records found</p>
-                <p className="text-sm text-gray-500 mt-1">Fee records will appear here once they are created</p>
+              <CardContent className="p-0">
+                <EmptyState
+                  icon={DollarSign}
+                  title="No fee records yet"
+                  description="Fee records are created when you define a fee structure and assign it to classes or students. Start in Fee Config."
+                  action={{ label: 'Open Fee Config', onClick: () => setSearchParams({ tab: 'fee-config' }) }}
+                />
               </CardContent>
             </Card>
           )}

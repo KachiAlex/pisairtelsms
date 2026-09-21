@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Users,
   GraduationCap,
@@ -104,6 +105,7 @@ const ErrorBanner = ({ message, onRetry }: { message: string; onRetry: () => voi
 )
 
 export function Dashboard() {
+  const navigate = useNavigate()
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -217,19 +219,87 @@ export function Dashboard() {
     ? dashboardStats.revenueByMonth 
     : []
 
-  // Build academic performance data
+  // Build academic performance data — only classes with a real computed
+  // average; never fabricate bands.
   const performanceData = Array.isArray(dashboardStats.classSummaries)
-    ? dashboardStats.classSummaries.map(cs => ({
-        class: cs?.className ?? 'Unknown',
-        excellent: Math.floor(Math.random() * 30),
-        good: Math.floor(Math.random() * 40),
-        average: Math.floor(Math.random() * 20),
-        poor: Math.floor(Math.random() * 10),
-      }))
+    ? dashboardStats.classSummaries
+        .filter(cs => typeof cs?.avgScore === 'number')
+        .map(cs => ({
+          class: cs?.className ?? 'Unknown',
+          avgScore: cs?.avgScore ?? 0,
+        }))
     : []
+
+  // First-run checklist — shown until the school has its core structure.
+  // Completion is read from real counts, so items tick themselves off.
+  const setupSteps = [
+    {
+      label: 'Set the current session & term',
+      detail: 'System Controls — drives attendance, results, and billing defaults.',
+      done: false, // no cheap signal — always listed as actionable
+      target: '/tenant/system-settings',
+    },
+    {
+      label: 'Create classes & arms',
+      detail: 'Canonical names like "JSS 1" — the source of truth for every module.',
+      done: (dashboardStats.classesCount ?? 0) > 0,
+      target: '/tenant/classes',
+    },
+    {
+      label: 'Add teaching & admin staff',
+      detail: 'First login uses their email address as the temporary password.',
+      done: (dashboardStats.totalTeachers ?? 0) > 0,
+      target: '/tenant/staff',
+    },
+    {
+      label: 'Enroll students',
+      detail: 'Single form or CSV import; admission numbers generate automatically.',
+      done: (dashboardStats.totalStudents ?? 0) > 0,
+      target: '/tenant/students',
+    },
+    {
+      label: 'Share your application & inquiry links',
+      detail: 'Public forms scoped to your school via its slug.',
+      done: false,
+      target: '/tenant/student-enrollment',
+    },
+  ]
+  const showSetup = (dashboardStats.classesCount ?? 0) === 0 || (dashboardStats.totalStudents ?? 0) === 0
 
   return (
     <div className="space-y-6">
+      {showSetup && (
+        <Card className="border-blue-100 bg-blue-50/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CheckCircle2 className="w-5 h-5 text-blue-600" />
+              Get your school set up
+            </CardTitle>
+            <p className="text-sm text-gray-600">Complete these steps once — they unlock every other module.</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {setupSteps.map((step) => (
+              <button
+                key={step.label}
+                onClick={() => navigate(step.target)}
+                className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white p-3 text-left hover:border-blue-200 hover:bg-blue-50/50"
+              >
+                <div className="flex items-center gap-3">
+                  {step.done
+                    ? <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                    : <Clock className="w-5 h-5 text-gray-300 shrink-0" />}
+                  <div>
+                    <p className={`text-sm font-medium ${step.done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{step.label}</p>
+                    <p className="text-xs text-gray-500">{step.detail}</p>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-blue-600 shrink-0">{step.done ? 'Done' : 'Open →'}</span>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.length === 0 ? (
@@ -338,13 +408,10 @@ export function Dashboard() {
                 <BarChart data={performanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="class" />
-                  <YAxis />
+                  <YAxis domain={[0, 100]} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="excellent" stackId="a" fill="#10b981" />
-                  <Bar dataKey="good" stackId="a" fill="#3b82f6" />
-                  <Bar dataKey="average" stackId="a" fill="#f59e0b" />
-                  <Bar dataKey="poor" stackId="a" fill="#ef4444" />
+                  <Bar dataKey="avgScore" name="Average score" fill="#3b82f6" />
                 </BarChart>
               </ResponsiveContainer>
             )}

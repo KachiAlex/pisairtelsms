@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, Clock, Users, FileText } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { PageHint } from '../ui/page-hint';
 import { QuestionBankTab } from './cbt/QuestionBankTab';
 import { ExamCreationTab } from './cbt/ExamCreationTab';
 import { LiveMonitoringTab } from './cbt/LiveMonitoringTab';
@@ -121,6 +122,16 @@ export function ExamManagement() {
         <h1 className="text-2xl font-bold text-gray-900">CBT & Examination Management</h1>
         <p className="text-sm text-gray-600 mt-1">Create, schedule and monitor computer-based tests</p>
       </div>
+
+      <PageHint
+        id="exam-management"
+        title="The CBT exam flow"
+        tips={[
+          'Question Bank first — create or import questions by subject before building an exam.',
+          'All Exams: create the exam, pick class/subject/duration/questions, then schedule the sitting window.',
+          'Live Monitoring watches connected students during the window; Exam Results is where you review flags and publish scores.',
+        ]}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Switch } from '../ui/switch'
+import { PageHint } from '../ui/page-hint'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
 import { Label } from '../ui/label'
@@ -193,6 +194,16 @@ export function RolesPermissions() {
           <NewRoleDialog onCreated={loadAll} />
         </div>
       </div>
+
+      <PageHint
+        id="roles-permissions"
+        title="How access works"
+        tips={[
+          'Roles bundle permissions (e.g. Finance Officer). Assign a role to staff to grant everything in it.',
+          'Direct grants below can add or remove individual permissions for one person without changing the role.',
+          'Platform super-administrators are intentionally absent — tenant access is managed entirely inside the school.',
+        ]}
+      />
 
       {error && (
         <div className="rounded-lg bg-red-50 p-4 text-sm text-red-900 flex items-center gap-2">

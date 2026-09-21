@@ -3,6 +3,7 @@ import { Users, UserCheck, Clock, DollarSign, TrendingUp, Briefcase } from 'luci
 import { Card, CardContent } from '../ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { Progress } from '../ui/progress'
+import { PageHint } from '../ui/page-hint'
 import { StaffDirectory } from './staff/StaffDirectory'
 import { StaffAttendance } from './staff/StaffAttendance'
 import { LeaveManagement } from './staff/LeaveManagement'
@@ -63,6 +64,16 @@ export function StaffHR({ initialTab = 'overview' }: { initialTab?: string }) {
         <h1 className="text-2xl font-bold text-gray-900">Staff & HR</h1>
         <p className="text-sm text-gray-600 mt-1">Manage staff records, attendance, leave, and payroll</p>
       </div>
+
+      <PageHint
+        id="staff-hr"
+        title="Onboarding staff"
+        tips={[
+          'Add a staff member in the Directory tab — on their first login they use their email address as the temporary password.',
+          'Assign a role under Roles & Permissions to control what each person can see and do.',
+          'Suspending a staff record blocks their next login; terminate active sessions under Security & Compliance for immediate effect.',
+        ]}
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">

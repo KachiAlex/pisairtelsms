@@ -14,6 +14,7 @@ import {
 } from '../ui/dialog'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
+import { PageHint } from '../ui/page-hint'
 import {
   Table,
   TableBody,
@@ -424,6 +425,16 @@ export function StudentEnrollment() {
           </Button>
         </div>
       </div>
+
+      <PageHint
+        id="enrollment-pipeline"
+        title="How the pipeline works"
+        tips={[
+          'Share your school\'s public links below — inquiries arrive here automatically, already scoped to your school.',
+          'Move each inquiry through assessment and approval; approved applicants enroll into Students with a generated admission number.',
+          'The link slug is set under System Settings → Tenant Settings → School Link.',
+        ]}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {analytics.map((metric) => (

@@ -319,6 +319,28 @@ export function TeacherAllocation() {
         ))}
       </div>
 
+      {(() => {
+        const unallocated = teacherCards.filter(t => (t.allocation || 0) === 0)
+        if (unallocated.length === 0) return null
+        const noSubjects = unallocated.filter(t => (t.subjects || []).length === 0)
+        return (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-800">
+                {unallocated.length} teacher{unallocated.length !== 1 ? 's' : ''} hold{unallocated.length === 1 ? 's' : ''} no slots and won't appear on any auto-scheduled timetable
+              </p>
+              <p className="text-xs text-amber-700">
+                {unallocated.map(t => t.name).join(', ')} — assign them rows in the matrix below or use Cover a teacher.
+                {noSubjects.length > 0 && (
+                  <> {noSubjects.map(t => t.name).join(', ')} ha{noSubjects.length === 1 ? 's' : 've'} no subjects on their staff profile, so Auto-balance cannot match them — set subjects in Staff Management first.</>
+                )}
+              </p>
+            </div>
+          </div>
+        )
+      })()}
+
       <Card>
         <CardHeader>
           <CardTitle>Open period clustering</CardTitle>

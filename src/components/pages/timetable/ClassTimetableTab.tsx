@@ -16,7 +16,9 @@ const DAY_NUMS = [1, 2, 3, 4, 5]
 interface ScheduleEntry {
   id: string
   timeSlotId: string
+  subjectId?: string
   subjectName: string
+  teacherId?: string
   teacherName: string
   roomId?: string
   dayOfWeek: number
@@ -61,7 +63,7 @@ export function ClassTimetableTab() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
-  const [modalSlot, setModalSlot] = useState<{ timeSlotId: string; dayOfWeek: number } | null>(null)
+  const [modalSlot, setModalSlot] = useState<{ timeSlotId: string; dayOfWeek: number; entry?: ScheduleEntry } | null>(null)
   const [showAutoSchedule, setShowAutoSchedule] = useState(false)
   const [showBatch, setShowBatch] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -134,8 +136,8 @@ export function ClassTimetableTab() {
     return schedule?.entries.find(e => e.timeSlotId === timeSlotId && e.dayOfWeek === dayOfWeek)
   }
 
-  function openModal(timeSlotId: string, dayOfWeek: number) {
-    setModalSlot({ timeSlotId, dayOfWeek })
+  function openModal(timeSlotId: string, dayOfWeek: number, entry?: ScheduleEntry) {
+    setModalSlot({ timeSlotId, dayOfWeek, entry })
     setShowModal(true)
   }
 
@@ -301,8 +303,8 @@ export function ClassTimetableTab() {
           </CardTitle>
           <CardDescription>
             {schedule?.status === 'published'
-              ? 'Published — visible to students, parents and staff'
-              : 'Draft — only visible here until published. Click any empty cell to assign a subject and teacher'}
+              ? 'Published — visible to students, parents and staff. Click a cell to reassign or clear it'
+              : 'Draft — only visible here until published. Click a cell to assign, change, or clear a subject and teacher'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -342,10 +344,14 @@ export function ClassTimetableTab() {
                           return (
                             <TableCell key={day} className="text-center p-1">
                               {entry ? (
-                                <div className="rounded-lg bg-blue-50 border border-blue-100 p-1.5 text-xs">
+                                <button
+                                  onClick={() => openModal(slot.id, day, entry)}
+                                  title="Click to edit or remove"
+                                  className="w-full rounded-lg bg-blue-50 border border-blue-100 p-1.5 text-xs text-left hover:border-blue-400 hover:bg-blue-100 transition cursor-pointer"
+                                >
                                   <p className="font-semibold text-blue-800">{entry.subjectName}</p>
                                   <p className="text-blue-600">{entry.teacherName}</p>
-                                </div>
+                                </button>
                               ) : (
                                 <button
                                   onClick={() => openModal(slot.id, day)}
@@ -374,6 +380,7 @@ export function ClassTimetableTab() {
           dayOfWeek={modalSlot.dayOfWeek}
           classId={selectedClass}
           termId={selectedTerm}
+          entry={modalSlot.entry}
           onSaved={handleEntrySaved}
           onClose={() => setShowModal(false)}
           ensureSchedule={ensureScheduleExists}

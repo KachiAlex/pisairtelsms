@@ -79,6 +79,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
       const yearsRes = await financeApiGet('/api/tenant/timetable/calendar?resource=academic-years');
       const yearsData = await yearsRes.json();
       const years = yearsData.data?.map((y: any) => y.name) || [];
+      const currentYear = yearsData.data?.find((y: any) => y.is_current)?.name;
       setAcademicYears(years);
 
       // Fetch terms
@@ -90,7 +91,7 @@ export function FeeStructureForm({ structure, onClose }: FeeStructureFormProps) 
       // Set default values if not already set
       setFormData(prev => ({
         ...prev,
-        academicSession: prev.academicSession || (years[0] || ''),
+        academicSession: prev.academicSession || currentYear || (years[0] || ''),
         term: prev.term || (termNames[0] || ''),
       }));
     } catch (err) {

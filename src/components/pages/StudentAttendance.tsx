@@ -28,6 +28,7 @@ import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { AcademicSessionSelect } from '../ui/academic-session-select'
 import { ClassArmSelect } from '../ui/class-arm-select'
 import {
   Table,
@@ -797,12 +798,10 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                     </SelectContent>
                   </Select>
                   <div className="w-[160px]">
-                    <Input
-                      type="text"
-                      placeholder="2025/2026"
+                    <AcademicSessionSelect
                       value={academicSession}
-                      onChange={(e) => setAcademicSession(e.target.value)}
-                      data-testid="session-filter"
+                      onChange={setAcademicSession}
+                      className="w-full"
                     />
                   </div>
                   <Button

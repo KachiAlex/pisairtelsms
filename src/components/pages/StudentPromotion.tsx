@@ -63,6 +63,7 @@ import {
   TableRow,
 } from '../ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
+import { AcademicSessionSelect } from '../ui/academic-session-select'
 import { Textarea } from '../ui/textarea'
 import { Progress } from '../ui/progress'
 import { Separator } from '../ui/separator'
@@ -102,10 +103,7 @@ export function StudentPromotion() {
   const [fromClass, setFromClass] = useState('')
   const [classNames, setClassNames] = useState<string[]>([])
   const { termNames, currentTermName } = useTimetableTerms(term)
-  const { years, currentYearName } = useAcademicYears()
-  const sessionNames = academicSession && !years.some(y => y.name === academicSession)
-    ? [academicSession, ...years.map(y => y.name)]
-    : years.map(y => y.name)
+  const { currentYearName } = useAcademicYears()
   useEffect(() => {
     if (!term && currentTermName) setTerm(currentTermName)
     if (!academicSession && currentYearName) setAcademicSession(currentYearName)
@@ -525,17 +523,7 @@ export function StudentPromotion() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Academic Session</Label>
-              <Select value={academicSession} onValueChange={setAcademicSession}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {sessionNames.map(s => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                  {sessionNames.length === 0 && <SelectItem value="__none" disabled>No academic years configured</SelectItem>}
-                </SelectContent>
-              </Select>
+              <AcademicSessionSelect value={academicSession} onChange={setAcademicSession} />
             </div>
             <div>
               <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Term</Label>

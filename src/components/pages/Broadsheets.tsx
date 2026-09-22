@@ -9,6 +9,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { AcademicSessionSelect } from '../ui/academic-session-select'
 import { ClassArmSelect } from '../ui/class-arm-select'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet } from '../../lib/tenantApi'
@@ -174,7 +175,7 @@ export function Broadsheets() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Academic Session</Label>
-              <Input value={academicSession} onChange={e => setAcademicSession(e.target.value)} placeholder="2025/2026" />
+              <AcademicSessionSelect value={academicSession} onChange={setAcademicSession} />
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Term</Label>

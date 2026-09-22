@@ -13,7 +13,8 @@ import {
   TenantSettingsResponse,
   updateTenantSettings,
 } from '../../lib/tenantSettingsClient'
-import { tenantApiGet } from '../../lib/tenantApi'
+import { useNavigate } from 'react-router-dom'
+import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 
 const fallbackSettings: TenantSettingsPayload = {
   schoolName: '',
@@ -46,24 +47,18 @@ export function SystemSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
-  const [academicYears, setAcademicYears] = useState<{ id: string; name: string }[]>([])
-  const [terms, setTerms] = useState<{ id: string; name: string }[]>([])
+  const navigate = useNavigate()
+  const { session: resolvedSession, term: resolvedTerm } = useAcademicPeriod()
 
   useEffect(() => {
     let cancelled = false
     setIsLoading(true)
 
-    Promise.all([
-      fetchTenantSettings(),
-      tenantApiGet('/api/tenant/timetable/calendar?resource=academic-years').then(r => r.ok ? r.json() : { data: [] }),
-      tenantApiGet('/api/tenant/timetable/calendar?resource=terms').then(r => r.ok ? r.json() : { data: [] }),
-    ])
-      .then(([remote, yearsJson, termsJson]) => {
+    fetchTenantSettings()
+      .then((remote) => {
         if (cancelled) return
         setSettings(remote)
         setLastUpdated(remote.updatedAt)
-        setAcademicYears((yearsJson.data || []).map((y: any) => ({ id: y.id, name: y.name })))
-        setTerms((termsJson.data || []).map((t: any) => ({ id: t.id, name: t.name })))
       })
       .catch((error) => {
         if (cancelled) return
@@ -156,42 +151,28 @@ export function SystemSettings() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Current Session</Label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
-                    value={settings.currentSession}
-                    onChange={(e) => updateSetting('currentSession', e.target.value)}
-                  >
-                    {/* Always include the saved value so it stays selected even if calendar API is empty */}
-                    {[settings.currentSession, ...academicYears.map(y => y.name).filter(n => n !== settings.currentSession)]
-                      .filter(Boolean)
-                      .map(name => <option key={name} value={name}>{name}</option>)}
-                    {academicYears.length === 0 && !settings.currentSession && (
-                      <option value="">No academic years found — add one in Timetable</option>
-                    )}
-                  </select>
-                  {academicYears.length > 0 && (
-                    <p className="text-xs text-gray-400 mt-1">{academicYears.length} academic year{academicYears.length !== 1 ? 's' : ''} available</p>
-                  )}
+                  <div className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mt-1 bg-gray-50 text-gray-900">
+                    {resolvedSession || '—'}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Resolved from the academic year flagged as current
+                  </p>
                 </div>
                 <div>
                   <Label>Current Term</Label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mt-1"
-                    value={settings.currentTerm}
-                    onChange={(e) => updateSetting('currentTerm', e.target.value)}
-                  >
-                    {/* Always include the saved value so it stays selected */}
-                    {[settings.currentTerm, ...terms.map(t => t.name).filter(n => n !== settings.currentTerm)]
-                      .filter(Boolean)
-                      .map(name => <option key={name} value={name}>{name}</option>)}
-                    {terms.length === 0 && !settings.currentTerm && (
-                      <option value="">No terms found — add one in Timetable</option>
-                    )}
-                  </select>
-                  {terms.length > 0 && (
-                    <p className="text-xs text-gray-400 mt-1">{terms.length} term{terms.length !== 1 ? 's' : ''} available</p>
-                  )}
+                  <div className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mt-1 bg-gray-50 text-gray-900">
+                    {resolvedTerm || '—'}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    The configured term covering today
+                  </p>
                 </div>
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800 flex items-center justify-between gap-3">
+                <span>Sessions and terms are defined in Academic Structure → Sessions &amp; Terms.</span>
+                <Button variant="outline" size="sm" onClick={() => navigate('/tenant/academic-sessions')}>
+                  Manage
+                </Button>
               </div>
             </CardContent>
           </Card>

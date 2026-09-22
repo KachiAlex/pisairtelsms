@@ -60,6 +60,7 @@ const navItems: NavItem[] = [
     icon: <BookOpen className="w-5 h-5" />,
     children: [
       { id: 'academic-structure', label: 'Overview' },
+      { id: 'academic-sessions', label: 'Sessions & Terms' },
       { id: 'classes', label: 'Classes & Arms' },
       { id: 'subjects', label: 'Subjects' },
       { id: 'teacher-allocation', label: 'Teacher Allocation' },

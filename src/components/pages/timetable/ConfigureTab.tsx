@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Settings, Calendar, Clock } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs'
-import { AcademicYearManager } from './AcademicYearManager'
-import { TermManager } from './TermManager'
-import { HolidayManager } from './HolidayManager'
-import { ExamPeriodManager } from './ExamPeriodManager'
+import { useNavigate } from 'react-router-dom'
+import { Settings, CalendarRange, ArrowRight } from 'lucide-react'
+import { Card, CardContent } from '../../ui/card'
+import { Button } from '../../ui/button'
 import { TimeSlotManager } from './TimeSlotManager'
 import { tenantApiGet } from '../../../lib/tenantApi'
 
@@ -45,30 +42,20 @@ export interface TimeSlot {
 }
 
 export function ConfigureTab() {
-  const [terms, setTerms] = useState<Term[]>([])
-  const [holidays, setHolidays] = useState<Holiday[]>([])
-  const [examPeriods, setExamPeriods] = useState<ExamPeriod[]>([])
+  const navigate = useNavigate()
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState('calendar')
 
   async function fetchAll() {
     setLoading(true)
     setError(null)
     try {
-      const [calRes, slotsRes] = await Promise.all([
-        tenantApiGet('/api/tenant/timetable/calendar'),
-        tenantApiGet('/api/tenant/timetable/time-slots'),
-      ])
-      if (!calRes.ok || !slotsRes.ok) throw new Error('Failed to load configuration data')
-      const calData = await calRes.json()
+      const slotsRes = await tenantApiGet('/api/tenant/timetable/time-slots')
+      if (!slotsRes.ok) throw new Error('Failed to load configuration data')
       const slotsData = await slotsRes.json()
-      setTerms(Array.isArray(calData.data?.terms) ? calData.data.terms : [])
-      setHolidays(Array.isArray(calData.data?.holidays) ? calData.data.holidays : [])
-      setExamPeriods(Array.isArray(calData.data?.examPeriods) ? calData.data.examPeriods : [])
       setTimeSlots(Array.isArray(slotsData.data) ? slotsData.data : [])
-    } catch (e) {
+    } catch {
       setError('Failed to load configuration. Please try again.')
     } finally {
       setLoading(false)
@@ -104,33 +91,27 @@ export function ConfigureTab() {
         <Settings className="h-5 w-5 text-blue-600" />
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Timetable Configuration</h2>
-          <p className="text-sm text-gray-500">Set up your school calendar, time slots, and break times</p>
+          <p className="text-sm text-gray-500">Bell times, period lengths, and break slots</p>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="calendar">
-            <Calendar className="h-4 w-4 mr-2" />
-            School Calendar
-          </TabsTrigger>
-          <TabsTrigger value="timeslots">
-            <Clock className="h-4 w-4 mr-2" />
-            Time Slots & Breaks
-          </TabsTrigger>
-        </TabsList>
+      <Card className="border-blue-100 bg-blue-50/40">
+        <CardContent className="p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <CalendarRange className="h-5 w-5 text-blue-600 shrink-0" />
+            <p className="text-sm text-gray-700">
+              Academic years, terms, holidays, and exam windows now live under{' '}
+              <span className="font-medium">Academic Structure → Sessions &amp; Terms</span>.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/tenant/academic-sessions')}>
+            Open <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="calendar" className="space-y-6 mt-4">
-          <AcademicYearManager onRefresh={fetchAll} />
-          <TermManager terms={terms} onRefresh={fetchAll} />
-          <HolidayManager holidays={holidays} terms={terms} onRefresh={fetchAll} />
-          <ExamPeriodManager examPeriods={examPeriods} terms={terms} onRefresh={fetchAll} />
-        </TabsContent>
-
-        <TabsContent value="timeslots" className="mt-4">
-          <TimeSlotManager timeSlots={timeSlots} onRefresh={fetchAll} />
-        </TabsContent>
-      </Tabs>
+      <TimeSlotManager timeSlots={timeSlots} onRefresh={fetchAll} />
     </div>
   )
 }
+export default ConfigureTab

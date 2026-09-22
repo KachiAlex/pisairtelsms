@@ -7,6 +7,7 @@ import {
 } from './_lib/calendar.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import { requireAuth, requireRole } from '../../_lib/auth-middleware.js'
+import { fetchTenantSettings, updateTenantSettings } from '../_lib/tenant-settings.js'
 
 let migrationsInitialized = false
 
@@ -139,6 +140,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
       const updated = await updateAcademicYear(id, body)
       if (!updated) return res.status(404).json({ error: 'Academic year not found' })
+
+      // Keep tenant_settings.currentSession in sync — the calendar is the
+      // single writer now that System Controls displays it read-only.
+      if (body.isCurrent === true && updated.name) {
+        try {
+          const { updatedAt: _ignored, ...existing } = await fetchTenantSettings(tenantId)
+          await updateTenantSettings(tenantId, { ...existing, currentSession: updated.name })
+        } catch (syncErr) {
+          console.error('Failed to sync tenant_settings.currentSession:', syncErr)
+        }
+      }
       return res.status(200).json({ data: updated })
     }
 

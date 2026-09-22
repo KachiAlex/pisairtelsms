@@ -13,6 +13,7 @@ import { ClassArmSelect } from '../ui/class-arm-select'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
+import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 
 const PUB_BASE = '/api/tenant/result-publishing-handler'
 
@@ -61,17 +62,16 @@ export function ResultPublishing() {
   const [unpublishing, setUnpublishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { termNames, currentTermName } = useTimetableTerms(term)
+  const { session: resolvedSession, term: resolvedTerm } = useAcademicPeriod()
+  const { termNames } = useTimetableTerms(term, academicSession || resolvedSession)
 
   useEffect(() => {
-    const now = new Date()
-    const y = now.getFullYear()
-    setAcademicSession(`${y}/${y + 1}`)
-  }, [])
+    if (!academicSession && resolvedSession) setAcademicSession(resolvedSession)
+  }, [resolvedSession])
 
   useEffect(() => {
-    if (!term && currentTermName) setTerm(currentTermName)
-  }, [currentTermName])
+    if (!term && resolvedTerm) setTerm(resolvedTerm)
+  }, [resolvedTerm])
 
   const loadData = useCallback(async () => {
     if (!academicSession || !term) return

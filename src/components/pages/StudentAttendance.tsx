@@ -40,6 +40,7 @@ import {
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
+import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 
 // TypeScript interfaces
 
@@ -170,11 +171,18 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   const [markSubmitting, setMarkSubmitting] = useState(false)
   const [markError, setMarkError] = useState<string | null>(null)
 
-  // Terms come from Timetable & Scheduling (single source of truth).
-  const { termNames, currentTermName } = useTimetableTerms([termFilter, markTerm, reportTerm])
+  const { session: resolvedSession, term: resolvedTerm } = useAcademicPeriod()
+
   useEffect(() => {
-    if (!markTerm && currentTermName) setMarkTerm(currentTermName)
-  }, [currentTermName])
+    if (!academicSession && resolvedSession) setAcademicSession(resolvedSession)
+  }, [resolvedSession])
+
+  // Terms come from Timetable & Scheduling (single source of truth),
+  // filtered to the resolved session so other years' terms can't bleed in.
+  const { termNames } = useTimetableTerms([termFilter, markTerm, reportTerm], academicSession || resolvedSession)
+  useEffect(() => {
+    if (!markTerm && resolvedTerm) setMarkTerm(resolvedTerm)
+  }, [resolvedTerm])
 
   // Batch Upload tab
   const [batchFile, setBatchFile] = useState<File | null>(null)
@@ -182,12 +190,6 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   const [batchPreviewLoading, setBatchPreviewLoading] = useState(false)
   const [batchUploading, setBatchUploading] = useState(false)
   const [batchError, setBatchError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const now = new Date()
-    const y = now.getFullYear()
-    setAcademicSession(`${y}/${y + 1}`)
-  }, [])
 
   const fetchDashboard = useCallback(async () => {
     setDashboardLoading(true)

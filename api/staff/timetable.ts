@@ -52,10 +52,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const tenantId = decoded.tenantId || 'default-tenant';
 
-    const dayOrder: Record<string, number> = {
-      monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7
-    };
-
     // Terms come from Timetable & Scheduling (timetable_terms) — the single
     // source of truth. Honor ?termId=, else the term covering today, else first.
     const requestedTermId = req.query.termId as string | undefined;
@@ -108,66 +104,27 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       console.error('Teacher schedule query error:', tsErr);
     }
 
-    // Legacy fallback: rows in the old flat `timetable` table
-    if (schedule.length === 0) {
-      try {
-        const ttResult = await sql`
-          SELECT id::text, day, start_time, end_time,
-                 COALESCE(start_time, '') || ' - ' || COALESCE(end_time, '') AS time_slot,
-                 subject, class_name, room
-          FROM timetable
-          WHERE staff_id = ${staffId}
-            AND tenant_id = ${tenantId}
-          ORDER BY day, start_time
-        `;
-        schedule = ttResult.rows.map(r => ({
-          id: r.id,
-          dayOfWeek: dayOrder[r.day?.toLowerCase()] ?? 0,
-          slotName: '',
-          sequence: 0,
-          timeSlot: r.time_slot,
-          subject: r.subject,
-          className: r.class_name,
-          room: r.room,
-          startTime: r.start_time,
-          endTime: r.end_time,
-        }));
-      } catch (ttErr) {
-        console.error('Timetable query error:', ttErr);
-      }
-    }
+    // The legacy flat `timetable` table is empty and has no tenant_id — no fallback.
 
     let examSchedule: ExamEntry[] = [];
     try {
       const examResult = await sql`
-        SELECT e.id::text, e.title AS subject, e.exam_date::text AS date,
-               e.start_time::text AS time, e.room,
-               COALESCE(
-                 EXTRACT(EPOCH FROM (e.end_time::time - e.start_time::time)) / 60,
-                 0
-               ) AS duration
+        SELECT e.id::text, COALESCE(e.subject, e.title) AS subject,
+               e.scheduled_date::text AS date, e.scheduled_time::text AS time,
+               '' AS room, COALESCE(e.duration, 0) AS duration
         FROM exams e
-        WHERE e.exam_date >= CURRENT_DATE
+        WHERE e.scheduled_date >= CURRENT_DATE
           AND e.tenant_id = ${tenantId}
-          AND (
-            EXISTS (
-              SELECT 1 FROM timetable tt
-              WHERE tt.staff_id = ${staffId}
-                AND tt.tenant_id = ${tenantId}
-                AND tt.subject IS NOT NULL
-                AND e.title IS NOT NULL
-                AND LOWER(tt.subject) = LOWER(e.title)
-            )
-            OR EXISTS (
-              SELECT 1 FROM timetable_class_schedule_entries en
-              JOIN timetable_class_schedules sc ON sc.id = en.schedule_id
-              WHERE en.teacher_id = ${staffId}
-                AND sc.tenant_id = ${tenantId}
-                AND e.title IS NOT NULL
-                AND LOWER(en.subject_name) = LOWER(e.title)
-            )
+          AND e.deleted_at IS NULL
+          AND EXISTS (
+            SELECT 1 FROM timetable_class_schedule_entries en
+            JOIN timetable_class_schedules sc ON sc.id = en.schedule_id
+            WHERE en.teacher_id = ${staffId}
+              AND sc.tenant_id = ${tenantId}
+              AND COALESCE(e.subject, e.title) IS NOT NULL
+              AND LOWER(en.subject_name) = LOWER(COALESCE(e.subject, e.title))
           )
-        ORDER BY e.exam_date, e.start_time
+        ORDER BY e.scheduled_date, e.scheduled_time
       `;
       examSchedule = examResult.rows.map(r => ({
         id: r.id, subject: r.subject, date: r.date,

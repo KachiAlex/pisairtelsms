@@ -26,26 +26,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!staffId) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
     }
+    const tenantId = decoded.tenantId || 'default-tenant';
 
+    // Distinct classes this teacher appears in, from the real schedule tables
+    // (the legacy flat `timetable` table is empty and has no tenant_id).
     const result = await sql`
-      SELECT DISTINCT tt.class_name,
-        COUNT(s.id) AS student_count
-      FROM timetable tt
-      LEFT JOIN students s
-        -- QUAL-05: normalize both sides (strip spaces, lowercase) and use
-        -- CONCAT_WS so a NULL arm doesn't nullify the match.
-        ON LOWER(REPLACE(CONCAT_WS(' ', s.class, COALESCE(s.arm, '')), ' ', ''))
-           = LOWER(REPLACE(tt.class_name, ' ', ''))
-        AND s.deleted_at IS NULL AND s.status = 'Active'
-      WHERE tt.staff_id = ${staffId}
-      GROUP BY tt.class_name
-      ORDER BY tt.class_name
+      SELECT DISTINCT s.class_id,
+        COALESCE(c.name, s.class_id) AS class_name,
+        COALESCE(c.arm, '') AS arm,
+        (SELECT COUNT(*) FROM students st
+          WHERE st.tenant_id = ${tenantId} AND st.deleted_at IS NULL AND st.status = 'Active'
+            AND LOWER(REPLACE(CONCAT_WS(' ', st.class, COALESCE(st.arm, '')), ' ', ''))
+              = LOWER(REPLACE(CONCAT_WS(' ', c.name, COALESCE(c.arm, '')), ' ', ''))
+        ) AS student_count
+      FROM timetable_class_schedule_entries e
+      JOIN timetable_class_schedules s ON s.id = e.schedule_id
+      LEFT JOIN classes c ON c.id::text = s.class_id::text
+      WHERE e.teacher_id = ${staffId} AND s.tenant_id = ${tenantId}
+      ORDER BY class_name
     `;
 
-    const classes: ClassInfo[] = result.rows.map((r, i) => ({
-      id: `class-${i + 1}`,
+    const classes: ClassInfo[] = result.rows.map(r => ({
+      id: String(r.class_id),
       name: r.class_name,
-      arm: '',
+      arm: r.arm || '',
       studentCount: parseInt(r.student_count ?? '0'),
     }));
 

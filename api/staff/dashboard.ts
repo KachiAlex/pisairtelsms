@@ -71,15 +71,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
     const st = staffResult.rows[0];
 
-    // Today's timetable sessions
-    const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    // Today's sessions — real source is timetable_class_schedule_entries
+    // (the legacy flat `timetable` table is empty and has no tenant_id).
+    const dayNum = new Date().getDay(); // 1=Mon … 5=Fri
     const todayResult = await sql`
-      SELECT id::text, subject, class_name, room,
-             start_time, end_time,
-             start_time || ' - ' || end_time AS time_slot
-      FROM timetable
-      WHERE staff_id = ${staffId} AND tenant_id = ${tenantId} AND LOWER(day) = LOWER(${dayName})
-      ORDER BY start_time ASC
+      SELECT e.id::text, e.subject_name AS subject, e.room_id AS room,
+             t.start_time::text AS start_time, t.end_time::text AS end_time,
+             COALESCE(c.name || COALESCE(' ' || NULLIF(c.arm, ''), ''), s.class_id) AS class_name
+      FROM timetable_class_schedule_entries e
+      JOIN timetable_class_schedules s ON s.id = e.schedule_id
+      JOIN timetable_time_slots t ON t.id = e.time_slot_id
+      LEFT JOIN classes c ON c.id::text = s.class_id::text
+      WHERE e.teacher_id = ${staffId}
+        AND s.tenant_id = ${tenantId}
+        AND e.day_of_week = ${dayNum}
+      ORDER BY t.sequence ASC
     `;
 
     // Pending leave count
@@ -108,7 +114,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       staff: { id: st.id, name: st.name, staffId: st.staff_id, department: st.department, role: st.role },
       todaySchedule: todayResult.rows.map(r => ({
         id: r.id, subject: r.subject, className: r.class_name,
-        timeSlot: r.time_slot, room: r.room, startTime: r.start_time, endTime: r.end_time,
+        timeSlot: `${String(r.start_time).slice(0, 5)} - ${String(r.end_time).slice(0, 5)}`,
+        room: r.room, startTime: String(r.start_time).slice(0, 5), endTime: String(r.end_time).slice(0, 5),
       })),
       pendingLeaveCount,
       recentAnnouncements: annResult.rows.map(r => ({ id: r.id, title: r.title, date: r.date, preview: r.preview })),

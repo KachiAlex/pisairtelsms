@@ -27,11 +27,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     try {
       const result = await sql`
         SELECT title, description, subject, due_date::text AS due_date,
-          max_score, type, instructions, created_at::text AS created_at,
+          max_score, type, created_at::text AS created_at,
           COUNT(*) AS student_count
         FROM student_assignments
         WHERE teacher_id = ${staffId}
-        GROUP BY title, description, subject, due_date, max_score, type, instructions, created_at
+        GROUP BY title, description, subject, due_date, max_score, type, created_at
         ORDER BY created_at DESC
         LIMIT 100
       `;
@@ -44,7 +44,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           dueDate: r.due_date,
           maxScore: Number(r.max_score),
           type: r.type,
-          instructions: r.instructions,
+          instructions: r.description,
           createdAt: r.created_at,
           studentCount: parseInt(r.student_count),
         }))

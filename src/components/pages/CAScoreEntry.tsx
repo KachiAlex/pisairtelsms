@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { Save, Send, CheckCircle2, AlertCircle, RefreshCw, Users, Loader2, CalendarCheck, Search } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Save, Send, CheckCircle2, AlertCircle, RefreshCw, Users, Loader2, CalendarCheck, Search, Download, Upload, FileSpreadsheet } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -44,6 +44,12 @@ interface ScoreInput {
   testsScore: string; assignmentsScore: string
   projectsScore: string; examsScore: string; attendance: string
 }
+interface ImportRow {
+  row: number; admissionNo: string; studentName: string
+  testsScore: string; assignmentsScore: string; projectsScore: string
+  examsScore: string; attendance: string
+  studentId?: string; error?: string
+}
 
 export function CAScoreEntry() {
   const { tenantId } = useTenant()
@@ -65,6 +71,10 @@ export function CAScoreEntry() {
   const [autoFillingAttendance, setAutoFillingAttendance] = useState(false)
   const [autoFilledStudents, setAutoFilledStudents] = useState<Set<string>>(new Set())
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importRows, setImportRows] = useState<ImportRow[]>([])
+  const [importFileName, setImportFileName] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [caConfig, setCaConfig] = useState<CAConfigShape | null>(null)
   // "Marked out of" per component — defaults to 100 (i.e. raw = percentage,
   // same as before). Change to e.g. 20 when the test was marked out of 20.
@@ -352,6 +362,164 @@ export function CAScoreEntry() {
     }
   }
 
+  // ── CSV template / import ──────────────────────────────────────────────
+  const csvEscape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
+
+  const handleDownloadTemplate = () => {
+    const header = [
+      'Admission No', 'Student Name',
+      `Tests (of ${colMaxes.tests})`, `Assignments (of ${colMaxes.assignments})`,
+      `Projects (of ${colMaxes.projects})`, `Exams (of ${colMaxes.exams})`,
+      'Attendance %',
+    ]
+    const lines = [header.join(',')]
+    for (const input of Object.values(scoreInputs)) {
+      lines.push([
+        csvEscape(input.admissionNo || ''), csvEscape(input.studentName || ''),
+        input.testsScore, input.assignmentsScore, input.projectsScore,
+        input.examsScore, input.attendance,
+      ].join(','))
+    }
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const safe = (s: string) => s.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '')
+    a.href = url
+    a.download = `ca_scores_${safe(selectedClass)}_${safe(selectedSubject)}_${safe(term)}_${safe(academicSession)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  /** Minimal CSV parser — handles quoted fields, escaped quotes, CRLF. */
+  const parseCsv = (text: string): string[][] => {
+    const rows: string[][] = []
+    let field = '', row: string[] = [], inQuotes = false
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i]
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++ } else inQuotes = false
+        } else field += c
+      } else if (c === '"') inQuotes = true
+      else if (c === ',') { row.push(field); field = '' }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++
+        row.push(field); field = ''
+        if (row.some(f => f.trim() !== '')) rows.push(row)
+        row = []
+      } else field += c
+    }
+    row.push(field)
+    if (row.some(f => f.trim() !== '')) rows.push(row)
+    return rows
+  }
+
+  /** Header → field key. Matches "Tests (of 20)", "tests_score", "Attendance %", etc. */
+  const colKey = (h: string): keyof Omit<ImportRow, 'row' | 'studentId' | 'error'> | null => {
+    const k = h.toLowerCase().replace(/[^a-z]/g, '')
+    if (k.includes('admission')) return 'admissionNo'
+    if (k.includes('name') || k === 'student') return 'studentName'
+    if (k.startsWith('test')) return 'testsScore'
+    if (k.startsWith('assignment')) return 'assignmentsScore'
+    if (k.startsWith('project')) return 'projectsScore'
+    if (k.startsWith('exam')) return 'examsScore'
+    if (k.startsWith('attendance') || k === 'attend') return 'attendance'
+    return null
+  }
+
+  const validateImportValue = (raw: string, max: number, label: string): string | null => {
+    if (raw === '') return null
+    const n = Number(raw)
+    if (Number.isNaN(n)) return `${label}: "${raw}" is not a number`
+    if (n < 0) return `${label}: ${raw} is negative`
+    if (n > max) return `${label}: ${raw} exceeds the "of ${max}" maximum`
+    return null
+  }
+
+  const handleImportFile = async (file: File) => {
+    setImportFileName(file.name)
+    const text = await file.text()
+    const rows = parseCsv(text)
+    if (rows.length < 2) {
+      toast({ title: 'Empty file', description: 'The CSV has no data rows. Download the template first.', variant: 'destructive' })
+      return
+    }
+    const headers = rows[0].map(h => colKey(h))
+    const admitIdx = headers.indexOf('admissionNo')
+    const nameIdx = headers.indexOf('studentName')
+    if (admitIdx === -1 && nameIdx === -1) {
+      toast({ title: 'Missing student column', description: 'The CSV needs an "Admission No" or "Student Name" column.', variant: 'destructive' })
+      return
+    }
+
+    // Lookup maps — admission number is canonical, name is a fallback
+    const byAdmission = new Map<string, ScoreInput>()
+    const byName = new Map<string, ScoreInput>()
+    for (const input of Object.values(scoreInputs)) {
+      if (input.admissionNo) byAdmission.set(input.admissionNo.trim().toLowerCase(), input)
+      if (input.studentName) byName.set(input.studentName.trim().toLowerCase(), input)
+    }
+
+    const parsed: ImportRow[] = []
+    for (let i = 1; i < rows.length; i++) {
+      const cells = rows[i]
+      const get = (key: string) => {
+        const idx = headers.indexOf(key as any)
+        return idx === -1 ? '' : (cells[idx] || '').trim()
+      }
+      const admissionNo = get('admissionNo')
+      const studentName = get('studentName')
+      const match =
+        (admissionNo && byAdmission.get(admissionNo.toLowerCase())) ||
+        (studentName && byName.get(studentName.toLowerCase()))
+
+      const imported: ImportRow = {
+        row: i + 1, admissionNo, studentName,
+        testsScore: get('testsScore'), assignmentsScore: get('assignmentsScore'),
+        projectsScore: get('projectsScore'), examsScore: get('examsScore'),
+        attendance: get('attendance'),
+      }
+      if (!match) {
+        imported.error = `No student matches "${admissionNo || studentName}" in this grid`
+      } else {
+        imported.studentId = match.studentId
+        imported.error =
+          validateImportValue(imported.testsScore, colMaxes.tests, 'Tests') ||
+          validateImportValue(imported.assignmentsScore, colMaxes.assignments, 'Assignments') ||
+          validateImportValue(imported.projectsScore, colMaxes.projects, 'Projects') ||
+          validateImportValue(imported.examsScore, colMaxes.exams, 'Exams') ||
+          validateImportValue(imported.attendance, 100, 'Attendance') ||
+          undefined
+      }
+      parsed.push(imported)
+    }
+    setImportRows(parsed)
+  }
+
+  const applyImport = () => {
+    const valid = importRows.filter(r => !r.error && r.studentId)
+    setScoreInputs(prev => {
+      const next = { ...prev }
+      for (const r of valid) {
+        const cur = next[r.studentId!]
+        if (!cur) continue
+        next[r.studentId!] = {
+          ...cur,
+          testsScore: r.testsScore, assignmentsScore: r.assignmentsScore,
+          projectsScore: r.projectsScore, examsScore: r.examsScore,
+          attendance: r.attendance,
+        }
+      }
+      return next
+    })
+    setImportOpen(false)
+    setImportRows([])
+    toast({
+      title: 'Import applied',
+      description: `${valid.length} row(s) loaded into the grid — review them, then Save & Submit All.`,
+    })
+  }
+
   // Live weighted total preview: contribution = raw/max × weight.
   const liveTotal = (input: ScoreInput): number => {
     const parts: [string, number, number][] = [
@@ -489,6 +657,12 @@ export function CAScoreEntry() {
                 </p>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>Add student</Button>
+                  <Button variant="outline" size="sm" onClick={handleDownloadTemplate} disabled={Object.keys(scoreInputs).length === 0} title="Download a CSV pre-filled with this class list">
+                    <Download className="h-4 w-4 mr-2" /> Template
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setImportRows([]); setImportFileName(''); setImportOpen(true) }} title="Import scores from a filled CSV template">
+                    <Upload className="h-4 w-4 mr-2" /> Import CSV
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleAutoFillAttendance} disabled={autoFillingAttendance || !selectedClass || !academicSession || !term}>
                     {autoFillingAttendance ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CalendarCheck className="h-4 w-4 mr-2" />}
                     Auto-fill Attendance
@@ -568,6 +742,106 @@ export function CAScoreEntry() {
         defaultClass={selectedClass}
         onAdd={handleAddStudents}
       />
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import scores from CSV</DialogTitle>
+            <DialogDescription>
+              Upload a filled template for {selectedClass} · {selectedSubject} · {term} {academicSession}.
+              Rows are matched to students by Admission No (or exact name). Nothing is saved yet —
+              valid rows load into the grid for your review.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = '' }}
+              />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                {importFileName ? 'Choose a different file' : 'Choose CSV file'}
+              </Button>
+              {importFileName && <span className="text-sm text-gray-600">{importFileName}</span>}
+              <Button variant="ghost" size="sm" onClick={handleDownloadTemplate} className="ml-auto">
+                <Download className="h-4 w-4 mr-2" /> Download template
+              </Button>
+            </div>
+
+            {importRows.length > 0 && (() => {
+              const valid = importRows.filter(r => !r.error)
+              const bad = importRows.filter(r => r.error)
+              return (
+                <>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Badge variant="default">{valid.length} valid</Badge>
+                    {bad.length > 0 && <Badge variant="destructive">{bad.length} with errors (will be skipped)</Badge>}
+                  </div>
+                  <div className="border rounded-md overflow-x-auto max-h-72 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">Row</TableHead>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Tests</TableHead>
+                          <TableHead>Assign.</TableHead>
+                          <TableHead>Proj.</TableHead>
+                          <TableHead>Exams</TableHead>
+                          <TableHead>Attend %</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importRows.map((r, i) => (
+                          <TableRow key={i} className={r.error ? 'bg-red-50' : ''}>
+                            <TableCell className="text-xs text-gray-400">{r.row}</TableCell>
+                            <TableCell className="font-medium">
+                              {r.studentName || '—'}
+                              <p className="text-xs text-gray-400">{r.admissionNo}</p>
+                            </TableCell>
+                            <TableCell>{r.testsScore || '—'}</TableCell>
+                            <TableCell>{r.assignmentsScore || '—'}</TableCell>
+                            <TableCell>{r.projectsScore || '—'}</TableCell>
+                            <TableCell>{r.examsScore || '—'}</TableCell>
+                            <TableCell>{r.attendance || '—'}</TableCell>
+                            <TableCell>
+                              {r.error
+                                ? <span className="text-xs text-red-600">{r.error}</span>
+                                : <CheckCircle2 className="h-4 w-4 text-green-600" />}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setImportOpen(false)}>Cancel</Button>
+                    <Button onClick={applyImport} disabled={valid.length === 0}>
+                      Apply {valid.length} row{valid.length === 1 ? '' : 's'} to grid
+                    </Button>
+                  </div>
+                </>
+              )
+            })()}
+
+            {importRows.length === 0 && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  First time? Click <strong>Download template</strong> — it comes pre-filled with the
+                  class list and any scores already entered, plus each column's "marked out of" value
+                  in the header. Fill the score columns in Excel, save as CSV, and upload it here.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

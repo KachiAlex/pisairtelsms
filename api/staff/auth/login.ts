@@ -61,6 +61,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
+    // Suspended or otherwise inactive staff must not be issued a session —
+    // without this check suspension only hid the row, it didn't block login.
+    if (staff.status !== 'active') {
+      await logLoginFailure(req, email, `Staff account is ${staff.status}`, staff.tenantId)
+      return res.status(403).json({
+        error: 'This staff account is not active. Contact your school administrator.',
+      })
+    }
+
     const jwtSecret = getJwtSecret()
     const expiresIn = 24 * 60 * 60
     const expiresAt = Date.now() + expiresIn * 1000

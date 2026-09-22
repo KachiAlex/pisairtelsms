@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Users, Plus, Search, Filter, ShieldCheck, Mail, Loader, RefreshCw, AlertCircle, Edit, Trash2, Send } from 'lucide-react'
+import { Users, Plus, Search, Filter, ShieldCheck, Mail, Loader, RefreshCw, AlertCircle, Edit, Trash2, Send, KeyRound } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -15,11 +15,15 @@ interface UserAccount {
   name: string
   email: string
   role: string
-  status: 'active' | 'invited' | 'suspended' | 'graduated'
+  status: string
   last_active: string | null
+  invited_at: string | null
   created_at: string
-  /** 'user' rows are tenant_users accounts (manageable here); 'staff'/'student' are directory entries managed in their own sections. */
+  /** 'user' rows are tenant_users accounts; 'staff'/'student' are people records.
+   *  A staff row carries account_id/account_status when a mirrored login account exists. */
   type: 'user' | 'staff' | 'student'
+  account_id: string | null
+  account_status: string | null
 }
 
 function getApiHeaders() {
@@ -34,11 +38,13 @@ function getApiHeaders() {
   }
 }
 
-const statusColors: Record<UserAccount['status'], string> = {
+const statusColors: Record<string, string> = {
   active: 'bg-emerald-100 text-emerald-700',
   invited: 'bg-amber-100 text-amber-700',
   suspended: 'bg-rose-100 text-rose-700',
   graduated: 'bg-sky-100 text-sky-700',
+  on_leave: 'bg-amber-100 text-amber-700',
+  terminated: 'bg-rose-100 text-rose-700',
 }
 
 const typeColors: Record<UserAccount['type'], string> = {
@@ -187,6 +193,67 @@ function EditUserDialog({ user, onUpdated }: { user: UserAccount; onUpdated: () 
   )
 }
 
+function StaffPasswordDialog({ user, onDone }: { user: UserAccount; onDone: () => void }) {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (password.length < 6) return
+    try {
+      setSaving(true)
+      const res = await fetch('/api/tenant/staff/reset-password', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ id: user.id, newPassword: password }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Failed to reset password')
+      toast({ title: 'Password set', description: `${user.name} can now sign in to the staff portal with ${user.email} and this password.` })
+      setOpen(false)
+      setPassword('')
+      onDone()
+    } catch (err) {
+      toast({ title: 'Reset failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-amber-600" title="Set staff portal password">
+          <KeyRound className="h-3 w-3 mr-1" />Password
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Set staff password</DialogTitle>
+          <DialogDescription>
+            {user.name} signs in at the staff portal with <strong>{user.email}</strong> and this password. Share it with them directly.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div>
+            <Label>New password</Label>
+            <Input type="text" required minLength={6} className="mt-1" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 6 characters" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving || password.length < 6}>
+              {saving ? <Loader className="h-3 w-3 animate-spin mr-1" /> : null}
+              Set password
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function UserAccounts() {
   const { toast } = useToast()
   const [users, setUsers] = useState<UserAccount[]>([])
@@ -226,6 +293,28 @@ export function UserAccounts() {
       if (!res.ok) throw new Error(json.error || 'Failed to update status')
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: next } : u))
       toast({ title: `User ${next === 'suspended' ? 'suspended' : 'reactivated'}`, description: `${user.name} is now ${next}.` })
+    } catch (err) {
+      toast({ title: 'Update failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  // Staff suspension goes through the staff record — it is what the staff
+  // login checks, and it keeps the mirrored account in sync.
+  const handleToggleStaffStatus = async (user: UserAccount) => {
+    const next = user.status === 'suspended' ? 'active' : 'suspended'
+    try {
+      setTogglingId(user.id)
+      const res = await fetch(`/api/tenant/staff?id=${encodeURIComponent(user.id)}`, {
+        method: 'PUT',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ status: next }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Failed to update status')
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: next, account_status: next } : u))
+      toast({ title: `Staff ${next === 'suspended' ? 'suspended' : 'reactivated'}`, description: `${user.name} ${next === 'suspended' ? 'can no longer sign in' : 'can sign in again'}.` })
     } catch (err) {
       toast({ title: 'Update failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     } finally {
@@ -300,9 +389,9 @@ export function UserAccounts() {
         id="user-accounts"
         title="What this directory shows"
         tips={[
-          'Everyone with credentials appears here — the Type badge distinguishes invited Users, Staff, and Students.',
-          'Suspend/Edit/Delete apply to invited user accounts. Staff and student records are managed in Staff Management and Students.',
-          'Suspending blocks the next login; to end a live session right now use Security & Compliance → Session Management.',
+          'One row per person — a staff member\'s login account is folded into their Staff row. Type badge distinguishes Users, Staff, and Students.',
+          'Staff sign in at the staff portal with their email and password — set one here with Password, or use Staff Management → key icon. Suspending a staff member blocks their login immediately.',
+          'Edit/Resend/Delete apply to invited user accounts. Student profiles are managed in Students.',
         ]}
       />
 
@@ -411,10 +500,20 @@ export function UserAccounts() {
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
+                        ) : user.type === 'staff' ? (
+                          <div className="flex justify-end gap-1" title="Profile details are managed in Staff Management">
+                            <StaffPasswordDialog user={user} onDone={loadUsers} />
+                            <Button
+                              size="sm" variant="ghost"
+                              className={user.status === 'suspended' ? 'text-emerald-600' : 'text-rose-600'}
+                              disabled={togglingId === user.id}
+                              onClick={() => handleToggleStaffStatus(user)}
+                            >
+                              {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                            </Button>
+                          </div>
                         ) : (
-                          <span className="text-xs text-gray-400">
-                            Managed in {user.type === 'staff' ? 'Staff' : 'Students'}
-                          </span>
+                          <span className="text-xs text-gray-400">Managed in Students</span>
                         )}
                       </TableCell>
                     </TableRow>

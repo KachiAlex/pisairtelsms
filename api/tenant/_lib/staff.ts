@@ -535,8 +535,14 @@ export async function fetchStaffById(id: string, tenantId?: string): Promise<Sta
 export async function fetchStaffByEmail(email: string): Promise<(Staff & { passwordHash: string | null }) | null> {
   await ensureStaffTables()
   try {
+    // Deterministic pick when legacy duplicate rows share an email: prefer an
+    // active row linked to a tenant account, then one with a password set,
+    // then the oldest record.
     const result = await poolQuery<StaffRow & { password_hash: string | null }>(
-      'SELECT * FROM staff WHERE email = $1 LIMIT 1',
+      `SELECT * FROM staff WHERE lower(email) = lower($1)
+       ORDER BY (status = 'active') DESC, (user_id IS NOT NULL) DESC,
+                (password_hash IS NOT NULL) DESC, created_at ASC
+       LIMIT 1`,
       [email]
     )
     if (!result.rows[0]) return null
@@ -552,17 +558,37 @@ export async function createStaffMember(
   tenantId?: string
 ): Promise<Staff> {
   await ensureStaffTables()
-  const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  const staffId = payload.staffId || `STF${Date.now().toString().slice(-6)}`
   const rawPassword = payload.defaultPassword || `${payload.name.split(' ')[0].toLowerCase()}@${Date.now().toString().slice(-4)}`
   const passwordHash = await hashPassword(rawPassword)
   const resolvedTenantId = tenantId || 'default-tenant'
+  const email = payload.email?.trim() || null
+
+  // Email is the person's identity — never create a second staff row for an
+  // email this tenant already has. Update the existing record instead.
+  if (email) {
+    const dup = await sql`SELECT id FROM staff WHERE tenant_id = ${resolvedTenantId} AND lower(email) = lower(${email}) LIMIT 1`
+    if (dup.rows[0]) {
+      const updated = await sql<StaffRow>`
+        UPDATE staff SET name = ${payload.name}, role = ${payload.role},
+          department = ${payload.department}, phone = ${payload.phone},
+          hire_date = ${payload.hireDate}, status = COALESCE(${payload.status ?? null}, status),
+          updated_at = NOW()
+        WHERE id = ${dup.rows[0].id} RETURNING *
+      `
+      const member = rowToStaff(updated.rows[0])
+      await mirrorStaffUser(member, resolvedTenantId)
+      return member
+    }
+  }
+
+  const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const staffId = payload.staffId || `STF${Date.now().toString().slice(-6)}`
   const result = await sql<StaffRow>`
     INSERT INTO staff (id, staff_id, tenant_id, name, role, department, status, email, phone, hire_date,
                        salary, address, qualification, gender, date_of_birth, emergency_contact, emergency_phone,
                        account_number, bank_code, bank_name, password_hash)
     VALUES (${id}, ${staffId}, ${resolvedTenantId}, ${payload.name}, ${payload.role}, ${payload.department},
-            ${payload.status || 'active'}, ${payload.email}, ${payload.phone}, ${payload.hireDate},
+            ${payload.status || 'active'}, ${email}, ${payload.phone}, ${payload.hireDate},
             ${payload.salary ?? null}, ${payload.address ?? null}, ${payload.qualification ?? null},
             ${payload.gender ?? null}, ${payload.dateOfBirth ?? null},
             ${payload.emergencyContact ?? null}, ${payload.emergencyPhone ?? null},
@@ -570,25 +596,8 @@ export async function createStaffMember(
             ${passwordHash})
     RETURNING *
   `
-
-  // Mirror into tenant_users using actual tenantId (not functional department)
-  try {
-    const existing = await sql`SELECT id FROM tenant_users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`
-    if (existing.rows.length > 0) {
-      await sql`
-        UPDATE tenant_users
-        SET tenant_id = ${resolvedTenantId}, name = ${payload.name}, role = ${payload.role}, status = 'active'
-        WHERE email = ${payload.email.toLowerCase()}
-      `
-    } else {
-      await sql`
-        INSERT INTO tenant_users (tenant_id, name, email, role, status)
-        VALUES (${resolvedTenantId}, ${payload.name}, ${payload.email.toLowerCase()}, ${payload.role}, 'active')
-      `
-    }
-  } catch (e) {
-    console.error('tenant_users mirror insert failed:', e)
-  }
+  const member = rowToStaff(result.rows[0])
+  await mirrorStaffUser(member, resolvedTenantId)
 
   // Send credentials email via Brevo
   try {
@@ -606,7 +615,42 @@ export async function createStaffMember(
     console.error('Staff credentials email failed:', emailErr)
   }
 
-  return rowToStaff(result.rows[0])
+  return member
+}
+
+/**
+ * Keeps the tenant_users account mirror in sync with a staff record, and
+ * back-links staff.user_id to the account so the staff row knows which login
+ * belongs to it. Scoped by (tenant_id, email) — never matches another tenant.
+ */
+async function mirrorStaffUser(member: Staff, tenantId: string): Promise<void> {
+  if (!member.email) return
+  const email = member.email.toLowerCase()
+  try {
+    const existing = await sql`
+      SELECT id FROM tenant_users WHERE email = ${email} AND tenant_id = ${tenantId} LIMIT 1
+    `
+    let userId: string | null = existing.rows[0]?.id ?? null
+    if (userId) {
+      await sql`
+        UPDATE tenant_users
+        SET name = ${member.name}, role = ${member.role}, status = 'active'
+        WHERE id = ${userId}
+      `
+    } else {
+      const inserted = await sql`
+        INSERT INTO tenant_users (tenant_id, name, email, role, status)
+        VALUES (${tenantId}, ${member.name}, ${email}, ${member.role}, 'active')
+        RETURNING id
+      `
+      userId = inserted.rows[0]?.id ?? null
+    }
+    if (userId) {
+      await sql`UPDATE staff SET user_id = ${String(userId)} WHERE id = ${member.id} AND tenant_id = ${tenantId}`
+    }
+  } catch (e) {
+    console.error('tenant_users mirror failed:', e)
+  }
 }
 
 export async function updateStaffMember(
@@ -638,15 +682,21 @@ export async function updateStaffMember(
       RETURNING *
     `
     const staff = result.rows[0] ? rowToStaff(result.rows[0]) : null
-    if (staff) {
+    if (staff?.email) {
       try {
         const resolvedTenantId = tenantId || 'default-tenant'
         const userStatus = staff.status === 'active' ? 'active' : 'suspended'
-        await sql`
+        // Scoped by tenant — a matching email in another tenant must not be touched
+        const synced = await sql`
           UPDATE tenant_users
-          SET tenant_id = ${resolvedTenantId}, name = ${staff.name}, role = ${staff.role}, status = ${userStatus}
-          WHERE email = ${staff.email.toLowerCase()}
+          SET name = ${staff.name}, role = ${staff.role}, status = ${userStatus}
+          WHERE email = ${staff.email.toLowerCase()} AND tenant_id = ${resolvedTenantId}
+          RETURNING id
         `
+        const userId = synced.rows[0]?.id
+        if (userId) {
+          await sql`UPDATE staff SET user_id = ${String(userId)} WHERE id = ${staff.id} AND tenant_id = ${resolvedTenantId}`
+        }
       } catch (e) {
         console.error('tenant_users sync on update failed:', e)
       }

@@ -15,24 +15,36 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   if (req.method === 'GET') {
     try {
-      // Unified account directory: invited tenant accounts plus the staff and
-      // student records that actually hold credentials. `type` distinguishes
-      // manageable tenant_users rows from staff/student directory entries.
+      // Unified account directory: one row per person. A tenant_users account
+      // whose email matches a staff record is folded into the staff row — the
+      // staff row then carries account_id/account_status so the UI can manage
+      // the login without showing the same person twice.
       const result = await sql`
-        SELECT id::text AS id, name, email, role, status, last_active, invited_at, created_at, 'user' AS type
-        FROM tenant_users
-        WHERE tenant_id = ${tenantId}
+        SELECT tu.id::text AS id, tu.name, tu.email, tu.role, tu.status,
+               tu.last_active, tu.invited_at, tu.created_at, 'user' AS type,
+               NULL::text AS account_id, NULL::text AS account_status
+        FROM tenant_users tu
+        WHERE tu.tenant_id = ${tenantId}
+          AND NOT EXISTS (
+            SELECT 1 FROM staff s
+            WHERE s.tenant_id = tu.tenant_id AND lower(s.email) = lower(tu.email)
+          )
         UNION ALL
-        SELECT id::text AS id, name, email, role, status, NULL AS last_active, NULL AS invited_at, created_at, 'staff' AS type
-        FROM staff
-        WHERE tenant_id = ${tenantId}
+        SELECT s.id::text AS id, s.name, s.email, s.role, s.status,
+               tu.last_active, tu.invited_at, s.created_at, 'staff' AS type,
+               tu.id::text AS account_id, tu.status AS account_status
+        FROM staff s
+        LEFT JOIN tenant_users tu
+          ON tu.tenant_id = s.tenant_id AND lower(tu.email) = lower(s.email)
+        WHERE s.tenant_id = ${tenantId}
         UNION ALL
-        SELECT id::text AS id, name, guardian_email AS email,
-               ('Student' || COALESCE(' — ' || class, '')) AS role,
-               LOWER(status) AS status,
-               NULL AS last_active, NULL AS invited_at, created_at, 'student' AS type
-        FROM students
-        WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+        SELECT st.id::text AS id, st.name, st.guardian_email AS email,
+               ('Student' || COALESCE(' — ' || st.class, '')) AS role,
+               LOWER(st.status) AS status,
+               NULL AS last_active, NULL AS invited_at, st.created_at, 'student' AS type,
+               NULL::text AS account_id, NULL::text AS account_status
+        FROM students st
+        WHERE st.tenant_id = ${tenantId} AND st.deleted_at IS NULL
         ORDER BY created_at DESC
       `
       return res.status(200).json({ data: result.rows })

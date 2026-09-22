@@ -619,9 +619,10 @@ export async function createStaffMember(
 }
 
 /**
- * Keeps the tenant_users account mirror in sync with a staff record, and
- * back-links staff.user_id to the account so the staff row knows which login
- * belongs to it. Scoped by (tenant_id, email) — never matches another tenant.
+ * Keeps the tenant_users account mirror in sync with a staff record.
+ * Scoped by (tenant_id, email) — never matches another tenant.
+ * (staff.user_id FKs to the legacy `users` table, not tenant_users, so the
+ * staff↔account linkage lives in the shared email.)
  */
 async function mirrorStaffUser(member: Staff, tenantId: string): Promise<void> {
   if (!member.email) return
@@ -630,7 +631,7 @@ async function mirrorStaffUser(member: Staff, tenantId: string): Promise<void> {
     const existing = await sql`
       SELECT id FROM tenant_users WHERE email = ${email} AND tenant_id = ${tenantId} LIMIT 1
     `
-    let userId: string | null = existing.rows[0]?.id ?? null
+    const userId: string | null = existing.rows[0]?.id ?? null
     if (userId) {
       await sql`
         UPDATE tenant_users
@@ -638,16 +639,13 @@ async function mirrorStaffUser(member: Staff, tenantId: string): Promise<void> {
         WHERE id = ${userId}
       `
     } else {
-      const inserted = await sql`
+      await sql`
         INSERT INTO tenant_users (tenant_id, name, email, role, status)
         VALUES (${tenantId}, ${member.name}, ${email}, ${member.role}, 'active')
-        RETURNING id
       `
-      userId = inserted.rows[0]?.id ?? null
     }
-    if (userId) {
-      await sql`UPDATE staff SET user_id = ${String(userId)} WHERE id = ${member.id} AND tenant_id = ${tenantId}`
-    }
+    // Note: staff.user_id FKs to the legacy `users` table, not tenant_users —
+    // email is the linkage, so there is nothing to back-write here.
   } catch (e) {
     console.error('tenant_users mirror failed:', e)
   }
@@ -687,16 +685,11 @@ export async function updateStaffMember(
         const resolvedTenantId = tenantId || 'default-tenant'
         const userStatus = staff.status === 'active' ? 'active' : 'suspended'
         // Scoped by tenant — a matching email in another tenant must not be touched
-        const synced = await sql`
+        await sql`
           UPDATE tenant_users
           SET name = ${staff.name}, role = ${staff.role}, status = ${userStatus}
           WHERE email = ${staff.email.toLowerCase()} AND tenant_id = ${resolvedTenantId}
-          RETURNING id
         `
-        const userId = synced.rows[0]?.id
-        if (userId) {
-          await sql`UPDATE staff SET user_id = ${String(userId)} WHERE id = ${staff.id} AND tenant_id = ${resolvedTenantId}`
-        }
       } catch (e) {
         console.error('tenant_users sync on update failed:', e)
       }

@@ -14,6 +14,7 @@ import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPut } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
+import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 
 interface RecomputeDetail {
   studentId: string
@@ -76,18 +77,16 @@ export function ResultComputation() {
   const [loadingCompiled, setLoadingCompiled] = useState(false)
   const [allScores, setAllScores] = useState<ScoreSummary[]>([])
 
-  const currentYear = new Date().getFullYear()
-  const defaultSession = `${currentYear}/${currentYear + 1}`
-
-  const { termNames, currentTermName } = useTimetableTerms(term)
+  const { session: resolvedSession, term: resolvedTerm } = useAcademicPeriod()
+  const { termNames } = useTimetableTerms(term, academicSession || resolvedSession)
 
   useEffect(() => {
-    setAcademicSession(defaultSession)
-  }, [])
+    if (!academicSession && resolvedSession) setAcademicSession(resolvedSession)
+  }, [resolvedSession])
 
   useEffect(() => {
-    if (!term && currentTermName) setTerm(currentTermName)
-  }, [currentTermName])
+    if (!term && resolvedTerm) setTerm(resolvedTerm)
+  }, [resolvedTerm])
 
   const loadScores = useCallback(async () => {
     if (!academicSession || !term) return

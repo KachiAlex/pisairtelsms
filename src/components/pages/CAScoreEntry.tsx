@@ -16,6 +16,7 @@ import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
+import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 
 interface SubjectItem { id: string; name: string }
 interface StudentItem { id: string; name: string; admissionNo?: string }
@@ -68,18 +69,16 @@ export function CAScoreEntry() {
   // same as before). Change to e.g. 20 when the test was marked out of 20.
   const [colMaxes, setColMaxes] = useState<CAWeights>({ tests: 100, assignments: 100, projects: 100, exams: 100 })
 
-  const { termNames, currentTermName } = useTimetableTerms(term)
-
-  const currentYear = new Date().getFullYear()
-  const defaultSession = `${currentYear}/${currentYear + 1}`
+  const { session: resolvedSession, term: resolvedTerm } = useAcademicPeriod()
+  const { termNames } = useTimetableTerms(term, academicSession || resolvedSession)
 
   useEffect(() => {
-    setAcademicSession(defaultSession)
-  }, [])
+    if (!academicSession && resolvedSession) setAcademicSession(resolvedSession)
+  }, [resolvedSession])
 
   useEffect(() => {
-    if (!term && currentTermName) setTerm(currentTermName)
-  }, [currentTermName])
+    if (!term && resolvedTerm) setTerm(resolvedTerm)
+  }, [resolvedTerm])
 
   const loadMeta = useCallback(async () => {
     setLoadingMeta(true)

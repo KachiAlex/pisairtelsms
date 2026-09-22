@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { useToast } from '../../ui/use-toast'
+import { useAcademicPeriod } from '../../../hooks/useAcademicPeriod'
 
 interface Student {
   id: string
@@ -46,6 +47,8 @@ interface ConfirmationData {
 }
 
 export function TeacherAttendanceEntry() {
+  const { session: academicSessionResolved, term: academicTerm } = useAcademicPeriod()
+
   // State management
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -300,11 +303,11 @@ export function TeacherAttendanceEntry() {
         return
       }
 
-      const month = new Date().getMonth() + 1
-      const term = month >= 9 || month <= 12 ? '1' : month <= 4 ? '2' : '3'
-      const academicYear = month >= 9
-        ? `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`
-        : `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`
+      // The API validates term against timetable_terms.name and
+      // academicSession against configured sessions — send resolved values,
+      // not a calendar-date guess.
+      const term = academicTerm
+      const academicYear = academicSessionResolved
 
       const records = confirmationData.records.map((record) => ({
         studentId: record.studentId,

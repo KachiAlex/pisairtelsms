@@ -14,6 +14,7 @@ import { useTenant } from '../../contexts/TenantContext'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPut, tenantApiPost } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
+import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 
 interface CompiledRow {
   id: string
@@ -52,18 +53,16 @@ export function ResultApproval() {
   const [loading, setLoading] = useState(false)
   const [approving, setApproving] = useState(false)
 
-  const currentYear = new Date().getFullYear()
-  const defaultSession = `${currentYear}/${currentYear + 1}`
-
-  const { termNames, currentTermName } = useTimetableTerms(term)
+  const { session: resolvedSession, term: resolvedTerm } = useAcademicPeriod()
+  const { termNames } = useTimetableTerms(term, academicSession || resolvedSession)
 
   useEffect(() => {
-    setAcademicSession(defaultSession)
-  }, [])
+    if (!academicSession && resolvedSession) setAcademicSession(resolvedSession)
+  }, [resolvedSession])
 
   useEffect(() => {
-    if (!term && currentTermName) setTerm(currentTermName)
-  }, [currentTermName])
+    if (!term && resolvedTerm) setTerm(resolvedTerm)
+  }, [resolvedTerm])
 
   const loadCompiled = useCallback(async () => {
     if (!academicSession || !term) return

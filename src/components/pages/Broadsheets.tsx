@@ -13,6 +13,7 @@ import { ClassArmSelect } from '../ui/class-arm-select'
 import { useToast } from '../ui/use-toast'
 import { tenantApiGet } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
+import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 
 interface SubjectEntry {
   score: number
@@ -61,18 +62,16 @@ export function Broadsheets() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { termNames, currentTermName } = useTimetableTerms(term)
-
-  const currentYear = new Date().getFullYear()
-  const defaultSession = `${currentYear}/${currentYear + 1}`
+  const { session: resolvedSession, term: resolvedTerm } = useAcademicPeriod()
+  const { termNames } = useTimetableTerms(term, academicSession || resolvedSession)
 
   useEffect(() => {
-    setAcademicSession(defaultSession)
-  }, [])
+    if (!academicSession && resolvedSession) setAcademicSession(resolvedSession)
+  }, [resolvedSession])
 
   useEffect(() => {
-    if (!term && currentTermName) setTerm(currentTermName)
-  }, [currentTermName])
+    if (!term && resolvedTerm) setTerm(resolvedTerm)
+  }, [resolvedTerm])
 
   const loadBroadsheet = useCallback(async () => {
     if (!academicSession || !term || !selectedClass) return

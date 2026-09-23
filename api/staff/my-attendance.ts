@@ -207,7 +207,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, status, latitude, longitude, geo_verified, notes)
           VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${today}, ${time}, ${checkInStatus},
                   ${latitude ?? null}, ${longitude ?? null}, ${geoVerified}, ${notes})
-          ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
+          ON CONFLICT (staff_id, date) DO UPDATE SET
+            tenant_id = EXCLUDED.tenant_id,
             check_in = EXCLUDED.check_in,
             status = EXCLUDED.status,
             latitude = EXCLUDED.latitude,
@@ -243,7 +244,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         await sql`
           UPDATE staff_attendance
           SET check_out = ${time}
-          WHERE staff_id = ${staffId} AND date = ${today} AND tenant_id = ${tenantId}
+          WHERE staff_id = ${staffId} AND date = ${today}
         `;
         return res.status(200).json({
           success: true,

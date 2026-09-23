@@ -226,11 +226,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const staffName = staffResult.rows[0]?.name || 'Unknown'
         const staffId = staffResult.rows[0]?.id || userId
 
-        // Check if already checked in today (tenant-scoped)
+        // Check if already checked in today — staff_id is globally unique and
+        // the (staff_id, date) constraint ignores tenant, so query without the
+        // tenant filter to also see legacy rows written under 'default-tenant'.
         const existingResult = await sql`
           SELECT id, check_in, check_out, status
           FROM staff_attendance
-          WHERE staff_id = ${staffId} AND date = ${today} AND tenant_id = ${tenantId}
+          WHERE staff_id = ${staffId} AND date = ${today}
           LIMIT 1
         `
 
@@ -257,11 +259,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           await sql`
             INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, status, notes, geo_verified)
             VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${today}, ${time}, ${checkInStatus}, 'QR code check-in', true)
-            ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
+            ON CONFLICT (staff_id, date) DO UPDATE SET
               check_in = EXCLUDED.check_in,
               status = EXCLUDED.status,
               notes = EXCLUDED.notes,
-              geo_verified = true
+              geo_verified = true,
+              tenant_id = EXCLUDED.tenant_id
           `
 
           return res.status(200).json({
@@ -276,8 +279,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           // ── Check Out ──
           await sql`
             UPDATE staff_attendance
-            SET check_out = ${time}
-            WHERE staff_id = ${staffId} AND date = ${today} AND tenant_id = ${tenantId}
+            SET check_out = ${time}, tenant_id = ${tenantId}
+            WHERE staff_id = ${staffId} AND date = ${today}
           `
 
           return res.status(200).json({

@@ -243,7 +243,7 @@ export async function createCommunication(
     INSERT INTO communications
       (id, tenant_id, type, title, body, audience, channels, scheduled_for, sent_at, status, sent_by, metadata, created_at, updated_at)
     VALUES
-      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${typeof payload.audience === 'string' ? payload.audience : JSON.stringify(payload.audience)}, ${Array.isArray(payload.channels) ? payload.channels : []}, ${payload.scheduledFor}, ${payload.sentAt}, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}, ${now})
+      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${typeof payload.audience === 'string' ? payload.audience : JSON.stringify(payload.audience)}, ${Array.isArray(payload.channels) ? payload.channels : []}, ${payload.scheduledFor ? new Date(payload.scheduledFor) : null}, ${payload.sentAt ? new Date(payload.sentAt) : null}, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}, ${now})
     RETURNING *
   `
   return mapCommunication(result.rows[0])

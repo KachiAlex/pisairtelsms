@@ -37,6 +37,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
   const { method } = req
   const { studentId } = req.query
 
@@ -47,7 +48,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     if (studentId && typeof studentId === 'string') {
       const studentRes = await sql`
-        SELECT id, name, class, arm FROM students WHERE id = ${studentId} AND deleted_at IS NULL LIMIT 1
+        SELECT id, name, class, arm FROM students WHERE id = ${studentId} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1
       `
       if (!studentRes.rows[0]) {
         return res.status(404).json({ error: 'Student not found' })
@@ -56,9 +57,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       const resultsRes = await sql`
         SELECT id::text AS exam_id, subject,
-               (COALESCE(ca_score,0) + COALESCE(exam_score,0)) AS score,
+               COALESCE(total_score, COALESCE(exam_score,0) + COALESCE(tests_score,0) + COALESCE(assignments_score,0) + COALESCE(projects_score,0)) AS score,
                updated_at::text AS date
-        FROM results WHERE student_id = ${studentId} ORDER BY updated_at DESC
+        FROM student_scores WHERE student_id = ${studentId} AND tenant_id = ${tenantId} ORDER BY updated_at DESC
       `
       const studentResults: ExamResult[] = resultsRes.rows.map(r => ({
         examId: r.exam_id,
@@ -116,13 +117,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(200).json({ data: progress })
     } else {
       const studentsRes = await sql`
-        SELECT id, name, class, arm, status FROM students WHERE deleted_at IS NULL
+        SELECT id, name, class, arm, status FROM students WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
       `
       const progressSummaries = []
       for (const student of studentsRes.rows) {
         const resultsRes = await sql`
-          SELECT (COALESCE(ca_score,0) + COALESCE(exam_score,0)) AS score
-          FROM results WHERE student_id = ${student.id}
+          SELECT COALESCE(total_score, COALESCE(exam_score,0) + COALESCE(tests_score,0) + COALESCE(assignments_score,0) + COALESCE(projects_score,0)) AS score
+          FROM student_scores WHERE student_id = ${student.id} AND tenant_id = ${tenantId}
         `
         const studentResults = resultsRes.rows
         const passedExams = studentResults.filter((r: any) => Number(r.score) >= 40).length

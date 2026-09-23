@@ -45,42 +45,31 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const activeTerm = termRows.rows.find(r => r.start_date <= today && today <= r.end_date)
     const termName = requestedTerm?.name || activeTerm?.name || availableTerms[0]?.name || null
 
-    // Results for this child filtered by the resolved term name
+    // Results for this child — published compiled results only (never drafts).
+    // compiled_results carries subject/class_average/position computed at compile time.
     const resultsQuery = termName
-      ? await sql`SELECT id::text, subject, ca_score, exam_score, (ca_score+exam_score) AS total_score, grade FROM results WHERE student_id = ${childId} AND term = ${termName} ORDER BY subject`
-      : await sql`SELECT id::text, subject, ca_score, exam_score, (ca_score+exam_score) AS total_score, grade FROM results WHERE student_id = ${childId} ORDER BY subject`
-
-    // Class average per subject
-    const classAvgRows = termName
-      ? await sql`
-          SELECT r.subject, ROUND(AVG(r.ca_score + r.exam_score)) AS avg
-          FROM results r JOIN students s ON s.id = r.student_id
-          WHERE s.class = ${studentClass} AND r.term = ${termName}
-          GROUP BY r.subject
-        `
-      : await sql`
-          SELECT r.subject, ROUND(AVG(r.ca_score + r.exam_score)) AS avg
-          FROM results r JOIN students s ON s.id = r.student_id
-          WHERE s.class = ${studentClass}
-          GROUP BY r.subject
-        `
-    const classAvgMap: Record<string, number> = {}
-    classAvgRows.rows.forEach(r => { classAvgMap[r.subject] = Number(r.avg) })
+      ? await sql`SELECT id::text, subject, total_score, grade, class_average FROM compiled_results WHERE student_id = ${childId} AND tenant_id = ${tenantId} AND status = 'published' AND term = ${termName} ORDER BY subject`
+      : await sql`SELECT id::text, subject, total_score, grade, class_average FROM compiled_results WHERE student_id = ${childId} AND tenant_id = ${tenantId} AND status = 'published' ORDER BY subject`
 
     const subjects = resultsQuery.rows.map(r => ({
       id: r.id, subject: r.subject,
-      caScore: Number(r.ca_score), examScore: Number(r.exam_score), totalScore: Number(r.total_score),
-      grade: r.grade, classAverage: classAvgMap[r.subject] ?? 0,
+      caScore: null as number | null, examScore: null as number | null, totalScore: Number(r.total_score),
+      grade: r.grade, classAverage: r.class_average !== null ? Number(r.class_average) : 0,
       teacherFeedback: '', trend: 'stable' as const,
     }))
 
     const overallAvg = subjects.length > 0 ? Math.round(subjects.reduce((s, r) => s + r.totalScore, 0) / subjects.length) : 0
 
     // Upcoming exams
+    const studentClassBase = studentClass.replace(/\s+[A-Z]$/, '')
     const examRows = await sql`
-      SELECT id::text, title AS subject, exam_date::text AS date, 'Exam' AS type
-      FROM exams WHERE (student_class = ${studentClass} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
-      ORDER BY exam_date LIMIT 5
+      SELECT id::text, COALESCE(subject, title) AS subject, scheduled_date::text AS date, 'Exam' AS type
+      FROM exams
+      WHERE (class = ${studentClass} OR class = ${studentClassBase} OR class IS NULL OR class = '')
+        AND tenant_id = ${tenantId} AND deleted_at IS NULL
+        AND status IN ('Scheduled', 'Ongoing')
+        AND scheduled_date >= CURRENT_DATE
+      ORDER BY scheduled_date LIMIT 5
     `
 
     return res.status(200).json({

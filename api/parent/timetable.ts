@@ -96,9 +96,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                tt.subject, tt.room,
                COALESCE(st.name, '') AS teacher
         FROM timetable tt
-        LEFT JOIN staff st ON st.id = tt.staff_id
+        LEFT JOIN staff st ON st.id = tt.staff_id AND st.tenant_id = ${tenantId}
         WHERE tt.class_name = ${className}
-          AND tt.tenant_id = ${tenantId}
         ORDER BY tt.day, tt.start_time
       `
       schedule = ttResult.rows.map(r => ({
@@ -108,14 +107,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }))
     }
 
+    const studentClassBase = studentClass.replace(/\s+[A-Z]$/, '');
     const examResult = await sql`
-      SELECT id::text, title AS subject, exam_date::text AS date, start_time AS time, room,
-             EXTRACT(EPOCH FROM (end_time::time - start_time::time))/60 AS duration
+      SELECT id::text, COALESCE(subject, title) AS subject, scheduled_date::text AS date,
+             scheduled_time AS time, '' AS room,
+             duration
       FROM exams
-      WHERE (student_class = ${studentClass} OR student_class IS NULL)
+      WHERE (class = ${studentClass} OR class = ${studentClassBase} OR class IS NULL OR class = '')
         AND tenant_id = ${tenantId}
-        AND exam_date >= CURRENT_DATE
-      ORDER BY exam_date, start_time
+        AND deleted_at IS NULL
+        AND status IN ('Scheduled', 'Ongoing')
+        AND scheduled_date >= CURRENT_DATE
+      ORDER BY scheduled_date, scheduled_time
     `
 
     const examSchedule = examResult.rows.map(r => ({

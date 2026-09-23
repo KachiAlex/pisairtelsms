@@ -53,30 +53,35 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
+  const tenantId = decoded.tenantId || 'default-tenant'
+
   // Total students
   const totalStudents = await safeQuery(async () => {
-    const r = await sql`SELECT COUNT(*)::int AS count FROM students`
+    const r = await sql`SELECT COUNT(*)::int AS count FROM students WHERE tenant_id = ${tenantId}`
     return r.rows[0]?.count ?? 0
   }, 0)
 
   // Total teachers (staff with role containing 'teacher')
   const totalTeachers = await safeQuery(async () => {
-    const r = await sql`SELECT COUNT(*)::int AS count FROM staff WHERE role ILIKE '%teacher%'`
+    const r = await sql`SELECT COUNT(*)::int AS count FROM staff WHERE tenant_id = ${tenantId} AND role ILIKE '%teacher%'`
     return r.rows[0]?.count ?? 0
   }, 0)
 
-  // Total exams (distinct subject+term combos in student_scores)
+  // Total exams scheduled for this tenant
   const totalExams = await safeQuery(async () => {
-    const r = await sql`SELECT COUNT(*)::int AS count FROM (SELECT DISTINCT subject, term FROM student_scores) AS combos`
+    const r = await sql`SELECT COUNT(*)::int AS count FROM exams WHERE tenant_id = ${tenantId} AND deleted_at IS NULL`
     return r.rows[0]?.count ?? 0
   }, 0)
 
-  // Active exams — no scheduling table yet
-  const activeExams = 0
+  // Active exams — Scheduled or Ongoing
+  const activeExams = await safeQuery(async () => {
+    const r = await sql`SELECT COUNT(*)::int AS count FROM exams WHERE tenant_id = ${tenantId} AND deleted_at IS NULL AND status IN ('Scheduled','Ongoing')`
+    return r.rows[0]?.count ?? 0
+  }, 0)
 
   // Classes count (distinct class values in students)
   const classesCount = await safeQuery(async () => {
-    const r = await sql`SELECT COUNT(DISTINCT class)::int AS count FROM students`
+    const r = await sql`SELECT COUNT(DISTINCT class)::int AS count FROM students WHERE tenant_id = ${tenantId}`
     return r.rows[0]?.count ?? 0
   }, 0)
 
@@ -88,7 +93,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         COUNT(s.id)::int AS student_count,
         COALESCE(AVG(sc.total_score), 0)::numeric(5,2) AS avg_score
       FROM students s
-      LEFT JOIN student_scores sc ON sc.class = s.class
+      LEFT JOIN student_scores sc ON sc.class = s.class AND sc.tenant_id = s.tenant_id
+      WHERE s.tenant_id = ${tenantId}
       GROUP BY s.class
       ORDER BY s.class
     `
@@ -105,7 +111,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const students = await safeQuery(async () => {
       const r = await sql`
-        SELECT name, created_at FROM students ORDER BY created_at DESC LIMIT 5
+        SELECT name, created_at FROM students WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT 5
       `
       return r.rows
     }, [] as { name: string; created_at: Date }[])
@@ -120,7 +126,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const attendance = await safeQuery(async () => {
       const r = await sql`
-        SELECT student_id, status, created_at FROM attendance_records ORDER BY created_at DESC LIMIT 5
+        SELECT student_id, status, created_at FROM attendance_records WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT 5
       `
       return r.rows
     }, [] as { student_id: string; status: string; created_at: Date }[])
@@ -135,7 +141,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const announcements = await safeQuery(async () => {
       const r = await sql`
-        SELECT title, created_at FROM announcements ORDER BY created_at DESC LIMIT 5
+        SELECT title, created_at FROM announcements WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT 5
       `
       return r.rows
     }, [] as { title: string; created_at: Date }[])
@@ -161,7 +167,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') AS month,
         SUM(paid)::numeric(12,2) AS amount
       FROM fee_records
-      WHERE created_at >= NOW() - INTERVAL '6 months'
+      WHERE tenant_id = ${tenantId} AND created_at >= NOW() - INTERVAL '6 months'
       GROUP BY DATE_TRUNC('month', created_at)
       ORDER BY DATE_TRUNC('month', created_at) ASC
     `

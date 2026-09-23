@@ -57,35 +57,36 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const childName = childRes.rows[0]?.name || '';
     const studentClass = childRes.rows[0]?.class || '';
 
-    const examResult = await sql`SELECT id::text, title AS subject, COALESCE(description, '') AS paper,
-      exam_date::text AS date, start_time::text AS start_time, end_time::text AS end_time,
-      room AS venue, COALESCE(student_class, '') AS student_class
+    const studentClassBase = studentClass.replace(/\s+[A-Z]$/, '');
+
+    const examResult = await sql`SELECT id::text, COALESCE(subject, title) AS subject, COALESCE(description, '') AS paper,
+      scheduled_date::text AS date, scheduled_time::text AS start_time,
+      duration AS duration_minutes, COALESCE(class, '') AS student_class
       FROM exams
       WHERE tenant_id = ${tenantId}
-        AND (student_class = ${studentClass} OR student_class IS NULL)
-      ORDER BY exam_date, start_time`;
+        AND deleted_at IS NULL
+        AND status IN ('Scheduled', 'Ongoing', 'Completed')
+        AND (class = ${studentClass} OR class = ${studentClassBase} OR class IS NULL OR class = '')
+      ORDER BY scheduled_date, scheduled_time`;
 
     const now = new Date();
     let exams: Exam[] = examResult.rows.map(r => {
       const examDate = new Date(`${r.date}T${r.start_time || '00:00'}`);
-      const examEnd = new Date(`${r.date}T${r.end_time || '23:59'}`);
+      const examEnd = new Date(examDate.getTime() + (Number(r.duration_minutes) || 0) * 60000);
       let examStatus: Exam['status'];
       if (now < examDate) examStatus = 'upcoming';
       else if (now >= examDate && now <= examEnd) examStatus = 'ongoing';
       else examStatus = 'completed';
       const start = r.start_time ? r.start_time.slice(0,5) : '';
-      const end = r.end_time ? r.end_time.slice(0,5) : '';
-      let durationStr = '';
-      if (r.start_time && r.end_time) {
-        const diffMs = examEnd.getTime() - examDate.getTime();
-        const diffH = Math.floor(diffMs / (1000*60*60));
-        const diffM = Math.floor((diffMs % (1000*60*60)) / (1000*60));
-        durationStr = diffH > 0 ? `${diffH} hour${diffH>1?'s':''}` : `${diffM} mins`;
-      }
+      const end = r.start_time
+        ? examEnd.toTimeString().slice(0,5)
+        : '';
+      const diffM = Number(r.duration_minutes) || 0;
+      const durationStr = diffM >= 60 ? `${Math.floor(diffM/60)} hour${Math.floor(diffM/60)>1?'s':''}` : `${diffM} mins`;
       return {
         id: r.id, subject: r.subject, paper: r.paper, date: r.date,
         startTime: start, endTime: end, duration: durationStr,
-        venue: r.venue || '', type: 'terminal' as Exam['type'],
+        venue: '', type: 'terminal' as Exam['type'],
         status: examStatus, instructions: '', materialsAllowed: [],
       };
     });

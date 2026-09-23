@@ -107,9 +107,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         SELECT tt.day, tt.start_time, tt.end_time, tt.subject, tt.room,
                COALESCE(st.name, '') AS teacher
         FROM timetable tt
-        LEFT JOIN staff st ON st.id = tt.staff_id
+        LEFT JOIN staff st ON st.id = tt.staff_id AND st.tenant_id = ${tenantId}
         WHERE tt.class_name = ${className}
-          AND tt.tenant_id = ${tenantId}
         ORDER BY tt.day, tt.start_time
       `;
       schedule = ttResult.rows.map(r => ({

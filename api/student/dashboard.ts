@@ -15,6 +15,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (!studentId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   try {
     // Ensure dependent tables exist
@@ -55,23 +56,29 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const feeBalance = parseFloat(feeResult.rows[0]?.balance ?? '0');
 
     // Next exam
+    const classBase = (s.class || '').replace(/\s+[A-Z]$/, '');
     const examResult = await sql`
-      SELECT title AS subject, exam_date AS date, start_time AS time
+      SELECT COALESCE(subject, title) AS subject, scheduled_date AS date, scheduled_time AS time
       FROM exams
-      WHERE (student_class = ${s.class} OR student_class IS NULL)
-        AND exam_date >= CURRENT_DATE
-      ORDER BY exam_date ASC, start_time ASC
+      WHERE (class = ${s.class} OR class = ${classBase} OR class IS NULL OR class = '')
+        AND scheduled_date >= CURRENT_DATE
+        AND deleted_at IS NULL
+        AND status IN ('Scheduled', 'Ongoing')
+      ORDER BY scheduled_date ASC, scheduled_time ASC
       LIMIT 1
     `;
     const nextExam = examResult.rows[0]
       ? { subject: examResult.rows[0].subject, date: examResult.rows[0].date, time: examResult.rows[0].time ?? '' }
       : null;
 
-    // Recent announcements (tenant-wide)
+    // Recent announcements (tenant-wide, sent, student-audience only)
     const annResult = await sql`
       SELECT id::text, title, created_at::date::text AS date,
              LEFT(body, 120) AS preview
       FROM announcements
+      WHERE tenant_id = ${tenantId}
+        AND COALESCE(status, 'sent') = 'sent'
+        AND COALESCE(audience, 'all') IN ('all', 'students')
       ORDER BY created_at DESC LIMIT 5
     `;
 
@@ -84,22 +91,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       ORDER BY created_at DESC LIMIT 5
     `;
 
-    // GPA and recent grades from student_scores
+    // GPA and recent grades — only from published results (never drafts)
     const gpaResult = await sql`
-      SELECT COALESCE(AVG(total_score), 0) AS gpa,
+      SELECT COALESCE(AVG(cr.total_score), 0) AS gpa,
              COUNT(*) AS subject_count
-      FROM student_scores
-      WHERE student_id = ${studentId}
+      FROM compiled_results cr
+      WHERE cr.student_id = ${studentId} AND cr.tenant_id = ${tenantId}
+        AND cr.status = 'published'
     `;
     const gpa = Math.round(parseFloat(gpaResult.rows[0]?.gpa ?? '0') * 100) / 100;
 
     const gradesResult = await sql`
-      SELECT id::text, subject, total_score AS score,
-             tests_score, assignments_score, projects_score, exams_score,
-             updated_at::date::text AS date
-      FROM student_scores
-      WHERE student_id = ${studentId}
-      ORDER BY updated_at DESC LIMIT 5
+      SELECT cr.id::text, cr.subject, cr.total_score AS score,
+             NULL::numeric AS tests_score, NULL::numeric AS assignments_score,
+             NULL::numeric AS projects_score, NULL::numeric AS exams_score,
+             cr.compiled_at::date::text AS date
+      FROM compiled_results cr
+      WHERE cr.student_id = ${studentId} AND cr.tenant_id = ${tenantId}
+        AND cr.status = 'published'
+      ORDER BY cr.compiled_at DESC LIMIT 5
     `;
     const recentGrades = gradesResult.rows.map(r => ({
       id: r.id,

@@ -95,10 +95,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     `;
     const pendingLeaveCount = parseInt(leaveResult.rows[0]?.cnt ?? '0');
 
-    // Recent announcements (tenant-wide)
+    // Recent announcements (tenant-wide, sent, staff-audience only)
     const annResult = await sql`
       SELECT id::text, title, created_at::date::text AS date, LEFT(body, 120) AS preview
-      FROM announcements WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT 5
+      FROM announcements WHERE tenant_id = ${tenantId}
+        AND COALESCE(status, 'sent') = 'sent'
+        AND COALESCE(audience, 'all') IN ('all', 'staff')
+      ORDER BY created_at DESC LIMIT 5
     `;
 
     // Recent messages for this staff member

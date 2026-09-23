@@ -489,6 +489,10 @@
       "destination": "/api/tenant/security/overview.ts"
     },
     {
+      "source": "/api/tenant/security/incidents",
+      "destination": "/api/tenant/security/incidents.ts"
+    },
+    {
       "source": "/api/tenant/security/sessions",
       "destination": "/api/tenant/security/sessions-handler.ts"
     },

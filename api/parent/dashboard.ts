@@ -73,6 +73,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     // Fetch parent name
     const parentResult = await sql`SELECT name FROM parents WHERE id = ${parentInfo.parentId} LIMIT 1`
     const parentName = parentResult.rows[0]?.name ?? 'Parent'
@@ -107,32 +109,42 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const outstandingFees = parseFloat(feeResult.rows[0]?.balance ?? '0')
 
     // Next exam
+    const classBase = (ch.class || '').replace(/\s+[A-Z]$/, '')
     const examResult = await sql`
-      SELECT exam_date::text AS date FROM exams
-      WHERE (student_class = ${ch.class} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
-      ORDER BY exam_date ASC LIMIT 1
+      SELECT scheduled_date::text AS date FROM exams
+      WHERE (class = ${ch.class} OR class = ${classBase} OR class IS NULL OR class = '')
+        AND scheduled_date >= CURRENT_DATE AND deleted_at IS NULL
+        AND status IN ('Scheduled', 'Ongoing')
+      ORDER BY scheduled_date ASC LIMIT 1
     `
     const nextExamDate = examResult.rows[0]?.date ?? ''
 
-    // Recent grades
+    // Recent grades — published results only (never drafts)
     const gradesResult = await sql`
-      SELECT id::text, subject, (ca_score + exam_score) AS score, updated_at::date::text AS date
-      FROM results WHERE student_id = ${childId}
-      ORDER BY updated_at DESC LIMIT 5
+      SELECT id::text, subject, total_score AS score, compiled_at::date::text AS date
+      FROM compiled_results
+      WHERE student_id = ${childId} AND tenant_id = ${tenantId} AND status = 'published'
+      ORDER BY compiled_at DESC LIMIT 5
     `
 
-    // Announcements
+    // Announcements (tenant-scoped, sent, parent-audience)
     const annResult = await sql`
       SELECT id::text, title, created_at::date::text AS date, LEFT(body, 120) AS preview
-      FROM announcements ORDER BY created_at DESC LIMIT 5
+      FROM announcements
+      WHERE tenant_id = ${tenantId}
+        AND COALESCE(status, 'sent') = 'sent'
+        AND COALESCE(audience, 'all') IN ('all', 'parents')
+      ORDER BY created_at DESC LIMIT 5
     `
 
     // Upcoming events (from exams table)
     const eventsResult = await sql`
-      SELECT id::text, exam_date::text AS date, title, COALESCE(description, 'Examination') AS description
+      SELECT id::text, scheduled_date::text AS date, title, COALESCE(description, 'Examination') AS description
       FROM exams
-      WHERE (student_class = ${ch.class} OR student_class IS NULL) AND exam_date >= CURRENT_DATE
-      ORDER BY exam_date ASC LIMIT 5
+      WHERE (class = ${ch.class} OR class = ${classBase} OR class IS NULL OR class = '')
+        AND scheduled_date >= CURRENT_DATE AND deleted_at IS NULL
+        AND status IN ('Scheduled', 'Ongoing')
+      ORDER BY scheduled_date ASC LIMIT 5
     `
 
     // Auto alerts

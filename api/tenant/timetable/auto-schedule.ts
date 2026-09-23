@@ -129,14 +129,28 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const busyTeacherSlots = new Set(teacherAssignments.map(ta => `${ta.teacherId}|${ta.timeSlotId}|${ta.dayOfWeek}`))
     const subjectDayCount = new Map<string, number>()
 
+    const hashCode = (s: string) => {
+      let h = 0
+      for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0
+      return h
+    }
+
     // 6. Assign periods round-robin: every subject gets one slot per pass so
     // a full grid starves subjects evenly instead of the first subjects in
     // the list consuming everything.
-    const queue = subjects.map(s => ({
-      ...s,
-      needed: Math.max(1, Math.min(s.periodsPerWeek, 10)),
-      assigned: 0,
-    }))
+    const seenSubjects = new Set<string>()
+    const queue = subjects
+      .filter(s => {
+        const key = (s.subjectName || '').toLowerCase().trim()
+        if (seenSubjects.has(key)) return false
+        seenSubjects.add(key)
+        return true
+      })
+      .map(s => ({
+        ...s,
+        needed: Math.max(1, Math.min(s.periodsPerWeek, 10)),
+        assigned: 0,
+      }))
 
     let placedThisPass = true
     while (placedThisPass) {
@@ -145,7 +159,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         if (subject.assigned >= subject.needed) continue
         const perDayCap = Math.ceil(subject.needed / days.length)
 
-        for (const slot of availableSlots) {
+        // Rotate the scan start per subject so different subjects prefer
+        // different days/periods instead of all landing Monday morning.
+        const offset = availableSlots.length === 0 ? 0
+          : Math.abs(hashCode(`${classId}|${subject.subjectName}`)) % availableSlots.length
+        for (let i = 0; i < availableSlots.length; i++) {
+          const slot = availableSlots[(i + offset) % availableSlots.length]
           const classKey = `${slot.slotId}|${slot.dayOfWeek}`
           if (takenClassSlots.has(classKey)) continue
           if (busyTeacherSlots.has(`${subject.teacherId}|${slot.slotId}|${slot.dayOfWeek}`)) continue

@@ -12,6 +12,8 @@ export interface Class {
   name: string
   arm: string
   level: string
+  formTeacherId?: string | null
+  formTeacherName?: string | null
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date
@@ -23,17 +25,20 @@ export interface Class {
 export async function getClasses(tenantId: string): Promise<Class[]> {
   const result = await query(
     `SELECT 
-      id, 
-      tenant_id as "tenantId",
-      name,
-      arm,
-      level,
-      created_at as "createdAt",
-      updated_at as "updatedAt",
-      deleted_at as "deletedAt"
-    FROM classes 
-    WHERE tenant_id = $1 AND deleted_at IS NULL
-    ORDER BY name, arm`,
+      c.id, 
+      c.tenant_id as "tenantId",
+      c.name,
+      c.arm,
+      c.level,
+      c.form_teacher_id as "formTeacherId",
+      s.name as "formTeacherName",
+      c.created_at as "createdAt",
+      c.updated_at as "updatedAt",
+      c.deleted_at as "deletedAt"
+    FROM classes c
+    LEFT JOIN staff s ON s.id = c.form_teacher_id AND s.tenant_id = c.tenant_id
+    WHERE c.tenant_id = $1 AND c.deleted_at IS NULL
+    ORDER BY c.name, c.arm`,
     [tenantId]
   )
 
@@ -46,16 +51,19 @@ export async function getClasses(tenantId: string): Promise<Class[]> {
 export async function getClassById(tenantId: string, classId: string): Promise<Class | null> {
   const result = await query(
     `SELECT 
-      id, 
-      tenant_id as "tenantId",
-      name,
-      arm,
-      level,
-      created_at as "createdAt",
-      updated_at as "updatedAt",
-      deleted_at as "deletedAt"
-    FROM classes 
-    WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      c.id, 
+      c.tenant_id as "tenantId",
+      c.name,
+      c.arm,
+      c.level,
+      c.form_teacher_id as "formTeacherId",
+      s.name as "formTeacherName",
+      c.created_at as "createdAt",
+      c.updated_at as "updatedAt",
+      c.deleted_at as "deletedAt"
+    FROM classes c
+    LEFT JOIN staff s ON s.id = c.form_teacher_id AND s.tenant_id = c.tenant_id
+    WHERE c.tenant_id = $1 AND c.id = $2 AND c.deleted_at IS NULL`,
     [tenantId, classId]
   )
 
@@ -117,7 +125,7 @@ export async function createClass(
 export async function updateClass(
   tenantId: string,
   classId: string,
-  updates: { name?: string; arm?: string; level?: string }
+  updates: { name?: string; arm?: string; level?: string; formTeacherId?: string | null }
 ): Promise<Class> {
   // Fetch current record once for duplicate check and cascade updates
   const current = await getClassById(tenantId, classId)
@@ -153,6 +161,20 @@ export async function updateClass(
     setClauses.push(`level = $${paramCount++}`)
     values.push(updates.level)
   }
+  if (updates.formTeacherId !== undefined) {
+    // Validate the assignee is a real staff member of this tenant
+    if (updates.formTeacherId) {
+      const staffCheck = await query(
+        `SELECT id FROM staff WHERE id = $1 AND tenant_id = $2`,
+        [updates.formTeacherId, tenantId]
+      )
+      if (staffCheck.rows.length === 0) {
+        throw new Error('Form teacher must be a staff member of this school')
+      }
+    }
+    setClauses.push(`form_teacher_id = $${paramCount++}`)
+    values.push(updates.formTeacherId || null)
+  }
 
   setClauses.push(`updated_at = CURRENT_TIMESTAMP`)
   values.push(tenantId, classId)
@@ -167,6 +189,7 @@ export async function updateClass(
       name,
       arm,
       level,
+      form_teacher_id as "formTeacherId",
       created_at as "createdAt",
       updated_at as "updatedAt",
       deleted_at as "deletedAt"`,

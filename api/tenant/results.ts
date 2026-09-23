@@ -76,6 +76,38 @@ async function isAllocated(
   }
 }
 
+/**
+ * Compilation is the form teacher's job: when the class has a
+ * form_teacher_id assigned, only that staff member may compile it.
+ * Classes without a form teacher fall back to any allocated teacher.
+ */
+async function canCompileClass(
+  tenantId: string,
+  staffId: string,
+  className: string
+): Promise<{ allowed: boolean; reason?: string }> {
+  try {
+    const cls = await sql`
+      SELECT form_teacher_id FROM classes
+      WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+        AND lower(regexp_replace(trim(name || ' ' || coalesce(arm, '')), '\s+', ' ', 'g'))
+          = lower(regexp_replace(trim(${className}), '\s+', ' ', 'g'))
+      LIMIT 1
+    `
+    const formTeacherId = cls.rows[0]?.form_teacher_id
+    if (formTeacherId) {
+      return formTeacherId === staffId
+        ? { allowed: true }
+        : { allowed: false, reason: 'Only the assigned form teacher can compile this class' }
+    }
+    return (await isAllocated(tenantId, staffId, className))
+      ? { allowed: true }
+      : { allowed: false, reason: 'You are not allocated to this class' }
+  } catch {
+    return { allowed: false, reason: 'Could not verify class assignment' }
+  }
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
@@ -418,8 +450,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
       if (!isAdmin) {
         if (!className) return res.status(400).json({ error: 'class is required — staff compile is per-class' })
-        if (!(await isAllocated(tenantId, staffId, className as string))) {
-          return res.status(403).json({ error: 'You are not allocated to this class' })
+        const check = await canCompileClass(tenantId, staffId, className as string)
+        if (!check.allowed) {
+          return res.status(403).json({ error: check.reason || 'You are not allowed to compile this class' })
         }
       }
       try {

@@ -15,6 +15,7 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Pencil, Trash2 } from 'lucide-react'
 import { EmptyState } from '../ui/empty-state'
 import { PageHint } from '../ui/page-hint'
@@ -25,9 +26,13 @@ type ClassArm = {
   name: string
   arm: string
   level: string
+  formTeacherId?: string | null
+  formTeacherName?: string | null
   createdAt?: string
   updatedAt?: string
 }
+
+type StaffOption = { id: string; name: string }
 
 export function ClassesAndArms() {
   const [classes, setClasses] = useState<ClassArm[]>([])
@@ -40,7 +45,15 @@ export function ClassesAndArms() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({ name: '', arm: '', level: '' })
-  const [editForm, setEditForm] = useState<{ id: string; name: string; arm: string; level: string } | null>(null)
+  const [editForm, setEditForm] = useState<{ id: string; name: string; arm: string; level: string; formTeacherId: string } | null>(null)
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
+
+  useEffect(() => {
+    tenantApiGet('/api/tenant/staff')
+      .then(r => (r.ok ? r.json() : { data: [] }))
+      .then(d => setStaffOptions((d.data || []).map((s: any) => ({ id: s.id, name: s.name }))))
+      .catch(() => {})
+  }, [])
 
   const loadClasses = useCallback(async () => {
     setLoading(true)
@@ -151,6 +164,7 @@ export function ClassesAndArms() {
         name: editForm.name.trim(),
         arm: editForm.arm.trim(),
         level: editForm.level.trim(),
+        formTeacherId: editForm.formTeacherId || null,
       })
       if (!response.ok) {
         const errorText = await response.text()
@@ -187,6 +201,7 @@ export function ClassesAndArms() {
         tips={[
           'Names created here (e.g. "JSS 1") feed every class dropdown — enrollment, timetables, attendance, results, and analytics.',
           'Create each level once, then add arms (A, B, C…) as separate rows. Avoid spelling variants like "JSS1" — they split your data.',
+          'Assign a form teacher on each arm — once set, only they (or an admin) can compile that class\'s results.',
           'Deleting a class arm affects every module that references it — audit logs record the change.',
         ]}
       />
@@ -348,6 +363,7 @@ export function ClassesAndArms() {
                   <TableHead>Class</TableHead>
                   <TableHead>Arm</TableHead>
                   <TableHead>Level tag</TableHead>
+                  <TableHead>Form teacher</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead>Actions</TableHead>
@@ -390,11 +406,14 @@ export function ClassesAndArms() {
                         {classArm.level || 'Not tagged'}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {classArm.formTeacherName || <span className="text-gray-400">—</span>}
+                    </TableCell>
                     <TableCell>{formatDate(classArm.createdAt)}</TableCell>
                     <TableCell>{formatDate(classArm.updatedAt)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" aria-label="Edit class arm" onClick={() => setEditForm({ id: classArm.id, name: classArm.name, arm: classArm.arm, level: classArm.level || '' })}>
+                        <Button variant="ghost" size="sm" aria-label="Edit class arm" onClick={() => setEditForm({ id: classArm.id, name: classArm.name, arm: classArm.arm, level: classArm.level || '', formTeacherId: classArm.formTeacherId || '' })}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="sm" aria-label="Delete class arm" onClick={() => handleDeleteClass(classArm)}>
@@ -430,6 +449,20 @@ export function ClassesAndArms() {
             <label className="flex flex-col gap-1">
               <span className="text-gray-600">Level tag (optional)</span>
               <Input value={editForm?.level || ''} onChange={(e) => setEditForm((prev) => prev ? { ...prev, level: e.target.value } : prev)} placeholder="Junior Secondary" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-gray-600">Form teacher (optional)</span>
+              <Select
+                value={editForm?.formTeacherId || '__none'}
+                onValueChange={(v) => setEditForm((prev) => prev ? { ...prev, formTeacherId: v === '__none' ? '' : v } : prev)}
+              >
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">None</SelectItem>
+                  {staffOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-gray-400">The form teacher is the only staff member who can compile this class's results.</span>
             </label>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditForm(null)}>Cancel</Button>

@@ -22,6 +22,9 @@ interface AllocatedClass {
   arm?: string
   studentCount?: number
   subjects: string[]
+  formTeacherId?: string | null
+  formTeacherName?: string | null
+  isFormTeacher?: boolean
 }
 interface StudentItem { id: string; name: string; admissionNo?: string }
 interface StudentScore {
@@ -652,15 +655,30 @@ export function StaffResults() {
                     </Alert>
                   )}
 
+                  {selectedClassObj?.formTeacherId && !selectedClassObj.isFormTeacher && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        {selectedClassObj.formTeacherName || 'The assigned form teacher'} is the form teacher
+                        for {selectedClass} — only they (or an administrator) can compile its results.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <p className="text-sm text-gray-500">
                       {submissions.length} subject submission(s) recorded for {selectedClass} · {term} {academicSession}
+                      {selectedClassObj?.isFormTeacher ? ' · you are the form teacher' : ''}
                     </p>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={loadCompileView} disabled={loadingCompile}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${loadingCompile ? 'animate-spin' : ''}`} /> Refresh
                       </Button>
-                      <Button size="sm" onClick={handleCompile} disabled={compiling || !selectedClass || !academicSession || !term}>
+                      <Button
+                        size="sm"
+                        onClick={handleCompile}
+                        disabled={compiling || !selectedClass || !academicSession || !term || !!(selectedClassObj?.formTeacherId && !selectedClassObj.isFormTeacher)}
+                      >
                         {compiling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
                         Compile {selectedClass}
                       </Button>

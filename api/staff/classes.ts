@@ -8,6 +8,9 @@ interface ClassInfo {
   arm: string;
   studentCount: number;
   subjects: string[];
+  formTeacherId?: string | null;
+  formTeacherName?: string | null;
+  isFormTeacher?: boolean;
 }
 
 interface StaffClassesResponse {
@@ -41,6 +44,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       SELECT DISTINCT s.class_id,
         COALESCE(c.name, s.class_id) AS class_name,
         COALESCE(c.arm, '') AS arm,
+        c.form_teacher_id AS form_teacher_id,
+        fs.name AS form_teacher_name,
         (SELECT COUNT(*) FROM students st
           WHERE st.tenant_id = ${tenantId} AND st.deleted_at IS NULL AND st.status = 'Active'
             AND LOWER(REPLACE(CONCAT_WS(' ', st.class, COALESCE(st.arm, '')), ' ', ''))
@@ -49,6 +54,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       FROM timetable_class_schedule_entries e
       JOIN timetable_class_schedules s ON s.id = e.schedule_id
       LEFT JOIN classes c ON c.id::text = s.class_id::text
+      LEFT JOIN staff fs ON fs.id = c.form_teacher_id AND fs.tenant_id = ${tenantId}
       WHERE e.teacher_id = ${staffId} AND s.tenant_id = ${tenantId}
       ORDER BY class_name
     `;
@@ -59,6 +65,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const allocResult = staffName
       ? await sql`
         SELECT c.id::text AS class_id, c.name AS class_name, COALESCE(c.arm, '') AS arm,
+          c.form_teacher_id AS form_teacher_id,
+          fs.name AS form_teacher_name,
           (SELECT COUNT(*) FROM students st
             WHERE st.tenant_id = ${tenantId} AND st.deleted_at IS NULL AND st.status = 'Active'
               AND LOWER(REPLACE(CONCAT_WS(' ', st.class, COALESCE(st.arm, '')), ' ', ''))
@@ -68,10 +76,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         FROM teacher_allocation_slots tas
         JOIN classes c ON c.tenant_id = ${tenantId}
           AND LOWER(REPLACE(c.name, ' ', '')) = LOWER(REPLACE(tas.class, ' ', ''))
+        LEFT JOIN staff fs ON fs.id = c.form_teacher_id AND fs.tenant_id = ${tenantId}
         WHERE tas.tenant_id = ${tenantId}
           AND LOWER(tas.teacher) = LOWER(${staffName})
           AND tas.coverage = 'Assigned'
-        GROUP BY c.id, c.name, c.arm
+        GROUP BY c.id, c.name, c.arm, c.form_teacher_id, fs.name
       `
       : { rows: [] as any[] };
 
@@ -81,12 +90,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       arm: r.arm || '',
       studentCount: parseInt(r.student_count ?? '0'),
       subjects: [],
+      formTeacherId: r.form_teacher_id || null,
+      formTeacherName: r.form_teacher_name || null,
+      isFormTeacher: !!r.form_teacher_id && r.form_teacher_id === staffId,
     }));
 
     for (const row of allocResult.rows) {
       const existing = classes.find(c => c.id === String(row.class_id));
       if (existing) {
         existing.subjects = row.subjects || [];
+        if (row.form_teacher_id) {
+          existing.formTeacherId = row.form_teacher_id;
+          existing.formTeacherName = row.form_teacher_name || null;
+          existing.isFormTeacher = row.form_teacher_id === staffId;
+        }
       } else {
         classes.push({
           id: String(row.class_id),
@@ -94,6 +111,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           arm: row.arm || '',
           studentCount: parseInt(row.student_count ?? '0'),
           subjects: row.subjects || [],
+          formTeacherId: row.form_teacher_id || null,
+          formTeacherName: row.form_teacher_name || null,
+          isFormTeacher: !!row.form_teacher_id && row.form_teacher_id === staffId,
         });
       }
     }

@@ -137,6 +137,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // ── Publish: publish approved results ────────────────────────────
     if (action === 'publish' && req.method === 'POST') {
+      if (decoded.role !== 'tenant_admin') {
+        return res.status(403).json({ error: 'Only tenant admins can publish results' })
+      }
       if (!academicSession || !term) {
         return res.status(400).json({ error: 'academicSession and term are required' })
       }
@@ -204,6 +207,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // ── Unpublish: revert published results back to approved ─────────
     if (action === 'unpublish' && req.method === 'POST') {
+      if (decoded.role !== 'tenant_admin') {
+        return res.status(403).json({ error: 'Only tenant admins can unpublish results' })
+      }
       if (!academicSession || !term) {
         return res.status(400).json({ error: 'academicSession and term are required' })
       }

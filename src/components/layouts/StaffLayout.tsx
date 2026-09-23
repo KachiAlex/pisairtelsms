@@ -20,6 +20,7 @@ import {
   ClipboardList,
   Video,
   BookOpen,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -40,6 +41,7 @@ import { StaffTasks } from '../pages/staff/StaffTasks'
 import { StaffDocuments } from '../pages/staff/StaffDocuments'
 import { TeacherAssignments } from '../pages/staff/TeacherAssignments'
 import { CourseMaterials } from '../pages/staff/CourseMaterials'
+import { StaffResults } from '../pages/staff/Results'
 import { NotificationsDropdown } from '../staff/NotificationsDropdown'
 import { SessionTermLabel } from '../SessionTermLabel'
 
@@ -57,6 +59,7 @@ const navItems = [
   { id: 'tasks', label: 'My Tasks', icon: CheckSquare },
   { id: 'assignments', label: 'Assignments', icon: ClipboardList },
   { id: 'materials', label: 'Course Materials', icon: BookOpen },
+  { id: 'results', label: 'Results', icon: FileSpreadsheet },
   { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'payslips', label: 'Payslips', icon: CreditCard },
   { id: 'payroll-approvals', label: 'Payroll Approvals', icon: CheckSquare, approversOnly: true },
@@ -129,6 +132,8 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         return <TeacherAssignments />
       case 'materials':
         return <CourseMaterials />
+      case 'results':
+        return <StaffResults />
       case 'documents':
         return <StaffDocuments />
       case 'communications':

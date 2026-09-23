@@ -17,11 +17,72 @@ function parseBody(req: ApiRequest) {
   return req.body
 }
 
+/**
+ * True when the staff member is allocated to this class (and subject, when
+ * given) via teacher_allocation_slots — matched by teacher name, the same
+ * resolution /api/staff/classes uses. Tenant admins always pass.
+ *
+ * Class names are normalized both sides (canonical 'JSS 1' spacing) and
+ * compared symmetrically so an allocation stored as the base 'JSS 1' still
+ * authorizes work on the arm-level 'JSS 1 A' and vice versa — without a
+ * false match on 'JSS 11'.
+ */
+async function isAllocated(
+  tenantId: string,
+  staffId: string,
+  className: string,
+  subject?: string
+): Promise<boolean> {
+  try {
+    const staffRes = await sql`SELECT name FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1`
+    const staffName = staffRes.rows[0]?.name
+    if (!staffName || !className) return false
+
+    const norm = `regexp_replace(lower(regexp_replace(trim(CLASS), '\\s+', ' ', 'g')), '^([a-z]+)\\s*([0-9]+)', '\\1 \\2')`
+    const normStored = norm.replaceAll('CLASS', 'tas.class')
+    const normParam = norm.replaceAll('CLASS', `'${String(className).replace(/'/g, "''")}'`)
+
+    const result = subject
+      ? await sql.query(
+          `SELECT 1 FROM teacher_allocation_slots tas
+          WHERE tas.tenant_id = $1
+            AND LOWER(tas.teacher) = LOWER($2)
+            AND tas.coverage = 'Assigned'
+            AND (
+              ${normStored} = ${normParam}
+              OR ${normParam} LIKE ${normStored} || ' %'
+              OR ${normStored} LIKE ${normParam} || ' %'
+            )
+            AND LOWER(TRIM(tas.subject)) = LOWER(TRIM($3))
+          LIMIT 1`,
+          [tenantId, staffName, subject]
+        ).catch(() => null)
+      : await sql.query(
+          `SELECT 1 FROM teacher_allocation_slots tas
+          WHERE tas.tenant_id = $1
+            AND LOWER(tas.teacher) = LOWER($2)
+            AND tas.coverage = 'Assigned'
+            AND (
+              ${normStored} = ${normParam}
+              OR ${normParam} LIKE ${normStored} || ' %'
+              OR ${normStored} LIKE ${normParam} || ' %'
+            )
+          LIMIT 1`,
+          [tenantId, staffName]
+        )
+    return !!result?.rows?.length
+  } catch {
+    return false
+  }
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
+  const isAdmin = decoded.role === 'tenant_admin'
+  const staffId = decoded.staffId || decoded.userId || decoded.sub || ''
 
   if (req.method === 'GET') {
     const { studentId, academicSession, term, class: className, action, subject } = req.query
@@ -38,6 +99,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       if (action === 'class-scores' && className && subject && academicSession && term) {
+        if (!isAdmin && !(await isAllocated(tenantId, staffId, className as string, subject as string))) {
+          return res.status(403).json({ error: 'You are not allocated to this class/subject' })
+        }
         const scores = await fetchScoresByClassAndSubject(
           tenantId,
           className as string,
@@ -49,6 +113,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       if (action === 'compiled' && academicSession && term) {
+        if (!isAdmin) {
+          if (!className) return res.status(400).json({ error: 'class is required' })
+          if (!(await isAllocated(tenantId, staffId, className as string))) {
+            return res.status(403).json({ error: 'You are not allocated to this class' })
+          }
+        }
         const compiled = await fetchCompiledResults(
           tenantId,
           academicSession as string,
@@ -69,6 +139,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       if (action === 'broadsheet' && className && academicSession && term) {
+        if (!isAdmin && !(await isAllocated(tenantId, staffId, className as string))) {
+          return res.status(403).json({ error: 'You are not allocated to this class' })
+        }
         const broadsheet = await fetchBroadsheet(
           tenantId,
           academicSession as string,
@@ -98,6 +171,67 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'POST') {
     const body = parseBody(req)
     if (!body) return res.status(400).json({ error: 'Request body is required' })
+
+    const { action } = req.query
+
+    // ── Batch score entry: one HTTP call for a whole class sheet ──
+    if (action === 'scores-batch') {
+      const { class: batchClass, subject: batchSubject, academicSession: batchSession, term: batchTerm, rows } = body
+      if (!batchClass || !batchSubject || !batchSession || !batchTerm || !Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ error: 'class, subject, academicSession, term, and a non-empty rows array are required' })
+      }
+      if (rows.length > 500) {
+        return res.status(400).json({ error: 'Batch limited to 500 rows' })
+      }
+      if (!isAdmin && !(await isAllocated(tenantId, staffId, batchClass, batchSubject))) {
+        return res.status(403).json({ error: 'You are not allocated to this class/subject' })
+      }
+      try {
+        let saved = 0
+        const errors: Array<{ studentId: string; error: string }> = []
+        for (const row of rows) {
+          if (!row?.studentId) {
+            errors.push({ studentId: String(row?.studentId ?? ''), error: 'missing studentId' })
+            continue
+          }
+          try {
+            await createScore(tenantId, {
+              studentId: row.studentId,
+              subject: batchSubject,
+              academicSession: batchSession,
+              term: batchTerm,
+              class: batchClass,
+              caScore: 0,
+              examScore: 0,
+              attendancePercentage: row.attendancePercentage !== undefined ? Number(row.attendancePercentage) : 0,
+              testsScore: row.testsScore !== undefined ? Number(row.testsScore) : undefined,
+              assignmentsScore: row.assignmentsScore !== undefined ? Number(row.assignmentsScore) : undefined,
+              projectsScore: row.projectsScore !== undefined ? Number(row.projectsScore) : undefined,
+              examsScore: row.examsScore !== undefined ? Number(row.examsScore) : undefined,
+              testsMax: row.testsMax !== undefined && row.testsMax !== null ? Number(row.testsMax) : undefined,
+              assignmentsMax: row.assignmentsMax !== undefined && row.assignmentsMax !== null ? Number(row.assignmentsMax) : undefined,
+              projectsMax: row.projectsMax !== undefined && row.projectsMax !== null ? Number(row.projectsMax) : undefined,
+              examsMax: row.examsMax !== undefined && row.examsMax !== null ? Number(row.examsMax) : undefined,
+              submittedBy: staffId,
+              submittedByName: decoded.email || undefined,
+              submissionStatus: 'submitted',
+            })
+            saved++
+          } catch (err: any) {
+            errors.push({ studentId: row.studentId, error: err?.message || 'save failed' })
+          }
+        }
+        return res.status(errors.length && !saved ? 500 : 200).json({
+          success: errors.length === 0,
+          saved,
+          failed: errors.length,
+          errors,
+        })
+      } catch (error) {
+        console.error('Error in scores-batch:', error)
+        return res.status(500).json({ error: 'Batch save failed' })
+      }
+    }
 
     const {
       studentId, subject, academicSession, term, class: className,
@@ -182,6 +316,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Score validation failed', details: scoreErrors })
     }
 
+    // Staff may only enter scores for classes/subjects they're allocated to.
+    if (!isAdmin && !(await isAllocated(tenantId, staffId, className, subject))) {
+      return res.status(403).json({ error: 'You are not allocated to this class/subject' })
+    }
+
     try {
       const payload: ScorePayload = {
         studentId,
@@ -219,6 +358,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const { action, academicSession, term, class: className } = req.query
 
     if (action === 'recompute') {
+      if (!isAdmin) {
+        if (!className) return res.status(400).json({ error: 'class is required' })
+        if (!(await isAllocated(tenantId, staffId, className as string))) {
+          return res.status(403).json({ error: 'You are not allocated to this class' })
+        }
+      }
       try {
         const result = await recomputeAllScores(
           tenantId,
@@ -242,6 +387,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!academicSession || !term) {
         return res.status(400).json({ error: 'academicSession and term are required for compile action' })
       }
+      if (!isAdmin) {
+        if (!className) return res.status(400).json({ error: 'class is required — staff compile is per-class' })
+        if (!(await isAllocated(tenantId, staffId, className as string))) {
+          return res.status(403).json({ error: 'You are not allocated to this class' })
+        }
+      }
       try {
         const result = await compileResults(
           tenantId,
@@ -261,6 +412,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     if (action === 'approve') {
+      // Approval is the school's sign-off gate — admins only.
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Only tenant admins can approve compiled results' })
+      }
       const { academicSession, term, class: className } = req.query
       if (!academicSession || !term) {
         return res.status(400).json({ error: 'academicSession and term are required for approve action' })
@@ -293,6 +448,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     try {
+      // Staff may only delete scores for classes/subjects they're allocated to.
+      if (!isAdmin) {
+        const row = await sql`
+          SELECT class FROM student_scores
+          WHERE tenant_id = ${tenantId} AND student_id = ${studentId as string}
+            AND subject = ${subject as string} AND academic_session = ${academicSession as string}
+            AND term = ${term as string}
+          LIMIT 1
+        `
+        const scoreClass = row.rows[0]?.class
+        if (!scoreClass || !(await isAllocated(tenantId, staffId, scoreClass, subject as string))) {
+          return res.status(403).json({ error: 'You are not allocated to this class/subject' })
+        }
+      }
+
       // Only allow deleting scores that haven't been compiled yet
       const compiledCheck = await sql`
         SELECT COUNT(*)::int AS n FROM compiled_results

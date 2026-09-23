@@ -30,9 +30,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!classroomId || !title) {
         return res.status(400).json({ error: 'classroomId and title are required' })
       }
+      // Live lessons must be 'scheduled' at creation — 'draft' is invisible
+      // to students (their list filters to scheduled/live/completed), which
+      // made every live class a dead letter until someone manually flipped it.
+      const status = (type || 'async') === 'live' ? 'scheduled' : 'draft'
       const result = await sql`
-        INSERT INTO lessons (classroom_id, tenant_id, title, description, type, scheduled_at, duration_minutes, meeting_url, created_by)
-        VALUES (${classroomId}, ${tenantId}, ${title}, ${description || null}, ${type || 'async'}, ${scheduledAt || null}, ${durationMinutes || 60}, ${meetingUrl || null}, ${userId})
+        INSERT INTO lessons (classroom_id, tenant_id, title, description, type, scheduled_at, duration_minutes, meeting_url, created_by, status)
+        VALUES (${classroomId}, ${tenantId}, ${title}, ${description || null}, ${type || 'async'}, ${scheduledAt || null}, ${durationMinutes || 60}, ${meetingUrl || null}, ${userId}, ${status})
         RETURNING *
       `
       return res.status(201).json({ data: result.rows[0] })

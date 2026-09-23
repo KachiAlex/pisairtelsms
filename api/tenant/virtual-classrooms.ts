@@ -36,6 +36,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         VALUES (${tenantId}, ${subjectId || null}, ${classArmId || null}, ${teacherId}, ${name}, ${description || null}, ${coverImageUrl || null})
         RETURNING *
       `
+      // Notify the assigned teacher — otherwise the assignment is invisible
+      // until they happen to open the (new) Virtual Classes page.
+      await sql`
+        INSERT INTO virtual_learning_notifications
+          (tenant_id, user_id, user_role, type, title, message, related_entity_type, related_entity_id)
+        VALUES (${tenantId}, ${teacherId}, 'staff', 'classroom_assigned',
+                'Virtual classroom assigned',
+                ${`You have been assigned to teach "${name}". Open Virtual Classes in the staff portal to schedule or start a live session.`},
+                'virtual_classroom', ${result.rows[0].id})
+      `.catch(() => {})
       return res.status(201).json({ data: result.rows[0] })
     }
 

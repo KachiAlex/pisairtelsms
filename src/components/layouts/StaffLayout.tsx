@@ -18,12 +18,14 @@ import {
   CheckSquare,
   FolderOpen,
   ClipboardList,
+  Video,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
 import { useBranding } from '../../contexts/BrandingContext'
 
 import { StaffDashboard } from '../pages/staff/StaffDashboard'
+import { MyVirtualClasses } from '../pages/staff/MyVirtualClasses'
 import { MyTimetable } from '../pages/staff/MyTimetable'
 import { TeacherAttendanceEntry } from '../pages/staff/TeacherAttendanceEntry'
 import { LeaveManagement } from '../pages/staff/LeaveManagement'
@@ -45,6 +47,7 @@ interface StaffLayoutProps {
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'timetable', label: 'My Timetable', icon: Clock },
+  { id: 'virtual-classes', label: 'Virtual Classes', icon: Video },
   { id: 'my-attendance', label: 'My Attendance', icon: Fingerprint },
   { id: 'attendance', label: 'Mark Attendance', icon: CalendarCheck },
   { id: 'leave', label: 'Leave', icon: Calendar },
@@ -90,6 +93,8 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         return <StaffDashboard />
       case 'timetable':
         return <MyTimetable />
+      case 'virtual-classes':
+        return <MyVirtualClasses />
       case 'attendance':
         return <TeacherAttendanceEntry />
       case 'leave':

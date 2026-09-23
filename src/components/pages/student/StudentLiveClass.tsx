@@ -72,11 +72,16 @@ export function StudentLiveClass() {
   }
 
   useEffect(() => {
+    if (lesson) return // inside a room — don't poll the list
     const id = searchParams.get('lessonId')
     if (id) loadLesson(id)
     else loadLessons()
+    // Poll so a class the teacher just started shows "Live now" without a
+    // manual refresh.
+    const timer = setInterval(loadLessons, 30_000)
+    return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [lesson === null])
 
   if (lesson) {
     return (
@@ -156,9 +161,15 @@ export function StudentLiveClass() {
                       <Badge variant={l.status === 'live' ? 'destructive' : 'secondary'}>
                         {l.status === 'live' ? 'Live now' : 'Scheduled'}
                       </Badge>
-                      <Button size="sm" onClick={() => loadLesson(l.id)} disabled={joining}>
-                        {joining ? 'Joining…' : 'Join'}
-                      </Button>
+                      {l.status === 'live' ? (
+                        <Button size="sm" onClick={() => loadLesson(l.id)} disabled={joining}>
+                          {joining ? 'Joining…' : 'Join'}
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" disabled>
+                          Not started
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

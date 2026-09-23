@@ -894,6 +894,10 @@
       "destination": "/api/staff/timetable.ts"
     },
     {
+      "source": "/api/staff/virtual-classes",
+      "destination": "/api/staff/virtual-classes.ts"
+    },
+    {
       "source": "/api/student/profile",
       "destination": "/api/student/profile.ts"
     },

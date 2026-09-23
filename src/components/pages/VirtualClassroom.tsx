@@ -578,12 +578,27 @@ interface StaffMember {
   email?: string
 }
 
+interface ClassOption {
+  id: string
+  name: string
+  arm?: string | null
+}
+
+interface SubjectOption {
+  id: string
+  name: string
+}
+
 function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (data: any) => void }) {
   const { toast } = useToast()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [teacherId, setTeacherId] = useState('')
+  const [subjectId, setSubjectId] = useState('')
+  const [classArmId, setClassArmId] = useState('')
   const [teachers, setTeachers] = useState<StaffMember[]>([])
+  const [subjects, setSubjects] = useState<SubjectOption[]>([])
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([])
   const [teachersLoading, setTeachersLoading] = useState(false)
 
   useEffect(() => {
@@ -619,6 +634,14 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
       }
     }
     loadTeachers()
+    // Class arm + subject bind the room to an actual class — required for the
+    // student enrollment gate to mean anything.
+    tenantApiGet('/api/tenant/academics/classes').then(r => r.json()).then(d => {
+      if (!cancelled) setClassOptions(d.data || [])
+    }).catch(() => {})
+    tenantApiGet('/api/tenant/academics/subjects').then(r => r.json()).then(d => {
+      if (!cancelled) setSubjects(d.data || [])
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [open, toast])
 
@@ -626,10 +649,12 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
     setName('')
     setDescription('')
     setTeacherId('')
+    setSubjectId('')
+    setClassArmId('')
   }
 
   const handleCreate = () => {
-    onCreate({ name, description, teacherId })
+    onCreate({ name, description, teacherId, subjectId: subjectId || undefined, classArmId: classArmId || undefined })
     reset()
   }
 
@@ -669,7 +694,41 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
                 </SelectContent>
               </Select>
             )}
+            <p className="text-xs text-gray-500">The assigned teacher sees this classroom under Virtual Classes in their staff portal and can start its live sessions.</p>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="classArm">Class / Arm</Label>
+              <Select value={classArmId} onValueChange={setClassArmId}>
+                <SelectTrigger id="classArm" className="w-full">
+                  <SelectValue placeholder="All students" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}{c.arm ? ` ${c.arm}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Select value={subjectId} onValueChange={setSubjectId}>
+                <SelectTrigger id="subject" className="w-full">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">
+            Choosing a class arm limits this classroom to students enrolled in it — leave empty for a school-wide space.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => { onClose(); reset() }}>Cancel</Button>

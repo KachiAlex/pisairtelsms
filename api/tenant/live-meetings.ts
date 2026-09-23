@@ -49,13 +49,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const env = getEnv()
-  if (!env) {
-    return res.status(500).json({
-      error: 'Cloudflare Realtime is not configured. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_REALTIME_APP_ID, and CLOUDFLARE_API_TOKEN.',
-    })
-  }
-
   const tenantId = decoded.tenantId
   if (!tenantId) {
     return res.status(403).json({ error: 'Forbidden: No tenant associated with this account' })
@@ -66,11 +59,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(400).json({ error: 'lessonId is required' })
   }
 
-  const isStaff = decoded.role === 'staff' || decoded.role === 'tenant_admin'
-
   try {
     const lessonResult = await sql`
-      SELECT * FROM lessons WHERE id = ${lessonId as string} AND tenant_id = ${tenantId}
+      SELECT l.*, vc.teacher_id AS classroom_teacher_id, vc.class_arm_id AS classroom_class_arm_id
+      FROM lessons l
+      LEFT JOIN virtual_classrooms vc ON vc.id = l.classroom_id
+      WHERE l.id = ${lessonId as string} AND l.tenant_id = ${tenantId}
     `
     const lesson = lessonResult.rows[0]
     if (!lesson) {
@@ -80,16 +74,43 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Lesson is not a live class' })
     }
 
+    // Host = the classroom's assigned teacher or a tenant admin. Other staff
+    // can still enter (substitute/observer) but only as participants.
+    const callerId = decoded.staffId || decoded.userId || decoded.sub
+    const isAdmin = decoded.role === 'tenant_admin'
+    const isAssignedTeacher = decoded.role === 'staff' && lesson.classroom_teacher_id === callerId
+    const isHost = isAdmin || isAssignedTeacher
+
     // ---------- Policy gates ----------
     const settingsRes = await sql`
       SELECT * FROM virtual_learning_settings WHERE tenant_id = ${tenantId}
     `.catch(() => ({ rows: [] as any[] }))
     const vlSettings = settingsRes.rows[0] || null
 
-    // ---------- Recording actions (staff only) ----------
+    // ---------- End class (host only) ----------
+    if (action === 'end-class') {
+      if (!isHost) {
+        return res.status(403).json({ error: 'Only the assigned teacher or an admin can end this class' })
+      }
+      await sql`
+        UPDATE lessons SET status = 'completed', updated_at = NOW()
+        WHERE id = ${lesson.id} AND tenant_id = ${tenantId}
+      `
+      return res.status(200).json({ success: true, status: 'completed' })
+    }
+
+    // Everything below needs Cloudflare Realtime — end-class above does not.
+    const env = getEnv()
+    if (!env) {
+      return res.status(500).json({
+        error: 'Cloudflare Realtime is not configured. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_REALTIME_APP_ID, and CLOUDFLARE_API_TOKEN.',
+      })
+    }
+
+    // ---------- Recording actions (host only) ----------
     if (action === 'start-recording' || action === 'stop-recording' || action === 'recording-status') {
-      if (!isStaff) {
-        return res.status(403).json({ error: 'Only staff can control recording' })
+      if (!isHost) {
+        return res.status(403).json({ error: 'Only the assigned teacher or an admin can control recording' })
       }
       if (action === 'start-recording' && vlSettings && vlSettings.allow_recording === false) {
         return res.status(403).json({ error: 'Recording is disabled in virtual learning settings' })
@@ -187,8 +208,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // Student-specific gates: class enrollment + parent consent
+    // Student-specific gates: the class must actually be running, plus
+    // class enrollment + parent consent.
     if (decoded.role === 'student') {
+      if (lesson.status !== 'live') {
+        return res.status(403).json({
+          error: lesson.status === 'completed'
+            ? 'This live class has ended.'
+            : 'This class has not started yet — your teacher will open it at the scheduled time.',
+        })
+      }
       const studentId = decoded.studentId || decoded.userId
       const stuRes = await sql`
         SELECT id, class, arm, status FROM students
@@ -264,8 +293,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       `
     }
 
+    // A host entering the room is what "starts" the class — flip the lesson
+    // live so students can join, and notify the enrolled class arm.
+    if (isHost && (lesson.status === 'draft' || lesson.status === 'scheduled')) {
+      await sql`
+        UPDATE lessons SET status = 'live', updated_at = NOW()
+        WHERE id = ${lesson.id} AND tenant_id = ${tenantId}
+      `
+      if (lesson.classroom_class_arm_id) {
+        await sql`
+          INSERT INTO virtual_learning_notifications
+            (tenant_id, user_id, user_role, type, title, message, related_entity_type, related_entity_id)
+          SELECT ${tenantId}, s.id::text, 'student', 'live_started',
+                 'Live class started',
+                 ${`${lesson.title} is live now — join from Live Classes.`},
+                 'lesson', ${lesson.id}
+          FROM students s
+          JOIN classes c ON c.id::text = ${lesson.classroom_class_arm_id} AND c.tenant_id = ${tenantId}
+          WHERE s.tenant_id = ${tenantId}
+            AND LOWER(s.class) = LOWER(c.name)
+            AND (c.arm IS NULL OR c.arm = '' OR LOWER(s.arm) = LOWER(c.arm))
+            AND s.status = 'active'
+        `.catch(() => {})
+      }
+    }
+
     const userId = decoded.userId || decoded.staffId || decoded.studentId || decoded.sub
-    const isHost = decoded.role === 'staff' || decoded.role === 'tenant_admin'
     const participantName = displayName || decoded.email || userId || 'Participant'
     const presetName = isHost ? env.hostPreset : env.participantPreset
 

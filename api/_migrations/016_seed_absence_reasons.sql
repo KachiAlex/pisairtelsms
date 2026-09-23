@@ -6,8 +6,8 @@
 
 INSERT INTO absence_reasons (id, tenant_id, reason_name, description, is_active, created_at)
 SELECT
-  'ar_' || t.id || '_' || lower(regexp_replace(d.reason_name, '[^a-zA-Z0-9]+', '_', 'g')),
-  t.id,
+  'ar_' || t.id::text || '_' || lower(regexp_replace(d.reason_name, '[^a-zA-Z0-9]+', '_', 'g')),
+  t.id::text,
   d.reason_name,
   d.description,
   TRUE,
@@ -26,5 +26,5 @@ CROSS JOIN (VALUES
 ) AS d(reason_name, description)
 WHERE NOT EXISTS (
   SELECT 1 FROM absence_reasons ar
-  WHERE ar.tenant_id = t.id AND ar.reason_name = d.reason_name
+  WHERE ar.tenant_id = t.id::text AND ar.reason_name = d.reason_name
 );

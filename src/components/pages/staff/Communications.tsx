@@ -19,11 +19,46 @@ export function Communications() {
   const [markingRead, setMarkingRead] = useState<string | null>(null)
   const [expandedMessage, setExpandedMessage] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [compose, setCompose] = useState({ recipientId: '', subject: '', body: '' })
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([])
   const auth = getAuthFromStorage()
 
   useEffect(() => {
     fetchMessages()
+    fetch('/api/tenant/staff?limit=200', {
+      headers: { Authorization: `Bearer ${auth?.token}` },
+    })
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then(d => setStaffList((d.data || []).map((s: any) => ({ id: s.id, name: s.name }))))
+      .catch(() => {})
   }, [])
+
+  const sendMessage = async () => {
+    if (!compose.recipientId || !compose.subject.trim() || !compose.body.trim()) return
+    setSending(true)
+    setSendError(null)
+    try {
+      const res = await fetch('/api/staff/messages', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth?.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(compose),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e.error || 'Failed to send message')
+      }
+      setComposeOpen(false)
+      setCompose({ recipientId: '', subject: '', body: '' })
+      fetchMessages()
+    } catch (err: any) {
+      setSendError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
 
   const fetchMessages = async () => {
     try {
@@ -132,7 +167,7 @@ export function Communications() {
               Mark all read
             </Button>
           )}
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setComposeOpen(true)}>
             <Send className="w-4 h-4 mr-1" />
             New Message
           </Button>
@@ -264,6 +299,60 @@ export function Communications() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {composeOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">New Message</h2>
+            {sendError && (
+              <p className="mb-3 text-sm text-red-600 bg-red-50 rounded p-2">{sendError}</p>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                <select
+                  className="w-full h-10 px-3 rounded-md border border-gray-300 text-sm bg-white"
+                  value={compose.recipientId}
+                  onChange={e => setCompose({ ...compose, recipientId: e.target.value })}
+                >
+                  <option value="">Select staff member</option>
+                  {staffList.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <input
+                  className="w-full h-10 px-3 rounded-md border border-gray-300 text-sm"
+                  value={compose.subject}
+                  onChange={e => setCompose({ ...compose, subject: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <textarea
+                  className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm"
+                  rows={4}
+                  value={compose.body}
+                  onChange={e => setCompose({ ...compose, body: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <Button variant="outline" onClick={() => setComposeOpen(false)}>Cancel</Button>
+              <Button
+                onClick={sendMessage}
+                disabled={sending || !compose.recipientId || !compose.subject.trim() || !compose.body.trim()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+                Send
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

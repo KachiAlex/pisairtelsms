@@ -123,7 +123,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             VALUES (gen_random_uuid()::text, ${tenantId}, ${admin.id},
               'Bank details updated',
               ${`${staffRow.rows[0]?.name || 'A staff member'} updated their salary bank details (${bankName || 'bank'} ••••${accountNumber.slice(-4)})${verifiedAt ? ' — verified' : ' — unverified'}.`},
-              'alert', false, NOW())
+              'warning', false, NOW())
           `
         }
       } catch (e) {

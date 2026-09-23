@@ -89,6 +89,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     try {
       if (action === 'teacher-submissions') {
+        if (!isAdmin) {
+          if (!className) return res.status(400).json({ error: 'class is required' })
+          if (!(await isAllocated(tenantId, staffId, className as string))) {
+            return res.status(403).json({ error: 'You are not allocated to this class' })
+          }
+        }
         const submissions = await fetchTeacherSubmissions(
           tenantId,
           academicSession as string,
@@ -129,6 +135,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       if (action === 'attendance-batch' && className && academicSession && term) {
+        if (!isAdmin && !(await isAllocated(tenantId, staffId, className as string))) {
+          return res.status(403).json({ error: 'You are not allocated to this class' })
+        }
         const attendanceMap = await computeAttendanceBatch(
           tenantId,
           className as string,
@@ -154,6 +163,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(200).json({ data: broadsheet })
       }
 
+      // Fallback score listing — staff must scope to an allocated class.
+      if (!isAdmin) {
+        if (!className) return res.status(400).json({ error: 'class is required' })
+        if (!(await isAllocated(tenantId, staffId, className as string))) {
+          return res.status(403).json({ error: 'You are not allocated to this class' })
+        }
+      }
       const scores = await fetchScores(
         tenantId,
         studentId as string | undefined,
@@ -187,11 +203,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(403).json({ error: 'You are not allocated to this class/subject' })
       }
       try {
+        // Validate every studentId up front — a bogus id must fail its row,
+        // not silently create an orphaned score.
+        const candidateIds = rows.map((r: any) => r?.studentId).filter(Boolean)
+        const validRes = await sql`
+          SELECT id::text AS id FROM students
+          WHERE tenant_id = ${tenantId} AND id::text = ANY(${candidateIds})
+        `
+        const validIds = new Set(validRes.rows.map((r: any) => r.id))
+
         let saved = 0
         const errors: Array<{ studentId: string; error: string }> = []
         for (const row of rows) {
           if (!row?.studentId) {
             errors.push({ studentId: String(row?.studentId ?? ''), error: 'missing studentId' })
+            continue
+          }
+          if (!validIds.has(row.studentId)) {
+            errors.push({ studentId: row.studentId, error: 'student not found' })
             continue
           }
           try {

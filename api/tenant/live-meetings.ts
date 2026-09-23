@@ -339,7 +339,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           FROM students s
           LEFT JOIN classes c ON c.id::text = ${lesson.classroom_class_arm_id || ''} AND c.tenant_id = ${tenantId}
           WHERE s.tenant_id = ${tenantId}
-            AND s.status = 'active'
+            AND LOWER(s.status) = 'active'
             AND (
               (c.id IS NOT NULL AND LOWER(s.class) = LOWER(c.name)
                AND (c.arm IS NULL OR c.arm = '' OR LOWER(s.arm) = LOWER(c.arm)))

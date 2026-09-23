@@ -112,7 +112,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       let resolvedAssignee: string | null = null
       if (assignedTo) {
         const staffRes = await sql.query(
-          `SELECT id FROM staff WHERE tenant_id = $1 AND (id = $2 OR LOWER(name) = LOWER($2) OR LOWER(email) = LOWER($2)) AND deleted_at IS NULL LIMIT 1`,
+          `SELECT id FROM staff WHERE tenant_id = $1 AND (id = $2 OR LOWER(name) = LOWER($2) OR LOWER(email) = LOWER($2)) LIMIT 1`,
           [tenantId, assignedTo]
         )
         if (!staffRes.rows[0]) {

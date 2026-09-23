@@ -7,6 +7,7 @@ interface ClassInfo {
   name: string
   arm: string
   studentCount: number
+  subjects?: string[]
 }
 
 interface StudentProfile {
@@ -178,7 +179,10 @@ export function ClassLists() {
                 <p className="font-semibold text-gray-900">
                   {cls.name} {cls.arm}
                 </p>
-                <p className="text-sm text-gray-600">{cls.studentCount} students</p>
+                <p className="text-sm text-gray-600">
+                  {cls.studentCount} students
+                  {cls.subjects && cls.subjects.length > 0 && ` — ${cls.subjects.join(', ')}`}
+                </p>
               </button>
             ))}
           </div>

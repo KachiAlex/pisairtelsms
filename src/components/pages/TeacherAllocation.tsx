@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '../ui/dialog'
 import { useToast } from '../ui/use-toast'
+import { PageHint } from '../ui/page-hint'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 
 function tenantHeaders(): Record<string, string> {
@@ -185,6 +186,16 @@ export function TeacherAllocation() {
           </Button>
         </div>
       </div>
+
+      <PageHint
+        id="teacher-allocation"
+        title="How allocation works"
+        tips={[
+          'This matrix decides who teaches each class/subject — it does not place periods on the timetable. Run Auto-Schedule in Timetable & Scheduling (or click cells on a class grid) to turn assignments into scheduled periods.',
+          'Teachers see their allocated classes in the staff portal immediately; their day-by-day timetable appears once periods are placed.',
+          'Auto-balance only fills Open slots with teachers whose staff profile lists that subject — set subjects in Staff Management first.',
+        ]}
+      />
 
       <GenerateSlotsDialog
         open={generateOpen}

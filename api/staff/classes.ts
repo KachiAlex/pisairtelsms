@@ -7,6 +7,7 @@ interface ClassInfo {
   name: string;
   arm: string;
   studentCount: number;
+  subjects: string[];
 }
 
 interface StaffClassesResponse {
@@ -28,6 +29,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
     const tenantId = decoded.tenantId || 'default-tenant';
 
+    // Allocations are matched by teacher name — fetch it once.
+    const staffResult = await sql`
+      SELECT name FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
+    `;
+    const staffName = staffResult.rows[0]?.name || '';
+
     // Distinct classes this teacher appears in, from the real schedule tables
     // (the legacy flat `timetable` table is empty and has no tenant_id).
     const result = await sql`
@@ -46,12 +53,51 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       ORDER BY class_name
     `;
 
+    // Allocations from the teacher-allocation matrix also make a class "his",
+    // even before it's placed on a timetable — otherwise an assigned teacher
+    // sees an empty portal until someone runs Auto-Schedule.
+    const allocResult = staffName
+      ? await sql`
+        SELECT c.id::text AS class_id, c.name AS class_name, COALESCE(c.arm, '') AS arm,
+          (SELECT COUNT(*) FROM students st
+            WHERE st.tenant_id = ${tenantId} AND st.deleted_at IS NULL AND st.status = 'Active'
+              AND LOWER(REPLACE(CONCAT_WS(' ', st.class, COALESCE(st.arm, '')), ' ', ''))
+                = LOWER(REPLACE(CONCAT_WS(' ', c.name, COALESCE(c.arm, '')), ' ', ''))
+          ) AS student_count,
+          array_agg(DISTINCT tas.subject ORDER BY tas.subject) AS subjects
+        FROM teacher_allocation_slots tas
+        JOIN classes c ON c.tenant_id = ${tenantId}
+          AND LOWER(REPLACE(c.name, ' ', '')) = LOWER(REPLACE(tas.class, ' ', ''))
+        WHERE tas.tenant_id = ${tenantId}
+          AND LOWER(tas.teacher) = LOWER(${staffName})
+          AND tas.coverage = 'Assigned'
+        GROUP BY c.id, c.name, c.arm
+      `
+      : { rows: [] as any[] };
+
     const classes: ClassInfo[] = result.rows.map(r => ({
       id: String(r.class_id),
       name: r.class_name,
       arm: r.arm || '',
       studentCount: parseInt(r.student_count ?? '0'),
+      subjects: [],
     }));
+
+    for (const row of allocResult.rows) {
+      const existing = classes.find(c => c.id === String(row.class_id));
+      if (existing) {
+        existing.subjects = row.subjects || [];
+      } else {
+        classes.push({
+          id: String(row.class_id),
+          name: row.class_name,
+          arm: row.arm || '',
+          studentCount: parseInt(row.student_count ?? '0'),
+          subjects: row.subjects || [],
+        });
+      }
+    }
+    classes.sort((a, b) => a.name.localeCompare(b.name) || a.arm.localeCompare(b.arm));
 
     return res.status(200).json({ classes });
   } catch (error) {

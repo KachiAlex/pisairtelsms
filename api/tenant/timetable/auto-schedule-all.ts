@@ -27,6 +27,11 @@ interface ClassPlan {
 
 const DAYS = [1, 2, 3, 4, 5]
 const norm = (s: string) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
+const hashCode = (s: string) => {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0
+  return h
+}
 
 function parseBody(req: ApiRequest) {
   if (!req.body) return null
@@ -96,21 +101,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const subjectByName = new Map(subjectRows.rows.map((s: any) => [norm(s.name), s]))
     const staffIdByName = new Map(staffRows.rows.map((s: any) => [norm(s.name), s.id]))
 
-    // class name variants -> class row (matrix stores names, schedules store ids)
-    const classByName = new Map<string, any>()
-    for (const c of targetClasses) {
-      for (const key of [norm(c.name), norm(`${c.name}${c.arm}`), norm(`${c.name} ${c.arm}`)]) {
-        if (key) classByName.set(key, c)
-      }
+    // A matrix row may name a level ("JSS 1" → every arm class of that level)
+    // or a specific class ("JSS 1 B" / "JSS 1B" → just that arm). Try the
+    // specific name+arm match first so explicit rows win over level rows.
+    const classesForMatrixClass = (mClass: string): any[] => {
+      const key = norm(mClass)
+      const exact = targetClasses.filter((c: any) =>
+        c.arm && (norm(`${c.name} ${c.arm}`) === key || norm(`${c.name}${c.arm}`) === key))
+      if (exact.length > 0) return exact
+      return targetClasses.filter((c: any) => norm(c.name) === key)
     }
 
     const matrixByClass = new Map<string, any[]>() // classId -> matrix rows
     for (const m of matrixRows.rows) {
-      const cls = classByName.get(norm(m.class))
-      if (!cls) continue
-      const list = matrixByClass.get(cls.id) || []
-      list.push(m)
-      matrixByClass.set(cls.id, list)
+      for (const cls of classesForMatrixClass(m.class)) {
+        const list = matrixByClass.get(cls.id) || []
+        list.push(m)
+        matrixByClass.set(cls.id, list)
+      }
     }
 
     // --- Clear / load existing state ---------------------------------------
@@ -172,7 +180,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
       freeSlots.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.sequence - b.sequence)
 
-      const reqs = matrix.map((m: any) => {
+      // Level rows and arm-specific rows can both match a class — place each
+      // subject once, preferring rows that actually name a teacher.
+      const seenSubjects = new Set<string>()
+      const dedupedMatrix = [...matrix]
+        .sort((a: any, b: any) => Number(!!b.teacher) - Number(!!a.teacher))
+        .filter((m: any) => {
+          const key = norm(m.subject)
+          if (seenSubjects.has(key)) return false
+          seenSubjects.add(key)
+          return true
+        })
+
+      const reqs = dedupedMatrix.map((m: any) => {
         const catalog = subjectByName.get(norm(m.subject))
         const teacherId = m.teacher ? (staffIdByName.get(norm(m.teacher)) || m.teacher) : ''
         const teacherAssigned = !!(m.teacher && String(m.teacher).trim()) && m.coverage !== 'Open'
@@ -217,7 +237,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           if (subject.assigned >= subject.needed) continue
           const perDayCap = Math.ceil(subject.needed / DAYS.length)
 
-          for (const slot of plan.freeSlots) {
+          // Rotate the scan start per subject so different subjects prefer
+          // different days/periods instead of all landing Monday morning.
+          const offset = plan.freeSlots.length === 0 ? 0
+            : Math.abs(hashCode(`${plan.classId}|${subject.subjectName}`)) % plan.freeSlots.length
+          for (let i = 0; i < plan.freeSlots.length; i++) {
+            const slot = plan.freeSlots[(i + offset) % plan.freeSlots.length]
             const classKey = `${slot.slotId}|${slot.dayOfWeek}`
             if (plan.takenSlots.has(classKey)) continue
             if (subject.teacherAssigned &&

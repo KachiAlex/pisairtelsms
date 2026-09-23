@@ -48,8 +48,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const sev = VALID_SEVERITIES.includes((severity ?? '').toLowerCase()) ? severity!.toLowerCase() : 'medium'
       const eventType = category?.trim() ? `manual_${category.trim().toLowerCase()}` : 'manual_report'
       const r = await sql`
-        INSERT INTO security_events (tenant_id, user_id, event_type, severity, description, status)
-        VALUES (${tenantId}, ${decoded.userId ?? null}, ${eventType}, ${sev},
+        INSERT INTO security_events (id, tenant_id, user_id, event_type, severity, description, status)
+        VALUES (${`inc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`}, ${tenantId}, ${decoded.userId ?? null}, ${eventType}, ${sev},
                 ${`${title.trim()} — ${(description ?? '').trim()}`.replace(/ —\s*$/, '')}, 'Active')
         RETURNING id::text, created_at
       `

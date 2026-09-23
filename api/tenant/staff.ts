@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import {
   fetchStaff, fetchStaffById, createStaffMember, updateStaffMember, deleteStaffMember,
   fetchLeaveRequests, createLeaveRequest, updateLeaveStatus,
+  fetchLeavePolicies, upsertLeavePolicy, deleteLeavePolicy,
   fetchAttendance, markAttendance,
   fetchPayroll, generatePayroll, updatePayrollStatus,
   type StaffPayload,
@@ -99,6 +100,39 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const leave = await updateLeaveStatus(id as string, body.status, body.approvedBy, actualTenantId)
       if (!leave) return res.status(404).json({ error: 'Leave request not found' })
       return res.status(200).json({ data: leave })
+    }
+
+    return methodNotAllowed(res)
+  }
+
+  // ── Leave Policies ───────────────────────────────────────────────────────
+  if (resource === 'leave-policies') {
+    if (req.method === 'GET') {
+      const policies = await fetchLeavePolicies(actualTenantId)
+      return res.status(200).json({ data: policies })
+    }
+
+    // Mutations restricted to tenant admins.
+    if (decoded.role !== 'tenant_admin') {
+      return res.status(403).json({ error: 'Only tenant admins can manage leave policies' })
+    }
+
+    if (req.method === 'POST' || req.method === 'PUT') {
+      const body = parseBody(req)
+      const leaveType = String(body?.leaveType || '').trim()
+      const annualDays = Number(body?.annualDays)
+      if (!leaveType || !Number.isFinite(annualDays) || annualDays < 0 || annualDays > 366) {
+        return res.status(400).json({ error: 'leaveType and annualDays (0-366) are required' })
+      }
+      const policy = await upsertLeavePolicy(leaveType, annualDays, actualTenantId)
+      return res.status(req.method === 'POST' ? 201 : 200).json({ data: policy })
+    }
+
+    if (req.method === 'DELETE') {
+      if (!id) return res.status(400).json({ error: 'Policy ID is required' })
+      const deleted = await deleteLeavePolicy(id as string, actualTenantId)
+      if (!deleted) return res.status(404).json({ error: 'Leave policy not found' })
+      return res.status(200).json({ message: 'Leave policy deleted' })
     }
 
     return methodNotAllowed(res)

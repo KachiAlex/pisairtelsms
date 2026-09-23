@@ -938,6 +938,14 @@
       "destination": "/api/staff/bank-details.ts"
     },
     {
+      "source": "/api/staff/materials",
+      "destination": "/api/staff/materials.ts"
+    },
+    {
+      "source": "/api/tenant/staff-messages",
+      "destination": "/api/tenant/staff-messages.ts"
+    },
+    {
       "source": "/api/student-health",
       "destination": "/api/student-health.ts"
     },

@@ -57,6 +57,20 @@ interface ParentMessage {
   createdAt: string
 }
 
+interface StaffMessage {
+  id: string
+  direction: 'inbound' | 'outbound'
+  sender: string
+  senderId: string | null
+  recipientId: string
+  recipientName: string
+  subject: string
+  body: string
+  isRead: boolean
+  adminReadAt: string | null
+  date: string
+}
+
 interface CommunicationLog {
   id: string
   type: 'announcement' | 'notification' | 'message'
@@ -130,6 +144,17 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
   const [pmStatusFilter, setPmStatusFilter] = useState('')
   const [pmSubmitting, setPmSubmitting] = useState(false)
 
+  // Staff Messages state
+  const [staffMessages, setStaffMessages] = useState<StaffMessage[]>([])
+  const [staffList, setStaffList] = useState<{ id: string; name: string; role?: string }[]>([])
+  const [showStaffForm, setShowStaffForm] = useState(false)
+  const [smRecipientId, setSmRecipientId] = useState('')
+  const [smSubject, setSmSubject] = useState('')
+  const [smBody, setSmBody] = useState('')
+  const [smSubmitting, setSmSubmitting] = useState(false)
+  const [smFilter, setSmFilter] = useState<'all' | 'inbound' | 'outbound'>('all')
+  const [expandedStaffMsg, setExpandedStaffMsg] = useState<string | null>(null)
+
   // Communication Logs state
   const [communicationLogs, setCommunicationLogs] = useState<CommunicationLog[]>([])
   const [showLogFilters, setShowLogFilters] = useState(false)
@@ -167,11 +192,13 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
     try {
       setLoading(true)
       setError(null)
-      const [annRes, notifRes, msgRes, logRes] = await Promise.allSettled([
+      const [annRes, notifRes, msgRes, logRes, smRes, staffRes] = await Promise.allSettled([
         fetch('/api/tenant/communication', { headers: tenantHeaders() }),
         fetch('/api/tenant/bulk-notifications', { headers: tenantHeaders() }),
         fetch('/api/tenant/parent-messages', { headers: tenantHeaders() }),
         fetch('/api/tenant/communication-logs', { headers: tenantHeaders() }),
+        fetch('/api/tenant/staff-messages', { headers: tenantHeaders() }),
+        fetch('/api/tenant/staff?limit=500', { headers: tenantHeaders() }),
       ])
       if (annRes.status === 'fulfilled' && annRes.value?.ok) {
         const r = await annRes.value.json(); setAnnouncements(Array.isArray(r.data) ? r.data : [])
@@ -184,6 +211,12 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
       }
       if (logRes.status === 'fulfilled' && logRes.value?.ok) {
         const r = await logRes.value.json(); setCommunicationLogs(Array.isArray(r.data) ? r.data : [])
+      }
+      if (smRes.status === 'fulfilled' && smRes.value?.ok) {
+        const r = await smRes.value.json(); setStaffMessages(Array.isArray(r.messages) ? r.messages : [])
+      }
+      if (staffRes.status === 'fulfilled' && staffRes.value?.ok) {
+        const r = await staffRes.value.json(); setStaffList(Array.isArray(r.data) ? r.data : [])
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -285,6 +318,38 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
     finally { setPmSubmitting(false) }
   }
 
+  const handleSendStaffMessage = async () => {
+    if (!smRecipientId || !smSubject.trim() || !smBody.trim()) return
+    setSmSubmitting(true)
+    try {
+      const res = await fetch('/api/tenant/staff-messages', {
+        method: 'POST', headers: tenantHeaders(),
+        body: JSON.stringify({ recipientId: smRecipientId, subject: smSubject, body: smBody }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e.error || 'Failed to send')
+      }
+      setSmRecipientId(''); setSmSubject(''); setSmBody(''); setShowStaffForm(false)
+      const refresh = await fetch('/api/tenant/staff-messages', { headers: tenantHeaders() })
+      if (refresh.ok) { const r = await refresh.json(); setStaffMessages(Array.isArray(r.messages) ? r.messages : []) }
+    } catch (err: any) {
+      setError(err.message || 'Failed to send message')
+    } finally { setSmSubmitting(false) }
+  }
+
+  const handleMarkStaffMsgRead = async (id: string) => {
+    try {
+      const res = await fetch('/api/tenant/staff-messages', {
+        method: 'PUT', headers: tenantHeaders(),
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) {
+        setStaffMessages(prev => prev.map(m => m.id === id ? { ...m, adminReadAt: new Date().toISOString() } : m))
+      }
+    } catch { /* silent */ }
+  }
+
   const toggleChannel = (ch: string) => {
     setBulkChannels(prev => prev.includes(ch) ? prev.filter(c => c !== ch) : [...prev, ch])
   }
@@ -327,9 +392,10 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="announcements">Announcements</TabsTrigger>
           <TabsTrigger value="bulk-notifications">Bulk Notifications</TabsTrigger>
+          <TabsTrigger value="staff-messaging">Staff Messaging</TabsTrigger>
           <TabsTrigger value="parent-messaging">Parent Messaging</TabsTrigger>
           <TabsTrigger value="communication-logs">Comm Logs</TabsTrigger>
         </TabsList>
@@ -565,6 +631,129 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── STAFF MESSAGING TAB ── */}
+        <TabsContent value="staff-messaging" className="space-y-6">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+            {[
+              { label: 'Total messages', value: staffMessages.length, color: 'bg-blue-50 text-blue-600', icon: Mail },
+              { label: 'From staff', value: staffMessages.filter(m => m.direction === 'inbound').length, color: 'bg-amber-50 text-amber-600', icon: MessageSquare },
+              { label: 'Unread from staff', value: staffMessages.filter(m => m.direction === 'inbound' && !m.adminReadAt).length, color: 'bg-rose-50 text-rose-600', icon: Clock },
+            ].map(({ label, value, color, icon: Icon }, i) => (
+              <Card key={i}>
+                <CardContent className="flex items-center gap-4 p-4">
+                  <div className={`rounded-full p-3 ${color}`}><Icon className="h-5 w-5" /></div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
+                    <p className="text-3xl font-bold text-gray-900">{value}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {showStaffForm ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5 text-blue-600" />New message to staff</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setShowStaffForm(false)}><X className="h-4 w-4" /></Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-500">Recipient</label>
+                  <select value={smRecipientId} onChange={e => setSmRecipientId(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                    <option value="">Select a staff member</option>
+                    {staffList.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}{s.role ? ` — ${s.role}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500">Subject</label>
+                  <Input value={smSubject} onChange={e => setSmSubject(e.target.value)} placeholder="e.g. Staff meeting Friday" className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500">Message</label>
+                  <textarea rows={4} value={smBody} onChange={e => setSmBody(e.target.value)} placeholder="Write your message..." className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button onClick={handleSendStaffMessage} disabled={smSubmitting || !smRecipientId || !smSubject.trim() || !smBody.trim()}>
+                    {smSubmitting ? 'Sending...' : <><Send className="h-4 w-4 mr-2" />Send message</>}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowStaffForm(false)}>Cancel</Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex gap-2">
+                {(['all', 'inbound', 'outbound'] as const).map(f => (
+                  <button key={f} onClick={() => setSmFilter(f)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${smFilter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {f === 'all' ? 'All' : f === 'inbound' ? 'From staff' : 'To staff'}
+                  </button>
+                ))}
+              </div>
+              <Button onClick={() => setShowStaffForm(true)}><Plus className="h-4 w-4 mr-2" />New message</Button>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader><CardTitle>Staff messages</CardTitle></CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />)}</div>
+              ) : staffMessages.filter(m => smFilter === 'all' || m.direction === smFilter).length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No staff messages yet. Send one above, and messages staff send to the admin will appear here.</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-gray-200 divide-y divide-gray-100">
+                  {staffMessages.filter(m => smFilter === 'all' || m.direction === smFilter).map(m => (
+                    <div key={m.id} className={`p-4 ${m.direction === 'inbound' && !m.adminReadAt ? 'bg-blue-50/40' : ''}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className={m.direction === 'inbound' ? 'text-amber-700 border-amber-300' : 'text-blue-700 border-blue-300'}>
+                              {m.direction === 'inbound' ? 'From staff' : 'To staff'}
+                            </Badge>
+                            <p className="font-medium text-gray-900">{m.subject}</p>
+                          </div>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {m.direction === 'inbound' ? `From: ${m.sender}` : `To: ${m.recipientName}`}
+                            <span className="mx-2">·</span>
+                            {new Date(m.date).toLocaleString()}
+                            {m.direction === 'outbound' && (
+                              <span className="mx-2">·</span>
+                            )}
+                            {m.direction === 'outbound' && (
+                              <span className={m.isRead ? 'text-emerald-600' : 'text-gray-400'}>{m.isRead ? 'Read' : 'Unread'}</span>
+                            )}
+                          </p>
+                          {expandedStaffMsg === m.id ? (
+                            <div className="mt-2">
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{m.body}</p>
+                              <button onClick={() => setExpandedStaffMsg(null)} className="text-xs text-gray-500 hover:text-gray-700 mt-2">Show less</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setExpandedStaffMsg(m.id)} className="text-sm text-gray-600 mt-1 line-clamp-1 text-left hover:text-gray-800">{m.body}</button>
+                          )}
+                        </div>
+                        {m.direction === 'inbound' && !m.adminReadAt && (
+                          <Button variant="outline" size="sm" onClick={() => handleMarkStaffMsgRead(m.id)} className="shrink-0 text-xs">
+                            Mark read
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

@@ -1,5 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
-import { fetchLeaveRequests, createLeaveRequest, fetchStaffById } from '../tenant/_lib/staff.js';
+import { fetchLeaveRequests, createLeaveRequest, fetchStaffById, fetchLeavePolicies } from '../tenant/_lib/staff.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 
 interface LeaveBalance {
@@ -62,7 +62,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         }
       }
 
-      const balance: LeaveBalance[] = Object.entries(LEAVE_ALLOWANCES).map(([leaveType, totalDays]) => {
+      // Balances come from tenant-configured leave policies; fall back to
+      // defaults if the policies table can't be read.
+      let allowances: Record<string, number> = LEAVE_ALLOWANCES;
+      try {
+        const policies = await fetchLeavePolicies(tenantId);
+        if (policies.length > 0) {
+          allowances = Object.fromEntries(policies.map(p => [p.leaveType, p.annualDays]));
+        }
+      } catch {
+        // keep defaults
+      }
+
+      const balance: LeaveBalance[] = Object.entries(allowances).map(([leaveType, totalDays]) => {
         const used = usedDays[leaveType] ?? 0;
         return { leaveType, totalDays, usedDays: used, remainingDays: Math.max(0, totalDays - used) };
       });

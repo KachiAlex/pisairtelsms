@@ -11,6 +11,7 @@ interface Message {
   body: string;
   date: string;
   isRead: boolean;
+  direction?: 'inbound' | 'outbound';
   replies?: Message[];
 }
 
@@ -77,28 +78,40 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const tenantId = decoded.tenantId || 'default-tenant';
 
   await ensureStaffTables();
+  await sql`ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS sender_id TEXT`.catch(() => {});
 
   if (req.method === 'GET') {
     try {
       const { limit = '20', offset = '0' } = req.query;
+      const sentOnly = req.query.sent === 'true';
 
-      const result = await sql`
-        SELECT id::text, staff_id, sender_name, subject, body, sender_role, is_read, created_at::date::text AS date
-        FROM staff_messages
-        WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
-        ORDER BY created_at DESC
-        LIMIT ${Math.min(parseInt(limit as string), 100)}
-        OFFSET ${parseInt(offset as string)}
-      `;
+      const result = sentOnly
+        ? await sql`
+          SELECT id::text, staff_id, sender_name, subject, body, sender_role, is_read, created_at::date::text AS date
+          FROM staff_messages
+          WHERE sender_id = ${staffId} AND tenant_id = ${tenantId}
+          ORDER BY created_at DESC
+          LIMIT ${Math.min(parseInt(limit as string), 100)}
+          OFFSET ${parseInt(offset as string)}
+        `
+        : await sql`
+          SELECT id::text, staff_id, sender_name, subject, body, sender_role, is_read, created_at::date::text AS date
+          FROM staff_messages
+          WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
+          ORDER BY created_at DESC
+          LIMIT ${Math.min(parseInt(limit as string), 100)}
+          OFFSET ${parseInt(offset as string)}
+        `;
 
       const messages: Message[] = result.rows.map(r => ({
         id: r.id,
-        sender: r.sender_name || 'Admin',
+        sender: sentOnly ? 'You' : (r.sender_name || 'Admin'),
         senderRole: r.sender_role || 'Admin',
         subject: r.subject || '',
         body: r.body || '',
         date: r.date,
         isRead: !!r.is_read,
+        direction: sentOnly ? 'outbound' : 'inbound',
       }));
 
       return res.status(200).json({ messages });
@@ -113,9 +126,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       const senderName = await getStaffName(staffId);
 
+      if (!recipientId) {
+        return res.status(400).json({ error: 'recipientId is required' });
+      }
+      if (recipientId === staffId) {
+        return res.status(400).json({ error: 'Cannot send a message to yourself' });
+      }
+      const recipient = await sql`
+        SELECT id FROM staff WHERE id = ${recipientId} AND tenant_id = ${tenantId} LIMIT 1
+      `;
+      if (!recipient.rows[0]) {
+        return res.status(404).json({ error: 'Recipient not found' });
+      }
+
       const result = await sql`
-        INSERT INTO staff_messages (staff_id, tenant_id, sender_name, subject, body, sender_role, is_read, created_at)
-        VALUES (${recipientId || staffId}, ${tenantId}, ${senderName}, ${subject}, ${messageBody || ''}, 'staff', false, NOW())
+        INSERT INTO staff_messages (staff_id, tenant_id, sender_id, sender_name, subject, body, sender_role, is_read, created_at)
+        VALUES (${recipientId}, ${tenantId}, ${staffId}, ${senderName}, ${subject}, ${messageBody || ''}, 'staff', false, NOW())
         RETURNING id::text, sender_name, subject, body, created_at::text AS date, is_read
       `;
       const r = result.rows[0];

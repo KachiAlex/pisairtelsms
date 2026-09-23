@@ -100,8 +100,10 @@ export async function processQueue(
   }
 
   const { getRecipientsByCommunication } = await import('./schema.js')
+  // Fetch all pending once — failed recipients stay 'pending' for a future run,
+  // so re-querying inside the loop would reprocess them forever.
   const pending = await getRecipientsByCommunication(tenantId, communicationId, 'pending')
-  const toProcess = pending.slice(0, batchSize)
+  const toProcess = pending
 
   let sent = 0
   let failed = 0

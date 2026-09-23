@@ -18,7 +18,7 @@ export function Communications() {
   const [loading, setLoading] = useState(true)
   const [markingRead, setMarkingRead] = useState<string | null>(null)
   const [expandedMessage, setExpandedMessage] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const [filter, setFilter] = useState<'all' | 'unread' | 'sent'>('all')
   const [composeOpen, setComposeOpen] = useState(false)
   const [compose, setCompose] = useState({ recipientId: '', subject: '', body: '' })
   const [sending, setSending] = useState(false)
@@ -27,14 +27,14 @@ export function Communications() {
   const auth = getAuthFromStorage()
 
   useEffect(() => {
-    fetchMessages()
+    fetchMessages(filter === 'sent')
     fetch('/api/tenant/staff?limit=200', {
       headers: { Authorization: `Bearer ${auth?.token}` },
     })
       .then(r => r.ok ? r.json() : { data: [] })
       .then(d => setStaffList((d.data || []).map((s: any) => ({ id: s.id, name: s.name }))))
       .catch(() => {})
-  }, [])
+  }, [filter])
 
   const sendMessage = async () => {
     if (!compose.recipientId || !compose.subject.trim() || !compose.body.trim()) return
@@ -60,10 +60,10 @@ export function Communications() {
     }
   }
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (sent = false) => {
     try {
       setLoading(true)
-      const response = await fetch('/api/staff/messages', {
+      const response = await fetch(`/api/staff/messages${sent ? '?sent=true' : ''}`, {
         headers: { Authorization: `Bearer ${auth?.token}` },
       })
       if (response.ok) {
@@ -202,6 +202,16 @@ export function Communications() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setFilter('sent')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              filter === 'sent'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Sent
+          </button>
         </div>
       </div>
 
@@ -210,10 +220,10 @@ export function Communications() {
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-600 font-medium">
-            {filter === 'unread' ? 'No unread messages' : 'No messages'}
+            {filter === 'unread' ? 'No unread messages' : filter === 'sent' ? 'No sent messages' : 'No messages'}
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            {filter === 'unread' ? "You're all caught up!" : 'Messages from admins and parents will appear here'}
+            {filter === 'unread' ? "You're all caught up!" : filter === 'sent' ? 'Messages you send will appear here' : 'Messages from admins and parents will appear here'}
           </p>
         </div>
       ) : (
@@ -280,7 +290,7 @@ export function Communications() {
                         Read more
                       </button>
                     )}
-                    {!msg.isRead && (
+                    {!msg.isRead && filter !== 'sent' && (
                       <button
                         onClick={() => markAsRead(msg.id)}
                         disabled={markingRead === msg.id}

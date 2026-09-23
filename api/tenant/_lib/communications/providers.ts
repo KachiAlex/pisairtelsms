@@ -63,8 +63,7 @@ export class EmailProvider implements MessageProvider {
     try {
       const webhookUrl = process.env.EMAIL_PROVIDER_WEBHOOK
       if (!webhookUrl) {
-        console.warn(`[EmailProvider] No EMAIL_PROVIDER_WEBHOOK configured. Simulating send to ${payload.to}`)
-        return { success: true, providerMessageId: `email_${Date.now()}` }
+        return { success: false, error: 'Email provider not configured (EMAIL_PROVIDER_WEBHOOK missing)' }
       }
 
       const res = await fetch(webhookUrl, {
@@ -99,8 +98,7 @@ export class SmsProvider implements MessageProvider {
     try {
       const webhookUrl = process.env.SMS_PROVIDER_WEBHOOK
       if (!webhookUrl) {
-        console.warn(`[SmsProvider] No SMS_PROVIDER_WEBHOOK configured. Simulating send to ${payload.to}`)
-        return { success: true, providerMessageId: `sms_${Date.now()}` }
+        return { success: false, error: 'SMS provider not configured (SMS_PROVIDER_WEBHOOK missing)' }
       }
 
       const res = await fetch(webhookUrl, {
@@ -133,8 +131,7 @@ export class PushProvider implements MessageProvider {
     try {
       const webhookUrl = process.env.PUSH_PROVIDER_WEBHOOK
       if (!webhookUrl) {
-        console.warn(`[PushProvider] No PUSH_PROVIDER_WEBHOOK configured. Simulating send to ${payload.to}`)
-        return { success: true, providerMessageId: `push_${Date.now()}` }
+        return { success: false, error: 'Push provider not configured (PUSH_PROVIDER_WEBHOOK missing)' }
       }
 
       const res = await fetch(webhookUrl, {

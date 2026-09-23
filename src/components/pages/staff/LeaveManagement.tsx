@@ -28,6 +28,12 @@ interface LeaveData {
   balance: LeaveBalance[]
 }
 
+interface LeavePolicy {
+  id: string
+  leaveType: string
+  annualDays: number
+}
+
 export function LeaveManagement() {
   const [data, setData] = useState<LeaveData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -43,6 +49,10 @@ export function LeaveManagement() {
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [policies, setPolicies] = useState<LeavePolicy[]>([])
+  const [policyDraft, setPolicyDraft] = useState({ leaveType: '', annualDays: '' })
+  const [editingPolicy, setEditingPolicy] = useState<string | null>(null)
+  const [policySaving, setPolicySaving] = useState(false)
 
   const auth = localStorage.getItem('auth')
   const authParsed = auth ? JSON.parse(auth) : null
@@ -97,7 +107,54 @@ export function LeaveManagement() {
     }
 
     fetchLeaveData()
+
+    if (isAdminView) {
+      fetch('/api/tenant/staff?resource=leave-policies', {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      })
+        .then(r => r.ok ? r.json() : { data: [] })
+        .then(d => setPolicies(d.data || []))
+        .catch(() => {})
+    }
   }, [token, isAdminView])
+
+  const savePolicy = async () => {
+    const leaveType = policyDraft.leaveType.trim()
+    const annualDays = Number(policyDraft.annualDays)
+    if (!leaveType || !Number.isFinite(annualDays) || annualDays < 0) return
+    try {
+      setPolicySaving(true)
+      const res = await fetch('/api/tenant/staff?resource=leave-policies', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaveType, annualDays }),
+      })
+      if (!res.ok) throw new Error('Failed to save policy')
+      const refresh = await fetch('/api/tenant/staff?resource=leave-policies', {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      })
+      if (refresh.ok) setPolicies((await refresh.json()).data || [])
+      setPolicyDraft({ leaveType: '', annualDays: '' })
+      setEditingPolicy(null)
+      setSuccess('Leave policy saved')
+    } catch {
+      setError('Failed to save leave policy')
+    } finally {
+      setPolicySaving(false)
+    }
+  }
+
+  const removePolicy = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tenant/staff?resource=leave-policies&id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      })
+      if (res.ok) setPolicies(prev => prev.filter(p => p.id !== id))
+    } catch {
+      setError('Failed to delete leave policy')
+    }
+  }
 
   const validateForm = () => {
     const errors: Record<string, string> = {}
@@ -314,6 +371,82 @@ export function LeaveManagement() {
         </div>
       )}
 
+      {/* Leave Policies (admin only) */}
+      {isAdminView && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Leave Policies</h2>
+          <p className="text-sm text-gray-500 mb-4">Annual allowances per leave type. Staff balances are computed from these values.</p>
+          <div className="space-y-2">
+            {policies.map(p => (
+              <div key={p.id} className="flex items-center gap-3 border border-gray-100 rounded-lg p-3">
+                {editingPolicy === p.id ? (
+                  <>
+                    <input
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                      value={policyDraft.leaveType}
+                      onChange={e => setPolicyDraft(d => ({ ...d, leaveType: e.target.value }))}
+                      placeholder="Leave type"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                      value={policyDraft.annualDays}
+                      onChange={e => setPolicyDraft(d => ({ ...d, annualDays: e.target.value }))}
+                      placeholder="Days"
+                    />
+                    <Button size="sm" onClick={savePolicy} disabled={policySaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                      {policySaving ? 'Saving…' : 'Save'}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setEditingPolicy(null); setPolicyDraft({ leaveType: '', annualDays: '' }) }}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 font-medium text-gray-900">{p.leaveType}</span>
+                    <span className="text-sm text-gray-600">{p.annualDays} days/yr</span>
+                    <button
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                      onClick={() => { setEditingPolicy(p.id); setPolicyDraft({ leaveType: p.leaveType, annualDays: String(p.annualDays) }) }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-sm text-red-600 hover:text-red-800"
+                      onClick={() => removePolicy(p.id)}
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          {!editingPolicy && (
+            <div className="flex items-center gap-3 mt-4 border-t border-gray-100 pt-4">
+              <input
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                value={policyDraft.leaveType}
+                onChange={e => setPolicyDraft(d => ({ ...d, leaveType: e.target.value }))}
+                placeholder="New leave type (e.g. Compassionate)"
+              />
+              <input
+                type="number"
+                min={0}
+                className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                value={policyDraft.annualDays}
+                onChange={e => setPolicyDraft(d => ({ ...d, annualDays: e.target.value }))}
+                placeholder="Days"
+              />
+              <Button size="sm" onClick={savePolicy} disabled={policySaving || !policyDraft.leaveType.trim() || !policyDraft.annualDays} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Plus className="h-4 w-4 mr-1" /> Add
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* New Leave Request Form */}
       {!isAdminView && !showForm && (
         <Button
@@ -336,10 +469,9 @@ export function LeaveManagement() {
                 onChange={(e) => setFormData({ ...formData, leaveType: e.target.value })}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
               >
-                <option value="Annual">Annual Leave</option>
-                <option value="Sick">Sick Leave</option>
-                <option value="Casual">Casual Leave</option>
-                <option value="Maternity">Maternity Leave</option>
+                {(data.balance.length > 0 ? data.balance.map(b => b.leaveType) : ['Annual', 'Sick', 'Casual', 'Maternity']).map(t => (
+                  <option key={t} value={t}>{t} Leave</option>
+                ))}
               </select>
               {formErrors.leaveType && (
                 <p className="text-sm text-red-600 mt-1">{formErrors.leaveType}</p>

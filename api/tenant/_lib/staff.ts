@@ -818,6 +818,82 @@ export async function updateLeaveStatus(id: string, status: string, approvedBy?:
   }
 }
 
+// ── Leave Policies ────────────────────────────────────────────────────────────
+
+export interface LeavePolicy {
+  id: string
+  leaveType: string
+  annualDays: number
+}
+
+const DEFAULT_LEAVE_POLICIES: Array<{ leaveType: string; annualDays: number }> = [
+  { leaveType: 'Annual', annualDays: 21 },
+  { leaveType: 'Sick', annualDays: 10 },
+  { leaveType: 'Casual', annualDays: 7 },
+  { leaveType: 'Maternity', annualDays: 84 },
+  { leaveType: 'Paternity', annualDays: 5 },
+]
+
+export async function ensureLeavePoliciesTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS leave_policies (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default-tenant',
+      leave_type TEXT NOT NULL,
+      annual_days INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (tenant_id, leave_type)
+    )
+  `.catch((e: any) => console.error('leave_policies create table failed:', e.message))
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_leave_policies_tenant_type ON leave_policies(tenant_id, leave_type)`.catch(() => {})
+}
+
+export async function fetchLeavePolicies(tenantId?: string): Promise<LeavePolicy[]> {
+  await ensureLeavePoliciesTable()
+  const resolvedTenantId = tenantId || 'default-tenant'
+  const result = await sql`
+    SELECT id, leave_type, annual_days FROM leave_policies
+    WHERE tenant_id = ${resolvedTenantId} ORDER BY leave_type ASC
+  `
+  if (result.rows.length === 0) {
+    // Seed sensible defaults so a fresh tenant gets a working policy set.
+    for (const p of DEFAULT_LEAVE_POLICIES) {
+      const id = `lp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${p.leaveType}`
+      await sql`
+        INSERT INTO leave_policies (id, tenant_id, leave_type, annual_days)
+        VALUES (${id}, ${resolvedTenantId}, ${p.leaveType}, ${p.annualDays})
+        ON CONFLICT (tenant_id, leave_type) DO NOTHING
+      `.catch(() => {})
+    }
+    return DEFAULT_LEAVE_POLICIES.map((p, i) => ({ id: `default_${i}`, ...p }))
+  }
+  return result.rows.map(r => ({ id: r.id, leaveType: r.leave_type, annualDays: r.annual_days }))
+}
+
+export async function upsertLeavePolicy(leaveType: string, annualDays: number, tenantId?: string): Promise<LeavePolicy> {
+  await ensureLeavePoliciesTable()
+  const resolvedTenantId = tenantId || 'default-tenant'
+  const id = `lp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const result = await sql`
+    INSERT INTO leave_policies (id, tenant_id, leave_type, annual_days)
+    VALUES (${id}, ${resolvedTenantId}, ${leaveType}, ${annualDays})
+    ON CONFLICT (tenant_id, leave_type)
+    DO UPDATE SET annual_days = ${annualDays}, updated_at = NOW()
+    RETURNING id, leave_type, annual_days
+  `
+  const r = result.rows[0]
+  return { id: r.id, leaveType: r.leave_type, annualDays: r.annual_days }
+}
+
+export async function deleteLeavePolicy(id: string, tenantId?: string): Promise<boolean> {
+  const resolvedTenantId = tenantId || 'default-tenant'
+  const result = await sql`
+    DELETE FROM leave_policies WHERE id = ${id} AND tenant_id = ${resolvedTenantId} RETURNING id
+  `.catch(() => ({ rows: [] as any[] }))
+  return result.rows.length > 0
+}
+
 // ── Attendance ──────────────────────────────────────────────────────────────
 
 export async function fetchAttendance(date?: string, staffId?: string, tenantId?: string): Promise<Attendance[]> {

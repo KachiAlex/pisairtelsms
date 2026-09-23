@@ -116,7 +116,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // Notify tenant admins — a bank change is the payroll fraud vector
       try {
         const staffRow = await sql`SELECT name FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1`
-        const admins = await sql`SELECT id FROM tenant_users WHERE tenant_id = ${tenantId} AND role = 'tenant_admin'`
+        const admins = await sql`SELECT id FROM staff WHERE tenant_id = ${tenantId} AND LOWER(role) IN ('tenant_admin', 'admin') AND id <> ${staffId}`
         for (const admin of admins.rows) {
           await sql`
             INSERT INTO notifications (id, tenant_id, user_id, title, message, type, is_read, created_at)

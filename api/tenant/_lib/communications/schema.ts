@@ -358,11 +358,11 @@ export async function updateRecipientStatus(
   if (updates.providerMessageId !== undefined) { p++; fields.push(`provider_message_id = $${p}`); values.push(updates.providerMessageId) }
   if (updates.attempts !== undefined) { p++; fields.push(`attempts = $${p}`); values.push(updates.attempts) }
   if (updates.errorMessage !== undefined) { p++; fields.push(`error_message = $${p}`); values.push(updates.errorMessage) }
-  if (updates.sentAt !== undefined) { p++; fields.push(`sent_at = $${p}`); values.push(updates.sentAt) }
-  if (updates.deliveredAt !== undefined) { p++; fields.push(`delivered_at = $${p}`); values.push(updates.deliveredAt) }
-  if (updates.readAt !== undefined) { p++; fields.push(`read_at = $${p}`); values.push(updates.readAt) }
+  if (updates.sentAt !== undefined) { p++; fields.push(`sent_at = $${p}`); values.push(updates.sentAt ? new Date(updates.sentAt) : null) }
+  if (updates.deliveredAt !== undefined) { p++; fields.push(`delivered_at = $${p}`); values.push(updates.deliveredAt ? new Date(updates.deliveredAt) : null) }
+  if (updates.readAt !== undefined) { p++; fields.push(`read_at = $${p}`); values.push(updates.readAt ? new Date(updates.readAt) : null) }
   if (fields.length === 0) return
-  p++; fields.push(`updated_at = $${p}`); values.push(new Date().toISOString())
+  p++; fields.push(`updated_at = $${p}`); values.push(new Date())
   p++; values.push(recipientId)
   await sql.query(`UPDATE communication_recipients SET ${fields.join(', ')} WHERE id = $${p}`, values)
 }

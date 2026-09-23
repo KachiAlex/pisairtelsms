@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
-import { verifyParentChildRelationship } from '../../src/lib/parentAuth'
+import { verifyParentChildAccess } from './_lib/verify-child.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET') {
@@ -24,7 +24,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Bad request: childId is required' })
     }
 
-    if (!verifyParentChildRelationship(parentInfo.parentId, childId, parentInfo.childrenIds)) {
+    if (!await verifyParentChildAccess(parentInfo.parentId, childId, tenantId)) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 

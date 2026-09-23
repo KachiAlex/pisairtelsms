@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
-import { verifyParentChildRelationship } from '../../src/lib/parentAuth'
+import { verifyParentChildAccess } from './_lib/verify-child.js'
 
 interface ParentDashboardResponse {
   parent: {
@@ -69,7 +69,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     // Verify parent-child relationship
-    if (!verifyParentChildRelationship(parentInfo.parentId, childId, parentInfo.childrenIds)) {
+    if (!await verifyParentChildAccess(parentInfo.parentId, childId, decoded.tenantId || 'default-tenant')) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 

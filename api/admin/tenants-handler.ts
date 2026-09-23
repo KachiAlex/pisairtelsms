@@ -130,6 +130,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         console.error('provisioning queue insert failed:', e)
       }
 
+      // Seed the default absence-reason catalog so attendance dropdowns work
+      // from day one. Matches migration 016_seed_absence_reasons.sql.
+      try {
+        await poolQuery(
+          `INSERT INTO absence_reasons (id, tenant_id, reason_name, description, is_active, created_at)
+           SELECT 'ar_' || $1 || '_' || lower(regexp_replace(d.reason_name, '[^a-zA-Z0-9]+', '_', 'g')),
+                  $1, d.reason_name, d.description, TRUE, NOW()
+           FROM (VALUES
+             ('Illness',             'Student was unwell'),
+             ('Medical appointment', 'Doctor, dentist, or hospital visit'),
+             ('Family emergency',    'Family emergency or bereavement'),
+             ('Family travel',       'Travel or family commitment'),
+             ('Religious observance','Religious event or observance'),
+             ('Weather/transport',   'Transport or weather-related absence'),
+             ('School activity',     'Approved school event, excursion, or competition'),
+             ('Suspension',          'Disciplinary suspension'),
+             ('Unexcused',           'Absence without a valid reason')
+           ) AS d(reason_name, description)`,
+          [tenant.id]
+        )
+      } catch (e) {
+        console.error('absence reason seeding failed:', e)
+      }
+
       // Create initial admin if provided
       let generatedPassword: string | null = null
       if (adminName && adminEmail) {

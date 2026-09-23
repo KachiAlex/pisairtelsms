@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
-import { verifyParentChildRelationship } from '../../src/lib/parentAuth'
+import { verifyParentChildAccess } from './_lib/verify-child.js'
 
 const VIOLATION_ALERT_THRESHOLD = 5
 
@@ -99,7 +99,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Bad request: childId is required' })
     }
 
-    if (!verifyParentChildRelationship(parentInfo.parentId, childId, parentInfo.childrenIds)) {
+    if (!await verifyParentChildAccess(parentInfo.parentId, childId, tenantId)) {
       logParentChildViolation(parentInfo.parentId, childId, 'GET /parent/messages', decoded.tenantId)
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
@@ -186,7 +186,7 @@ async function handlePost(req: ApiRequest, res: ApiResponse) {
     }
     const safeChildId = sanitizedChildId
 
-    if (!verifyParentChildRelationship(parentInfo.parentId, safeChildId, parentInfo.childrenIds)) {
+    if (!await verifyParentChildAccess(parentInfo.parentId, safeChildId, tenantId)) {
       logParentChildViolation(parentInfo.parentId, sanitizedChildId, 'POST /parent/messages', decoded.tenantId)
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }

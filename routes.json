@@ -493,6 +493,10 @@
       "destination": "/api/tenant/security/incidents.ts"
     },
     {
+      "source": "/api/tenant/behavioral",
+      "destination": "/api/tenant/behavioral.ts"
+    },
+    {
       "source": "/api/tenant/security/sessions",
       "destination": "/api/tenant/security/sessions-handler.ts"
     },

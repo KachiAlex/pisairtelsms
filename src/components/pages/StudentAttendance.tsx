@@ -18,6 +18,9 @@ import {
   X,
   Clock,
   ClipboardCheck,
+  ListChecks,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -39,7 +42,7 @@ import {
   TableRow,
 } from '../ui/table'
 import { useToast } from '../ui/use-toast'
-import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
+import { tenantApiGet, tenantApiPost, tenantApiFetch } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
 import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
 import { QrAttendanceDisplay } from './staff/QrAttendanceDisplay'
@@ -138,6 +141,12 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
 
   // Notifications
   const [sendingNotices, setSendingNotices] = useState(false)
+
+  // Absence reasons catalog (managed here; feeds staff attendance dropdowns)
+  const [absenceReasons, setAbsenceReasons] = useState<Array<{ id: string; reasonName?: string; reason_name?: string; description?: string; isActive?: boolean; is_active?: boolean }>>([])
+  const [reasonsLoading, setReasonsLoading] = useState(false)
+  const [newReason, setNewReason] = useState({ reasonName: '', description: '' })
+  const [savingReason, setSavingReason] = useState(false)
 
   // Reports
   const [reportStartDate, setReportStartDate] = useState('')
@@ -601,6 +610,53 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
     }
   }, [activeTab, fetchStaffAttendance])
 
+  // ── Absence reasons catalog ──────────────────────────────────────────────
+  const fetchReasons = useCallback(async () => {
+    setReasonsLoading(true)
+    try {
+      const res = await tenantApiGet('/api/tenant/absence-reasons')
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setAbsenceReasons(data.data ?? data.reasons ?? [])
+    } catch { /* leave list empty */ } finally {
+      setReasonsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'reasons') fetchReasons()
+  }, [activeTab, fetchReasons])
+
+  const addReason = async () => {
+    if (!newReason.reasonName.trim()) return
+    setSavingReason(true)
+    try {
+      const res = await tenantApiPost('/api/tenant/absence-reasons', {
+        reasonName: newReason.reasonName.trim(),
+        description: newReason.description.trim() || undefined,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `Failed (${res.status})`)
+      setNewReason({ reasonName: '', description: '' })
+      toast({ title: 'Reason added' })
+      await fetchReasons()
+    } catch (e: any) {
+      toast({ title: 'Could not add reason', description: e?.message, variant: 'destructive' })
+    } finally {
+      setSavingReason(false)
+    }
+  }
+
+  const deleteReason = async (id: string) => {
+    try {
+      const res = await tenantApiFetch(`/api/tenant/absence-reasons/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast({ title: 'Reason removed' })
+      await fetchReasons()
+    } catch {
+      toast({ title: 'Could not remove reason', variant: 'destructive' })
+    }
+  }
+
   // Re-fetch when reason filter changes
   useEffect(() => {
     setAtRiskPage(0)
@@ -711,7 +767,7 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="students">
             <Users className="h-4 w-4 mr-2" />
             Student Attendance
@@ -731,6 +787,10 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
           <TabsTrigger value="reports">
             <BarChart3 className="h-4 w-4 mr-2" />
             Reports
+          </TabsTrigger>
+          <TabsTrigger value="reasons">
+            <ListChecks className="h-4 w-4 mr-2" />
+            Reasons
           </TabsTrigger>
         </TabsList>
 
@@ -1887,6 +1947,90 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                     Reports include all attendance records within the selected range.
                   </AlertDescription>
                 </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Absence Reasons Tab — manages the catalog teachers pick from when marking absences */}
+        <TabsContent value="reasons" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Absence Reasons</CardTitle>
+              <CardDescription>
+                The catalog teachers pick from when marking a student absent. Reasons are shown to
+                parents and students on attendance views.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1">
+                  <Label>Reason name</Label>
+                  <Input
+                    className="w-64"
+                    placeholder="e.g. Excused travel"
+                    value={newReason.reasonName}
+                    onChange={e => setNewReason(r => ({ ...r, reasonName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Description (optional)</Label>
+                  <Input
+                    className="w-72"
+                    placeholder="Shown as context"
+                    value={newReason.description}
+                    onChange={e => setNewReason(r => ({ ...r, description: e.target.value }))}
+                  />
+                </div>
+                <Button onClick={addReason} disabled={savingReason || !newReason.reasonName.trim()}>
+                  {savingReason ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+                  Add reason
+                </Button>
+              </div>
+
+              {reasonsLoading ? (
+                <div className="py-8 text-center text-gray-500">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" /> Loading reasons…
+                </div>
+              ) : absenceReasons.length === 0 ? (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    No absence reasons configured yet. Teachers will see an empty dropdown when
+                    marking absences until you add reasons here.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {absenceReasons.map(r => {
+                      const name = r.reasonName || r.reason_name || ''
+                      const active = r.isActive ?? r.is_active ?? true
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-medium text-sm">{name}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{r.description || '—'}</TableCell>
+                          <TableCell>
+                            <Badge variant={active ? 'default' : 'secondary'}>{active ? 'Active' : 'Inactive'}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm" onClick={() => deleteReason(r.id)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>

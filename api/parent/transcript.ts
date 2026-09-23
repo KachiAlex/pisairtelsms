@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js';
 import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
-import { verifyParentChildRelationship } from '../../src/lib/parentAuth';
+import { verifyParentChildAccess } from './_lib/verify-child.js';
 import { getTenantCAConfig } from '../tenant/_lib/ca-config.js';
 import { getLevelForClass } from '../tenant/_lib/grade-bands.js';
 
@@ -52,7 +52,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const { childId } = req.query;
     if (!childId) return res.status(400).json({ error: 'childId is required' });
 
-    if (!verifyParentChildRelationship(parentId, childId as string, childrenIds)) {
+    if (!await verifyParentChildAccess(parentId, childId as string, decoded.tenantId || 'default-tenant')) {
       return res.status(403).json({ error: 'Forbidden: You do not have access to this child' });
     }
 

@@ -3,7 +3,7 @@ import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import { getAcademicSessionNames } from '../_lib/academic-calendar.js'
-import { verifyParentChildRelationship } from '../../../src/lib/parentAuth'
+import { verifyParentChildAccess } from '../../parent/_lib/verify-child.js'
 import {
   createFeeAssignment,
   getFeeAssignments,
@@ -53,7 +53,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Parents are read-only and scoped to their own children.
   const isParent = decoded.role === 'parent'
   const parentOwns = (studentId?: string) =>
-    verifyParentChildRelationship(decoded.parentId, studentId, decoded.childrenIds || [])
+    verifyParentChildAccess(decoded.parentId, studentId, tenantId)
   if (isParent && req.method !== 'GET') {
     return res.status(403).json({ error: 'Parents can only view fee assignments for their children' })
   }
@@ -63,7 +63,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET /api/tenant/finance/fee-assignments
   if (req.method === 'GET' && !id) {
     const { studentId, academicSession, term } = req.query
-    if (isParent && (!studentId || !parentOwns(studentId as string))) {
+    if (isParent && (!studentId || !await parentOwns(studentId as string))) {
       return res.status(403).json({ error: 'You can only view fee assignments for your own children' })
     }
     try {
@@ -87,7 +87,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!assignment) {
         return res.status(404).json({ error: 'Fee assignment not found' })
       }
-      if (isParent && !parentOwns(assignment.studentId)) {
+      if (isParent && !await parentOwns(assignment.studentId)) {
         return res.status(403).json({ error: 'You can only view fee assignments for your own children' })
       }
       return res.status(200).json({ data: assignment })
@@ -103,7 +103,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (isParent) {
         const assignment = await getFeeAssignmentById(tenantId, id as string)
         if (!assignment) return res.status(404).json({ error: 'Fee assignment not found' })
-        if (!parentOwns(assignment.studentId)) {
+        if (!await parentOwns(assignment.studentId)) {
           return res.status(403).json({ error: 'You can only view fee assignments for your own children' })
         }
       }

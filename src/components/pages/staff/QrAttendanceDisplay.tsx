@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   QrCode, RefreshCw, Clock, XCircle, Loader2, MonitorSmartphone,
-  ShieldCheck, LogIn, LogOut, Printer, AlertTriangle,
+  ShieldCheck, LogIn, LogOut, Printer, AlertTriangle, Link2, Copy, Trash2, Check,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card'
 import { Button } from '../../ui/button'
@@ -56,6 +56,10 @@ export function QrAttendanceDisplay() {
   const [summary, setSummary] = useState<FeedSummary | null>(null)
   const [printCode, setPrintCode] = useState<{ qrData: string; date: string } | null>(null)
   const [printLoading, setPrintLoading] = useState(false)
+  const [kioskDialog, setKioskDialog] = useState(false)
+  const [kioskKeys, setKioskKeys] = useState<Array<{ id: string; key: string; label: string; created_at: string; revoked_at: string | null }>>([])
+  const [kioskBusy, setKioskBusy] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const feedRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -142,6 +146,54 @@ export function QrAttendanceDisplay() {
     }
   }
 
+  const fetchKioskKeys = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/staff-attendance/qr?mode=kiosk-links', { headers: getAuthHeaders() })
+      const data = await res.json()
+      if (data.success) setKioskKeys(data.keys || [])
+    } catch { /* ignore */ }
+  }, [])
+
+  const createKioskLink = async () => {
+    setKioskBusy(true)
+    try {
+      const res = await fetch('/api/tenant/staff-attendance/qr', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ action: 'create-kiosk', label: 'Entrance display' }),
+      })
+      const data = await res.json()
+      if (data.success) fetchKioskKeys()
+      else setError(data.error || 'Failed to create kiosk link')
+    } catch {
+      setError('Could not reach the server')
+    } finally {
+      setKioskBusy(false)
+    }
+  }
+
+  const revokeKioskLink = async (keyId: string) => {
+    setKioskBusy(true)
+    try {
+      await fetch('/api/tenant/staff-attendance/qr', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ action: 'revoke-kiosk', keyId }),
+      })
+      fetchKioskKeys()
+    } finally {
+      setKioskBusy(false)
+    }
+  }
+
+  const copyLink = (key: string) => {
+    const url = `${window.location.origin}/kiosk/attendance?key=${key}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(key)
+      setTimeout(() => setCopied(null), 2000)
+    })
+  }
+
   const printDailyCode = () => {
     const svg = printQrRef.current?.querySelector('svg')?.outerHTML
     if (!svg || !printCode) return
@@ -209,6 +261,10 @@ export function QrAttendanceDisplay() {
               <Button variant="outline" size="sm" onClick={generatePrintCode} disabled={printLoading}>
                 <Printer className="w-4 h-4 mr-2" />
                 {printLoading ? 'Generating…' : 'Print daily code'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => { setKioskDialog(true); fetchKioskKeys() }}>
+                <Link2 className="w-4 h-4 mr-2" />
+                Kiosk link
               </Button>
             </div>
 
@@ -285,6 +341,46 @@ export function QrAttendanceDisplay() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Kiosk link management — display-only URLs for unattended screens */}
+      <Dialog open={kioskDialog} onOpenChange={setKioskDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Kiosk Links</DialogTitle>
+            <DialogDescription>
+              Open a kiosk link on the entrance screen — it shows the rotating QR and today's check-ins with no login, and cannot mark attendance. Revoke a link to kill that screen instantly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {kioskKeys.filter(k => !k.revoked_at).length === 0 && (
+              <p className="text-sm text-gray-500 py-2">No active kiosk links yet.</p>
+            )}
+            {kioskKeys.filter(k => !k.revoked_at).map(k => (
+              <div key={k.id} className="flex items-center gap-2 rounded-lg border p-2.5">
+                <Link2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{k.label || 'Attendance kiosk'}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {window.location.origin}/kiosk/attendance?key={k.key.slice(0, 14)}…
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => copyLink(k.key)} title="Copy link">
+                  {copied === k.key ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => revokeKioskLink(k.id)} disabled={kioskBusy} title="Revoke">
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </Button>
+              </div>
+            ))}
+            <Button onClick={createKioskLink} disabled={kioskBusy} className="w-full">
+              {kioskBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
+              Create kiosk link
+            </Button>
+            <p className="text-xs text-gray-500">
+              Safer than leaving an admin logged in on a public screen: a kiosk link can only display — never mark attendance or reach admin functions.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

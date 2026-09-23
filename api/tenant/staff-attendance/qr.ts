@@ -49,16 +49,9 @@ function qrPayload(req: ApiRequest, token: string): string {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
-  if (!decoded) return
-
-  const tenantId = decoded.tenantId || 'default-tenant'
-  const userRole = decoded.role || 'staff'
-  const userId = decoded.staffId || decoded.userId || decoded.sub
-
   await ensureStaffTables()
 
-  // Ensure QR sessions table exists
+  // Ensure QR sessions + kiosk key tables exist
   await sql`
     CREATE TABLE IF NOT EXISTS staff_attendance_qr_sessions (
       id TEXT PRIMARY KEY,
@@ -71,10 +64,119 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       used BOOLEAN DEFAULT false
     )
   `.catch(() => {})
+  await sql`
+    CREATE TABLE IF NOT EXISTS attendance_kiosk_keys (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      tenant_id TEXT NOT NULL,
+      label TEXT,
+      created_by TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      revoked_at TIMESTAMP
+    )
+  `.catch(() => {})
+
+  const { mode } = req.query || {}
+  const kioskKey = (req.query?.kiosk as string) || ''
+
+  // ── Kiosk device paths (no session) ────────────────────────────────────
+  // A kiosk key only unlocks display: minting rotating scan tokens and
+  // reading today's check-in feed. It can NEVER scan, generate, or write.
+  // Admin creates/revokes keys below; revoking kills the screen instantly.
+  if (req.method === 'GET' && (mode === 'kiosk' || mode === 'kiosk-feed') && kioskKey) {
+    try {
+      const keyResult = await sql`
+        SELECT id, tenant_id, label FROM attendance_kiosk_keys
+        WHERE key = ${kioskKey} AND revoked_at IS NULL
+        LIMIT 1
+      `
+      const kiosk = keyResult.rows[0] as any
+      if (!kiosk) {
+        return res.status(403).json({ success: false, error: 'Invalid or revoked kiosk key' })
+      }
+      const kTenant = kiosk.tenant_id
+
+      if (mode === 'kiosk') {
+        const today = new Date().toISOString().split('T')[0]
+        const token = generateToken()
+        const id = `qrs_${Date.now()}_${randomUUID().slice(0, 8)}`
+        const expiresAt = new Date(Date.now() + 45_000)
+        await sql`
+          INSERT INTO staff_attendance_qr_sessions (id, token, tenant_id, date, generated_by, expires_at, used)
+          VALUES (${id}, ${token}, ${kTenant}, ${today}, ${`kiosk:${kiosk.id}`}, ${expiresAt.toISOString()}, false)
+        `
+        await sql`DELETE FROM staff_attendance_qr_sessions WHERE tenant_id = ${kTenant} AND expires_at < NOW() - INTERVAL '1 hour'`.catch(() => {})
+        return res.status(200).json({
+          success: true,
+          token,
+          qrData: qrPayload(req, token),
+          date: today,
+          expiresAt: expiresAt.toISOString(),
+        })
+      }
+
+      // kiosk-feed: today's check-ins + summary (read-only, display data)
+      const today = new Date().toISOString().split('T')[0]
+      const feedResult = await sql`
+        SELECT staff_name, check_in, check_out, status
+        FROM staff_attendance
+        WHERE tenant_id = ${kTenant} AND date = ${today} AND check_in IS NOT NULL
+        ORDER BY check_in DESC
+        LIMIT 12
+      `
+      const staffCount = await sql`
+        SELECT COUNT(*)::int AS n FROM staff WHERE tenant_id = ${kTenant} AND status = 'active'
+      `
+      const present = feedResult.rows.filter((r: any) => r.status === 'present').length
+      const late = feedResult.rows.filter((r: any) => r.status === 'late').length
+      const checkedIn = feedResult.rows.length
+      return res.status(200).json({
+        success: true,
+        date: today,
+        feed: feedResult.rows.map((r: any) => ({
+          staffName: r.staff_name,
+          checkIn: r.check_in,
+          checkOut: r.check_out,
+          status: r.status,
+        })),
+        summary: {
+          total: staffCount.rows[0]?.n ?? 0,
+          checkedIn,
+          present,
+          late,
+          absent: Math.max(0, (staffCount.rows[0]?.n ?? 0) - checkedIn),
+        },
+      })
+    } catch (error) {
+      console.error('Kiosk device error:', error)
+      return res.status(500).json({ success: false, error: 'Kiosk request failed' })
+    }
+  }
+
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  if (!decoded) return
+
+  const tenantId = decoded.tenantId || 'default-tenant'
+  const userRole = decoded.role || 'staff'
+  const userId = decoded.staffId || decoded.userId || decoded.sub
 
   if (req.method === 'GET') {
     try {
-      const { date, mode } = req.query
+      const { date } = req.query
+
+      // ── Kiosk link management (admin) ──
+      if (mode === 'kiosk-links') {
+        if (userRole !== 'tenant_admin') {
+          return res.status(403).json({ success: false, error: 'Only administrators can manage kiosk links' })
+        }
+        const keys = await sql`
+          SELECT id, key, label, created_by, created_at::text, revoked_at::text
+          FROM attendance_kiosk_keys
+          WHERE tenant_id = ${tenantId}
+          ORDER BY created_at DESC
+        `
+        return res.status(200).json({ success: true, keys: keys.rows })
+      }
 
       // ── Kiosk mode: a fresh short-lived token per call. The kiosk screen
       // polls every ~25s so the displayed code rotates continuously — a
@@ -189,6 +291,50 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         console.error('QR generation error:', error)
         return res.status(500).json({ success: false, error: 'Failed to generate QR code' })
       }
+    }
+
+    // ── Kiosk link management (admin) ──────────────────────────────────
+    if (action === 'create-kiosk') {
+      if (userRole !== 'tenant_admin') {
+        return res.status(403).json({ success: false, error: 'Only administrators can create kiosk links' })
+      }
+      try {
+        const key = `kiosk_${randomUUID().replace(/-/g, '')}`
+        const id = `kk_${Date.now()}_${randomUUID().slice(0, 8)}`
+        const label = (body.label as string)?.slice(0, 80) || 'Attendance kiosk'
+        await sql`
+          INSERT INTO attendance_kiosk_keys (id, key, tenant_id, label, created_by)
+          VALUES (${id}, ${key}, ${tenantId}, ${label}, ${userId})
+        `
+        const proto = ((req.headers?.['x-forwarded-proto'] as string) || 'https').split(',')[0].trim()
+        const host = ((req.headers?.['x-forwarded-host'] as string) || (req.headers?.host as string) || '').split(',')[0].trim()
+        return res.status(200).json({
+          success: true,
+          id,
+          key,
+          label,
+          url: host ? `${proto}://${host}/kiosk/attendance?key=${key}` : null,
+          message: 'Kiosk link created. Open it on the entrance display — it can only show the QR and today\'s check-ins.',
+        })
+      } catch (error) {
+        console.error('Kiosk key creation error:', error)
+        return res.status(500).json({ success: false, error: 'Failed to create kiosk link' })
+      }
+    }
+
+    if (action === 'revoke-kiosk') {
+      if (userRole !== 'tenant_admin') {
+        return res.status(403).json({ success: false, error: 'Only administrators can revoke kiosk links' })
+      }
+      const { keyId } = body
+      if (!keyId) {
+        return res.status(400).json({ success: false, error: 'keyId is required' })
+      }
+      await sql`
+        UPDATE attendance_kiosk_keys SET revoked_at = NOW()
+        WHERE id = ${keyId} AND tenant_id = ${tenantId}
+      `
+      return res.status(200).json({ success: true, message: 'Kiosk link revoked — that screen stops working immediately.' })
     }
 
     // ── Scan QR Code (staff self check-in/out) ──────────────────────────
@@ -369,7 +515,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       })
     }
 
-    return res.status(400).json({ success: false, error: 'Invalid action. Use: generate, scan, or bulk-mark' })
+    return res.status(400).json({ success: false, error: 'Invalid action. Use: generate, scan, bulk-mark, create-kiosk, or revoke-kiosk' })
   }
 
   res.setHeader('Allow', 'GET, POST')

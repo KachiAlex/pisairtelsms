@@ -101,6 +101,7 @@ const PrivacyCenter = lazy(() => import('./components/pages/PrivacyCenter'));
 const IncidentManagement = lazy(() => import('./components/pages/IncidentManagement'));
 const NotificationsDashboard = lazy(() => import('./components/pages/NotificationsDashboard'));
 const UnifiedActionCenter = lazy(() => import('./components/pages/UnifiedActionCenter'));
+const AttendanceKioskPage = lazy(() => import('./components/pages/staff/AttendanceKioskPage'));
 
 
 export default function App() {
@@ -568,6 +569,7 @@ export default function App() {
         <Route path="/inquiry/:slug" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><PublicInquiryForm /></Suspense></ErrorBoundary>} />
         <Route path="/demo" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><DemoRequestForm /></Suspense></ErrorBoundary>} />
         <Route path="/join/:alias" element={<JoinLinkResolver />} />
+        <Route path="/kiosk/attendance" element={<Suspense fallback={<div className="min-h-screen bg-slate-950" />}><AttendanceKioskPage /></Suspense>} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/tenant/*" element={<ProtectedRoute requiredRole="tenant_admin">{tenantShell}</ProtectedRoute>} />
         <Route path="/super-admin" element={<ProtectedRoute requiredRole="super_admin"><ErrorBoundary><Suspense fallback={<div>Loading...</div>}><SuperAdminPortal onSignOut={() => navigate('/login')} /></Suspense></ErrorBoundary></ProtectedRoute>} />

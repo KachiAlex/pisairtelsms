@@ -148,6 +148,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       entriesBySchedule.set(e.schedule_id, set)
     }
 
+    // Per-teacher, per-day load — placements prefer days where the teacher
+    // has fewer periods so their week spreads instead of stacking on
+    // whichever days happen to be scheduled first.
+    const teacherDayLoad = new Map<string, number>() // `${teacherId}|${day}`
+    for (const e of existingEntries.rows) {
+      if (!e.teacher_id) continue
+      const k = `${e.teacher_id}|${e.day_of_week}`
+      teacherDayLoad.set(k, (teacherDayLoad.get(k) || 0) + 1)
+    }
+
     // --- Build per-class plans ----------------------------------------------
     const plans: ClassPlan[] = []
     const skipped: { className: string; reason: string }[] = []
@@ -241,6 +251,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           // different days/periods instead of all landing Monday morning.
           const offset = plan.freeSlots.length === 0 ? 0
             : Math.abs(hashCode(`${plan.classId}|${subject.subjectName}`)) % plan.freeSlots.length
+          // Among all feasible slots, pick the day where this teacher's load
+          // is lightest (ties fall back to rotated scan order for variety).
+          let best: { slotId: string; dayOfWeek: number; sequence: number } | null = null
+          let bestLoad = Infinity
           for (let i = 0; i < plan.freeSlots.length; i++) {
             const slot = plan.freeSlots[(i + offset) % plan.freeSlots.length]
             const classKey = `${slot.slotId}|${slot.dayOfWeek}`
@@ -251,6 +265,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             const dayKey = `${subject.subjectName}|${slot.dayOfWeek}`
             if ((plan.dayCounts.get(dayKey) || 0) >= perDayCap) continue
 
+            const load = subject.teacherAssigned
+              ? (teacherDayLoad.get(`${subject.teacherId}|${slot.dayOfWeek}`) || 0)
+              : 0
+            if (load < bestLoad) {
+              bestLoad = load
+              best = slot
+              if (load === 0) break
+            }
+          }
+          if (!best) continue
+          const slot = best
+
+          {
+            const dayKey = `${subject.subjectName}|${slot.dayOfWeek}`
             const entryId = randomUUID()
             await sql`
               INSERT INTO timetable_class_schedule_entries
@@ -262,14 +290,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 NULL, ${slot.dayOfWeek}
               )`
 
-            plan.takenSlots.add(classKey)
+            plan.takenSlots.add(`${slot.slotId}|${slot.dayOfWeek}`)
             if (subject.teacherAssigned) {
               busyTeacherSlots.add(`${subject.teacherId}|${slot.slotId}|${slot.dayOfWeek}`)
+              const loadKey = `${subject.teacherId}|${slot.dayOfWeek}`
+              teacherDayLoad.set(loadKey, (teacherDayLoad.get(loadKey) || 0) + 1)
             }
             plan.dayCounts.set(dayKey, (plan.dayCounts.get(dayKey) || 0) + 1)
             subject.assigned++
             placedThisPass = true
-            break
           }
         }
       }

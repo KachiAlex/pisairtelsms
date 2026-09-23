@@ -66,7 +66,9 @@ export async function getClassById(tenantId: string, classId: string): Promise<C
  * Check if a class with the same name+arm already exists for the tenant
  */
 export async function checkClassExists(tenantId: string, name: string, arm: string, excludeId?: string): Promise<boolean> {
-  let queryStr = `SELECT id FROM classes WHERE tenant_id = $1 AND name = $2 AND arm = $3 AND deleted_at IS NULL`
+  // Compare space-insensitively so 'JSS1' and 'JSS 1' can't coexist as
+  // separate classes — historical seed data created exactly that split.
+  let queryStr = `SELECT id FROM classes WHERE tenant_id = $1 AND REPLACE(name, ' ', '') = REPLACE($2, ' ', '') AND arm = $3 AND deleted_at IS NULL`
   const params: any[] = [tenantId, name, arm]
   if (excludeId) {
     queryStr += ` AND id != $4`

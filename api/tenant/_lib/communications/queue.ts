@@ -116,6 +116,8 @@ export async function processQueue(
       recipientName: recipient.recipientName,
       communicationId: communication.id,
       channel: recipient.channel,
+      tenantId,
+      recipientType: recipient.recipientType,
     })
 
     if (result.success) {

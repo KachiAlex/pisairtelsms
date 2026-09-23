@@ -35,7 +35,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const limitNum = Math.min(parseInt(limit as string) || 10, 100);
     const offsetNum = parseInt(offset as string) || 0;
 
-    const countResult = await sql`SELECT COUNT(*) AS total FROM announcements WHERE tenant_id = ${tenantId}`;
+    const countResult = await sql`
+      SELECT COUNT(*) AS total FROM announcements
+      WHERE tenant_id = ${tenantId}
+        AND COALESCE(status, 'sent') = 'sent'
+        AND COALESCE(audience, 'all') IN ('all', 'students')
+    `;
     const total = parseInt(countResult.rows[0]?.total ?? '0');
 
     const dbResult = await sql`
@@ -45,6 +50,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
              COALESCE(audience, 'public') AS audience
       FROM announcements
       WHERE tenant_id = ${tenantId}
+        AND COALESCE(status, 'sent') = 'sent'
+        AND COALESCE(audience, 'all') IN ('all', 'students')
       ORDER BY created_at DESC
       LIMIT ${limitNum} OFFSET ${offsetNum}
     `;

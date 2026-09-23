@@ -35,25 +35,64 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(403).json({ error: 'Forbidden: You do not have access to this child' });
     }
 
-    const childRes = await sql`SELECT name FROM students WHERE id = ${childId as string} AND deleted_at IS NULL LIMIT 1`;
-    const childName = childRes.rows[0]?.name || '';
+    const childRes = await sql`
+      SELECT name, tenant_id, class, arm FROM students
+      WHERE id = ${childId as string} AND deleted_at IS NULL LIMIT 1
+    `;
+    const child = childRes.rows[0];
+    if (!child) return res.status(404).json({ error: 'Child not found' });
+    const tenantId = child.tenant_id || 'default-tenant';
+    const childName = child.name || '';
 
-    const result = await sql`SELECT id::text, subject, title, description, due_date::text AS due_date,
-      status, type, teacher_name, submitted_at::text AS submitted_at, score, max_score, feedback
-      FROM student_assignments WHERE student_id = ${childId as string} ORDER BY due_date DESC`;
+    await sql`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'homework'`.catch(() => {});
+
+    const result = await sql`
+      SELECT a.id::text, a.title, a.instructions, a.points, a.type,
+        a.due_date::text AS due_date,
+        s.name AS subject_name,
+        st.name AS teacher_name,
+        sub.status AS sub_status, sub.submitted_at::text AS submitted_at,
+        sub.grade, sub.feedback
+      FROM assignments a
+      JOIN virtual_classrooms vc ON vc.id = a.classroom_id
+      LEFT JOIN subjects s ON s.id::text = vc.subject_id
+      LEFT JOIN staff st ON st.id = a.created_by OR st.id = vc.teacher_id
+      LEFT JOIN submissions sub ON sub.assignment_id = a.id AND sub.student_id = ${childId as string}
+      WHERE a.tenant_id = ${tenantId} AND a.is_published = true
+        AND (
+          (vc.class_arm_id IS NULL OR vc.class_arm_id = '')
+            AND (vc.class_level IS NULL OR vc.class_level = '')
+          OR (vc.class_level IS NOT NULL AND vc.class_level != ''
+            AND LOWER(vc.class_level) = LOWER(${child.class || ''}))
+          OR EXISTS (
+            SELECT 1 FROM classes c
+            WHERE c.id::text = vc.class_arm_id AND c.tenant_id = ${tenantId}
+              AND LOWER(c.name) = LOWER(${child.class || ''})
+              AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(${child.arm || ''}))
+          )
+        )
+      ORDER BY a.due_date DESC
+    `;
 
     const now = new Date();
     let assignments: Assignment[] = result.rows.map(r => {
-      let st = r.status as Assignment['status'];
+      let st: Assignment['status'] = 'pending';
+      if (r.sub_status) {
+        st = r.sub_status === 'graded' ? 'graded' : 'submitted';
+      }
       if (st === 'pending' && r.due_date && new Date(r.due_date) < now) st = 'overdue';
       return {
-        id: r.id, subject: r.subject || '', title: r.title,
-        description: r.description || '', dueDate: r.due_date || '',
-        status: st, type: (r.type || 'homework') as Assignment['type'],
+        id: r.id,
+        subject: r.subject_name || '',
+        title: r.title,
+        description: r.instructions || '',
+        dueDate: r.due_date || '',
+        status: st,
+        type: (r.type || 'homework') as Assignment['type'],
         teacherName: r.teacher_name || '',
         submittedAt: r.submitted_at || undefined,
-        score: r.score ? Number(r.score) : undefined,
-        maxScore: Number(r.max_score) || 100,
+        score: r.grade != null ? Number(r.grade) : undefined,
+        maxScore: Number(r.points) || 100,
         feedback: r.feedback || undefined,
       };
     });

@@ -12,6 +12,8 @@ export interface MessagePayload {
   recipientName: string
   communicationId: string
   channel: 'email' | 'sms' | 'push' | 'in-app'
+  tenantId?: string
+  recipientType?: 'student' | 'parent' | 'staff'
 }
 
 export interface MessageProvider {
@@ -22,8 +24,35 @@ export interface MessageProvider {
 export class InAppProvider implements MessageProvider {
   name = 'in-app'
 
-  async send(_payload: MessagePayload): Promise<SendResult> {
-    return { success: true, providerMessageId: `inapp_${Date.now()}` }
+  async send(payload: MessagePayload): Promise<SendResult> {
+    try {
+      const { sql } = await import('../../../_lib/sql.js')
+      const tenantId = payload.tenantId || 'default-tenant'
+      const id = `inapp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+
+      if (payload.recipientType === 'staff') {
+        await sql`
+          INSERT INTO staff_messages (id, staff_id, tenant_id, sender_name, subject, body, sender_role, is_read, created_at)
+          VALUES (${id}, ${payload.to}, ${tenantId}, 'Admin', ${payload.subject}, ${payload.body}, 'admin', false, NOW())
+        `
+      } else if (payload.recipientType === 'student') {
+        await sql`ALTER TABLE student_messages ADD COLUMN IF NOT EXISTS tenant_id TEXT`.catch(() => {})
+        await sql`ALTER TABLE student_messages ADD COLUMN IF NOT EXISTS body TEXT`.catch(() => {})
+        await sql`
+          INSERT INTO student_messages (id, student_id, tenant_id, sender_name, subject, body, is_read, created_at)
+          VALUES (${id}, ${payload.to}, ${tenantId}, 'School Admin', ${payload.subject}, ${payload.body}, false, NOW())
+        `
+      } else if (payload.recipientType === 'parent') {
+        await sql`
+          INSERT INTO parent_notifications (id, parent_id, type, title, message, is_read, created_at)
+          VALUES (${id}, ${payload.to}, 'announcement', ${payload.subject}, ${payload.body}, false, NOW())
+        `
+      }
+
+      return { success: true, providerMessageId: id }
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'In-app delivery failed' }
+    }
   }
 }
 

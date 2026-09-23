@@ -43,7 +43,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   try {
-    const decoded = await requireRole(req, res, ['staff']);
+    const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
     if (!decoded) return;
     const staffId = decoded.staffId || decoded.userId;
     if (!staffId) {

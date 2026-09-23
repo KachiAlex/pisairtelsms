@@ -41,7 +41,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           t.updated_at,
           u.name as assigned_to_name
         FROM tasks t
-        LEFT JOIN users u ON t.assigned_to = u.id
+        LEFT JOIN staff u ON t.assigned_to = u.id
         WHERE t.tenant_id = $1
       `
       const params: any[] = [tenantId]
@@ -109,11 +109,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ success: false, error: 'Title is required' })
       }
 
+      let resolvedAssignee: string | null = null
+      if (assignedTo) {
+        const staffRes = await sql.query(
+          `SELECT id FROM staff WHERE tenant_id = $1 AND (id = $2 OR LOWER(name) = LOWER($2) OR LOWER(email) = LOWER($2)) AND deleted_at IS NULL LIMIT 1`,
+          [tenantId, assignedTo]
+        )
+        if (!staffRes.rows[0]) {
+          return res.status(400).json({ success: false, error: 'Assignee not found — pick a staff member' })
+        }
+        resolvedAssignee = staffRes.rows[0].id
+      }
+
       const result = await sql.query(`
         INSERT INTO tasks (id, tenant_id, title, description, status, priority, assigned_to, created_by, due_date, created_at, updated_at)
         VALUES (gen_random_uuid()::text, $1, $2, $3, 'open', $4, $5, $6, $7, NOW(), NOW())
         RETURNING *
-      `, [tenantId, title, description || null, priority || 'medium', assignedTo || null, userId, dueDate || null])
+      `, [tenantId, title, description || null, priority || 'medium', resolvedAssignee, userId, dueDate || null])
 
       return res.status(201).json({
         success: true,

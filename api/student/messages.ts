@@ -32,6 +32,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   // Ensure tenant_id columns exist on portal-side message tables
   await sql`ALTER TABLE student_messages ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch(() => {})
+  await sql`ALTER TABLE student_messages ADD COLUMN IF NOT EXISTS body TEXT`.catch(() => {})
   await sql`ALTER TABLE student_message_replies ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default-tenant'`.catch(() => {})
 
   if (req.method === 'GET') {

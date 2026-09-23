@@ -62,7 +62,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         LEFT JOIN subjects s ON s.id::text = vc.subject_id
         WHERE a.tenant_id = ${tenantId} AND a.is_published = true
           AND (
-            vc.class_arm_id IS NULL OR vc.class_arm_id = ''
+            (vc.class_arm_id IS NULL OR vc.class_arm_id = '')
+              AND (vc.class_level IS NULL OR vc.class_level = '')
+            OR (vc.class_level IS NOT NULL AND vc.class_level != ''
+              AND LOWER(vc.class_level) = LOWER(${student?.class || ''}))
             OR EXISTS (
               SELECT 1 FROM classes c
               WHERE c.id::text = vc.class_arm_id AND c.tenant_id = ${tenantId}
@@ -150,7 +153,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         LEFT JOIN virtual_classrooms vc ON vc.id = a.classroom_id
         WHERE a.id = ${id as string} AND a.tenant_id = ${tenantId}
           AND (
-            vc.class_arm_id IS NULL OR vc.class_arm_id = ''
+            (vc.class_arm_id IS NULL OR vc.class_arm_id = '')
+              AND (vc.class_level IS NULL OR vc.class_level = '')
+            OR (vc.class_level IS NOT NULL AND vc.class_level != ''
+              AND LOWER(vc.class_level) = LOWER(${student?.class || ''}))
             OR EXISTS (
               SELECT 1 FROM classes c
               WHERE c.id::text = vc.class_arm_id AND c.tenant_id = ${tenantId}

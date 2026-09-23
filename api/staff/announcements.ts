@@ -22,7 +22,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   try {
-    const decoded = await requireRole(req, res, ['staff']);
+    const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
     if (!decoded) return;
 
     const tenantId = decoded.tenantId || 'default-tenant';
@@ -34,6 +34,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       SELECT id::text, title, body, created_at::date::text AS date, audience, sent_by
       FROM announcements
       WHERE tenant_id = ${tenantId}
+        AND COALESCE(status, 'sent') = 'sent'
+        AND COALESCE(audience, 'all') IN ('all', 'staff')
       ORDER BY created_at DESC
       LIMIT ${Math.min(parseInt(limit as string), 100)}
       OFFSET ${parseInt(offset as string)}

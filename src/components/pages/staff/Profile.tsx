@@ -199,7 +199,7 @@ export function Profile() {
         return
       }
 
-      const response = await fetch('/api/staff/change-password', {
+      const response = await fetch('/api/staff/profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

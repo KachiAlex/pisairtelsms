@@ -61,7 +61,7 @@ function parseBody(req: ApiRequest): Promise<any> {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff']);
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
   const staffId = decoded.staffId || decoded.userId || decoded.sub;
   if (!staffId) {
@@ -80,6 +80,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         SELECT id::text, staff_id, title, description, status, priority, due_date::text, assigned_by, assigned_by_role, created_at::text, updated_at::text, completed_at::text
         FROM staff_tasks WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
       `;
+
+      // Admin-assigned tasks live in the shared `tasks` table (assigned_to = staff.id)
+      const adminResult = await sql`
+        SELECT t.id::text, t.title, t.description, t.status, t.priority,
+          t.due_date::text, t.created_by, t.created_at::text, t.updated_at::text, t.completed_at::text,
+          s.name AS assigned_by_name
+        FROM tasks t
+        LEFT JOIN staff s ON s.id = t.created_by
+        WHERE t.assigned_to = ${staffId} AND t.tenant_id = ${tenantId}
+      `.catch(() => ({ rows: [] as any[] }));
+
+      const adminTasks: Task[] = adminResult.rows.map(r => ({
+        id: `admin_${r.id}`,
+        staffId,
+        title: r.title,
+        description: r.description || '',
+        status: (r.status === 'open' ? 'pending' : r.status) as Task['status'],
+        priority: (r.priority || 'medium') as Task['priority'],
+        dueDate: r.due_date || null,
+        assignedBy: r.assigned_by_name || 'Admin',
+        assignedByRole: 'admin' as const,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        completedAt: r.completed_at || null,
+      }));
+
       let tasks: Task[] = result.rows.map(r => ({
         id: r.id,
         staffId: r.staff_id,
@@ -94,6 +120,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         updatedAt: r.updated_at,
         completedAt: r.completed_at || null,
       }));
+
+      tasks = tasks.concat(adminTasks);
 
       if (status) {
         tasks = tasks.filter(t => t.status === status);
@@ -172,6 +200,28 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const updates = body as UpdateTaskBody;
       const now = new Date().toISOString();
 
+      // Admin-assigned tasks: only status transitions are staff-editable
+      if ((id as string).startsWith('admin_')) {
+        const taskId = (id as string).slice(6);
+        if (!updates.status) {
+          return res.status(400).json({ error: 'Only status can be updated on admin-assigned tasks' });
+        }
+        const adminStatus = updates.status === 'pending' ? 'open' : updates.status;
+        const completedAt = updates.status === 'completed' ? now : null;
+        const upd = await sql`
+          UPDATE tasks SET status = ${adminStatus}, completed_at = ${completedAt}, updated_at = ${now}
+          WHERE id = ${taskId} AND assigned_to = ${staffId} AND tenant_id = ${tenantId}
+          RETURNING id::text, status, completed_at::text
+        `;
+        if (!upd.rows[0]) return res.status(404).json({ error: 'Task not found' });
+        return res.status(200).json({
+          id: `admin_${upd.rows[0].id}`,
+          staffId,
+          status: (upd.rows[0].status === 'open' ? 'pending' : upd.rows[0].status) as Task['status'],
+          completedAt: upd.rows[0].completed_at || null,
+        });
+      }
+
       const existing = await sql`SELECT * FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId} AND tenant_id = ${tenantId}`;
       if (existing.rows.length === 0) {
         return res.status(404).json({ error: 'Task not found' });
@@ -221,6 +271,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const { id } = req.query;
       if (!id) {
         return res.status(400).json({ error: 'Task ID is required' });
+      }
+      if ((id as string).startsWith('admin_')) {
+        return res.status(403).json({ error: 'Admin-assigned tasks cannot be deleted' });
       }
 
       await sql`DELETE FROM staff_tasks WHERE id = ${id as string} AND staff_id = ${staffId} AND tenant_id = ${tenantId}`;

@@ -113,6 +113,7 @@ export function TaskManagement() {
     nextMilestone: '',
   })
   const [error, setError] = useState<string | null>(null)
+  const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([])
 
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const auth = getAuthFromStorage();
@@ -154,6 +155,9 @@ export function TaskManagement() {
 
   useEffect(() => {
     loadData()
+    fetchWithAuth('/api/tenant/staff?limit=200')
+      .then(d => setStaffList((d.data || d.staff || []).map((s: any) => ({ id: s.id, name: s.name }))))
+      .catch(() => {})
   }, [])
 
   const resetTaskForm = () => setTaskForm({ title: '', description: '', priority: 'medium', assignedTo: '', dueDate: '' })
@@ -579,7 +583,12 @@ export function TaskManagement() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="task-assigned">Assigned To</Label>
-              <Input id="task-assigned" value={taskForm.assignedTo} onChange={e => setTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))} placeholder="Enter assignee name or email" />
+              <Select value={taskForm.assignedTo} onValueChange={v => setTaskForm(prev => ({ ...prev, assignedTo: v }))}>
+                <SelectTrigger id="task-assigned"><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                <SelectContent>
+                  {staffList.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="task-due">Due Date</Label>

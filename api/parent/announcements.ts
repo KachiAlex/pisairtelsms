@@ -34,6 +34,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           SELECT id::text, title, body, COALESCE(category, 'general') AS category,
                  created_at::date::text AS date, COALESCE(author, 'Admin') AS author
           FROM announcements WHERE tenant_id = ${tenantId} AND LOWER(category) = LOWER(${category})
+            AND COALESCE(status, 'sent') = 'sent'
+            AND COALESCE(audience, 'all') IN ('all', 'parents')
           ORDER BY created_at DESC LIMIT ${limit}
         `
       : await sql`
@@ -41,6 +43,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                  created_at::date::text AS date, COALESCE(author, 'Admin') AS author
           FROM announcements
           WHERE tenant_id = ${tenantId}
+            AND COALESCE(status, 'sent') = 'sent'
+            AND COALESCE(audience, 'all') IN ('all', 'parents')
           ORDER BY created_at DESC LIMIT ${limit}
         `
 

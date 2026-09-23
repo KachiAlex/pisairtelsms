@@ -82,6 +82,9 @@ export interface PayrollRunItem {
   nhf?: number
   nhis?: number
   year?: number
+  hasBankDetails?: boolean
+  bankVerified?: boolean
+  bankName?: string
   createdAt: string
 }
 
@@ -366,7 +369,10 @@ export async function ensurePayrollTables() {
       ALTER TABLE staff
         ADD COLUMN IF NOT EXISTS account_number VARCHAR(20),
         ADD COLUMN IF NOT EXISTS bank_code VARCHAR(20),
-        ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)
+        ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS account_name VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS transfer_recipient_code VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS bank_verified_at TIMESTAMP WITH TIME ZONE
     `
     await sql`
       ALTER TABLE payroll_schedules
@@ -702,7 +708,13 @@ export async function fetchRun(id: string, tenantId: string): Promise<PayrollRun
 export async function fetchRunItems(runId: string, tenantId: string): Promise<PayrollRunItem[]> {
   try {
     const result = await sql`
-      SELECT * FROM payroll_run_items WHERE run_id = ${runId} AND tenant_id = ${tenantId} ORDER BY staff_name
+      SELECT i.*,
+        (s.account_number IS NOT NULL AND s.bank_code IS NOT NULL) AS has_bank_details,
+        (s.bank_verified_at IS NOT NULL) AS bank_verified,
+        s.bank_name AS staff_bank_name
+      FROM payroll_run_items i
+      LEFT JOIN staff s ON s.id = i.staff_id AND s.tenant_id = i.tenant_id
+      WHERE i.run_id = ${runId} AND i.tenant_id = ${tenantId} ORDER BY i.staff_name
     `
     return result.rows.map(rowToRunItem)
   } catch (error) {
@@ -1378,6 +1390,115 @@ export async function disburseRun(
   }
 }
 
+// ── Bank details / transfer helpers ─────────────────────────────────────────
+
+export interface BankInfo { name: string; code: string }
+
+let bankListCache: { banks: BankInfo[]; source: 'paystack' | 'flutterwave' | null; at: number } | null = null
+
+/** List Nigerian banks from the configured gateway (Paystack preferred). Cached 1h. */
+export async function listBanks(): Promise<{ banks: BankInfo[]; source: 'paystack' | 'flutterwave' | null }> {
+  if (bankListCache && Date.now() - bankListCache.at < 60 * 60 * 1000) {
+    return { banks: bankListCache.banks, source: bankListCache.source }
+  }
+  const result = await fetchBankList()
+  bankListCache = { ...result, at: Date.now() }
+  return result
+}
+
+async function fetchBankList(): Promise<{ banks: BankInfo[]; source: 'paystack' | 'flutterwave' | null }> {
+  if (process.env.PAYSTACK_SECRET_KEY) {
+    try {
+      const res = await fetch('https://api.paystack.co/bank?country=nigeria&perPage=200', {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      })
+      const data = await res.json().catch(() => null)
+      if (data?.status && Array.isArray(data.data)) {
+        return {
+          banks: data.data.map((b: any) => ({ name: b.name, code: b.code })).sort((a: BankInfo, b: BankInfo) => a.name.localeCompare(b.name)),
+          source: 'paystack',
+        }
+      }
+    } catch (e) { console.error('Paystack bank list failed:', e) }
+  }
+  if (process.env.FLUTTERWAVE_SECRET_KEY) {
+    try {
+      const res = await fetch('https://api.flutterwave.com/v3/banks/NG', {
+        headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}` },
+      })
+      const data = await res.json().catch(() => null)
+      if (data?.status === 'success' && Array.isArray(data.data)) {
+        return {
+          banks: data.data.map((b: any) => ({ name: b.name, code: b.code })).sort((a: BankInfo, b: BankInfo) => a.name.localeCompare(b.name)),
+          source: 'flutterwave',
+        }
+      }
+    } catch (e) { console.error('Flutterwave bank list failed:', e) }
+  }
+  return { banks: [], source: null }
+}
+
+/** Verify account number + bank code, returning the resolved account name. */
+export async function resolveBankAccount(accountNumber: string, bankCode: string): Promise<{ accountName: string | null; error?: string }> {
+  if (process.env.PAYSTACK_SECRET_KEY) {
+    try {
+      const res = await fetch(`https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`, {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      })
+      const data = await res.json().catch(() => null)
+      if (data?.status && data.data?.account_name) return { accountName: data.data.account_name }
+      return { accountName: null, error: data?.message || 'Account could not be resolved' }
+    } catch (e) { return { accountName: null, error: String(e) } }
+  }
+  if (process.env.FLUTTERWAVE_SECRET_KEY) {
+    try {
+      const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_number: accountNumber, account_bank: bankCode }),
+      })
+      const data = await res.json().catch(() => null)
+      if (data?.status === 'success' && data.data?.account_name) return { accountName: data.data.account_name }
+      return { accountName: null, error: data?.message || 'Account could not be resolved' }
+    } catch (e) { return { accountName: null, error: String(e) } }
+  }
+  return { accountName: null, error: 'No payment gateway configured — cannot verify account' }
+}
+
+/** Create (or reuse) a Paystack transfer recipient for a staff bank account. */
+export async function ensureTransferRecipient(staffId: string, tenantId: string): Promise<{ recipientCode: string | null; error?: string }> {
+  if (!process.env.PAYSTACK_SECRET_KEY) return { recipientCode: null, error: 'Paystack not configured' }
+  const staffResult = await sql`
+    SELECT name, account_number, bank_code, account_name, transfer_recipient_code
+    FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId}
+  `
+  const staff = staffResult.rows[0]
+  if (!staff?.account_number || !staff?.bank_code) return { recipientCode: null, error: 'Bank details not on file' }
+  if (staff.transfer_recipient_code) return { recipientCode: staff.transfer_recipient_code }
+
+  try {
+    const res = await fetch('https://api.paystack.co/transferrecipient', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'nuban',
+        name: staff.account_name || staff.name,
+        account_number: staff.account_number,
+        bank_code: staff.bank_code,
+        currency: 'NGN',
+      }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!data?.status || !data.data?.recipient_code) {
+      return { recipientCode: null, error: data?.message || 'Failed to create transfer recipient' }
+    }
+    await sql`UPDATE staff SET transfer_recipient_code = ${data.data.recipient_code} WHERE id = ${staffId} AND tenant_id = ${tenantId}`
+    return { recipientCode: data.data.recipient_code }
+  } catch (e) {
+    return { recipientCode: null, error: String(e) }
+  }
+}
+
 async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise<{ success: boolean; reference: string; error?: string }> {
   const reference = `pay_${item.runId}_${item.staffId}_${Date.now()}`
 
@@ -1392,6 +1513,12 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
         return { success: false, reference, error: 'Staff bank details (account number/bank code) not on file' }
       }
 
+      // Paystack requires a transfer recipient code, not inline account details
+      const recipient = await ensureTransferRecipient(item.staffId, tenantId)
+      if (!recipient.recipientCode) {
+        return { success: false, reference, error: recipient.error || 'Could not create transfer recipient' }
+      }
+
       const response = await fetch('https://api.paystack.co/transfer', {
         method: 'POST',
         headers: {
@@ -1401,7 +1528,7 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
         body: JSON.stringify({
           source: 'balance',
           amount: Math.round(item.netPay * 100), // Paystack uses kobo
-          recipient: { account_number: staff.account_number, bank_code: staff.bank_code },
+          recipient: recipient.recipientCode,
           reason: `Salary ${item.staffName}`,
           reference,
         }),
@@ -1839,6 +1966,9 @@ function rowToRunItem(r: any): PayrollRunItem {
     nhf: r.nhf != null ? Number(r.nhf) : undefined,
     nhis: r.nhis != null ? Number(r.nhis) : undefined,
     year: r.year != null ? Number(r.year) : undefined,
+    hasBankDetails: r.has_bank_details != null ? !!r.has_bank_details : undefined,
+    bankVerified: r.bank_verified != null ? !!r.bank_verified : undefined,
+    bankName: r.staff_bank_name ?? undefined,
     createdAt: r.created_at?.toISOString?.() || String(r.created_at),
   }
 }

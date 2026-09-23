@@ -34,6 +34,8 @@ export interface Staff {
   accountNumber?: string
   bankCode?: string
   bankName?: string
+  accountName?: string
+  bankVerified?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -126,6 +128,8 @@ interface StaffRow {
   account_number: string | null
   bank_code: string | null
   bank_name: string | null
+  account_name: string | null
+  bank_verified_at: Date | null
   created_at: Date
   updated_at: Date
 }
@@ -197,6 +201,8 @@ function rowToStaff(row: StaffRow): Staff {
     accountNumber: row.account_number ?? undefined,
     bankCode: row.bank_code ?? undefined,
     bankName: row.bank_name ?? undefined,
+    accountName: row.account_name ?? undefined,
+    bankVerified: !!row.bank_verified_at,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   }
@@ -347,7 +353,10 @@ export async function ensureStaffTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS emergency_phone TEXT,
       ADD COLUMN IF NOT EXISTS password_hash TEXT,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(),
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`.catch((e: any) => console.error('staff alter failed:', e.message))
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS account_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS transfer_recipient_code VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS bank_verified_at TIMESTAMP WITH TIME ZONE`.catch((e: any) => console.error('staff alter failed:', e.message))
 
     await sql`ALTER TABLE staff_leave
       ADD COLUMN IF NOT EXISTS staff_id TEXT NOT NULL DEFAULT '',
@@ -658,6 +667,23 @@ export async function updateStaffMember(
 ): Promise<Staff | null> {
   await ensureStaffTables()
   try {
+    const tid = tenantId || 'default-tenant'
+    // Admin edits to bank fields bypass gateway verification — if any bank
+    // field actually changed, drop the verified state so a stale recipient
+    // code/resolved name can't pay out to a replaced account.
+    let clearBankVerification = false
+    if (payload.accountNumber != null || payload.bankCode != null || payload.bankName != null) {
+      const cur = await sql`
+        SELECT account_number, bank_code, bank_name FROM staff WHERE id = ${id} AND tenant_id = ${tid} LIMIT 1
+      `
+      const c = cur.rows[0]
+      if (c) {
+        clearBankVerification =
+          (payload.accountNumber != null && payload.accountNumber !== c.account_number) ||
+          (payload.bankCode != null && payload.bankCode !== c.bank_code) ||
+          (payload.bankName != null && payload.bankName !== c.bank_name)
+      }
+    }
     const result = await sql<StaffRow>`
       UPDATE staff SET
         name = COALESCE(${payload.name ?? null}, name),
@@ -675,8 +701,11 @@ export async function updateStaffMember(
         account_number = COALESCE(${payload.accountNumber ?? null}, account_number),
         bank_code = COALESCE(${payload.bankCode ?? null}, bank_code),
         bank_name = COALESCE(${payload.bankName ?? null}, bank_name),
+        account_name = CASE WHEN ${clearBankVerification} THEN NULL ELSE account_name END,
+        bank_verified_at = CASE WHEN ${clearBankVerification} THEN NULL ELSE bank_verified_at END,
+        transfer_recipient_code = CASE WHEN ${clearBankVerification} THEN NULL ELSE transfer_recipient_code END,
         updated_at = NOW()
-      WHERE id = ${id} AND tenant_id = ${tenantId || 'default-tenant'}
+      WHERE id = ${id} AND tenant_id = ${tid}
       RETURNING *
     `
     const staff = result.rows[0] ? rowToStaff(result.rows[0]) : null

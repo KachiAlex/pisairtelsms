@@ -94,6 +94,9 @@ export interface PayrollRunItem {
   nhf?: number
   nhis?: number
   year?: number
+  hasBankDetails?: boolean
+  bankVerified?: boolean
+  bankName?: string
 }
 
 export interface PayrollApproval {

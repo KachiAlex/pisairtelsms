@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Landmark, ShieldCheck, Loader2 } from 'lucide-react'
 import { Button } from '../../ui/button'
 
 interface StaffProfile {
@@ -31,7 +31,7 @@ export function Profile() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'view' | 'edit' | 'password'>('view')
+  const [activeTab, setActiveTab] = useState<'view' | 'edit' | 'password' | 'bank'>('view')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -50,6 +50,19 @@ export function Profile() {
   })
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+
+  // Bank details state
+  interface BankInfo { name: string; code: string }
+  interface BankDetails {
+    bankName: string; bankCode: string; accountNumberMasked: string;
+    accountName: string; verified: boolean; gatewayConfigured: boolean;
+    banks: BankInfo[];
+  }
+  const [bank, setBank] = useState<BankDetails | null>(null)
+  const [bankForm, setBankForm] = useState({ bankCode: '', bankName: '', accountNumber: '' })
+  const [bankSaving, setBankSaving] = useState(false)
+  const [bankMsg, setBankMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [pendingAccountName, setPendingAccountName] = useState<string | null>(null)
 
   const auth = localStorage.getItem('auth')
   const token = auth ? JSON.parse(auth).token : null
@@ -83,6 +96,16 @@ export function Profile() {
           phone: profileData.phone,
           address: profileData.address,
         })
+
+        fetch('/api/staff/bank-details', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (d) {
+              setBank(d)
+              setBankForm({ bankCode: d.bankCode || '', bankName: d.bankName || '', accountNumber: '' })
+            }
+          })
+          .catch(() => {})
       } catch (err) {
         const message = err instanceof Error ? err.message : 'An error occurred'
         setError(message)
@@ -209,6 +232,39 @@ export function Profile() {
     }
   }
 
+  const handleSaveBank = async (e: React.FormEvent, confirmed = false) => {
+    e.preventDefault()
+    setBankMsg(null)
+    const acct = bankForm.accountNumber.replace(/\D/g, '')
+    if (!bankForm.bankCode) { setBankMsg({ ok: false, text: 'Please select your bank' }); return }
+    if (acct.length !== 10) { setBankMsg({ ok: false, text: 'Account number must be 10 digits' }); return }
+    try {
+      setBankSaving(true)
+      const res = await fetch('/api/staff/bank-details', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ bankCode: bankForm.bankCode, bankName: bankForm.bankName, accountNumber: acct, confirmed }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save bank details')
+      if (data.requiresConfirmation) {
+        setPendingAccountName(data.accountName)
+        return
+      }
+      setPendingAccountName(null)
+      setBankMsg({ ok: true, text: data.message || 'Bank details saved' })
+      // Refresh masked display
+      const r = await fetch('/api/staff/bank-details', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const d = await r.json()
+        setBank(d)
+        setBankForm(f => ({ ...f, accountNumber: '' }))
+      }
+    } catch (err) {
+      setBankMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed to save bank details' })
+    } finally { setBankSaving(false) }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -293,6 +349,16 @@ export function Profile() {
             }`}
           >
             Change Password
+          </button>
+          <button
+            onClick={() => setActiveTab('bank')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'bank'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Bank Details
           </button>
         </div>
       </div>
@@ -491,6 +557,143 @@ export function Profile() {
                 Cancel
               </Button>
             </div>
+          </form>
+        </div>
+      )}
+
+      {/* Bank Details Tab */}
+      {activeTab === 'bank' && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 max-w-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <Landmark className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Bank Details</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Used for salary payment when the school disburses payroll through the payment gateway.
+          </p>
+
+          {/* Current saved details */}
+          {bank?.accountNumberMasked ? (
+            <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Bank</span>
+                <span className="font-medium text-gray-900">{bank.bankName || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Account</span>
+                <span className="font-medium text-gray-900">{bank.accountNumberMasked}</span>
+              </div>
+              {bank.accountName && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Account name</span>
+                  <span className="font-medium text-gray-900">{bank.accountName}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Status</span>
+                {bank.verified ? (
+                  <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                    <ShieldCheck className="h-4 w-4" /> Verified
+                  </span>
+                ) : (
+                  <span className="text-amber-600 font-medium">Unverified</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              No bank details on file — add them below so payroll can pay you directly.
+            </div>
+          )}
+
+          <form onSubmit={handleSaveBank} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Bank</label>
+              {bank && bank.banks.length > 0 ? (
+                <select
+                  value={bankForm.bankCode}
+                  onChange={(e) => {
+                    const b = bank.banks.find(x => x.code === e.target.value)
+                    setBankForm(f => ({ ...f, bankCode: e.target.value, bankName: b?.name || '' }))
+                  }}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">Select bank…</option>
+                  {bank.banks.map(b => (
+                    <option key={b.code} value={b.code}>{b.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={bankForm.bankName}
+                  onChange={(e) => setBankForm(f => ({ ...f, bankName: e.target.value }))}
+                  placeholder="Bank name (e.g. GTBank)"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+                />
+              )}
+            </div>
+
+            {/* Bank code entry only needed when the gateway bank list isn't available */}
+            {bank && bank.banks.length === 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Bank code</label>
+                <input
+                  type="text"
+                  value={bankForm.bankCode}
+                  onChange={(e) => setBankForm(f => ({ ...f, bankCode: e.target.value }))}
+                  placeholder="e.g. 058"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Account number</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={bankForm.accountNumber}
+                onChange={(e) => setBankForm(f => ({ ...f, accountNumber: e.target.value.replace(/\D/g, '') }))}
+                placeholder="10-digit NUBAN"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {pendingAccountName && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+                <p className="text-sm text-blue-900">
+                  This account resolves to: <strong>{pendingAccountName}</strong>
+                </p>
+                <p className="text-xs text-blue-700">Confirm this is your account before saving — salary will be paid here.</p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    disabled={bankSaving}
+                    onClick={(e) => handleSaveBank(e as unknown as React.FormEvent, true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {bankSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</>) : 'Yes, this is my account'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setPendingAccountName(null)}>
+                    Not me — edit
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {bankMsg && (
+              <div className={`rounded-lg p-3 text-sm ${bankMsg.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                {bankMsg.text}
+              </div>
+            )}
+
+            {!pendingAccountName && (
+              <Button type="submit" disabled={bankSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                {bankSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verifying…</>) : 'Verify & save'}
+              </Button>
+            )}
           </form>
         </div>
       )}

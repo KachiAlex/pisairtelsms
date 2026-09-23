@@ -349,6 +349,7 @@ export function PayrollRuns() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Staff</TableHead>
+                            <TableHead>Bank</TableHead>
                             <TableHead className="text-right">Basic</TableHead>
                             <TableHead className="text-right">Gross</TableHead>
                             <TableHead className="text-right">Deductions</TableHead>
@@ -365,6 +366,15 @@ export function PayrollRuns() {
                           {runDetails.items.map(item => (
                             <TableRow key={item.id}>
                               <TableCell className="font-medium">{item.staffName}</TableCell>
+                              <TableCell className="text-xs">
+                                {item.bankVerified ? (
+                                  <span className="inline-flex items-center gap-1 text-green-700 font-medium">✓ {item.bankName || 'Verified'}</span>
+                                ) : item.hasBankDetails ? (
+                                  <span className="text-amber-600">On file (unverified)</span>
+                                ) : (
+                                  <span className="text-red-600">Missing</span>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right">{formatCurrency(item.basicSalary)}</TableCell>
                               <TableCell className="text-right">{formatCurrency(item.grossPay)}</TableCell>
                               <TableCell className="text-right text-red-600">{formatCurrency(item.totalDeductions)}</TableCell>

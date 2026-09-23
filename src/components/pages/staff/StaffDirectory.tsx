@@ -24,6 +24,8 @@ interface Staff {
   accountNumber?: string
   bankCode?: string
   bankName?: string
+  accountName?: string
+  bankVerified?: boolean
 }
 
 const DEPARTMENTS = ['Teaching', 'Administration', 'Finance', 'Security', 'Maintenance', 'ICT', 'Library', 'Health']
@@ -343,6 +345,17 @@ export function StaffDirectory() {
             <div>
               <Label>Account Number</Label>
               <Input value={form.accountNumber} onChange={e => setForm(f => ({ ...f, accountNumber: e.target.value }))} placeholder="10-digit NUBAN" />
+            </div>
+            <div className="col-span-2 -mt-1">
+              {editingStaff?.bankVerified ? (
+                <p className="text-xs text-green-700">
+                  ✓ Verified{editingStaff.accountName ? ` as ${editingStaff.accountName}` : ''} — changing these fields resets verification until the staff member re-verifies in their portal.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Bank details entered here are unverified. Staff can verify their own account in Profile → Bank Details for gateway disbursement.
+                </p>
+              )}
             </div>
             {!editingStaff && (
               <div className="col-span-2">

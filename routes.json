@@ -934,6 +934,10 @@
       "destination": "/api/staff/payslips.ts"
     },
     {
+      "source": "/api/staff/bank-details",
+      "destination": "/api/staff/bank-details.ts"
+    },
+    {
       "source": "/api/student-health",
       "destination": "/api/student-health.ts"
     },

@@ -60,6 +60,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!id) return res.status(400).json({ error: 'Staff ID is required' })
       const body = parseBody(req)
       if (!body) return res.status(400).json({ error: 'Request body is required' })
+      if (body.accountNumber != null && body.accountNumber !== '' && !/^\d{10}$/.test(String(body.accountNumber))) {
+        return res.status(400).json({ error: 'Account number must be a 10-digit NUBAN' })
+      }
       const member = await updateStaffMember(id as string, body, actualTenantId)
       if (!member) return res.status(404).json({ error: 'Staff member not found' })
       return res.status(200).json({ data: member })

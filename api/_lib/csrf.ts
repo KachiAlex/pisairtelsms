@@ -67,7 +67,15 @@ export function requireCSRF(req: ApiRequest, res: ApiResponse, sessionId: string
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
     return false
   }
-  
+
+  // CSRF exploits ambient cookie auth — a cross-site request cannot set an
+  // Authorization header. Bearer-JWT endpoints are immune by construction, so
+  // the token check only applies to cookie-based requests (none currently).
+  const authHeader = req.headers.authorization || req.headers.Authorization
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return false
+  }
+
   const token = extractCSRFToken(req)
   if (!token) {
     res.status(403).json({ error: 'CSRF token missing' })

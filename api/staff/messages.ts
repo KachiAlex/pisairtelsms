@@ -34,6 +34,7 @@ interface NewMessageResponse {
 }
 
 function parseBody(req: ApiRequest): Promise<any> {
+  if (req.body !== undefined && req.body !== null) return Promise.resolve(req.body);
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {

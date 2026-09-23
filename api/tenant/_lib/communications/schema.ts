@@ -279,17 +279,21 @@ export async function updateCommunicationStatus(
   extra?: { sentAt?: string; scheduledFor?: string }
 ): Promise<void> {
   await ensureCommunicationsTables()
-  const fields: string[] = ['status']
-  const values: any[] = [status, id, tenantId]
-  let p = 2
+  const sets: string[] = ['status = $1', 'updated_at = NOW()']
+  const values: any[] = [status]
   if (extra?.sentAt) {
-    p++; fields.push(`sent_at = $${p}::timestamp`); values.splice(-2, 0, extra.sentAt)
+    values.push(extra.sentAt)
+    sets.push(`sent_at = $${values.length}::timestamp`)
   }
   if (extra?.scheduledFor) {
-    p++; fields.push(`scheduled_for = $${p}::timestamp`); values.splice(-2, 0, extra.scheduledFor)
+    values.push(extra.scheduledFor)
+    sets.push(`scheduled_for = $${values.length}::timestamp`)
   }
-  const setClause = [`status = $1`, ...fields.slice(1)].join(', ')
-  await sql.query(`UPDATE communications SET ${setClause}, updated_at = NOW() WHERE id = $${p} AND tenant_id = $${p + 1}`, values)
+  values.push(id, tenantId)
+  await sql.query(
+    `UPDATE communications SET ${sets.join(', ')} WHERE id = $${values.length - 1} AND tenant_id = $${values.length}`,
+    values
+  )
 }
 
 export async function createRecipients(

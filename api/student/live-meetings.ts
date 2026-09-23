@@ -39,6 +39,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                l.scheduled_at::text AS scheduled_at,
                l.duration_minutes,
                l.recording_url,
+               l.meeting_url,
                l.status,
                COALESCE(vc.name, '') AS classroom_name,
                s.name AS subject_name
@@ -46,8 +47,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         JOIN virtual_classrooms vc ON vc.id = l.classroom_id AND vc.tenant_id = l.tenant_id
         LEFT JOIN subjects s ON s.id::text = vc.subject_id
         WHERE l.tenant_id = ${tenantId}
-          AND l.type = 'live'
-          AND l.status IN ('scheduled', 'live', 'completed')
+          AND (
+            (l.type = 'live' AND l.status IN ('scheduled', 'live', 'completed'))
+            OR (l.type = 'async' AND l.status = 'published')
+          )
           AND (
             ${decoded.role !== 'student'}
             OR vc.class_arm_id IS NULL OR vc.class_arm_id = ''

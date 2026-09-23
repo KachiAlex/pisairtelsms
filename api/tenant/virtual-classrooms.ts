@@ -9,16 +9,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const tenantId = decoded.tenantId || 'default-tenant'
   const userId = decoded.userId || decoded.sub || 'system'
 
+  await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS co_teacher_id TEXT`.catch(() => {})
+
   try {
     // GET - list classrooms
     if (req.method === 'GET') {
       const result = await sql`
         SELECT vc.*, s.name as subject_name, c.name as class_arm_name,
-               st.name as teacher_name
+               st.name as teacher_name, ct.name as co_teacher_name
         FROM virtual_classrooms vc
         LEFT JOIN subjects s ON s.id::text = vc.subject_id
         LEFT JOIN classes c ON c.id::text = vc.class_arm_id
         LEFT JOIN staff st ON st.id = vc.teacher_id
+        LEFT JOIN staff ct ON ct.id = vc.co_teacher_id
         WHERE vc.tenant_id = ${tenantId}
         ORDER BY vc.created_at DESC
       `
@@ -27,31 +30,33 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // POST - create classroom
     if (req.method === 'POST') {
-      const { name, description, subjectId, classArmId, teacherId, coverImageUrl } = req.body || {}
+      const { name, description, subjectId, classArmId, teacherId, coTeacherId, coverImageUrl } = req.body || {}
       if (!name || !teacherId) {
         return res.status(400).json({ error: 'name and teacherId are required' })
       }
       const result = await sql`
-        INSERT INTO virtual_classrooms (tenant_id, subject_id, class_arm_id, teacher_id, name, description, cover_image_url)
-        VALUES (${tenantId}, ${subjectId || null}, ${classArmId || null}, ${teacherId}, ${name}, ${description || null}, ${coverImageUrl || null})
+        INSERT INTO virtual_classrooms (tenant_id, subject_id, class_arm_id, teacher_id, co_teacher_id, name, description, cover_image_url)
+        VALUES (${tenantId}, ${subjectId || null}, ${classArmId || null}, ${teacherId}, ${coTeacherId || null}, ${name}, ${description || null}, ${coverImageUrl || null})
         RETURNING *
       `
       // Notify the assigned teacher — otherwise the assignment is invisible
       // until they happen to open the (new) Virtual Classes page.
-      await sql`
-        INSERT INTO virtual_learning_notifications
-          (tenant_id, user_id, user_role, type, title, message, related_entity_type, related_entity_id)
-        VALUES (${tenantId}, ${teacherId}, 'staff', 'classroom_assigned',
-                'Virtual classroom assigned',
-                ${`You have been assigned to teach "${name}". Open Virtual Classes in the staff portal to schedule or start a live session.`},
-                'virtual_classroom', ${result.rows[0].id})
-      `.catch(() => {})
+      for (const tid of [teacherId, coTeacherId].filter(Boolean)) {
+        await sql`
+          INSERT INTO virtual_learning_notifications
+            (tenant_id, user_id, user_role, type, title, message, related_entity_type, related_entity_id)
+          VALUES (${tenantId}, ${tid}, 'staff', 'classroom_assigned',
+                  'Virtual classroom assigned',
+                  ${`You have been assigned to teach "${name}". Open Virtual Classes in the staff portal to schedule or start a live session.`},
+                  'virtual_classroom', ${result.rows[0].id})
+        `.catch(() => {})
+      }
       return res.status(201).json({ data: result.rows[0] })
     }
 
     // PUT - update classroom
     if (req.method === 'PUT') {
-      const { id, name, description, subjectId, classArmId, teacherId, coverImageUrl, status } = req.body || {}
+      const { id, name, description, subjectId, classArmId, teacherId, coTeacherId, coverImageUrl, status } = req.body || {}
       if (!id) {
         return res.status(400).json({ error: 'id is required' })
       }
@@ -62,6 +67,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           subject_id = COALESCE(${subjectId || null}, subject_id),
           class_arm_id = COALESCE(${classArmId || null}, class_arm_id),
           teacher_id = COALESCE(${teacherId || null}, teacher_id),
+          co_teacher_id = COALESCE(${coTeacherId || null}, co_teacher_id),
           cover_image_url = COALESCE(${coverImageUrl || null}, cover_image_url),
           status = COALESCE(${status || null}, status),
           updated_at = NOW()

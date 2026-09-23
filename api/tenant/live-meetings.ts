@@ -59,9 +59,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(400).json({ error: 'lessonId is required' })
   }
 
+  await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS co_teacher_id TEXT`.catch(() => {})
+
   try {
     const lessonResult = await sql`
-      SELECT l.*, vc.teacher_id AS classroom_teacher_id, vc.class_arm_id AS classroom_class_arm_id
+      SELECT l.*, vc.teacher_id AS classroom_teacher_id, vc.co_teacher_id AS classroom_co_teacher_id, vc.class_arm_id AS classroom_class_arm_id
       FROM lessons l
       LEFT JOIN virtual_classrooms vc ON vc.id = l.classroom_id
       WHERE l.id = ${lessonId as string} AND l.tenant_id = ${tenantId}
@@ -74,12 +76,35 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Lesson is not a live class' })
     }
 
-    // Host = the classroom's assigned teacher or a tenant admin. Other staff
-    // can still enter (substitute/observer) but only as participants.
+    // Host = the classroom's assigned teacher, co-teacher (substitute), or a
+    // tenant admin. Other staff can still enter (observer) but only as
+    // participants.
     const callerId = decoded.staffId || decoded.userId || decoded.sub
     const isAdmin = decoded.role === 'tenant_admin'
-    const isAssignedTeacher = decoded.role === 'staff' && lesson.classroom_teacher_id === callerId
+    const isAssignedTeacher = decoded.role === 'staff' &&
+      (lesson.classroom_teacher_id === callerId || lesson.classroom_co_teacher_id === callerId)
     const isHost = isAdmin || isAssignedTeacher
+
+    // A finished or cancelled class can't be re-entered as host (students are
+    // already blocked below; this catches the host path).
+    if (isHost && (lesson.status === 'completed' || lesson.status === 'cancelled')) {
+      return res.status(403).json({
+        error: lesson.status === 'cancelled'
+          ? 'This class was cancelled.'
+          : 'This class has already ended.',
+      })
+    }
+
+    // Hosts may start a scheduled lesson up to 30 minutes early — not days
+    // early. Unscheduled lessons (no scheduled_at) can start anytime.
+    if (isHost && !isAdmin && lesson.scheduled_at && (lesson.status === 'scheduled' || lesson.status === 'draft')) {
+      const opensAt = new Date(lesson.scheduled_at).getTime() - 30 * 60 * 1000
+      if (Date.now() < opensAt) {
+        return res.status(403).json({
+          error: `This class opens 30 minutes before its scheduled time (${new Date(lesson.scheduled_at).toLocaleString()}).`,
+        })
+      }
+    }
 
     // ---------- Policy gates ----------
     const settingsRes = await sql`

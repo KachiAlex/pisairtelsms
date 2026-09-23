@@ -23,7 +23,7 @@ const LiveClassRoom = lazy(() =>
 )
 import { VirtualClassroomSettings } from './VirtualClassroomSettings'
 import { VirtualClassroomDiscussions } from './VirtualClassroomDiscussions'
-import { tenantApiGet, tenantApiPost, tenantApiDelete } from '../../lib/tenantApi'
+import { tenantApiGet, tenantApiPost, tenantApiPut, tenantApiDelete } from '../../lib/tenantApi'
 import { useToast } from '../ui/use-toast'
 
 interface Classroom {
@@ -87,6 +87,8 @@ export function VirtualClassroom() {
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false)
   const [showMaterialDialog, setShowMaterialDialog] = useState(false)
   const [liveLesson, setLiveLesson] = useState<Lesson | null>(null)
+  const [rescheduleLesson, setRescheduleLesson] = useState<Lesson | null>(null)
+  const [rescheduleAt, setRescheduleAt] = useState('')
   const detailsReqRef = useRef(0)
 
   const fetchClassrooms = useCallback(async () => {
@@ -213,6 +215,42 @@ export function VirtualClassroom() {
       }
     } catch (err) {
       toast({ title: 'Failed to add material', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    }
+  }
+
+  const handleRescheduleLesson = async () => {
+    if (!rescheduleLesson) return
+    try {
+      const res = await tenantApiPut('/api/tenant/lessons', {
+        id: rescheduleLesson.id,
+        scheduledAt: rescheduleAt ? new Date(rescheduleAt).toISOString() : null,
+      })
+      if (res.ok) {
+        setRescheduleLesson(null)
+        if (selectedClassroom) fetchClassroomDetails(selectedClassroom)
+        toast({ title: 'Lesson rescheduled', description: 'Students will see the new time.' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to reschedule', description: err.error || 'Please try again.', variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Failed to reschedule', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    }
+  }
+
+  const handleCancelLesson = async (lesson: Lesson) => {
+    if (!confirm(`Cancel "${lesson.title}"? Students will no longer see it.`)) return
+    try {
+      const res = await tenantApiPut('/api/tenant/lessons', { id: lesson.id, status: 'cancelled' })
+      if (res.ok) {
+        if (selectedClassroom) fetchClassroomDetails(selectedClassroom)
+        toast({ title: 'Lesson cancelled' })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: 'Failed to cancel', description: err.error || 'Please try again.', variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Failed to cancel', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -357,10 +395,26 @@ export function VirtualClassroom() {
                             </a>
                           </Button>
                         )}
-                        {lesson.type === 'live' && lesson.status !== 'completed' && (
+                        {lesson.type === 'live' && lesson.status !== 'completed' && lesson.status !== 'cancelled' && (
                           <Button size="sm" variant="outline" onClick={() => setLiveLesson(lesson)}>
                             <Video className="h-4 w-4 mr-1" /> Join Live
                           </Button>
+                        )}
+                        {lesson.status !== 'completed' && lesson.status !== 'cancelled' && (
+                          <>
+                            <Button
+                              size="sm" variant="ghost" title="Reschedule"
+                              onClick={() => {
+                                setRescheduleLesson(lesson)
+                                setRescheduleAt(lesson.scheduled_at ? lesson.scheduled_at.slice(0, 16) : '')
+                              }}
+                            >
+                              <Calendar className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" title="Cancel lesson" onClick={() => handleCancelLesson(lesson)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </CardContent>
@@ -472,6 +526,27 @@ export function VirtualClassroom() {
         </Tabs>
 
         {/* Dialogs */}
+        {/* Reschedule dialog */}
+        <Dialog open={!!rescheduleLesson} onOpenChange={(open) => !open && setRescheduleLesson(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reschedule Lesson</DialogTitle>
+              <DialogDescription>{rescheduleLesson?.title}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              <Label htmlFor="rescheduleAt">New date &amp; time</Label>
+              <Input
+                id="rescheduleAt" type="datetime-local"
+                value={rescheduleAt} onChange={e => setRescheduleAt(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRescheduleLesson(null)}>Cancel</Button>
+              <Button onClick={handleRescheduleLesson}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <CreateLessonDialog open={showLessonDialog} onClose={() => setShowLessonDialog(false)} onCreate={handleCreateLesson} />
         <CreateAssignmentDialog open={showAssignmentDialog} onClose={() => setShowAssignmentDialog(false)} onCreate={handleCreateAssignment} />
         <CreateMaterialDialog open={showMaterialDialog} onClose={() => setShowMaterialDialog(false)} onCreate={handleCreateMaterial} />
@@ -594,6 +669,7 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [teacherId, setTeacherId] = useState('')
+  const [coTeacherId, setCoTeacherId] = useState('')
   const [subjectId, setSubjectId] = useState('')
   const [classArmId, setClassArmId] = useState('')
   const [teachers, setTeachers] = useState<StaffMember[]>([])
@@ -649,12 +725,13 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
     setName('')
     setDescription('')
     setTeacherId('')
+    setCoTeacherId('')
     setSubjectId('')
     setClassArmId('')
   }
 
   const handleCreate = () => {
-    onCreate({ name, description, teacherId, subjectId: subjectId || undefined, classArmId: classArmId || undefined })
+    onCreate({ name, description, teacherId, coTeacherId: coTeacherId || undefined, subjectId: subjectId || undefined, classArmId: classArmId || undefined })
     reset()
   }
 
@@ -695,6 +772,22 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
               </Select>
             )}
             <p className="text-xs text-gray-500">The assigned teacher sees this classroom under Virtual Classes in their staff portal and can start its live sessions.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="coTeacher">Co-teacher (optional)</Label>
+            <Select value={coTeacherId} onValueChange={setCoTeacherId}>
+              <SelectTrigger id="coTeacher" className="w-full">
+                <SelectValue placeholder="Substitute / co-teacher" />
+              </SelectTrigger>
+              <SelectContent>
+                {teachers.filter(t => t.id !== teacherId).map((teacher) => (
+                  <SelectItem key={teacher.id} value={teacher.id}>
+                    {teacher.name} <span className="text-gray-400 text-xs">({teacher.role})</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">A co-teacher can also see and start this classroom — use it for substitutes or shared teaching.</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -747,6 +840,7 @@ function CreateLessonDialog({ open, onClose, onCreate }: { open: boolean; onClos
   const [type, setType] = useState('async')
   const [scheduledAt, setScheduledAt] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(60)
+  const [contentUrl, setContentUrl] = useState('')
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
@@ -779,14 +873,26 @@ function CreateLessonDialog({ open, onClose, onCreate }: { open: boolean; onClos
               <Input id="duration" type="number" value={durationMinutes} onChange={e => setDurationMinutes(Number(e.target.value))} />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="scheduledAt">Scheduled At</Label>
-            <Input id="scheduledAt" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
-          </div>
+          {type === 'live' ? (
+            <div className="space-y-2">
+              <Label htmlFor="scheduledAt">Scheduled At</Label>
+              <Input id="scheduledAt" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
+              <p className="text-xs text-gray-500">The teacher can start up to 30 minutes before this time; students join once it's live.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="contentUrl">Content URL *</Label>
+              <Input id="contentUrl" value={contentUrl} onChange={e => setContentUrl(e.target.value)} placeholder="https://… (video, document, or resource link)" />
+              <p className="text-xs text-gray-500">Students see this under Self-Paced Lessons and open the link directly.</p>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => { onCreate({ title, description, type, scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null, durationMinutes }); setTitle(''); setDescription('') }}>
+          <Button
+            disabled={!title.trim() || (type === 'async' && !contentUrl.trim())}
+            onClick={() => { onCreate({ title, description, type, scheduledAt: type === 'live' && scheduledAt ? new Date(scheduledAt).toISOString() : null, durationMinutes, meetingUrl: type === 'async' ? contentUrl : null }); setTitle(''); setDescription(''); setContentUrl('') }}
+          >
             Create Lesson
           </Button>
         </DialogFooter>

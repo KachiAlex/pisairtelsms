@@ -30,6 +30,8 @@ interface VirtualClass {
   subject_name: string | null
   class_name: string | null
   class_arm: string | null
+  is_lead: boolean
+  lead_teacher_name: string | null
   lessons: Lesson[]
 }
 
@@ -69,6 +71,27 @@ export function MyVirtualClasses() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const cancelLesson = async (lessonId: string) => {
+    if (!confirm('Cancel this lesson? Students will no longer see it.')) return
+    setEndingId(lessonId)
+    try {
+      const res = await fetch('/api/tenant/lessons', {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ id: lessonId, status: 'cancelled' }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Failed to cancel (${res.status})`)
+      }
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel lesson')
+    } finally {
+      setEndingId(null)
+    }
+  }
 
   const endClass = async (lessonId: string) => {
     if (!confirm('End this live class? Students will no longer be able to join.')) return
@@ -158,6 +181,9 @@ export function MyVirtualClasses() {
                       <p className="text-sm text-gray-500 truncate">
                         {[vc.subject_name, vc.class_name && `${vc.class_name}${vc.class_arm ? ` ${vc.class_arm}` : ''}`]
                           .filter(Boolean).join(' · ') || 'No subject or class linked'}
+                        {!vc.is_lead && vc.lead_teacher_name && (
+                          <span className="text-blue-600"> · co-teacher (lead: {vc.lead_teacher_name})</span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -190,9 +216,14 @@ export function MyVirtualClasses() {
                         <div className="flex items-center gap-2 shrink-0">
                           {lessonBadge(lesson.status)}
                           {lesson.type === 'live' && (lesson.status === 'scheduled' || lesson.status === 'draft') && (
-                            <Button size="sm" onClick={() => setActiveLesson({ lesson, classroomName: vc.name })}>
-                              <Video className="h-4 w-4 mr-1" /> Start Class
-                            </Button>
+                            <>
+                              <Button size="sm" onClick={() => setActiveLesson({ lesson, classroomName: vc.name })}>
+                                <Video className="h-4 w-4 mr-1" /> Start Class
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => cancelLesson(lesson.id)} disabled={endingId === lesson.id}>
+                                <Square className="h-4 w-4 mr-1 text-red-500" /> Cancel
+                              </Button>
+                            </>
                           )}
                           {lesson.type === 'live' && lesson.status === 'live' && (
                             <>

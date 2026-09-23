@@ -2,12 +2,29 @@ import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 
+/** Assigned teacher, co-teacher, or tenant admin may modify a lesson. */
+async function canManageLesson(lessonId: string, decoded: any, tenantId: string): Promise<boolean> {
+  if (decoded.role === 'tenant_admin') return true
+  const callerId = decoded.staffId || decoded.userId || decoded.sub
+  const r = await sql`
+    SELECT vc.teacher_id, vc.co_teacher_id
+    FROM lessons l JOIN virtual_classrooms vc ON vc.id = l.classroom_id
+    WHERE l.id = ${lessonId} AND l.tenant_id = ${tenantId}
+    LIMIT 1
+  `
+  const vc = r.rows[0]
+  if (!vc) return false
+  return vc.teacher_id === callerId || vc.co_teacher_id === callerId
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
   const userId = decoded.userId || decoded.sub || 'system'
+
+  await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS co_teacher_id TEXT`.catch(() => {})
 
   try {
     // GET - list lessons for a classroom
@@ -33,7 +50,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // Live lessons must be 'scheduled' at creation — 'draft' is invisible
       // to students (their list filters to scheduled/live/completed), which
       // made every live class a dead letter until someone manually flipped it.
-      const status = (type || 'async') === 'live' ? 'scheduled' : 'draft'
+      // Async lessons are always-available content → 'published'.
+      const status = (type || 'async') === 'live' ? 'scheduled' : 'published'
       const result = await sql`
         INSERT INTO lessons (classroom_id, tenant_id, title, description, type, scheduled_at, duration_minutes, meeting_url, created_by, status)
         VALUES (${classroomId}, ${tenantId}, ${title}, ${description || null}, ${type || 'async'}, ${scheduledAt || null}, ${durationMinutes || 60}, ${meetingUrl || null}, ${userId}, ${status})
@@ -42,11 +60,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(201).json({ data: result.rows[0] })
     }
 
-    // PUT - update lesson
+    // PUT - update lesson (assigned teacher, co-teacher, or admin only)
     if (req.method === 'PUT') {
       const { id, title, description, type, scheduledAt, durationMinutes, meetingUrl, recordingUrl, status } = req.body || {}
       if (!id) {
         return res.status(400).json({ error: 'id is required' })
+      }
+      const allowed = await canManageLesson(id as string, decoded, tenantId)
+      if (!allowed) {
+        return res.status(403).json({ error: 'Only the assigned teacher or an admin can modify this lesson' })
       }
       const result = await sql`
         UPDATE lessons SET
@@ -68,11 +90,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(200).json({ data: result.rows[0] })
     }
 
-    // DELETE - remove lesson
+    // DELETE - remove lesson (assigned teacher, co-teacher, or admin only)
     if (req.method === 'DELETE') {
       const { id } = req.query
       if (!id) {
         return res.status(400).json({ error: 'id query param is required' })
+      }
+      const allowed = await canManageLesson(id as string, decoded, tenantId)
+      if (!allowed) {
+        return res.status(403).json({ error: 'Only the assigned teacher or an admin can delete this lesson' })
       }
       const result = await sql`
         DELETE FROM lessons WHERE id = ${id as string} AND tenant_id = ${tenantId}

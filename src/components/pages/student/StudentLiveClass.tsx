@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Video, PlayCircle, Clock, RefreshCw } from 'lucide-react'
+import { Video, PlayCircle, Clock, RefreshCw, BookOpen } from 'lucide-react'
 // Lazy-loaded: the RealtimeKit SDK is ~2.4 MB — only fetch when a lesson is joined
 const CloudflareLiveClassRoom = lazy(() =>
   import('../CloudflareLiveClassRoom').then(m => ({ default: m.CloudflareLiveClassRoom }))
@@ -99,8 +99,9 @@ export function StudentLiveClass() {
     )
   }
 
-  const joinable = lessons.filter(l => l.status === 'live' || l.status === 'scheduled')
-  const recordings = lessons.filter(l => l.status === 'completed' && l.recording_url)
+  const joinable = lessons.filter(l => l.type === 'live' && (l.status === 'live' || l.status === 'scheduled'))
+  const recordings = lessons.filter(l => l.type === 'live' && l.status === 'completed' && l.recording_url)
+  const selfPaced = lessons.filter(l => l.type === 'async' && l.status === 'published')
 
   return (
     <div className="max-w-2xl mx-auto py-8 space-y-6">
@@ -124,7 +125,7 @@ export function StudentLiveClass() {
 
       {loading ? (
         <div className="text-center py-12 text-gray-500">Loading your classes…</div>
-      ) : joinable.length === 0 && recordings.length === 0 ? (
+      ) : joinable.length === 0 && recordings.length === 0 && selfPaced.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
             <Video className="h-12 w-12 mx-auto mb-3 text-gray-300" />
@@ -171,6 +172,37 @@ export function StudentLiveClass() {
                         </Button>
                       )}
                     </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {selfPaced.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                Self-Paced Lessons
+              </h2>
+              {selfPaced.map(l => (
+                <Card key={l.id}>
+                  <CardContent className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <BookOpen className="h-6 w-6 shrink-0 text-emerald-500" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{l.title}</p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {[l.classroom_name, l.subject_name].filter(Boolean).join(' · ')}
+                          {l.description ? ` — ${l.description}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    {l.meeting_url && /^https?:\/\//i.test(l.meeting_url) && (
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={l.meeting_url} target="_blank" rel="noopener noreferrer">
+                          <PlayCircle className="h-4 w-4 mr-1" /> Open
+                        </a>
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}

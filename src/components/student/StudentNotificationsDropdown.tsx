@@ -45,11 +45,14 @@ export function StudentNotificationsDropdown() {
       const token = auth?.token
       if (!token) return
 
-      const [messagesRes, announcementsRes] = await Promise.all([
+      const [messagesRes, announcementsRes, virtualRes] = await Promise.all([
         fetch('/api/student/messages', {
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => null),
         fetch('/api/student/announcements', {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null),
+        fetch('/api/tenant/virtual-learning-notifications', {
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => null),
       ])
@@ -84,6 +87,22 @@ export function StudentNotificationsDropdown() {
             date: a.date,
             isRead: false,
             link: '/student/communications',
+          }))
+        )
+      }
+
+      if (virtualRes?.ok) {
+        const virtualData = await virtualRes.json()
+        const items = virtualData.data || []
+        notificationsList.push(
+          ...items.slice(0, 5).map((n: any) => ({
+            id: `vl-${n.id}`,
+            type: 'announcement' as const,
+            title: n.title,
+            message: n.message || '',
+            date: n.created_at,
+            isRead: n.is_read,
+            link: '/student/live-class',
           }))
         )
       }

@@ -14,6 +14,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const tenantId = decoded.tenantId || 'default-tenant'
   const studentId = decoded.studentId || decoded.userId
 
+  await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS class_level TEXT`.catch(() => {})
+
   try {
     // Resolve the student's class/arm once — used for enrollment scoping
     let student: { class: string | null; arm: string | null } | null = null
@@ -53,7 +55,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           )
           AND (
             ${decoded.role !== 'student'}
-            OR vc.class_arm_id IS NULL OR vc.class_arm_id = ''
+            OR (vc.class_arm_id IS NULL AND vc.class_level IS NULL)
+            OR (vc.class_level IS NOT NULL AND LOWER(vc.class_level) = LOWER(${student?.class || ''}))
             OR EXISTS (
               SELECT 1 FROM classes c
               WHERE c.id::text = vc.class_arm_id AND c.tenant_id = ${tenantId}
@@ -81,6 +84,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
              l.recording_url,
              l.status,
              vc.class_arm_id,
+             vc.class_level,
              COALESCE(vc.name, '') AS classroom_name
       FROM lessons l
       LEFT JOIN virtual_classrooms vc ON vc.id = l.classroom_id
@@ -108,6 +112,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         `
         if (!enroll.rows[0]) {
           return res.status(403).json({ error: 'You are not enrolled in the class for this lesson' })
+        }
+      } else if (lesson.class_level) {
+        if ((student.class || '').toLowerCase() !== String(lesson.class_level).toLowerCase()) {
+          return res.status(403).json({ error: 'This lesson is for a different class level' })
         }
       }
     }

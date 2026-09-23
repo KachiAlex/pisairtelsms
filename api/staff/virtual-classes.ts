@@ -22,9 +22,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   try {
     await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS co_teacher_id TEXT`.catch(() => {})
+    await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS class_level TEXT`.catch(() => {})
 
     const classrooms = await sql`
-      SELECT vc.id, vc.name, vc.description, vc.status, vc.created_at::text,
+      SELECT vc.id, vc.name, vc.description, vc.status, vc.created_at::text, vc.class_level,
              s.name AS subject_name,
              c.name AS class_name, c.arm AS class_arm,
              (vc.teacher_id = ${staffId}) AS is_lead,

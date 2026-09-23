@@ -30,6 +30,7 @@ interface VirtualClass {
   subject_name: string | null
   class_name: string | null
   class_arm: string | null
+  class_level: string | null
   is_lead: boolean
   lead_teacher_name: string | null
   lessons: Lesson[]
@@ -179,8 +180,12 @@ export function MyVirtualClasses() {
                     <div className="min-w-0">
                       <h3 className="font-semibold text-gray-900 truncate">{vc.name}</h3>
                       <p className="text-sm text-gray-500 truncate">
-                        {[vc.subject_name, vc.class_name && `${vc.class_name}${vc.class_arm ? ` ${vc.class_arm}` : ''}`]
-                          .filter(Boolean).join(' · ') || 'No subject or class linked'}
+                        {[
+                          vc.subject_name,
+                          vc.class_name
+                            ? `${vc.class_name}${vc.class_arm ? ` ${vc.class_arm}` : ''}`
+                            : vc.class_level ? `${vc.class_level} (all arms)` : null,
+                        ].filter(Boolean).join(' · ') || 'No subject or class linked'}
                         {!vc.is_lead && vc.lead_teacher_name && (
                           <span className="text-blue-600"> · co-teacher (lead: {vc.lead_teacher_name})</span>
                         )}

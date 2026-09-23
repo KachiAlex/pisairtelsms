@@ -63,7 +63,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   try {
     const lessonResult = await sql`
-      SELECT l.*, vc.teacher_id AS classroom_teacher_id, vc.co_teacher_id AS classroom_co_teacher_id, vc.class_arm_id AS classroom_class_arm_id
+      SELECT l.*, vc.teacher_id AS classroom_teacher_id, vc.co_teacher_id AS classroom_co_teacher_id,
+             vc.class_arm_id AS classroom_class_arm_id, vc.class_level AS classroom_class_level
       FROM lessons l
       LEFT JOIN virtual_classrooms vc ON vc.id = l.classroom_id
       WHERE l.id = ${lessonId as string} AND l.tenant_id = ${tenantId}
@@ -253,24 +254,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(403).json({ error: 'Student record not found for this account' })
       }
 
-      // Enrollment: if the classroom is bound to a class arm, the student must
-      // belong to it (matched via the classes table on name + arm).
-      const clsRes = await sql`
-        SELECT vc.class_arm_id
-        FROM virtual_classrooms vc
-        WHERE vc.id = ${lesson.classroom_id} AND vc.tenant_id = ${tenantId}
-      `
-      const classArmId = clsRes.rows[0]?.class_arm_id || null
-      if (classArmId) {
+      // Enrollment: the classroom may be bound to one arm (class_arm_id) or
+      // a whole level (class_level, e.g. every SS 1 arm). Either restricts
+      // who can join.
+      if (lesson.classroom_class_arm_id) {
         const enroll = await sql`
           SELECT 1 FROM classes c
-          WHERE c.id::text = ${classArmId} AND c.tenant_id = ${tenantId}
+          WHERE c.id::text = ${lesson.classroom_class_arm_id} AND c.tenant_id = ${tenantId}
             AND LOWER(c.name) = LOWER(${student.class || ''})
             AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(${student.arm || ''}))
           LIMIT 1
         `
         if (!enroll.rows[0]) {
           return res.status(403).json({ error: 'You are not enrolled in the class for this lesson' })
+        }
+      } else if (lesson.classroom_class_level) {
+        if ((student.class || '').toLowerCase() !== String(lesson.classroom_class_level).toLowerCase()) {
+          return res.status(403).json({ error: 'This lesson is for a different class level' })
         }
       }
 
@@ -325,20 +325,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         UPDATE lessons SET status = 'live', updated_at = NOW()
         WHERE id = ${lesson.id} AND tenant_id = ${tenantId}
       `
-      if (lesson.classroom_class_arm_id) {
+      // Notify the enrolled students — arm-bound rooms hit one arm, level-
+      // bound rooms hit every arm of that level, unbound rooms hit nobody
+      // (school-wide rooms would spam every student on each start).
+      if (lesson.classroom_class_arm_id || lesson.classroom_class_level) {
         await sql`
           INSERT INTO virtual_learning_notifications
             (tenant_id, user_id, user_role, type, title, message, related_entity_type, related_entity_id)
-          SELECT ${tenantId}, s.id::text, 'student', 'live_started',
+          SELECT DISTINCT ${tenantId}, s.id::text, 'student', 'live_started',
                  'Live class started',
                  ${`${lesson.title} is live now — join from Live Classes.`},
                  'lesson', ${lesson.id}
           FROM students s
-          JOIN classes c ON c.id::text = ${lesson.classroom_class_arm_id} AND c.tenant_id = ${tenantId}
+          LEFT JOIN classes c ON c.id::text = ${lesson.classroom_class_arm_id || ''} AND c.tenant_id = ${tenantId}
           WHERE s.tenant_id = ${tenantId}
-            AND LOWER(s.class) = LOWER(c.name)
-            AND (c.arm IS NULL OR c.arm = '' OR LOWER(s.arm) = LOWER(c.arm))
             AND s.status = 'active'
+            AND (
+              (c.id IS NOT NULL AND LOWER(s.class) = LOWER(c.name)
+               AND (c.arm IS NULL OR c.arm = '' OR LOWER(s.arm) = LOWER(c.arm)))
+              OR (${lesson.classroom_class_level || ''} != '' AND LOWER(s.class) = LOWER(${lesson.classroom_class_level || ''}))
+            )
         `.catch(() => {})
       }
     }

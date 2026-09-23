@@ -10,6 +10,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const userId = decoded.userId || decoded.sub || 'system'
 
   await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS co_teacher_id TEXT`.catch(() => {})
+  await sql`ALTER TABLE virtual_classrooms ADD COLUMN IF NOT EXISTS class_level TEXT`.catch(() => {})
 
   try {
     // GET - list classrooms
@@ -30,13 +31,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // POST - create classroom
     if (req.method === 'POST') {
-      const { name, description, subjectId, classArmId, teacherId, coTeacherId, coverImageUrl } = req.body || {}
+      const { name, description, subjectId, classArmId, classLevel, teacherId, coTeacherId, coverImageUrl } = req.body || {}
       if (!name || !teacherId) {
         return res.status(400).json({ error: 'name and teacherId are required' })
       }
       const result = await sql`
-        INSERT INTO virtual_classrooms (tenant_id, subject_id, class_arm_id, teacher_id, co_teacher_id, name, description, cover_image_url)
-        VALUES (${tenantId}, ${subjectId || null}, ${classArmId || null}, ${teacherId}, ${coTeacherId || null}, ${name}, ${description || null}, ${coverImageUrl || null})
+        INSERT INTO virtual_classrooms (tenant_id, subject_id, class_arm_id, class_level, teacher_id, co_teacher_id, name, description, cover_image_url)
+        VALUES (${tenantId}, ${subjectId || null}, ${classArmId || null}, ${classLevel || null}, ${teacherId}, ${coTeacherId || null}, ${name}, ${description || null}, ${coverImageUrl || null})
         RETURNING *
       `
       // Notify the assigned teacher — otherwise the assignment is invisible
@@ -56,7 +57,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // PUT - update classroom
     if (req.method === 'PUT') {
-      const { id, name, description, subjectId, classArmId, teacherId, coTeacherId, coverImageUrl, status } = req.body || {}
+      const { id, name, description, subjectId, classArmId, classLevel, teacherId, coTeacherId, coverImageUrl, status } = req.body || {}
       if (!id) {
         return res.status(400).json({ error: 'id is required' })
       }
@@ -65,7 +66,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           name = COALESCE(${name || null}, name),
           description = COALESCE(${description || null}, description),
           subject_id = COALESCE(${subjectId || null}, subject_id),
-          class_arm_id = COALESCE(${classArmId || null}, class_arm_id),
+          -- undefined keeps the current value; '' clears it (rebind to school-wide)
+          class_arm_id = CASE WHEN ${classArmId === undefined} THEN class_arm_id ELSE ${classArmId || null} END,
+          class_level = CASE WHEN ${classLevel === undefined} THEN class_level ELSE ${classLevel || null} END,
           teacher_id = COALESCE(${teacherId || null}, teacher_id),
           co_teacher_id = COALESCE(${coTeacherId || null}, co_teacher_id),
           cover_image_url = COALESCE(${coverImageUrl || null}, cover_image_url),

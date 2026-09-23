@@ -32,6 +32,7 @@ interface Classroom {
   description: string | null
   subject_name: string | null
   class_arm_name: string | null
+  class_level: string | null
   teacher_name: string | null
   status: string
   cover_image_url: string | null
@@ -632,6 +633,12 @@ export function VirtualClassroom() {
                       <Users className="h-3 w-3" /> {classroom.teacher_name}
                     </span>
                   )}
+                  {(classroom.class_arm_name || classroom.class_level) && (
+                    <span className="flex items-center gap-1">
+                      <GraduationCap className="h-3 w-3" />
+                      {classroom.class_arm_name || `${classroom.class_level} (all arms)`}
+                    </span>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -671,7 +678,7 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
   const [teacherId, setTeacherId] = useState('')
   const [coTeacherId, setCoTeacherId] = useState('')
   const [subjectId, setSubjectId] = useState('')
-  const [classArmId, setClassArmId] = useState('')
+  const [classScope, setClassScope] = useState('') // '' | 'level:<name>' | 'arm:<id>'
   const [teachers, setTeachers] = useState<StaffMember[]>([])
   const [subjects, setSubjects] = useState<SubjectOption[]>([])
   const [classOptions, setClassOptions] = useState<ClassOption[]>([])
@@ -727,13 +734,24 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
     setTeacherId('')
     setCoTeacherId('')
     setSubjectId('')
-    setClassArmId('')
+    setClassScope('')
   }
 
   const handleCreate = () => {
-    onCreate({ name, description, teacherId, coTeacherId: coTeacherId || undefined, subjectId: subjectId || undefined, classArmId: classArmId || undefined })
+    const isLevel = classScope.startsWith('level:')
+    onCreate({
+      name, description, teacherId,
+      coTeacherId: coTeacherId || undefined,
+      subjectId: subjectId || undefined,
+      classArmId: classScope.startsWith('arm:') ? classScope.slice(4) : undefined,
+      classLevel: isLevel ? classScope.slice(6) : undefined,
+    })
     reset()
   }
+
+  // Class picker options: each distinct level ("all arms") plus each specific arm
+  const classLevels = Array.from(new Set(classOptions.map(c => c.name))).sort()
+  const sortedArms = [...classOptions].sort((a, b) => (a.name + (a.arm || '')).localeCompare(b.name + (b.arm || '')))
 
   const canSubmit = name.trim() && teacherId
 
@@ -792,13 +810,18 @@ function CreateClassroomDialog({ open, onClose, onCreate }: { open: boolean; onC
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="classArm">Class / Arm</Label>
-              <Select value={classArmId} onValueChange={setClassArmId}>
+              <Select value={classScope} onValueChange={setClassScope}>
                 <SelectTrigger id="classArm" className="w-full">
                   <SelectValue placeholder="All students" />
                 </SelectTrigger>
                 <SelectContent>
-                  {classOptions.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                  {classLevels.map(level => (
+                    <SelectItem key={`level:${level}`} value={`level:${level}`}>
+                      {level} — all arms
+                    </SelectItem>
+                  ))}
+                  {sortedArms.map((c) => (
+                    <SelectItem key={`arm:${c.id}`} value={`arm:${c.id}`}>
                       {c.name}{c.arm ? ` ${c.arm}` : ''}
                     </SelectItem>
                   ))}

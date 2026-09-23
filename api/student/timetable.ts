@@ -121,25 +121,27 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }));
     }
 
-    // Fetch upcoming exams for this class
+    // Fetch upcoming exams for this class (real schema: scheduled_date/time, duration, class)
+    const studentClassBase = className.replace(/\s+[A-Z]$/, '');
     const examResult = await sql`
-      SELECT title AS subject, exam_date::text AS date,
-             start_time, end_time, room,
-             EXTRACT(EPOCH FROM (end_time::time - start_time::time))/60 AS duration
+      SELECT COALESCE(subject, title) AS subject, scheduled_date::text AS date,
+             scheduled_time AS start_time, duration, COALESCE(class, '') AS student_class
       FROM exams
-      WHERE (student_class = ${studentClass} OR student_class IS NULL)
-        AND tenant_id = ${tenantId}
-        AND exam_date >= CURRENT_DATE
-      ORDER BY exam_date, start_time
+      WHERE tenant_id = ${tenantId}
+        AND deleted_at IS NULL
+        AND status IN ('Scheduled', 'Ongoing')
+        AND (class = ${className} OR class = ${studentClass} OR class = ${studentClassBase} OR class IS NULL OR class = '')
+        AND scheduled_date >= CURRENT_DATE
+      ORDER BY scheduled_date, scheduled_time
     `;
 
     const examSchedule: ExamSchedule[] = examResult.rows.map(r => ({
       subject: r.subject,
       date: r.date,
       startTime: r.start_time ?? '',
-      endTime: r.end_time ?? '',
+      endTime: '',
       duration: Number(r.duration ?? 0),
-      room: r.room ?? '',
+      room: '',
     }));
 
     const currentTerm = availableTerms.find(t => t.id === resolvedTermId)?.name || 'Current';

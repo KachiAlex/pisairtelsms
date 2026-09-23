@@ -44,7 +44,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // Outstanding fee balance
     const feeResult = await sql`
-      SELECT COALESCE(SUM(fa.amount - COALESCE(paid.paid,0)), 0) AS balance
+      SELECT COALESCE(SUM(fa.total_amount - COALESCE(paid.paid,0)), 0) AS balance
       FROM fee_assignments fa
       LEFT JOIN (
         SELECT fee_assignment_id, SUM(amount) AS paid

@@ -32,15 +32,15 @@ export class InAppProvider implements MessageProvider {
 
       if (payload.recipientType === 'staff') {
         await sql`
-          INSERT INTO staff_messages (id, staff_id, tenant_id, sender_name, subject, body, sender_role, is_read, created_at)
-          VALUES (${id}, ${payload.to}, ${tenantId}, 'Admin', ${payload.subject}, ${payload.body}, 'admin', false, NOW())
+          INSERT INTO staff_messages (staff_id, tenant_id, sender_name, subject, body, sender_role, is_read, created_at)
+          VALUES (${payload.to}, ${tenantId}, 'Admin', ${payload.subject}, ${payload.body}, 'admin', false, NOW())
         `
       } else if (payload.recipientType === 'student') {
         await sql`ALTER TABLE student_messages ADD COLUMN IF NOT EXISTS tenant_id TEXT`.catch(() => {})
         await sql`ALTER TABLE student_messages ADD COLUMN IF NOT EXISTS body TEXT`.catch(() => {})
         await sql`
-          INSERT INTO student_messages (id, student_id, tenant_id, sender_name, subject, body, is_read, created_at)
-          VALUES (${id}, ${payload.to}, ${tenantId}, 'School Admin', ${payload.subject}, ${payload.body}, false, NOW())
+          INSERT INTO student_messages (student_id, tenant_id, sender_name, subject, body, is_read, created_at)
+          VALUES (${payload.to}, ${tenantId}, 'School Admin', ${payload.subject}, ${payload.body}, false, NOW())
         `
       } else if (payload.recipientType === 'parent') {
         await sql`

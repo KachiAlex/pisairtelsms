@@ -166,14 +166,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // Reply to a parent→teacher conversation: appends to the thread the
       // parent sees, marks the inbound message read and the convo replied.
       if (parentMessageId) {
-        const pmId = parentMessageId.startsWith('pm_') ? parentMessageId.slice(3) : parentMessageId;
+        // Inbox ids are displayed as pm_<rowId>; row ids themselves may start
+        // with pm_ too, so resolve against both forms.
+        const stripped = parentMessageId.startsWith('pm_') ? parentMessageId.slice(3) : parentMessageId;
+        const candidates = [stripped, parentMessageId];
         const convo = await sql`
           SELECT id FROM parent_messages
-          WHERE id = ${pmId} AND staff_id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
+          WHERE id = ANY(${candidates}) AND staff_id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
         `.catch(() => ({ rows: [] as any[] }));
         if (!convo.rows[0]) {
           return res.status(404).json({ error: 'Conversation not found' });
         }
+        const pmId = convo.rows[0].id;
         if (!messageBody?.trim()) {
           return res.status(400).json({ error: 'body is required' });
         }

@@ -27,17 +27,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     // CSRF protection for state-changing request
     if (requireCSRF(req, res, staffId)) return;
 
-    const { messageId } = req.query;
+    const messageId = (req.params as any)?.messageId || req.query?.messageId;
     if (!messageId || typeof messageId !== 'string') {
       return res.status(400).json({ error: 'messageId is required' });
     }
 
-    // Parent→teacher conversations are prefixed pm_ in the inbox listing.
+    // Parent→teacher conversations are prefixed pm_ in the inbox listing;
+    // row ids may also start with pm_, so try both forms.
     if (messageId.startsWith('pm_')) {
-      const pmId = messageId.slice(3);
+      const candidates = [messageId.slice(3), messageId];
       const updated = await sql`
         UPDATE parent_messages SET is_read = TRUE, updated_at = NOW()
-        WHERE id = ${pmId} AND staff_id = ${staffId} AND tenant_id = ${tenantId}
+        WHERE id = ANY(${candidates}) AND staff_id = ${staffId} AND tenant_id = ${tenantId}
         RETURNING id
       `.catch(() => ({ rows: [] as any[] }));
       if (!updated.rows[0]) {

@@ -3,10 +3,10 @@ import { sql } from '../_lib/sql.js';
 import { requireRole } from '../_lib/auth-middleware.js';
 import { requireCSRF } from '../_lib/csrf.js';
 import { rateLimit } from '../_lib/rate-limit.js';
-import { ensurePayrollTables, listBanks, resolveBankAccount, ensureTransferRecipient } from '../tenant/_lib/payroll.js';
+import { ensurePayrollTables, listBanks, resolveBankAccount, ensureTransferRecipient, getPayrollGateway } from '../tenant/_lib/payroll.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff']);
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin']);
   if (!decoded) return;
   const staffId = decoded.staffId || decoded.userId || decoded.sub;
   if (!staffId) {
@@ -19,12 +19,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET — own bank details (masked) + bank list for the picker
   if (req.method === 'GET') {
     try {
-      const [staffResult, bankList] = await Promise.all([
+      const [staffResult, bankList, gateway] = await Promise.all([
         sql`
           SELECT account_number, bank_code, bank_name, account_name, bank_verified_at
           FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
         `,
-        listBanks(),
+        listBanks(tenantId),
+        getPayrollGateway(tenantId),
       ]);
       const s = staffResult.rows[0];
       const acct = s?.account_number || null;
@@ -35,7 +36,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         accountName: s?.account_name || '',
         verified: !!s?.bank_verified_at,
         verifiedAt: s?.bank_verified_at || null,
-        gatewayConfigured: bankList.source !== null,
+        gatewayConfigured: !!gateway,
+        gatewayProvider: gateway?.provider || null,
         banks: bankList.banks,
       });
     } catch (error) {
@@ -62,12 +64,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ error: 'Please select your bank' });
       }
 
-      const gatewayConfigured = !!(process.env.PAYSTACK_SECRET_KEY || process.env.FLUTTERWAVE_SECRET_KEY);
+      const gateway = await getPayrollGateway(tenantId);
+      const gatewayConfigured = !!gateway;
       let accountName: string | null = null;
       let verifiedAt: Date | null = null;
 
       if (gatewayConfigured) {
-        const resolved = await resolveBankAccount(accountNumber, bankCode);
+        const resolved = await resolveBankAccount(tenantId, accountNumber, bankCode);
         if (!resolved.accountName) {
           return res.status(400).json({
             error: resolved.error || 'Could not verify this account — check the account number and bank',
@@ -100,7 +103,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // Pre-create the Paystack transfer recipient so payday disbursement
       // doesn't fail on a bad account discovered too late.
       let recipientReady = false;
-      if (process.env.PAYSTACK_SECRET_KEY) {
+      if (gateway?.provider === 'paystack') {
         const rec = await ensureTransferRecipient(staffId, tenantId);
         recipientReady = !!rec.recipientCode;
       }
@@ -138,7 +141,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         gatewayConfigured,
         message: gatewayConfigured
           ? `Account verified as ${accountName}`
-          : 'Bank details saved. Note: no payment gateway is configured, so the account could not be verified — the school admin should confirm it manually.',
+          : 'Bank details saved unverified — the school has not configured a payment gateway yet (Finance → Payment Gateway). The admin should confirm these details manually before payday.',
       });
     } catch (error) {
       console.error('Error saving bank details:', error);

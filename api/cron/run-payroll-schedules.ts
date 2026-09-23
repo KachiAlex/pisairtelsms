@@ -135,20 +135,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // Auto-disburse: approved runs under schedules that opted in. Only in
-    // gateway mode — silently marking items paid with no money movement is
-    // never automated; manual confirmation stays a human decision.
-    const gatewayConfigured = !!(process.env.PAYSTACK_SECRET_KEY || process.env.FLUTTERWAVE_SECRET_KEY)
-    if (gatewayConfigured) {
-      const approvedRuns = await sql`
-        SELECT r.id, r.tenant_id FROM payroll_runs r
-        JOIN payroll_schedules s ON s.id = r.schedule_id AND s.tenant_id = r.tenant_id
-        WHERE r.status = 'approved' AND s.auto_disburse = true AND s.is_active = true
-      `
-      for (const row of approvedRuns.rows as Array<{ id: string; tenant_id: string }>) {
-        const result = await disburseRun(row.id, row.tenant_id, { actor: ACTOR })
-        disbursed.push({ runId: row.id, tenantId: row.tenant_id, success: result.success, detail: result.error })
-      }
+    // Auto-disburse: approved runs under schedules that opted in.
+    // disburseRun resolves each tenant's own payment gateway (Finance →
+    // Payment Gateway) and refuses to mark items paid when none exists —
+    // manual confirmation stays a human decision.
+    const approvedRuns = await sql`
+      SELECT r.id, r.tenant_id FROM payroll_runs r
+      JOIN payroll_schedules s ON s.id = r.schedule_id AND s.tenant_id = r.tenant_id
+      WHERE r.status = 'approved' AND s.auto_disburse = true AND s.is_active = true
+    `
+    for (const row of approvedRuns.rows as Array<{ id: string; tenant_id: string }>) {
+      const result = await disburseRun(row.id, row.tenant_id, { actor: ACTOR })
+      disbursed.push({ runId: row.id, tenantId: row.tenant_id, success: result.success, detail: result.error })
     }
 
     console.log(
@@ -159,7 +157,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(200).json({
       success: errors.length === 0,
       period: { month, year },
-      gatewayConfigured,
       generated,
       skipped,
       disbursed,

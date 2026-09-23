@@ -18,6 +18,8 @@ import {
   getTaxConfig, updateTaxConfig, createTaxConfig,
   // Compliance
   generateComplianceReport,
+  // Gateway
+  getPayrollGateway,
 } from './_lib/payroll.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { sql } from '../_lib/sql.js'
@@ -165,7 +167,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const items = await fetchRunItems(id as string, actualTenantId)
         const approvals = await fetchApprovals(id as string, actualTenantId)
         const auditLog = await fetchAuditLog(id as string, actualTenantId)
-        return res.status(200).json({ data: { ...run, items, approvals, auditLog } })
+        const gateway = await getPayrollGateway(actualTenantId)
+        return res.status(200).json({ data: { ...run, items, approvals, auditLog, gatewayProvider: gateway?.provider || null, gatewaySource: gateway?.source || null } })
       }
       const runs = await fetchRuns(actualTenantId, status as string | undefined)
       return res.status(200).json({ data: runs })

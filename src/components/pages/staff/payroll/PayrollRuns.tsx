@@ -33,6 +33,7 @@ export function PayrollRuns() {
   const [notice, setNotice] = useState<string | null>(null)
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
   const [runDetails, setRunDetails] = useState<{ items: PayrollRunItem[]; approvals: PayrollApproval[]; auditLog: PayrollAuditEntry[] } | null>(null)
+  const [gatewayProvider, setGatewayProvider] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState({ month: MONTHS[new Date().getMonth()], year: new Date().getFullYear(), supplementary: false, scheduleId: '' })
   const [schedules, setSchedules] = useState<PayrollSchedule[]>([])
@@ -72,6 +73,7 @@ export function PayrollRuns() {
   const refreshDetails = async (runId: string) => {
     const data = await payrollApi.getRun(runId)
     setRunDetails({ items: data.items, approvals: data.approvals, auditLog: data.auditLog || [] })
+    setGatewayProvider((data as any).gatewayProvider || null)
   }
 
   const handleCreate = async () => {
@@ -295,7 +297,7 @@ export function PayrollRuns() {
                       </Button>
                     )}
                     {(run.status === 'approved' || run.status === 'failed') && (
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setDisburseTarget(run); setDisburseMode('auto') }} disabled={actionLoading}>
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setDisburseTarget(run); setDisburseMode('auto'); setGatewayProvider(null); refreshDetails(run.id).catch(() => {}) }} disabled={actionLoading}>
                         <DollarSign className="w-3 h-3 mr-1" /> {run.status === 'failed' ? 'Retry Disbursement' : 'Disburse'}
                       </Button>
                     )}
@@ -528,8 +530,9 @@ export function PayrollRuns() {
             {disburseMode === 'auto' ? (
               <p className="text-sm text-gray-600">
                 This will initiate salary transfers to <strong>{disburseTarget?.totalStaff} staff</strong> totaling{' '}
-                <strong>{formatCurrency(disburseTarget?.totalNet || 0)}</strong> via the configured payment gateway.
-                Staff without bank details on file will fail.
+                <strong>{formatCurrency(disburseTarget?.totalNet || 0)}</strong> via{' '}
+                {gatewayProvider ? <strong className="capitalize">{gatewayProvider}</strong> : 'the configured payment gateway'}.
+                Staff without verified bank details will fail. Configure the gateway in Finance → Payment Gateway.
               </p>
             ) : (
               <>

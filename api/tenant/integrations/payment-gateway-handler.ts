@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js';
 import { sql } from '../../_lib/sql.js';
 import { requireRole } from '../../_lib/auth-middleware.js';
+import { getActivePaymentGateway, getTenantPaymentSettings, upsertTenantPaymentSetting } from '../finance/_lib/payments.js';
 
 /**
  * Payment Gateway Integration API Handler
@@ -143,42 +144,80 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     // ── GET /config ──────────────────────────────────────────────────────────
+    // Reads the authoritative store (tenant_payment_settings) — the same keys
+    // that drive fee collection and payroll disbursement.
     if (req.method === 'GET' && action === 'config') {
-      const { rows } = await sql.query(
-        `SELECT * FROM payment_gateway_configs
-         WHERE tenant_id = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1`,
-        [tenantId],
-      );
-      return res.status(200).json({ data: rows[0] || null });
+      const active = await getActivePaymentGateway(tenantId);
+      if (!active) return res.status(200).json({ data: null });
+      return res.status(200).json({
+        data: {
+          provider: active.gateway,
+          mode: (active.metadata as any)?.mode || 'live',
+          api_key: active.publicKey,
+          // Never send the stored secret down — blank field keeps it on save
+          secret_key: '',
+          has_secret_key: !!active.secretKey,
+          secret_key_last4: active.secretKey ? active.secretKey.slice(-4) : '',
+          webhook_url: (active.metadata as any)?.webhookUrl || null,
+          is_active: active.isActive,
+          updated_at: active.updatedAt,
+        },
+      });
     }
 
     // ── PUT /config ───────────────────────────────────────────────────────────
     if (req.method === 'PUT' && action === 'config') {
-      const { provider, mode, apiKey, secretKey, webhookUrl, webhookSecret } = req.body || {};
-      if (!provider || !apiKey || !secretKey) {
-        return res.status(400).json({ error: 'provider, apiKey and secretKey are required' });
+      if (decoded.role !== 'tenant_admin') {
+        return res.status(403).json({ error: 'Only tenant admins can change payment gateway settings' });
       }
-      await sql.query(
-        `UPDATE payment_gateway_configs SET is_active = false WHERE tenant_id = $1`,
-        [tenantId],
-      );
-      const { rows } = await sql.query(
-        `INSERT INTO payment_gateway_configs
-           (tenant_id, provider, mode, api_key, secret_key, webhook_url, webhook_secret, created_by, updated_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,
-        [tenantId, provider, mode || 'test', apiKey, secretKey,
-         webhookUrl || null, webhookSecret || null, userId],
-      );
-      return res.status(200).json({ data: rows[0] });
+      const { provider, mode, apiKey, secretKey, webhookUrl, webhookSecret } = req.body || {};
+      if (!provider || !apiKey) {
+        return res.status(400).json({ error: 'provider and apiKey are required' });
+      }
+      const gw = String(provider).toLowerCase();
+      if (!['paystack', 'flutterwave', 'moniepoint'].includes(gw)) {
+        return res.status(400).json({ error: 'Supported providers: paystack, flutterwave, moniepoint' });
+      }
+      // Empty secretKey = keep the stored one
+      let effectiveSecret = typeof secretKey === 'string' ? secretKey.trim() : '';
+      if (!effectiveSecret) {
+        const existing = (await getTenantPaymentSettings(tenantId)).find(s => s.gateway === gw);
+        effectiveSecret = existing?.secretKey || '';
+      }
+      if (!effectiveSecret) {
+        return res.status(400).json({ error: 'secretKey is required when configuring a gateway for the first time' });
+      }
+      const setting = await upsertTenantPaymentSetting(tenantId, gw as 'paystack' | 'flutterwave' | 'moniepoint', apiKey, effectiveSecret, true, {
+        mode: mode || 'live',
+        webhookUrl: webhookUrl || null,
+        webhookSecret: webhookSecret || null,
+        configuredBy: userId,
+      });
+      return res.status(200).json({
+        data: {
+          provider: setting.gateway,
+          api_key: setting.publicKey,
+          secret_key: '',
+          has_secret_key: true,
+          secret_key_last4: effectiveSecret.slice(-4),
+          is_active: setting.isActive,
+          updated_at: setting.updatedAt,
+        },
+      });
     }
 
     // ── GET / (all configs for tenant) ───────────────────────────────────────
     if (req.method === 'GET') {
-      const { rows } = await sql.query(
-        `SELECT * FROM payment_gateway_configs WHERE tenant_id = $1 ORDER BY updated_at DESC`,
-        [tenantId],
-      );
-      return res.status(200).json({ data: rows });
+      const settings = await getTenantPaymentSettings(tenantId);
+      return res.status(200).json({
+        data: settings.map(s => ({
+          provider: s.gateway,
+          apiKey: s.publicKey,
+          hasSecretKey: !!s.secretKey,
+          isActive: s.isActive,
+          updatedAt: s.updatedAt,
+        })),
+      });
     }
 
     res.setHeader('Allow', 'GET, PUT, POST');

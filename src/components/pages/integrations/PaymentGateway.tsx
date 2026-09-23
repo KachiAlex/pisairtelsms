@@ -26,11 +26,13 @@ import { useToast } from '../../ui/use-toast';
 import { getAuthFromStorage } from '../../../lib/auth';
 
 interface GatewayConfig {
-  id: string;
+  id?: string;
   provider: string;
   mode: string;
   api_key: string;
   secret_key: string;
+  has_secret_key?: boolean;
+  secret_key_last4?: string;
   webhook_url?: string;
   webhook_secret?: string;
   is_active: boolean;
@@ -130,7 +132,7 @@ export default function PaymentGateway() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleSaveConfig = async () => {
-    if (!form.apiKey || !form.secretKey) {
+    if (!form.apiKey || (!form.secretKey && !config?.has_secret_key)) {
       toast({ title: 'Missing fields', description: 'API key and Secret key are required.', variant: 'destructive' });
       return;
     }
@@ -172,7 +174,7 @@ export default function PaymentGateway() {
         <div>
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold">Integrations</p>
           <h1 className="text-2xl font-bold text-gray-900">Payment Gateway</h1>
-          <p className="text-sm text-gray-600">Connect Stripe or Paystack to process school fee payments.</p>
+          <p className="text-sm text-gray-600">Connect Paystack or Flutterwave to collect school fees and disburse staff payroll.</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" size="sm" onClick={loadData}>
@@ -344,7 +346,7 @@ export default function PaymentGateway() {
                   <SelectTrigger id="pg-provider" className="rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="paystack">Paystack</SelectItem>
-                    <SelectItem value="stripe">Stripe</SelectItem>
+                    <SelectItem value="flutterwave">Flutterwave</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -372,11 +374,11 @@ export default function PaymentGateway() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="pg-secret">Secret Key <span className="text-red-500">*</span></Label>
+              <Label htmlFor="pg-secret">Secret Key {config?.has_secret_key ? <span className="text-gray-400 font-normal">(saved ••••{config.secret_key_last4} — leave blank to keep)</span> : <span className="text-red-500">*</span>}</Label>
               <Input
                 id="pg-secret"
                 type="password"
-                placeholder="sk_test_••••••••"
+                placeholder={config?.has_secret_key ? 'Leave blank to keep saved key' : 'sk_test_••••••••'}
                 value={form.secretKey}
                 onChange={e => setForm(f => ({ ...f, secretKey: e.target.value }))}
               />

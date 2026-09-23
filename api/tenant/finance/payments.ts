@@ -73,11 +73,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   // ─── PAYMENT SETTINGS ─────────────────────────────────────────────────────
 
+  // Gateway settings manage live payment credentials — tenant_admin only.
+  const isAdmin = decoded.role === 'tenant_admin'
+
   // GET /api/tenant/finance/payments?action=settings
   if (req.method === 'GET' && !id && action === 'settings') {
+    if (!isAdmin) return res.status(403).json({ error: 'Only tenant admins can view payment gateway settings' })
     try {
       const settings = await getTenantPaymentSettings(tenantId)
-      return res.status(200).json({ data: settings })
+      // Never return raw secret keys — mask to last 4 chars. An empty
+      // secretKey field on PUT means "keep the existing key".
+      const masked = settings.map(s => ({
+        ...s,
+        secretKey: '',
+        hasSecretKey: !!s.secretKey,
+        secretKeyLast4: s.secretKey ? s.secretKey.slice(-4) : '',
+      }))
+      return res.status(200).json({ data: masked })
     } catch (error) {
       console.error('Error fetching payment settings:', error)
       return res.status(500).json({ error: 'Failed to fetch payment settings' })
@@ -86,22 +98,67 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   // PUT /api/tenant/finance/payments?action=settings
   if (req.method === 'PUT' && !id && action === 'settings') {
+    if (!isAdmin) return res.status(403).json({ error: 'Only tenant admins can change payment gateway settings' })
     const body = parseBody(req)
     if (!body) {
       return res.status(400).json({ error: 'Request body is required' })
     }
 
     const { gateway, publicKey, secretKey, isActive, metadata } = body
-    if (!gateway || !publicKey || !secretKey) {
-      return res.status(400).json({ error: 'Missing required fields', details: ['gateway', 'publicKey', 'secretKey'] })
+    if (!gateway || !publicKey) {
+      return res.status(400).json({ error: 'Missing required fields', details: ['gateway', 'publicKey'] })
+    }
+    if (!['paystack', 'flutterwave', 'moniepoint'].includes(gateway)) {
+      return res.status(400).json({ error: 'Unsupported gateway' })
     }
 
     try {
-      const setting = await upsertTenantPaymentSetting(tenantId, gateway, publicKey, secretKey, !!isActive, metadata)
-      return res.status(200).json({ data: setting })
+      // Empty secretKey = keep the stored one (it was never sent to the client)
+      let effectiveSecret = typeof secretKey === 'string' ? secretKey.trim() : ''
+      if (!effectiveSecret) {
+        const existing = (await getTenantPaymentSettings(tenantId)).find(s => s.gateway === gateway)
+        effectiveSecret = existing?.secretKey || ''
+      }
+      if (!effectiveSecret) {
+        return res.status(400).json({ error: 'Secret key is required when configuring a gateway for the first time' })
+      }
+      const setting = await upsertTenantPaymentSetting(tenantId, gateway, publicKey, effectiveSecret, !!isActive, metadata)
+      return res.status(200).json({ data: { ...setting, secretKey: '', hasSecretKey: true, secretKeyLast4: effectiveSecret.slice(-4) } })
     } catch (error) {
       console.error('Error saving payment settings:', error)
       return res.status(500).json({ error: 'Failed to save payment settings' })
+    }
+  }
+
+  // POST /api/tenant/finance/payments?action=test-gateway — validate keys live
+  if (req.method === 'POST' && !id && action === 'test-gateway') {
+    if (!isAdmin) return res.status(403).json({ error: 'Only tenant admins can test gateway credentials' })
+    const body = parseBody(req)
+    const gateway = body?.gateway
+    if (!['paystack', 'flutterwave'].includes(gateway)) {
+      return res.status(400).json({ error: 'Supported testable gateways: paystack, flutterwave' })
+    }
+    let secretKey = typeof body?.secretKey === 'string' ? body.secretKey.trim() : ''
+    if (!secretKey) {
+      const existing = (await getTenantPaymentSettings(tenantId)).find(s => s.gateway === gateway)
+      secretKey = existing?.secretKey || ''
+    }
+    if (!secretKey) {
+      return res.status(400).json({ error: 'No secret key provided or saved for this gateway' })
+    }
+    try {
+      const url = gateway === 'paystack'
+        ? 'https://api.paystack.co/bank?country=nigeria&perPage=5'
+        : 'https://api.flutterwave.com/v3/banks/NG'
+      const gwRes = await fetch(url, { headers: { Authorization: `Bearer ${secretKey}` } })
+      const data = await gwRes.json().catch(() => null)
+      const ok = gateway === 'paystack' ? data?.status === true : data?.status === 'success'
+      if (ok) {
+        return res.status(200).json({ data: { ok: true, gateway, banksReturned: data.data?.length ?? 0 } })
+      }
+      return res.status(400).json({ error: data?.message || `${gateway} rejected the key`, data: { ok: false } })
+    } catch (error) {
+      return res.status(500).json({ error: `Could not reach ${gateway}: ${error instanceof Error ? error.message : String(error)}` })
     }
   }
 

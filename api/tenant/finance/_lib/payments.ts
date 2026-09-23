@@ -442,6 +442,12 @@ export async function upsertTenantPaymentSetting(
   await ensurePaymentTables()
   const id = uuidv4()
 
+  // Only one gateway may be active — collections and payroll disbursement both
+  // resolve "the active gateway", so activating one deactivates the rest.
+  if (isActive) {
+    await sql`UPDATE tenant_payment_settings SET is_active = false, updated_at = NOW() WHERE tenant_id = ${tenantId} AND gateway <> ${gateway}`
+  }
+
   const result = await sql<TenantPaymentSettingRow>`
     INSERT INTO tenant_payment_settings
       (id, tenant_id, gateway, public_key, secret_key, is_active, metadata, updated_at)

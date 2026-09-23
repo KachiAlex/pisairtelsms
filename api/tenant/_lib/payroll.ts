@@ -1294,9 +1294,9 @@ export async function disburseRun(
       return { success: false, run: null, error: 'No items in this run' }
     }
 
-    // Check for Paystack/Flutterwave API key
-    const paymentSecret = process.env.PAYSTACK_SECRET_KEY || process.env.FLUTTERWAVE_SECRET_KEY
-    const usePaymentGateway = !!paymentSecret
+    // Tenant-configured gateway (Finance → Payment Gateway), env as fallback
+    const gateway = await getPayrollGateway(tenantId)
+    const usePaymentGateway = !!gateway
 
     if (!usePaymentGateway && !options?.manualConfirmation) {
       await sql`UPDATE payroll_runs SET status = 'approved' WHERE id = ${runId} AND tenant_id = ${tenantId}`
@@ -1393,81 +1393,103 @@ export async function disburseRun(
 // ── Bank details / transfer helpers ─────────────────────────────────────────
 
 export interface BankInfo { name: string; code: string }
+export type GatewayProvider = 'paystack' | 'flutterwave'
+export interface PayrollGateway { provider: GatewayProvider; secretKey: string; source: 'tenant' | 'env' }
 
-let bankListCache: { banks: BankInfo[]; source: 'paystack' | 'flutterwave' | null; at: number } | null = null
-
-/** List Nigerian banks from the configured gateway (Paystack preferred). Cached 1h. */
-export async function listBanks(): Promise<{ banks: BankInfo[]; source: 'paystack' | 'flutterwave' | null }> {
-  if (bankListCache && Date.now() - bankListCache.at < 60 * 60 * 1000) {
-    return { banks: bankListCache.banks, source: bankListCache.source }
+/**
+ * Resolve the tenant's configured payout gateway. The tenant admin sets keys in
+ * Finance → Payment Gateway (tenant_payment_settings); the ACTIVE row wins.
+ * Environment variables remain as a fallback for single-tenant/dev deployments.
+ */
+export async function getPayrollGateway(tenantId: string): Promise<PayrollGateway | null> {
+  try {
+    const result = await sql`
+      SELECT gateway, secret_key FROM tenant_payment_settings
+      WHERE tenant_id = ${tenantId} AND is_active = true AND gateway IN ('paystack', 'flutterwave')
+      ORDER BY updated_at DESC LIMIT 1
+    `
+    const row = result.rows[0]
+    if (row?.secret_key) {
+      return { provider: row.gateway as GatewayProvider, secretKey: row.secret_key, source: 'tenant' }
+    }
+  } catch {
+    // tenant_payment_settings may not exist yet — fall through to env
   }
-  const result = await fetchBankList()
-  bankListCache = { ...result, at: Date.now() }
-  return result
+  if (process.env.PAYSTACK_SECRET_KEY) {
+    return { provider: 'paystack', secretKey: process.env.PAYSTACK_SECRET_KEY, source: 'env' }
+  }
+  if (process.env.FLUTTERWAVE_SECRET_KEY) {
+    return { provider: 'flutterwave', secretKey: process.env.FLUTTERWAVE_SECRET_KEY, source: 'env' }
+  }
+  return null
 }
 
-async function fetchBankList(): Promise<{ banks: BankInfo[]; source: 'paystack' | 'flutterwave' | null }> {
-  if (process.env.PAYSTACK_SECRET_KEY) {
-    try {
+const bankListCache = new Map<string, { banks: BankInfo[]; at: number }>()
+
+/** List Nigerian banks via the tenant's active gateway. Cached 1h per provider. */
+export async function listBanks(tenantId: string): Promise<{ banks: BankInfo[]; source: GatewayProvider | null }> {
+  const gateway = await getPayrollGateway(tenantId)
+  if (!gateway) return { banks: [], source: null }
+  const cached = bankListCache.get(gateway.provider)
+  if (cached && Date.now() - cached.at < 60 * 60 * 1000) {
+    return { banks: cached.banks, source: gateway.provider }
+  }
+  const banks = await fetchBankList(gateway)
+  bankListCache.set(gateway.provider, { banks, at: Date.now() })
+  return { banks, source: gateway.provider }
+}
+
+async function fetchBankList(gateway: PayrollGateway): Promise<BankInfo[]> {
+  try {
+    if (gateway.provider === 'paystack') {
       const res = await fetch('https://api.paystack.co/bank?country=nigeria&perPage=200', {
-        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+        headers: { Authorization: `Bearer ${gateway.secretKey}` },
       })
       const data = await res.json().catch(() => null)
       if (data?.status && Array.isArray(data.data)) {
-        return {
-          banks: data.data.map((b: any) => ({ name: b.name, code: b.code })).sort((a: BankInfo, b: BankInfo) => a.name.localeCompare(b.name)),
-          source: 'paystack',
-        }
+        return data.data.map((b: any) => ({ name: b.name, code: b.code })).sort((a: BankInfo, b: BankInfo) => a.name.localeCompare(b.name))
       }
-    } catch (e) { console.error('Paystack bank list failed:', e) }
-  }
-  if (process.env.FLUTTERWAVE_SECRET_KEY) {
-    try {
+    } else {
       const res = await fetch('https://api.flutterwave.com/v3/banks/NG', {
-        headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}` },
+        headers: { Authorization: `Bearer ${gateway.secretKey}` },
       })
       const data = await res.json().catch(() => null)
       if (data?.status === 'success' && Array.isArray(data.data)) {
-        return {
-          banks: data.data.map((b: any) => ({ name: b.name, code: b.code })).sort((a: BankInfo, b: BankInfo) => a.name.localeCompare(b.name)),
-          source: 'flutterwave',
-        }
+        return data.data.map((b: any) => ({ name: b.name, code: b.code })).sort((a: BankInfo, b: BankInfo) => a.name.localeCompare(b.name))
       }
-    } catch (e) { console.error('Flutterwave bank list failed:', e) }
-  }
-  return { banks: [], source: null }
+    }
+  } catch (e) { console.error(`${gateway.provider} bank list failed:`, e) }
+  return []
 }
 
-/** Verify account number + bank code, returning the resolved account name. */
-export async function resolveBankAccount(accountNumber: string, bankCode: string): Promise<{ accountName: string | null; error?: string }> {
-  if (process.env.PAYSTACK_SECRET_KEY) {
-    try {
+/** Verify account number + bank code via the tenant's active gateway. */
+export async function resolveBankAccount(tenantId: string, accountNumber: string, bankCode: string): Promise<{ accountName: string | null; error?: string }> {
+  const gateway = await getPayrollGateway(tenantId)
+  if (!gateway) return { accountName: null, error: 'No payment gateway configured — cannot verify account' }
+  try {
+    if (gateway.provider === 'paystack') {
       const res = await fetch(`https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`, {
-        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+        headers: { Authorization: `Bearer ${gateway.secretKey}` },
       })
       const data = await res.json().catch(() => null)
       if (data?.status && data.data?.account_name) return { accountName: data.data.account_name }
       return { accountName: null, error: data?.message || 'Account could not be resolved' }
-    } catch (e) { return { accountName: null, error: String(e) } }
-  }
-  if (process.env.FLUTTERWAVE_SECRET_KEY) {
-    try {
-      const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_number: accountNumber, account_bank: bankCode }),
-      })
-      const data = await res.json().catch(() => null)
-      if (data?.status === 'success' && data.data?.account_name) return { accountName: data.data.account_name }
-      return { accountName: null, error: data?.message || 'Account could not be resolved' }
-    } catch (e) { return { accountName: null, error: String(e) } }
-  }
-  return { accountName: null, error: 'No payment gateway configured — cannot verify account' }
+    }
+    const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${gateway.secretKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account_number: accountNumber, account_bank: bankCode }),
+    })
+    const data = await res.json().catch(() => null)
+    if (data?.status === 'success' && data.data?.account_name) return { accountName: data.data.account_name }
+    return { accountName: null, error: data?.message || 'Account could not be resolved' }
+  } catch (e) { return { accountName: null, error: String(e) } }
 }
 
 /** Create (or reuse) a Paystack transfer recipient for a staff bank account. */
 export async function ensureTransferRecipient(staffId: string, tenantId: string): Promise<{ recipientCode: string | null; error?: string }> {
-  if (!process.env.PAYSTACK_SECRET_KEY) return { recipientCode: null, error: 'Paystack not configured' }
+  const gateway = await getPayrollGateway(tenantId)
+  if (gateway?.provider !== 'paystack') return { recipientCode: null, error: 'Paystack not configured' }
   const staffResult = await sql`
     SELECT name, account_number, bank_code, account_name, transfer_recipient_code
     FROM staff WHERE id = ${staffId} AND tenant_id = ${tenantId}
@@ -1479,7 +1501,7 @@ export async function ensureTransferRecipient(staffId: string, tenantId: string)
   try {
     const res = await fetch('https://api.paystack.co/transferrecipient', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${gateway.secretKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'nuban',
         name: staff.account_name || staff.name,
@@ -1501,9 +1523,10 @@ export async function ensureTransferRecipient(staffId: string, tenantId: string)
 
 async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise<{ success: boolean; reference: string; error?: string }> {
   const reference = `pay_${item.runId}_${item.staffId}_${Date.now()}`
+  const gateway = await getPayrollGateway(tenantId)
+  if (!gateway) return { success: false, reference, error: 'No payment gateway configured for this tenant' }
 
-  // Try Paystack first
-  if (process.env.PAYSTACK_SECRET_KEY) {
+  if (gateway.provider === 'paystack') {
     try {
       // Fetch staff bank details
       const staffResult = await sql`SELECT * FROM staff WHERE id = ${item.staffId} AND tenant_id = ${tenantId}`
@@ -1522,7 +1545,7 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
       const response = await fetch('https://api.paystack.co/transfer', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          'Authorization': `Bearer ${gateway.secretKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -1544,8 +1567,8 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
     }
   }
 
-  // Try Flutterwave
-  if (process.env.FLUTTERWAVE_SECRET_KEY) {
+  // Flutterwave
+  if (gateway.provider === 'flutterwave') {
     try {
       const staffResult = await sql`SELECT * FROM staff WHERE id = ${item.staffId} AND tenant_id = ${tenantId}`
       const staff = staffResult.rows[0]
@@ -1557,7 +1580,7 @@ async function initiateTransfer(item: PayrollRunItem, tenantId: string): Promise
       const response = await fetch('https://api.flutterwave.com/v3/transfers', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+          'Authorization': `Bearer ${gateway.secretKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, Eye, EyeOff, Save, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { CreditCard, Eye, EyeOff, Save, Loader2, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -12,6 +12,8 @@ interface PaymentGatewayConfig {
   gateway: 'paystack' | 'flutterwave' | 'moniepoint';
   publicKey: string;
   secretKey: string;
+  hasSecretKey?: boolean;
+  secretKeyLast4?: string;
   isActive: boolean;
 }
 
@@ -55,12 +57,19 @@ export function PaymentGatewaySettings() {
     }
   };
 
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<Record<string, { ok: boolean; text: string }>>({});
+
   const handleSave = async (gateway: string) => {
     const config = settings[gateway];
     if (!config) return;
 
-    if (!config.publicKey.trim() || !config.secretKey.trim()) {
-      setError('Public key and secret key are required');
+    if (!config.publicKey.trim()) {
+      setError('Public key is required');
+      return;
+    }
+    if (!config.secretKey.trim() && !config.hasSecretKey) {
+      setError('Secret key is required when configuring a gateway for the first time');
       return;
     }
 
@@ -78,6 +87,7 @@ export function PaymentGatewaySettings() {
         body: JSON.stringify({
           gateway,
           publicKey: config.publicKey,
+          // Empty means "keep the saved key" — secrets are never sent back down
           secretKey: config.secretKey,
           isActive: config.isActive,
         }),
@@ -90,10 +100,34 @@ export function PaymentGatewaySettings() {
 
       setSaveSuccess(gateway);
       setTimeout(() => setSaveSuccess(null), 3000);
+      await fetchSettings();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setSaving(null);
+    }
+  };
+
+  const handleTest = async (gateway: string) => {
+    const config = settings[gateway];
+    setTesting(gateway);
+    setError(null);
+    try {
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+      const response = await fetch('/api/tenant/finance/payments?action=test-gateway', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ gateway, secretKey: config?.secretKey?.trim() || undefined }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Connection test failed');
+      setTestResult(prev => ({ ...prev, [gateway]: { ok: true, text: `Connected — ${data.data?.banksReturned ?? 0} banks reachable` } }));
+    } catch (err) {
+      setTestResult(prev => ({ ...prev, [gateway]: { ok: false, text: err instanceof Error ? err.message : 'Connection test failed' } }));
+    } finally {
+      setTesting(null);
     }
   };
 
@@ -201,7 +235,7 @@ export function PaymentGatewaySettings() {
                     <Input
                       id={`${key}-secret`}
                       type={showSecret[key] ? 'text' : 'password'}
-                      placeholder={`${name} secret key`}
+                      placeholder={config?.hasSecretKey ? `Saved ••••${config.secretKeyLast4} — enter new key to replace` : `${name} secret key`}
                       value={config?.secretKey || ''}
                       onChange={e => updateField(key, 'secretKey', e.target.value)}
                     />
@@ -221,21 +255,39 @@ export function PaymentGatewaySettings() {
                   </div>
                 </div>
 
-                <Button
-                  onClick={() => handleSave(key)}
-                  disabled={isSaving}
-                  className="w-full"
-                  variant={justSaved ? 'default' : 'outline'}
-                >
-                  {isSaving ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : justSaved ? (
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
+                {testResult[key] && (
+                  <div className={`text-xs rounded p-2 ${testResult[key].ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {testResult[key].text}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleSave(key)}
+                    disabled={isSaving}
+                    className="flex-1"
+                    variant={justSaved ? 'default' : 'outline'}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : justSaved ? (
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
+                    {isSaving ? 'Saving...' : justSaved ? 'Saved!' : 'Save Settings'}
+                  </Button>
+                  {(key === 'paystack' || key === 'flutterwave') && (
+                    <Button
+                      onClick={() => handleTest(key)}
+                      disabled={testing === key || (!config?.secretKey && !config?.hasSecretKey)}
+                      variant="outline"
+                      title="Validate the secret key against the live gateway API"
+                    >
+                      {testing === key ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    </Button>
                   )}
-                  {isSaving ? 'Saving...' : justSaved ? 'Saved!' : 'Save Settings'}
-                </Button>
+                </div>
               </CardContent>
             </Card>
           );
@@ -249,8 +301,9 @@ export function PaymentGatewaySettings() {
             <div>
               <p className="font-medium text-amber-900 text-sm">Important Security Notice</p>
               <p className="text-sm text-amber-700 mt-1">
-                Secret keys are encrypted at rest. Only activate one gateway at a time.
-                Students and parents will see the Pay Now button only when a gateway is active.
+                Secret keys are stored server-side and never shown again after saving — enter a new one to replace.
+                Only one gateway can be active at a time; the active gateway is used for <strong>fee collection</strong> and
+                <strong> payroll disbursement</strong>. Use the test button (⚡) to validate a key before payday.
               </p>
             </div>
           </div>

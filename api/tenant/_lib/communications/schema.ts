@@ -243,7 +243,7 @@ export async function createCommunication(
     INSERT INTO communications
       (id, tenant_id, type, title, body, audience, channels, scheduled_for, sent_at, status, sent_by, metadata, created_at, updated_at)
     VALUES
-      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${typeof payload.audience === 'string' ? payload.audience : JSON.stringify(payload.audience)}, ${Array.isArray(payload.channels) ? payload.channels : []}, ${payload.scheduledFor ? new Date(payload.scheduledFor) : null}, ${payload.sentAt ? new Date(payload.sentAt) : null}, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}, ${now})
+      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${typeof payload.audience === 'string' ? payload.audience : JSON.stringify(payload.audience)}, ${Array.isArray(payload.channels) ? payload.channels : []}, ${payload.scheduledFor || null}::timestamp, ${payload.sentAt || null}::timestamp, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}::timestamp, ${now}::timestamp)
     RETURNING *
   `
   return mapCommunication(result.rows[0])
@@ -283,10 +283,10 @@ export async function updateCommunicationStatus(
   const values: any[] = [status, id, tenantId]
   let p = 2
   if (extra?.sentAt) {
-    p++; fields.push(`sent_at = $${p}`); values.splice(-2, 0, extra.sentAt)
+    p++; fields.push(`sent_at = $${p}::timestamp`); values.splice(-2, 0, extra.sentAt)
   }
   if (extra?.scheduledFor) {
-    p++; fields.push(`scheduled_for = $${p}`); values.splice(-2, 0, extra.scheduledFor)
+    p++; fields.push(`scheduled_for = $${p}::timestamp`); values.splice(-2, 0, extra.scheduledFor)
   }
   const setClause = [`status = $1`, ...fields.slice(1)].join(', ')
   await sql.query(`UPDATE communications SET ${setClause}, updated_at = NOW() WHERE id = $${p} AND tenant_id = $${p + 1}`, values)
@@ -312,7 +312,7 @@ export async function createRecipients(
       INSERT INTO communication_recipients
         (id, communication_id, tenant_id, recipient_id, recipient_type, recipient_name, channel, address, status, attempts, created_at, updated_at)
       VALUES
-        (${id}, ${communicationId}, ${tenantId}, ${r.recipientId}, ${r.recipientType}, ${r.recipientName}, ${r.channel}, ${r.address}, 'pending', 0, ${now}, ${now})
+        (${id}, ${communicationId}, ${tenantId}, ${r.recipientId}, ${r.recipientType}, ${r.recipientName}, ${r.channel}, ${r.address}, 'pending', 0, ${now}::timestamp, ${now}::timestamp)
     `
   }
 }
@@ -358,11 +358,11 @@ export async function updateRecipientStatus(
   if (updates.providerMessageId !== undefined) { p++; fields.push(`provider_message_id = $${p}`); values.push(updates.providerMessageId) }
   if (updates.attempts !== undefined) { p++; fields.push(`attempts = $${p}`); values.push(updates.attempts) }
   if (updates.errorMessage !== undefined) { p++; fields.push(`error_message = $${p}`); values.push(updates.errorMessage) }
-  if (updates.sentAt !== undefined) { p++; fields.push(`sent_at = $${p}`); values.push(updates.sentAt ? new Date(updates.sentAt) : null) }
-  if (updates.deliveredAt !== undefined) { p++; fields.push(`delivered_at = $${p}`); values.push(updates.deliveredAt ? new Date(updates.deliveredAt) : null) }
-  if (updates.readAt !== undefined) { p++; fields.push(`read_at = $${p}`); values.push(updates.readAt ? new Date(updates.readAt) : null) }
+  if (updates.sentAt !== undefined) { p++; fields.push(`sent_at = $${p}::timestamp`); values.push(updates.sentAt || null) }
+  if (updates.deliveredAt !== undefined) { p++; fields.push(`delivered_at = $${p}::timestamp`); values.push(updates.deliveredAt || null) }
+  if (updates.readAt !== undefined) { p++; fields.push(`read_at = $${p}::timestamp`); values.push(updates.readAt || null) }
   if (fields.length === 0) return
-  p++; fields.push(`updated_at = $${p}`); values.push(new Date())
+  p++; fields.push(`updated_at = $${p}::timestamp`); values.push(new Date().toISOString())
   p++; values.push(recipientId)
   await sql.query(`UPDATE communication_recipients SET ${fields.join(', ')} WHERE id = $${p}`, values)
 }

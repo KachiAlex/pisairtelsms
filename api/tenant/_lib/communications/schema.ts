@@ -63,7 +63,9 @@ function mapCommunication(row: any): Communication {
     type: row.type,
     title: row.title,
     body: row.body,
-    audience: row.audience,
+    audience: typeof row.audience === 'string' && row.audience.startsWith('[')
+      ? JSON.parse(row.audience)
+      : row.audience,
     channels: row.channels || [],
     scheduledFor: row.scheduled_for,
     sentAt: row.sent_at,
@@ -241,7 +243,7 @@ export async function createCommunication(
     INSERT INTO communications
       (id, tenant_id, type, title, body, audience, channels, scheduled_for, sent_at, status, sent_by, metadata, created_at, updated_at)
     VALUES
-      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${JSON.stringify(payload.audience)}, ${JSON.stringify(payload.channels)}, ${payload.scheduledFor}, ${payload.sentAt}, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}, ${now})
+      (${id}, ${tenantId}, ${payload.type}, ${payload.title}, ${payload.body}, ${typeof payload.audience === 'string' ? payload.audience : JSON.stringify(payload.audience)}, ${Array.isArray(payload.channels) ? payload.channels : []}, ${payload.scheduledFor}, ${payload.sentAt}, ${payload.status}, ${payload.sentBy}, ${JSON.stringify(payload.metadata)}, ${now}, ${now})
     RETURNING *
   `
   return mapCommunication(result.rows[0])

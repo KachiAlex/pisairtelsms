@@ -69,6 +69,7 @@ export interface PayrollRun {
   disbursedAt: string | null
   failureReason: string | null
   createdAt: string
+  warnings?: string[]
 }
 
 export interface PayrollRunItem {

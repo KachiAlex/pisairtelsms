@@ -917,7 +917,7 @@ export async function createPayrollRun(
   scheduleId: string | null,
   tenantId: string,
   options?: { supplementary?: boolean; actor?: string; staffIds?: string[]; runName?: string; templateRunId?: string }
-): Promise<PayrollRun> {
+): Promise<PayrollRun & { warnings?: string[] }> {
   await ensurePayrollTables()
 
   // One regular run per month/year per schedule — supplementary runs must be
@@ -947,6 +947,9 @@ export async function createPayrollRun(
     applyRules: boolean
   }
   let entries: PendingEntry[]
+  // Active staff dropped from the run because they have no salary on file —
+  // surfaced on the response so the exclusion is visible, not silent.
+  let skippedNoSalary: string[] = []
 
   if (options?.templateRunId) {
     const tplRun = await sql`
@@ -998,6 +1001,21 @@ export async function createPayrollRun(
         ? 'No eligible staff in this pay group (inactive or missing salary)'
         : 'No active staff with salaries found')
     }
+    // Surface staff who were silently excluded (no salary on file) so the admin
+    // knows the run doesn't cover the whole roster.
+    const allActive = options?.staffIds?.length
+      ? await sql`
+          SELECT id, name FROM staff
+          WHERE tenant_id = ${tenantId} AND status = 'active'
+            AND (salary IS NULL OR salary <= 0)
+            AND id = ANY(${options.staffIds})
+        `
+      : await sql`
+          SELECT id, name FROM staff
+          WHERE tenant_id = ${tenantId} AND status = 'active'
+            AND (salary IS NULL OR salary <= 0)
+        `
+    skippedNoSalary = allActive.rows.map(r => r.name as string)
     entries = staffRows.map(s => ({
       staffId: s.id, staffName: s.name, basicSalary: Number(s.salary) || 0,
       earnings: [], manualDeductions: [], applyRules: true,
@@ -1064,10 +1082,14 @@ export async function createPayrollRun(
 
   await logPayrollAudit(tenantId, runId, 'run_created', options?.actor || 'system', {
     month, year, totalStaff: entries.length, totalNet,
+    skippedNoSalary,
     ...(options?.templateRunId ? { templateRunId: options.templateRunId } : {}),
   })
 
-  return rowToRun(result.rows[0])
+  const run = rowToRun(result.rows[0])
+  return skippedNoSalary.length
+    ? { ...run, warnings: [`${skippedNoSalary.length} active staff excluded — no salary on file: ${skippedNoSalary.slice(0, 10).join(', ')}${skippedNoSalary.length > 10 ? `, +${skippedNoSalary.length - 10} more` : ''}`] }
+    : run
 }
 
 export async function submitRunForApproval(runId: string, tenantId: string, actor?: string): Promise<PayrollRun | null> {
@@ -1093,11 +1115,14 @@ export async function approveRun(
   approverName: string,
   approverRole: string,
   comment: string | null,
-  tenantId: string
+  tenantId: string,
+  options?: { allowMultiLevel?: boolean }
 ): Promise<{ run: PayrollRun | null; approval: PayrollApproval | null; allApprovals: PayrollApproval[] }> {
   try {
-    // Segregation of duties: the same user cannot approve two levels of a run
-    if (approverId) {
+    // Segregation of duties: the same user cannot approve two levels of a run.
+    // Tenant admins (school owners) are exempt — a school without dedicated
+    // principal/bursar/HR staff could otherwise never complete the chain.
+    if (approverId && !options?.allowMultiLevel) {
       const dup = await sql`
         SELECT id FROM payroll_approvals
         WHERE run_id = ${runId} AND tenant_id = ${tenantId} AND approver_id = ${approverId} AND status = 'approved'
@@ -1154,7 +1179,9 @@ export async function rejectRun(
   approverName: string,
   approverRole: string,
   comment: string,
-  tenantId: string
+  tenantId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _options?: { allowMultiLevel?: boolean }
 ): Promise<{ run: PayrollRun | null; approval: PayrollApproval | null }> {
   try {
     const apprResult = await sql`
@@ -1451,6 +1478,20 @@ export async function generatePayslipsForRun(runId: string, tenantId: string): P
     `
 
     await sql`UPDATE payroll_run_items SET payslip_generated = true WHERE id = ${item.id}`
+
+    // Notify the staff member — the staff notification bell reads this table
+    await sql`
+      INSERT INTO virtual_learning_notifications
+        (id, tenant_id, user_id, user_role, type, title, message, related_entity_type, related_entity_id)
+      VALUES (
+        ${'vln_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)},
+        ${tenantId}, ${item.staffId}, 'staff', 'payslip_ready',
+        'Payslip ready',
+        ${`Your payslip for ${run.month} ${run.year} is available — net pay ₦${Number(item.netPay).toLocaleString('en-NG', { minimumFractionDigits: 2 })}.`},
+        'payslip', ${payslipId}
+      )
+    `.catch((e) => console.error('Payslip notification insert failed:', e))
+
     count++
   }
 

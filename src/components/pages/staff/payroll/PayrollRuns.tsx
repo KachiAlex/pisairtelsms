@@ -78,9 +78,9 @@ export function PayrollRuns() {
     setActionLoading(true)
     setError(null)
     try {
-      await payrollApi.createRun(createForm.month, createForm.year, createForm.scheduleId || undefined, createForm.supplementary)
+      const created = await payrollApi.createRun(createForm.month, createForm.year, createForm.scheduleId || undefined, createForm.supplementary)
       setShowCreate(false)
-      setNotice(`Payroll run for ${createForm.month} ${createForm.year} created`)
+      setNotice(`Payroll run for ${createForm.month} ${createForm.year} created${created.warnings?.length ? ` — ${created.warnings.join(' ')}` : ''}`)
       fetchRuns()
     } catch (e) {
       setError(errMsg(e, 'Failed to create run'))

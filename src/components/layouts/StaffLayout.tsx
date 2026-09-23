@@ -1,4 +1,4 @@
-import React, { useState, Suspense } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -30,6 +30,7 @@ import { MyTimetable } from '../pages/staff/MyTimetable'
 import { TeacherAttendanceEntry } from '../pages/staff/TeacherAttendanceEntry'
 import { LeaveManagement } from '../pages/staff/LeaveManagement'
 import { PayslipViewer } from '../pages/staff/PayslipViewer'
+import { PayrollApprovals } from '../pages/staff/PayrollApprovals'
 import { ClassLists } from '../pages/staff/ClassLists'
 import { Profile } from '../pages/staff/Profile'
 import { Communications } from '../pages/staff/Communications'
@@ -55,6 +56,7 @@ const navItems = [
   { id: 'assignments', label: 'Assignments', icon: ClipboardList },
   { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'payslips', label: 'Payslips', icon: CreditCard },
+  { id: 'payroll-approvals', label: 'Payroll Approvals', icon: CheckSquare, approversOnly: true },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
   { id: 'class-lists', label: 'Class Lists', icon: Users },
   { id: 'profile', label: 'Profile', icon: User },
@@ -64,8 +66,21 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isPayrollApprover, setIsPayrollApprover] = useState(false)
   const auth = getAuthFromStorage()
   const { branding } = useBranding()
+
+  // Probe payroll access once — the API 403s non-approver staff
+  useEffect(() => {
+    const token = auth?.token
+    if (!token) return
+    fetch('/api/tenant/payroll?resource=runs&status=pending_approval', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => setIsPayrollApprover(r.ok))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Extract current page from URL path
   const pathSegments = location.pathname.split('/')
@@ -101,6 +116,8 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         return <LeaveManagement />
       case 'payslips':
         return <PayslipViewer />
+      case 'payroll-approvals':
+        return <PayrollApprovals />
       case 'my-attendance':
         return <StaffSelfAttendance />
       case 'tasks':
@@ -174,7 +191,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
 
         {/* Nav items */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItems.filter(item => !(item as any).approversOnly || isPayrollApprover).map((item) => {
             const Icon = item.icon
             const isActive = currentPage === item.id
             return (

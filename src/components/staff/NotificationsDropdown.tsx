@@ -105,7 +105,7 @@ export function NotificationsDropdown() {
             message: n.message || '',
             date: n.created_at,
             isRead: n.is_read,
-            link: '/staff/virtual-classes',
+            link: n.type === 'payslip_ready' ? '/staff/payslips' : '/staff/virtual-classes',
           }))
         )
       }

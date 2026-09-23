@@ -73,6 +73,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const actor = decoded.email || decoded.userId || decoded.sub || 'unknown'
   const { resource, id, staffId, status, year } = req.query
 
+  // ── Authorization ──────────────────────────────────────────────────────────
+  // Salary data is confidential: full access is tenant_admin only. Staff may
+  // only act where the approval chain needs them — viewing runs (to review
+  // what they're signing) and approve/reject actions, and only if their staff
+  // role maps to an approver level. Everything else is admin-only.
+  if (decoded.role !== 'tenant_admin') {
+    const allowedRoles = await resolveApproverRoles(decoded, actualTenantId)
+    const isApprover = allowedRoles.length > 0
+    const isRunRead = resource === 'runs' && req.method === 'GET'
+    const isApprovalAction = resource === 'runs' && req.method === 'PUT'
+      && ['approve', 'reject'].includes(String(parseBody(req)?.action || ''))
+    if (!isApprover || !(isRunRead || isApprovalAction)) {
+      return res.status(403).json({ error: 'Payroll administration requires a tenant admin or designated approver' })
+    }
+  }
+
   // ── Schedules ────────────────────────────────────────────────────────────
   if (resource === 'schedules') {
     if (req.method === 'GET') {
@@ -214,7 +230,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             decoded.email || '',
             requestedRole,
             body.comment || (body.action === 'reject' ? 'Rejected' : null),
-            actualTenantId
+            actualTenantId,
+            { allowMultiLevel: decoded.role === 'tenant_admin' }
           )
           if (!result.run) {
             return res.status(400).json({ error: `No pending '${requestedRole}' approval found for this run` })

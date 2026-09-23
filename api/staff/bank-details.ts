@@ -82,7 +82,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         verifiedAt = new Date();
       }
 
-      await sql`
+      const updateResult = await sql`
         UPDATE staff SET
           account_number = ${accountNumber},
           bank_code = ${bankCode},
@@ -93,6 +93,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           updated_at = NOW()
         WHERE id = ${staffId} AND tenant_id = ${tenantId}
       `;
+      if (updateResult.rowCount === 0) {
+        return res.status(404).json({ error: 'Staff record not found' });
+      }
 
       // Pre-create the Paystack transfer recipient so payday disbursement
       // doesn't fail on a bad account discovered too late.

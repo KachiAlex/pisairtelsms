@@ -61,30 +61,43 @@ export class EmailProvider implements MessageProvider {
 
   async send(payload: MessagePayload): Promise<SendResult> {
     try {
+      // Optional generic webhook override; otherwise send via Brevo SMTP.
       const webhookUrl = process.env.EMAIL_PROVIDER_WEBHOOK
-      if (!webhookUrl) {
-        return { success: false, error: 'Email provider not configured (EMAIL_PROVIDER_WEBHOOK missing)' }
+      if (webhookUrl) {
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: payload.to,
+            subject: payload.subject,
+            body: payload.body,
+            html: payload.html,
+            communication_id: payload.communicationId,
+          }),
+        })
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => 'Unknown error')
+          return { success: false, error: `HTTP ${res.status}: ${text}` }
+        }
+
+        const data = await res.json().catch(() => ({ id: `email_${Date.now()}` }))
+        return { success: true, providerMessageId: data.id || `email_${Date.now()}` }
       }
 
-      const res = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: payload.to,
-          subject: payload.subject,
-          body: payload.body,
-          html: payload.html,
-          communication_id: payload.communicationId,
-        }),
+      const { sendEmail, isEmailConfigured } = await import('../../../_lib/email.js')
+      if (!isEmailConfigured()) {
+        return { success: false, error: 'Email service not configured (BREVO_SMTP_USER/BREVO_SMTP_KEY missing)' }
+      }
+      const result = await sendEmail({
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html || `<p>${payload.body.replace(/\n/g, '<br/>')}</p>`,
+        text: payload.body,
       })
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => 'Unknown error')
-        return { success: false, error: `HTTP ${res.status}: ${text}` }
-      }
-
-      const data = await res.json().catch(() => ({ id: `email_${Date.now()}` }))
-      return { success: true, providerMessageId: data.id || `email_${Date.now()}` }
+      return result.success
+        ? { success: true, providerMessageId: result.messageId }
+        : { success: false, error: result.error }
     } catch (err: any) {
       return { success: false, error: err.message || 'Email send failed' }
     }

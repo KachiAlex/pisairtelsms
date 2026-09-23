@@ -39,9 +39,19 @@ const statusLabel: Record<string, string> = {
   declined: 'Declined by you',
 }
 
+interface LessonPayment {
+  id: string
+  request_id: string
+  amount: number
+  currency: string
+  payment_status: string
+  payment_method: string | null
+}
+
 export function ParentPrivateLessons() {
   const { toast } = useToast()
   const [requests, setRequests] = useState<PrivateLessonRequest[]>([])
+  const [payments, setPayments] = useState<Record<string, LessonPayment[]>>({})
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
   const [declineNotes, setDeclineNotes] = useState<Record<string, string>>({})
@@ -56,7 +66,23 @@ export function ParentPrivateLessons() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to load requests')
-      setRequests(data.data || [])
+      const reqs: PrivateLessonRequest[] = data.data || []
+      setRequests(reqs)
+
+      // Approved fee-bearing requests carry a payment record — fetch it so the
+      // parent can see status and confirm payment.
+      const payable = reqs.filter(r => r.status === 'approved' && (r.fee_amount ?? 0) > 0)
+      const paymentEntries = await Promise.all(
+        payable.map(async r => {
+          const pr = await fetch(`/api/tenant/private-lesson-payments?requestId=${r.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => null)
+          if (!pr?.ok) return [r.id, []] as const
+          const pd = await pr.json().catch(() => ({}))
+          return [r.id, (pd.data || []) as LessonPayment[]] as const
+        })
+      )
+      setPayments(Object.fromEntries(paymentEntries))
     } catch (err) {
       toast({
         title: 'Failed to load private lesson requests',
@@ -67,6 +93,29 @@ export function ParentPrivateLessons() {
       setLoading(false)
     }
   }, [token, toast])
+
+  const confirmPayment = async (payment: LessonPayment) => {
+    setActing(payment.id)
+    try {
+      const res = await fetch('/api/tenant/private-lesson-payments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: payment.id, paymentStatus: 'paid' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not confirm payment')
+      toast({ title: 'Payment confirmed', description: 'The school will verify and schedule the lesson.' })
+      load()
+    } catch (err) {
+      toast({
+        title: 'Payment confirmation failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    } finally {
+      setActing(null)
+    }
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -165,6 +214,30 @@ export function ParentPrivateLessons() {
                     )}
                   </div>
                 </div>
+
+                {req.status === 'approved' && (req.fee_amount ?? 0) > 0 && (
+                  <div className="border-t pt-3">
+                    {(payments[req.id] || []).map(p => (
+                      <div key={p.id} className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-gray-600">
+                          Payment: <span className="font-medium">{p.amount} {p.currency}</span>
+                          <Badge variant="outline" className="ml-2 capitalize">{p.payment_status}</Badge>
+                        </p>
+                        {p.payment_status === 'pending' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => confirmPayment(p)}
+                            disabled={acting === p.id}
+                          >
+                            {acting === p.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
+                            Confirm payment made
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {req.status === 'pending_parent' && (
                   <div className="border-t pt-3 space-y-3">

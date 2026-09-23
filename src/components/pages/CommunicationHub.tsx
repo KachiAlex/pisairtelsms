@@ -134,6 +134,7 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
 
   // Parent Messages state
   const [parentMessages, setParentMessages] = useState<ParentMessage[]>([])
+  const [studentReplies, setStudentReplies] = useState<Array<{ id: string; studentName: string; studentClass: string; messageSubject: string; body: string; createdAt: string }>>([])
   const [showParentForm, setShowParentForm] = useState(false)
   const [pmParentName, setPmParentName] = useState('')
   const [pmStudentName, setPmStudentName] = useState('')
@@ -192,13 +193,14 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
     try {
       setLoading(true)
       setError(null)
-      const [annRes, notifRes, msgRes, logRes, smRes, staffRes] = await Promise.allSettled([
+      const [annRes, notifRes, msgRes, logRes, smRes, staffRes, srRes] = await Promise.allSettled([
         fetch('/api/tenant/communication', { headers: tenantHeaders() }),
         fetch('/api/tenant/bulk-notifications', { headers: tenantHeaders() }),
         fetch('/api/tenant/parent-messages', { headers: tenantHeaders() }),
         fetch('/api/tenant/communication-logs', { headers: tenantHeaders() }),
         fetch('/api/tenant/staff-messages', { headers: tenantHeaders() }),
         fetch('/api/tenant/staff?limit=500', { headers: tenantHeaders() }),
+        fetch('/api/tenant/parent-messages?view=student-replies', { headers: tenantHeaders() }),
       ])
       if (annRes.status === 'fulfilled' && annRes.value?.ok) {
         const r = await annRes.value.json(); setAnnouncements(Array.isArray(r.data) ? r.data : [])
@@ -217,6 +219,9 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
       }
       if (staffRes.status === 'fulfilled' && staffRes.value?.ok) {
         const r = await staffRes.value.json(); setStaffList(Array.isArray(r.data) ? r.data : [])
+      }
+      if (srRes.status === 'fulfilled' && srRes.value?.ok) {
+        const r = await srRes.value.json(); setStudentReplies(Array.isArray(r.data) ? r.data : [])
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data')
@@ -888,6 +893,31 @@ export function CommunicationHub({ initialTab = 'announcements' }: { initialTab?
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Student replies to school messages</CardTitle></CardHeader>
+            <CardContent>
+              {studentReplies.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No student replies yet.</p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {studentReplies.map(r => (
+                    <div key={r.id} className="py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-900">
+                          {r.studentName}
+                          {r.studentClass && <span className="text-gray-400 font-normal"> · {r.studentClass}</span>}
+                        </p>
+                        <p className="text-xs text-gray-400">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">Re: {r.messageSubject}</p>
+                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{r.body}</p>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

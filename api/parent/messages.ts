@@ -106,7 +106,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse) {
 
     const convResult = await sql`
       SELECT pm.id::text, pm.subject, pm.body AS last_message,
-             pm.created_at::text AS last_message_date, pm.is_read,
+             pm.created_at::text AS last_message_date, pm.is_read, pm.replies, pm.parent_read_at,
              st.id::text AS teacher_id, st.name AS teacher_name,
              COALESCE(st.email, '') AS teacher_email,
              COALESCE((SELECT subject FROM timetable WHERE staff_id = st.id AND tenant_id = ${tenantId} LIMIT 1), '') AS teacher_subject
@@ -127,26 +127,41 @@ async function handleGet(req: ApiRequest, res: ApiResponse) {
       ORDER BY st.name LIMIT 20
     `
 
+    // Threads are returned inline — fetching marks teacher replies as seen.
+    await sql`
+      UPDATE parent_messages SET parent_read_at = NOW()
+      WHERE parent_id = ${parentInfo.parentId} AND tenant_id = ${tenantId}
+    `.catch(() => {})
+
     return res.status(200).json({
-      conversations: convResult.rows.map(r => ({
-        id: r.id,
-        teacherId: r.teacher_id,
-        teacherName: r.teacher_name,
-        subject: r.teacher_subject || r.subject || 'Teacher conversation',
-        lastMessage: r.last_message || '',
-        lastMessageTime: r.last_message_date || new Date().toISOString(),
-        unreadCount: r.is_read ? 0 : 1,
-        messages: r.last_message
-          ? [
-              {
-                id: `${r.id}_last`,
-                senderId: 'teacher',
-                content: r.last_message,
-                timestamp: r.last_message_date || new Date().toISOString(),
-              },
-            ]
-          : [],
-      })),
+      conversations: convResult.rows.map(r => {
+        const replies = Array.isArray(r.replies) ? r.replies : []
+        const messages = replies.length > 0
+          ? replies.map((rp: any) => ({
+              id: rp.id,
+              senderId: rp.sender === 'teacher' ? 'teacher' : 'parent',
+              content: rp.body || rp.message || '',
+              timestamp: rp.created_at || rp.sentAt || r.last_message_date || new Date().toISOString(),
+            }))
+          : r.last_message
+            ? [{ id: `${r.id}_last`, senderId: 'parent', content: r.last_message, timestamp: r.last_message_date || new Date().toISOString() }]
+            : []
+        const lastMsg = messages[messages.length - 1]
+        const unreadCount =
+          lastMsg && lastMsg.senderId === 'teacher' &&
+          (!r.parent_read_at || new Date(lastMsg.timestamp) > new Date(r.parent_read_at))
+            ? 1 : 0
+        return {
+          id: r.id,
+          teacherId: r.teacher_id,
+          teacherName: r.teacher_name,
+          subject: r.teacher_subject || r.subject || 'Teacher conversation',
+          lastMessage: lastMsg?.content || '',
+          lastMessageTime: r.last_message_date || new Date().toISOString(),
+          unreadCount,
+          messages,
+        }
+      }),
       availableTeachers: teachersResult.rows.map(r => ({ id: r.id, name: r.name, subject: r.subject, email: r.email })),
     })
   } catch (error) {
@@ -179,12 +194,20 @@ async function handlePost(req: ApiRequest, res: ApiResponse) {
     let targetTeacherId = teacherId
     if (conversationId) {
       const existing = await sql`
-        SELECT staff_id FROM parent_messages WHERE id = ${conversationId} AND tenant_id = ${tenantId} LIMIT 1
+        SELECT staff_id FROM parent_messages
+        WHERE id = ${conversationId} AND tenant_id = ${tenantId} AND parent_id = ${parentInfo.parentId} LIMIT 1
       `
       if (!existing.rows[0]) {
         return res.status(404).json({ error: 'Conversation not found' })
       }
       targetTeacherId = existing.rows[0].staff_id
+    } else if (targetTeacherId) {
+      const teacherCheck = await sql`
+        SELECT id FROM staff WHERE id = ${targetTeacherId} AND tenant_id = ${tenantId} LIMIT 1
+      `
+      if (!teacherCheck.rows[0]) {
+        return res.status(404).json({ error: 'Teacher not found' })
+      }
     }
 
     if (!targetTeacherId) {
@@ -192,9 +215,15 @@ async function handlePost(req: ApiRequest, res: ApiResponse) {
     }
 
     const childRow = await sql`
-      SELECT class FROM students WHERE id = ${safeChildId} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1
+      SELECT name, class FROM students WHERE id = ${safeChildId} AND tenant_id = ${tenantId} AND deleted_at IS NULL LIMIT 1
     `
     const studentClass = childRow.rows[0]?.class ?? ''
+    const studentName = childRow.rows[0]?.name ?? 'Student'
+
+    const parentRow = await sql`
+      SELECT name FROM parents WHERE id = ${parentInfo.parentId} AND tenant_id = ${tenantId} LIMIT 1
+    `
+    const parentName = parentRow.rows[0]?.name ?? 'Parent'
 
     const subjectResult = await sql`
       SELECT COALESCE((SELECT subject FROM timetable tt WHERE tt.staff_id = ${targetTeacherId} AND tt.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
@@ -203,23 +232,36 @@ async function handlePost(req: ApiRequest, res: ApiResponse) {
 
     const now = new Date().toISOString()
     const messageId = conversationId || `pm_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
+    const replyEntry = JSON.stringify([{ id: `pmsg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, sender: 'parent', body: content, created_at: now }])
 
     await sql`
-      INSERT INTO parent_messages (id, tenant_id, parent_id, staff_id, child_id, subject, body, is_read, created_at)
-      VALUES (${messageId}, ${tenantId}, ${parentInfo.parentId}, ${targetTeacherId}, ${safeChildId}, ${conversationSubject}, ${content}, false, ${now})
+      INSERT INTO parent_messages (
+        id, tenant_id, parent_id, staff_id, child_id, subject, body, is_read, created_at,
+        parent_name, student_name, message, message_type, priority, sent_at, status, replies, updated_at
+      )
+      VALUES (
+        ${messageId}, ${tenantId}, ${parentInfo.parentId}, ${targetTeacherId}, ${safeChildId}, ${conversationSubject}, ${content}, false, NOW(),
+        ${parentName}, ${studentName}, ${content}, 'request', 'normal', NOW(), 'sent', ${replyEntry}::jsonb, NOW()
+      )
       ON CONFLICT (id) DO UPDATE SET
         subject = EXCLUDED.subject,
         body = EXCLUDED.body,
         child_id = EXCLUDED.child_id,
         staff_id = EXCLUDED.staff_id,
         is_read = FALSE,
-        created_at = EXCLUDED.created_at
+        message = EXCLUDED.message,
+        status = 'sent',
+        replies = COALESCE(parent_messages.replies, '[]'::jsonb) || EXCLUDED.replies,
+        parent_name = COALESCE(parent_messages.parent_name, EXCLUDED.parent_name),
+        student_name = COALESCE(parent_messages.student_name, EXCLUDED.student_name),
+        created_at = NOW(),
+        updated_at = NOW()
     `
 
     return res.status(200).json({
-      id: messageId,
+      id: `pmsg_${Date.now()}`,
       senderId: 'parent',
-      senderName: parentInfo.parentId,
+      senderName: parentName,
       content,
       timestamp: now,
     })

@@ -9,8 +9,8 @@ interface MarkReadResponse {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  if (req.method !== 'PUT') {
-    res.setHeader('Allow', 'PUT');
+  if (req.method !== 'PUT' && req.method !== 'POST') {
+    res.setHeader('Allow', 'PUT, POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -30,6 +30,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const { messageId } = req.query;
     if (!messageId || typeof messageId !== 'string') {
       return res.status(400).json({ error: 'messageId is required' });
+    }
+
+    // Parent→teacher conversations are prefixed pm_ in the inbox listing.
+    if (messageId.startsWith('pm_')) {
+      const pmId = messageId.slice(3);
+      const updated = await sql`
+        UPDATE parent_messages SET is_read = TRUE, updated_at = NOW()
+        WHERE id = ${pmId} AND staff_id = ${staffId} AND tenant_id = ${tenantId}
+        RETURNING id
+      `.catch(() => ({ rows: [] as any[] }));
+      if (!updated.rows[0]) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      return res.status(200).json({ id: messageId, isRead: true });
     }
 
     // Verify staff member is recipient (staff_id matches) or sender

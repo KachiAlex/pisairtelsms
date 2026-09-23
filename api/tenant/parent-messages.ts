@@ -93,7 +93,34 @@ export default async function handler(
 
   if (req.method === 'GET') {
     try {
-      const { studentName, status } = req.query
+      const { studentName, status, view } = req.query
+
+      // Student replies to school messages — surfaced for admin oversight.
+      if (view === 'student-replies') {
+        const result = await query(
+          `SELECT r.id::text, r.body, r.created_at, r.sender_name,
+                  sm.student_id, sm.subject AS message_subject,
+                  s.name AS student_name, s.class AS student_class
+           FROM student_message_replies r
+           LEFT JOIN student_messages sm ON sm.id::text = r.message_id
+           LEFT JOIN students s ON s.id::text = sm.student_id AND s.tenant_id = r.tenant_id
+           WHERE r.tenant_id = $1
+           ORDER BY r.created_at DESC
+           LIMIT 200`,
+          [tenantId]
+        ).catch(() => ({ rows: [] as any[] }))
+        return res.status(200).json({
+          data: result.rows.map((r: any) => ({
+            id: r.id,
+            studentId: r.student_id,
+            studentName: r.student_name || r.sender_name || 'Student',
+            studentClass: r.student_class || '',
+            messageSubject: r.message_subject || 'School message',
+            body: r.body,
+            createdAt: r.created_at,
+          })),
+        })
+      }
 
       let sql = 'SELECT * FROM parent_messages WHERE tenant_id = $1'
       const params: any[] = [tenantId]

@@ -20,9 +20,10 @@ interface MessagesListResponse {
 }
 
 interface NewMessageBody {
-  recipientId: string;
-  subject: string;
+  recipientId?: string;
+  subject?: string;
   body: string;
+  parentMessageId?: string;
 }
 
 interface NewMessageResponse {
@@ -114,6 +115,42 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         direction: sentOnly ? 'outbound' : 'inbound',
       }));
 
+      // Inbound parent→teacher conversations live in parent_messages.
+      if (!sentOnly) {
+        const pmResult = await sql`
+          SELECT id::text, parent_name, student_name, subject, COALESCE(body, message) AS body,
+                 is_read, replies, COALESCE(updated_at, sent_at, created_at)::date::text AS date
+          FROM parent_messages
+          WHERE staff_id = ${staffId} AND tenant_id = ${tenantId}
+          ORDER BY COALESCE(updated_at, sent_at, created_at) DESC
+          LIMIT ${Math.min(parseInt(limit as string), 100)}
+        `.catch(() => ({ rows: [] as any[] }));
+
+        for (const r of pmResult.rows) {
+          const thread = Array.isArray(r.replies) ? r.replies : [];
+          messages.push({
+            id: `pm_${r.id}`,
+            sender: r.parent_name || 'Parent',
+            senderRole: 'Parent',
+            subject: r.subject || (r.student_name ? `Re: ${r.student_name}` : 'Parent message'),
+            body: r.body || '',
+            date: r.date,
+            isRead: !!r.is_read,
+            direction: 'inbound',
+            replies: thread.map((rp: any) => ({
+              id: rp.id,
+              sender: rp.sender === 'teacher' ? 'You' : (r.parent_name || 'Parent'),
+              senderRole: rp.sender === 'teacher' ? 'staff' : 'Parent',
+              subject: '',
+              body: rp.body || rp.message || '',
+              date: (rp.created_at || rp.sentAt || '').slice(0, 10),
+              isRead: true,
+            })),
+          });
+        }
+        messages.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      }
+
       return res.status(200).json({ messages });
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -122,9 +159,43 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   } else if (req.method === 'POST') {
     try {
       const body = await parseBody(req);
-      const { recipientId, subject, body: messageBody } = body as NewMessageBody;
+      const { recipientId, subject, body: messageBody, parentMessageId } = body as NewMessageBody;
 
       const senderName = await getStaffName(staffId);
+
+      // Reply to a parent→teacher conversation: appends to the thread the
+      // parent sees, marks the inbound message read and the convo replied.
+      if (parentMessageId) {
+        const pmId = parentMessageId.startsWith('pm_') ? parentMessageId.slice(3) : parentMessageId;
+        const convo = await sql`
+          SELECT id FROM parent_messages
+          WHERE id = ${pmId} AND staff_id = ${staffId} AND tenant_id = ${tenantId} LIMIT 1
+        `.catch(() => ({ rows: [] as any[] }));
+        if (!convo.rows[0]) {
+          return res.status(404).json({ error: 'Conversation not found' });
+        }
+        if (!messageBody?.trim()) {
+          return res.status(400).json({ error: 'body is required' });
+        }
+        const replyId = `pmsg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const replyEntry = JSON.stringify([{ id: replyId, sender: 'teacher', body: messageBody, created_at: new Date().toISOString() }]);
+        await sql`
+          UPDATE parent_messages SET
+            replies = COALESCE(replies, '[]'::jsonb) || ${replyEntry}::jsonb,
+            is_read = TRUE,
+            status = 'replied',
+            updated_at = NOW()
+          WHERE id = ${pmId} AND tenant_id = ${tenantId}
+        `;
+        return res.status(201).json({
+          id: replyId,
+          sender: 'You',
+          subject: '',
+          body: messageBody,
+          date: new Date().toISOString().slice(0, 10),
+          isRead: true,
+        });
+      }
 
       if (!recipientId) {
         return res.status(400).json({ error: 'recipientId is required' });

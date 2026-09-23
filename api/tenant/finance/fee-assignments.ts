@@ -3,6 +3,7 @@ import { sql } from '../../_lib/sql.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 import { getAcademicSessionNames } from '../_lib/academic-calendar.js'
+import { verifyParentChildRelationship } from '../../../src/lib/parentAuth'
 import {
   createFeeAssignment,
   getFeeAssignments,
@@ -44,16 +45,27 @@ function parseBody(req: ApiRequest) {
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   await ensureMigrations()
 
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin', 'parent'])
   if (!decoded) return
 
   const tenantId = decoded.tenantId || 'default-tenant'
+
+  // Parents are read-only and scoped to their own children.
+  const isParent = decoded.role === 'parent'
+  const parentOwns = (studentId?: string) =>
+    verifyParentChildRelationship(decoded.parentId, studentId, decoded.childrenIds || [])
+  if (isParent && req.method !== 'GET') {
+    return res.status(403).json({ error: 'Parents can only view fee assignments for their children' })
+  }
 
   const { id, action } = req.query
 
   // GET /api/tenant/finance/fee-assignments
   if (req.method === 'GET' && !id) {
     const { studentId, academicSession, term } = req.query
+    if (isParent && (!studentId || !parentOwns(studentId as string))) {
+      return res.status(403).json({ error: 'You can only view fee assignments for your own children' })
+    }
     try {
       const assignments = await getFeeAssignments(
         tenantId,
@@ -75,6 +87,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!assignment) {
         return res.status(404).json({ error: 'Fee assignment not found' })
       }
+      if (isParent && !parentOwns(assignment.studentId)) {
+        return res.status(403).json({ error: 'You can only view fee assignments for your own children' })
+      }
       return res.status(200).json({ data: assignment })
     } catch (error) {
       console.error('Error fetching fee assignment:', error)
@@ -85,6 +100,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET /api/tenant/finance/fee-assignments/:id/ledger
   if (req.method === 'GET' && id && action === 'ledger') {
     try {
+      if (isParent) {
+        const assignment = await getFeeAssignmentById(tenantId, id as string)
+        if (!assignment) return res.status(404).json({ error: 'Fee assignment not found' })
+        if (!parentOwns(assignment.studentId)) {
+          return res.status(403).json({ error: 'You can only view fee assignments for your own children' })
+        }
+      }
       const ledger = await getFeeAssignmentLedger(tenantId, id as string)
       return res.status(200).json({ data: ledger })
     } catch (error: any) {

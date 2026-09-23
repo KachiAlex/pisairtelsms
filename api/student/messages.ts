@@ -99,13 +99,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(400).json({ error: 'Reply text is required' });
       }
 
+      // Students may only reply to messages addressed to them.
+      const owns = await sql`
+        SELECT id FROM student_messages WHERE id = ${id} AND student_id = ${studentId} AND tenant_id = ${tenantId} LIMIT 1
+      `;
+      if (!owns.rows[0]) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+
+      const nameRow = await sql`
+        SELECT name FROM students WHERE id = ${studentId} AND tenant_id = ${tenantId} LIMIT 1
+      `.catch(() => ({ rows: [] as any[] }));
+      const senderName = nameRow.rows[0]?.name || 'Student';
+
       const replyId = `reply_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       await sql`
         INSERT INTO student_message_replies (id, message_id, tenant_id, sender_name, body, created_at)
-        VALUES (${replyId}, ${id}, ${tenantId}, 'Student', ${body.reply}, NOW())
+        VALUES (${replyId}, ${id}, ${tenantId}, ${senderName}, ${body.reply}, NOW())
       `;
       const newReply: Reply = {
-        id: replyId, sender: 'Student',
+        id: replyId, sender: senderName,
         date: new Date().toISOString().split('T')[0], body: body.reply,
       };
       return res.status(201).json({ success: true, reply: newReply });

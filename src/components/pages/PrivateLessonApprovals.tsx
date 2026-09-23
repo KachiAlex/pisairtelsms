@@ -36,6 +36,7 @@ interface LessonRequest {
   payment_mode: string
   admin_status: string
   parent_status: string
+  payment_status?: string | null
   status: string
   admin_notes: string | null
   created_at: string
@@ -240,6 +241,11 @@ export function PrivateLessonApprovals() {
                         {req.fee_amount !== null && (
                           <span className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3" /> {req.fee_amount} {req.fee_currency}
+                            {req.payment_status && (
+                              <Badge variant="outline" className="capitalize ml-1">
+                                payment: {req.payment_status}
+                              </Badge>
+                            )}
                           </span>
                         )}
                       </div>

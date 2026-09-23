@@ -22,6 +22,8 @@ import {
   createAdminNotification,
   ensureAdminNotificationsTable,
 } from './_lib/admin-notifications.js'
+import { sql } from '../../_lib/sql.js'
+import { verifyParentChildRelationship } from '../../../src/lib/parentAuth'
 import { initializeDatabase, runMigrations } from '../cbt/_lib/db.js'
 
 let migrationsInitialized = false
@@ -59,11 +61,27 @@ function parseBody(req: ApiRequest) {
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   await ensureMigrations()
 
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin', 'parent'])
   if (!decoded) return
 
   const { id, action } = req.query
   const tenantId = decoded.tenantId || 'default-tenant'
+
+  // Parents may only view and pay fees for their own children — everything
+  // else (settings, pending queue, confirm/reject, proofs) stays staff/admin.
+  const isParent = decoded.role === 'parent'
+  const parentOwns = (studentId?: string) =>
+    verifyParentChildRelationship(decoded.parentId, studentId, decoded.childrenIds || [])
+
+  if (isParent) {
+    const allowed =
+      (req.method === 'GET' && !id && (action === 'active-gateway' || !action)) ||
+      (req.method === 'GET' && !!id && !action) ||
+      (req.method === 'POST' && !id && (action === 'initiate' || action === 'verify' || action === 'manual'))
+    if (!allowed) {
+      return res.status(403).json({ error: 'Parents can only view and make payments for their children' })
+    }
+  }
 
   console.log('Payments request:', { method: req.method, id, action, tenantId })
 
@@ -216,6 +234,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'amount must be greater than 0' })
     }
 
+    if (isParent && !parentOwns(studentId)) {
+      return res.status(403).json({ error: 'You can only pay fees for your own children' })
+    }
+
     // Check active gateway
     const activeGateway = await getActivePaymentGateway(tenantId)
     if (!activeGateway) {
@@ -256,6 +278,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'gatewayRef is required' })
     }
 
+    if (isParent) {
+      const refRow = await sql`
+        SELECT student_id FROM payments WHERE gateway_ref = ${gatewayRef} AND tenant_id = ${tenantId} LIMIT 1
+      `.catch(() => ({ rows: [] as any[] }))
+      const refStudent = refRow.rows[0]?.student_id
+      if (!refStudent || !parentOwns(refStudent)) {
+        return res.status(403).json({ error: 'You can only verify payments for your own children' })
+      }
+    }
+
     try {
       const payment = await verifyPayment(gatewayRef, gatewayResponse)
       if (!payment) {
@@ -291,6 +323,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     if (amount <= 0) {
       return res.status(400).json({ error: 'amount must be greater than 0' })
+    }
+
+    if (isParent && !parentOwns(studentId)) {
+      return res.status(403).json({ error: 'You can only submit payments for your own children' })
     }
 
     try {
@@ -474,6 +510,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET /api/tenant/finance/payments
   if (req.method === 'GET' && !id && !action) {
     const { feeAssignmentId, paymentDate, status, studentId, paymentMethod, gateway, dateFrom, dateTo } = req.query
+    if (isParent && (!studentId || !parentOwns(studentId as string))) {
+      return res.status(403).json({ error: 'You can only view payments for your own children' })
+    }
     try {
       const payments = await getPayments(
         tenantId,
@@ -502,6 +541,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const payment = await getPaymentById(id as string)
       if (!payment) {
         return res.status(404).json({ error: 'Payment not found' })
+      }
+      if (isParent && !parentOwns(payment.studentId)) {
+        return res.status(403).json({ error: 'You can only view payments for your own children' })
       }
       return res.status(200).json({ data: payment })
     } catch (error) {

@@ -23,7 +23,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           result = await sql`
             SELECT plr.*, t.name as teacher_name, s.name as subject_name,
               (SELECT array_agg(st.name ORDER BY st.name) FROM students st
-               WHERE st.id::text = ANY(plr.student_ids)) AS student_names
+               WHERE st.id::text = ANY(plr.student_ids)) AS student_names,
+              (SELECT plp.payment_status FROM private_lesson_payments plp
+               WHERE plp.request_id = plr.id AND plp.tenant_id = plr.tenant_id
+               ORDER BY plp.created_at DESC LIMIT 1) AS payment_status
             FROM private_lesson_requests plr
             LEFT JOIN staff t ON t.id = plr.teacher_id
             LEFT JOIN subjects s ON s.id::text = plr.subject_id
@@ -34,7 +37,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           result = await sql`
             SELECT plr.*, t.name as teacher_name, s.name as subject_name,
               (SELECT array_agg(st.name ORDER BY st.name) FROM students st
-               WHERE st.id::text = ANY(plr.student_ids)) AS student_names
+               WHERE st.id::text = ANY(plr.student_ids)) AS student_names,
+              (SELECT plp.payment_status FROM private_lesson_payments plp
+               WHERE plp.request_id = plr.id AND plp.tenant_id = plr.tenant_id
+               ORDER BY plp.created_at DESC LIMIT 1) AS payment_status
             FROM private_lesson_requests plr
             LEFT JOIN staff t ON t.id = plr.teacher_id
             LEFT JOIN subjects s ON s.id::text = plr.subject_id
@@ -47,7 +53,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         result = await sql`
           SELECT plr.*, t.name as teacher_name, s.name as subject_name,
             (SELECT array_agg(st.name ORDER BY st.name) FROM students st
-             WHERE st.id::text = ANY(plr.student_ids)) AS student_names
+             WHERE st.id::text = ANY(plr.student_ids)) AS student_names,
+            (SELECT plp.payment_status FROM private_lesson_payments plp
+             WHERE plp.request_id = plr.id AND plp.tenant_id = plr.tenant_id
+             ORDER BY plp.created_at DESC LIMIT 1) AS payment_status
           FROM private_lesson_requests plr
           LEFT JOIN staff t ON t.id = plr.teacher_id
           LEFT JOIN subjects s ON s.id::text = plr.subject_id

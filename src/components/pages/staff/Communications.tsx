@@ -11,6 +11,8 @@ interface Message {
   senderRole: string
   date: string
   isRead: boolean
+  direction?: 'inbound' | 'outbound'
+  replies?: Message[]
 }
 
 export function Communications() {
@@ -24,6 +26,9 @@ export function Communications() {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([])
+  const [replyText, setReplyText] = useState<Record<string, string>>({})
+  const [replySending, setReplySending] = useState<string | null>(null)
+  const [replyError, setReplyError] = useState<string | null>(null)
   const auth = getAuthFromStorage()
 
   useEffect(() => {
@@ -93,6 +98,37 @@ export function Communications() {
       console.error('Failed to mark as read:', err)
     } finally {
       setMarkingRead(null)
+    }
+  }
+
+  const sendReply = async (messageId: string) => {
+    const text = (replyText[messageId] || '').trim()
+    if (!text) return
+    setReplySending(messageId)
+    setReplyError(null)
+    try {
+      const res = await fetch('/api/staff/messages', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth?.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentMessageId: messageId, body: text }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e.error || 'Failed to send reply')
+      }
+      const reply = await res.json()
+      setReplyText(prev => ({ ...prev, [messageId]: '' }))
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === messageId
+            ? { ...m, isRead: true, replies: [...(m.replies || []), { ...reply, sender: 'You', senderRole: 'staff' }] }
+            : m
+        )
+      )
+    } catch (err: any) {
+      setReplyError(err.message)
+    } finally {
+      setReplySending(null)
     }
   }
 
@@ -267,6 +303,39 @@ export function Communications() {
                   {expandedMessage === msg.id ? (
                     <div className="mt-3">
                       <p className="text-gray-700 whitespace-pre-wrap">{msg.body}</p>
+                      {(msg.replies || []).length > 0 && (
+                        <div className="mt-3 space-y-2 border-l-2 border-gray-100 pl-3">
+                          {msg.replies!.map(rp => (
+                            <div key={rp.id} className="text-sm">
+                              <span className="font-medium text-gray-700">{rp.sender}</span>
+                              <span className="text-gray-400 mx-1.5">·</span>
+                              <span className="text-gray-400 text-xs">{rp.date}</span>
+                              <p className="text-gray-600 whitespace-pre-wrap">{rp.body}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {msg.id.startsWith('pm_') && (
+                        <div className="mt-3">
+                          <textarea
+                            rows={2}
+                            value={replyText[msg.id] || ''}
+                            onChange={e => setReplyText(prev => ({ ...prev, [msg.id]: e.target.value }))}
+                            placeholder="Reply to parent..."
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          {replyError && <p className="text-xs text-red-600 mt-1">{replyError}</p>}
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              onClick={() => sendReply(msg.id)}
+                              disabled={replySending === msg.id || !(replyText[msg.id] || '').trim()}
+                            >
+                              {replySending === msg.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-3.5 h-3.5 mr-1.5" />Reply</>}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <button
                         onClick={() => setExpandedMessage(null)}
                         className="mt-3 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"

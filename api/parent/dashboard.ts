@@ -90,7 +90,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     // Attendance %
     const attResult = await sql`
       SELECT COUNT(*) FILTER (WHERE status = 'present') AS present, COUNT(*) AS total
-      FROM attendance WHERE student_id = ${childId} AND date >= NOW() - INTERVAL '90 days'
+      FROM attendance_records WHERE student_id = ${childId} AND tenant_id = ${tenantId} AND date >= NOW() - INTERVAL '90 days'
     `
     const attPresent = parseInt(attResult.rows[0]?.present ?? '0')
     const attTotal   = parseInt(attResult.rows[0]?.total   ?? '0')

@@ -34,8 +34,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       SELECT
         COUNT(*) FILTER (WHERE status = 'present') AS present,
         COUNT(*) AS total
-      FROM attendance
-      WHERE student_id = ${studentId}
+      FROM attendance_records
+      WHERE student_id = ${studentId} AND tenant_id = ${tenantId}
         AND date >= NOW() - INTERVAL '90 days'
     `;
     const present = parseInt(attResult.rows[0]?.present ?? '0');

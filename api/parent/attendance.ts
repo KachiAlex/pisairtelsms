@@ -24,13 +24,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(403).json({ error: 'Forbidden: Child not linked to your account' })
     }
 
+    const tenantId = decoded.tenantId || 'default-tenant'
+
     const summaryResult = await sql`
       SELECT
         COUNT(*) FILTER (WHERE status = 'present') AS present,
         COUNT(*) FILTER (WHERE status = 'absent')  AS absent,
         COUNT(*) FILTER (WHERE status = 'late')    AS late,
         COUNT(*) AS total
-      FROM attendance WHERE student_id = ${childId}
+      FROM attendance_records WHERE student_id = ${childId} AND tenant_id = ${tenantId}
     `
     const totalPresent = parseInt(summaryResult.rows[0]?.present ?? '0')
     const totalAbsent  = parseInt(summaryResult.rows[0]?.absent  ?? '0')
@@ -41,9 +43,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const recordsResult = await sql`
       SELECT a.id::text, a.date::text, a.status,
              COALESCE(ar.reason_name, '') AS reason
-      FROM attendance a
+      FROM attendance_records a
       LEFT JOIN absence_reasons ar ON ar.id = a.absence_reason_id
-      WHERE a.student_id = ${childId}
+      WHERE a.student_id = ${childId} AND a.tenant_id = ${tenantId}
       ORDER BY a.date DESC LIMIT 60
     `
 

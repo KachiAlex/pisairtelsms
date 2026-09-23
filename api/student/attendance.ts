@@ -26,16 +26,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
 
     const { startDate, endDate } = req.query;
+    const tenantId = decoded.tenantId || 'default-tenant';
 
     let result;
     if (startDate && endDate) {
       result = await sql`
         SELECT a.date::text, a.status, ar.reason_name AS reason,
                COALESCE(tt.subject, 'General') AS subject
-        FROM attendance a
+        FROM attendance_records a
         LEFT JOIN absence_reasons ar ON ar.id = a.absence_reason_id
         LEFT JOIN timetable tt ON tt.class_name = a.class AND tt.day = TO_CHAR(a.date, 'Day')
-        WHERE a.student_id = ${studentId}
+        WHERE a.student_id = ${studentId} AND a.tenant_id = ${tenantId}
           AND a.date BETWEEN ${startDate as string} AND ${endDate as string}
         ORDER BY a.date DESC
       `;
@@ -43,10 +44,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       result = await sql`
         SELECT a.date::text, a.status, ar.reason_name AS reason,
                COALESCE(tt.subject, 'General') AS subject
-        FROM attendance a
+        FROM attendance_records a
         LEFT JOIN absence_reasons ar ON ar.id = a.absence_reason_id
         LEFT JOIN timetable tt ON tt.class_name = a.class AND tt.day = TO_CHAR(a.date, 'Day')
-        WHERE a.student_id = ${studentId}
+        WHERE a.student_id = ${studentId} AND a.tenant_id = ${tenantId}
         ORDER BY a.date DESC
         LIMIT 100
       `;

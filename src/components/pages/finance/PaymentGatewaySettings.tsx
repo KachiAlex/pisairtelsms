@@ -123,7 +123,7 @@ export function PaymentGatewaySettings() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Connection test failed');
-      setTestResult(prev => ({ ...prev, [gateway]: { ok: true, text: `Connected — ${data.data?.banksReturned ?? 0} banks reachable` } }));
+      setTestResult(prev => ({ ...prev, [gateway]: { ok: true, text: `Connected — ${data.data?.detail || 'key valid'}` } }));
     } catch (err) {
       setTestResult(prev => ({ ...prev, [gateway]: { ok: false, text: err instanceof Error ? err.message : 'Connection test failed' } }));
     } finally {

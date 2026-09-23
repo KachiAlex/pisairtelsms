@@ -147,14 +147,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'No secret key provided or saved for this gateway' })
     }
     try {
+      // Paystack's /bank list is public — /balance actually validates the key.
       const url = gateway === 'paystack'
-        ? 'https://api.paystack.co/bank?country=nigeria&perPage=5'
+        ? 'https://api.paystack.co/balance'
         : 'https://api.flutterwave.com/v3/banks/NG'
       const gwRes = await fetch(url, { headers: { Authorization: `Bearer ${secretKey}` } })
       const data = await gwRes.json().catch(() => null)
       const ok = gateway === 'paystack' ? data?.status === true : data?.status === 'success'
       if (ok) {
-        return res.status(200).json({ data: { ok: true, gateway, banksReturned: data.data?.length ?? 0 } })
+        const detail = gateway === 'paystack'
+          ? `${data.data?.length ?? 0} balance account(s) reachable`
+          : `${data.data?.length ?? 0} banks reachable`
+        return res.status(200).json({ data: { ok: true, gateway, detail } })
       }
       return res.status(400).json({ error: data?.message || `${gateway} rejected the key`, data: { ok: false } })
     } catch (error) {

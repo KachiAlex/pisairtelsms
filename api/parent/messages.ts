@@ -109,7 +109,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse) {
              pm.created_at::text AS last_message_date, pm.is_read, pm.replies, pm.parent_read_at,
              st.id::text AS teacher_id, st.name AS teacher_name,
              COALESCE(st.email, '') AS teacher_email,
-             COALESCE((SELECT subject FROM timetable WHERE staff_id = st.id AND tenant_id = ${tenantId} LIMIT 1), '') AS teacher_subject
+             COALESCE((SELECT subject FROM timetable WHERE staff_id = st.id LIMIT 1), '') AS teacher_subject
       FROM parent_messages pm
       JOIN staff st ON st.id = pm.staff_id AND st.tenant_id = ${tenantId}
       WHERE pm.parent_id = ${parentInfo.parentId} AND pm.tenant_id = ${tenantId}
@@ -121,9 +121,9 @@ async function handleGet(req: ApiRequest, res: ApiResponse) {
 
     const teachersResult = await sql`
       SELECT DISTINCT st.id::text, st.name, COALESCE(st.email, '') AS email,
-             COALESCE((SELECT tt.subject FROM timetable tt WHERE tt.staff_id = st.id AND tt.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
+             COALESCE((SELECT tt.subject FROM timetable tt WHERE tt.staff_id = st.id AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
       FROM staff st
-      JOIN timetable tt ON tt.staff_id = st.id AND tt.tenant_id = ${tenantId} AND st.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'}
+      JOIN timetable tt ON tt.staff_id = st.id AND st.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'}
       ORDER BY st.name LIMIT 20
     `
 
@@ -226,7 +226,7 @@ async function handlePost(req: ApiRequest, res: ApiResponse) {
     const parentName = parentRow.rows[0]?.name ?? 'Parent'
 
     const subjectResult = await sql`
-      SELECT COALESCE((SELECT subject FROM timetable tt WHERE tt.staff_id = ${targetTeacherId} AND tt.tenant_id = ${tenantId} AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
+      SELECT COALESCE((SELECT subject FROM timetable tt WHERE tt.staff_id = ${targetTeacherId} AND tt.class_name LIKE ${studentClass + '%'} LIMIT 1), '') AS subject
     `
     const conversationSubject = subjectResult.rows[0]?.subject || 'Teacher conversation'
 

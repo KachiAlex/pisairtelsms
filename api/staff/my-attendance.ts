@@ -62,6 +62,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (!staffId) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token payload' });
   }
+  const tenantId = decoded.tenantId || 'default-tenant';
 
   await ensureStaffTables();
 
@@ -76,6 +77,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                latitude, longitude, geo_verified
         FROM staff_attendance
         WHERE staff_id = ${staffId}
+          AND tenant_id = ${tenantId}
           AND EXTRACT(MONTH FROM date) = ${targetMonth}
           AND EXTRACT(YEAR FROM date) = ${targetYear}
         ORDER BY date DESC
@@ -202,10 +204,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const notes = warnings.length > 0 ? warnings.join('; ') : null;
         await sql`
-          INSERT INTO staff_attendance (id, staff_id, staff_name, date, check_in, status, latitude, longitude, geo_verified, notes)
-          VALUES (${id}, ${staffId}, ${staffName}, ${today}, ${time}, ${checkInStatus},
+          INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, status, latitude, longitude, geo_verified, notes)
+          VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${today}, ${time}, ${checkInStatus},
                   ${latitude ?? null}, ${longitude ?? null}, ${geoVerified}, ${notes})
-          ON CONFLICT (staff_id, date) DO UPDATE SET
+          ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
             check_in = EXCLUDED.check_in,
             status = EXCLUDED.status,
             latitude = EXCLUDED.latitude,
@@ -241,7 +243,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         await sql`
           UPDATE staff_attendance
           SET check_out = ${time}
-          WHERE staff_id = ${staffId} AND date = ${today}
+          WHERE staff_id = ${staffId} AND date = ${today} AND tenant_id = ${tenantId}
         `;
         return res.status(200).json({
           success: true,

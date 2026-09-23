@@ -42,6 +42,7 @@ import { useToast } from '../ui/use-toast'
 import { tenantApiGet, tenantApiPost } from '../../lib/tenantApi'
 import { useTimetableTerms } from '../../hooks/useTimetableTerms'
 import { useAcademicPeriod } from '../../hooks/useAcademicPeriod'
+import { QrAttendanceDisplay } from './staff/QrAttendanceDisplay'
 
 // TypeScript interfaces
 
@@ -1197,6 +1198,11 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
 
         {/* Staff Attendance Tab */}
         <TabsContent value="staff" className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-1">
+              <QrAttendanceDisplay />
+            </div>
+            <div className="lg:col-span-2 space-y-4">
           {/* Summary stats */}
           {staffAttData?.summary && (
             <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
@@ -1461,6 +1467,8 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
               </CardContent>
             </Card>
           )}
+            </div>
+          </div>
         </TabsContent>
 
         {/* Batch Upload Tab */}

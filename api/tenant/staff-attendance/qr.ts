@@ -1,7 +1,9 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { sql } from '../../_lib/sql.js'
+import { randomUUID } from 'crypto'
 import { requireRole } from '../../_lib/auth-middleware.js'
-import { ensureStaffTables } from '../_lib/staff.js'
+import { ensureStaffTables, isWithinTimeWindow } from '../_lib/staff.js'
+import { fetchTenantSettings } from '../_lib/tenant-settings.js'
 
 /**
  * QR Code Attendance API
@@ -30,10 +32,7 @@ interface QrSession {
 }
 
 function generateToken(): string {
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substring(2, 15)
-  const random2 = Math.random().toString(36).substring(2, 15)
-  return `qr_${timestamp}_${random}${random2}`
+  return `qr_${randomUUID().replace(/-/g, '')}`
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
@@ -62,7 +61,44 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   if (req.method === 'GET') {
     try {
-      const { date } = req.query
+      const { date, mode } = req.query
+
+      // ── Kiosk mode: a fresh short-lived token per call. The kiosk screen
+      // polls every ~25s so the displayed code rotates continuously — a
+      // photographed code dies before it can be shared. Admin-only: staff
+      // must not be able to mint their own tokens (that would defeat the
+      // physical-presence guarantee entirely).
+      if (mode === 'kiosk') {
+        if (userRole !== 'tenant_admin') {
+          return res.status(403).json({ success: false, error: 'Only administrators can run the attendance kiosk' })
+        }
+        const today = new Date().toISOString().split('T')[0]
+        const token = generateToken()
+        const id = `qrs_${Date.now()}_${randomUUID().slice(0, 8)}`
+        const expiresAt = new Date(Date.now() + 45_000)
+
+        await sql`
+          INSERT INTO staff_attendance_qr_sessions (id, token, tenant_id, date, generated_by, expires_at, used)
+          VALUES (${id}, ${token}, ${tenantId}, ${today}, ${userId}, ${expiresAt.toISOString()}, false)
+        `
+        // Opportunistic cleanup of expired kiosk tokens
+        await sql`DELETE FROM staff_attendance_qr_sessions WHERE tenant_id = ${tenantId} AND expires_at < NOW() - INTERVAL '1 hour'`.catch(() => {})
+
+        return res.status(200).json({
+          success: true,
+          token,
+          qrData: JSON.stringify({ t: token, d: today }),
+          date: today,
+          expiresAt: expiresAt.toISOString(),
+        })
+      }
+
+      // The raw token must never be exposed to staff — otherwise they could
+      // fetch it and POST a scan without ever seeing the physical code.
+      if (userRole !== 'tenant_admin') {
+        return res.status(403).json({ success: false, error: 'Only administrators can view attendance QR codes' })
+      }
+
       const targetDate = (date as string) || new Date().toISOString().split('T')[0]
 
       // Check for an active QR session
@@ -202,16 +238,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
         if (!existing || !existing.check_in) {
           // ── Check In ──
-          const checkInStatus: 'present' | 'late' = time > '08:00:00' ? 'late' : 'present'
-          const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          // Honor the tenant's check-in window settings (same rules as the
+          // manual check-in path) instead of a hardcoded 08:00.
+          const settings = await fetchTenantSettings(tenantId)
+          if (settings.enforceTimeWindow &&
+              settings.checkInWindowStart &&
+              settings.checkInWindowEnd &&
+              !isWithinTimeWindow(time, settings.checkInWindowStart, settings.checkInWindowEnd)) {
+            return res.status(403).json({
+              success: false,
+              error: `Check-in is only allowed between ${settings.checkInWindowStart} and ${settings.checkInWindowEnd}. Current time: ${time}`,
+            })
+          }
+          const checkInStatus: 'present' | 'late' =
+            time > (settings.checkInWindowEnd || '08:00:00') ? 'late' : 'present'
+          const id = `att_${Date.now()}_${randomUUID().slice(0, 8)}`
 
           await sql`
             INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, status, notes, geo_verified)
-            VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${today}, ${time}, ${checkInStatus}, 'QR code check-in', false)
+            VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${today}, ${time}, ${checkInStatus}, 'QR code check-in', true)
             ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
               check_in = EXCLUDED.check_in,
               status = EXCLUDED.status,
-              notes = EXCLUDED.notes
+              notes = EXCLUDED.notes,
+              geo_verified = true
           `
 
           return res.status(200).json({

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { QrCode, RefreshCw, Clock, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { QrCode, RefreshCw, Clock, XCircle, Loader2, MonitorSmartphone, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card'
 import { Button } from '../../ui/button'
 
@@ -16,95 +16,59 @@ function getAuthHeaders() {
   }
 }
 
+const REFRESH_MS = 25_000
+
+/**
+ * Attendance kiosk — displays a QR code that rotates every ~25 seconds.
+ * Each code is a fresh server-issued token valid ~45s, so a photographed
+ * code dies before it can be shared. Put this screen at the school
+ * entrance; staff scan it from My Attendance to check in/out.
+ */
 export function QrAttendanceDisplay() {
   const [qrData, setQrData] = useState<string | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [expiresAt, setExpiresAt] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [countdown, setCountdown] = useState<number>(0)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [countdown, setCountdown] = useState(REFRESH_MS / 1000)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const fetchActiveSession = useCallback(async () => {
+  const fetchToken = useCallback(async (initial = false) => {
     try {
-      const res = await fetch('/api/tenant/staff-attendance/qr', {
+      const res = await fetch('/api/tenant/staff-attendance/qr?mode=kiosk', {
         headers: getAuthHeaders(),
       })
       const data = await res.json()
       if (data.success && data.token) {
         setQrData(data.qrData)
-        setToken(data.token)
-        setExpiresAt(data.expiresAt)
+        setError(null)
+        setCountdown(Math.max(1, Math.round((new Date(data.expiresAt).getTime() - Date.now()) / 1000) - 20))
       } else {
+        setError(data.error || 'Failed to load QR code')
         setQrData(null)
-        setToken(null)
-        setExpiresAt(null)
       }
     } catch {
-      // ignore
+      setError('Could not reach the server — check your connection')
+    } finally {
+      if (initial) setLoading(false)
     }
   }, [])
 
-  const generateQr = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/tenant/staff-attendance/qr', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ action: 'generate' }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setQrData(data.qrData)
-        setToken(data.token)
-        setExpiresAt(data.expiresAt)
-      } else {
-        setError(data.error || 'Failed to generate QR code')
-      }
-    } catch {
-      setError('Failed to generate QR code')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    fetchActiveSession()
-  }, [fetchActiveSession])
-
-  useEffect(() => {
-    if (expiresAt) {
-      const updateCountdown = () => {
-        const remaining = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))
-        setCountdown(remaining)
-        if (remaining <= 0) {
-          setQrData(null)
-          setToken(null)
-          setExpiresAt(null)
-          if (timerRef.current) clearInterval(timerRef.current)
-        }
-      }
-      updateCountdown()
-      timerRef.current = setInterval(updateCountdown, 1000)
-      return () => {
-        if (timerRef.current) clearInterval(timerRef.current)
-      }
+    fetchToken(true)
+    pollRef.current = setInterval(() => fetchToken(), REFRESH_MS)
+    tickRef.current = setInterval(() => setCountdown(c => (c <= 1 ? REFRESH_MS / 1000 : c - 1)), 1000)
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+      if (tickRef.current) clearInterval(tickRef.current)
     }
-  }, [expiresAt])
-
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60)
-    const sec = s % 60
-    return `${m}:${sec.toString().padStart(2, '0')}`
-  }
+  }, [fetchToken])
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <QrCode className="w-5 h-5" />
-          QR Code Attendance
+          Attendance Kiosk
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -115,28 +79,34 @@ export function QrAttendanceDisplay() {
           </div>
         )}
 
-        {qrData ? (
+        {loading ? (
+          <div className="flex flex-col items-center gap-3 py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+            <p className="text-sm text-gray-500">Starting kiosk…</p>
+          </div>
+        ) : qrData ? (
           <div className="flex flex-col items-center gap-4">
-            <div className="relative p-4 bg-white rounded-xl border-2 border-gray-200">
-              <QRCodeSVG
-                value={qrData}
-                size={240}
-                level="M"
-                includeMargin={false}
-              />
+            <div className="p-4 bg-white rounded-xl border-2 border-gray-200">
+              <QRCodeSVG value={qrData} size={240} level="M" includeMargin={false} />
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="w-4 h-4 text-gray-500" />
-              <span className={countdown < 60 ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                Expires in {formatTime(countdown)}
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Clock className="w-4 h-4" />
+              <span>New code in {countdown}s</span>
+            </div>
+            <div className="flex items-start gap-2 rounded-lg bg-emerald-50 border border-emerald-100 p-3 text-xs text-emerald-700 max-w-sm">
+              <ShieldCheck className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                This code rotates automatically and expires in seconds — photos of it won't work.
+                Staff scan it from <strong>My Attendance</strong> on their dashboard to check in or out.
               </span>
             </div>
-            <p className="text-sm text-gray-500 text-center max-w-xs">
-              Staff can scan this QR code with their device camera to check in or check out.
-            </p>
-            <Button variant="outline" size="sm" onClick={generateQr} disabled={loading}>
+            <div className="flex items-start gap-2 text-xs text-gray-500 max-w-sm">
+              <MonitorSmartphone className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>Leave this page open on a screen or tablet at the school entrance. Keep it visible — do not share screenshots.</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => fetchToken()}>
               <RefreshCw className="w-4 h-4 mr-2" />
-              Regenerate
+              Refresh now
             </Button>
           </div>
         ) : (
@@ -144,21 +114,9 @@ export function QrAttendanceDisplay() {
             <div className="w-48 h-48 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center">
               <QrCode className="w-16 h-16 text-gray-300" />
             </div>
-            <p className="text-sm text-gray-500 text-center max-w-xs">
-              No active QR code. Generate one to allow staff to mark attendance by scanning.
-            </p>
-            <Button onClick={generateQr} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Generate QR Code
-                </>
-              )}
+            <Button onClick={() => fetchToken()} disabled={loading}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
             </Button>
           </div>
         )}

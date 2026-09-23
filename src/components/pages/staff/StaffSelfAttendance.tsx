@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Calendar, Clock, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, LogIn, LogOut, Briefcase } from 'lucide-react'
 import { Button } from '../../ui/button'
+import { QrAttendanceScanner } from './QrAttendanceScanner'
 import { getAuthFromStorage } from '../../../lib/auth'
 
 interface AttendanceRecord {
@@ -252,6 +253,8 @@ export function StaffSelfAttendance() {
           <span>{error}</span>
         </div>
       )}
+
+      {isCurrentMonth && <QrAttendanceScanner />}
 
       {/* Today's Status */}
       {isCurrentMonth && (

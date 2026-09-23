@@ -57,9 +57,26 @@ export function QrAttendanceScanner() {
     fetchTodayStatus()
   }, [fetchTodayStatus])
 
+  // Deep-link entry: if this page was opened by scanning the QR with a
+  // native camera app (/staff/my-attendance?scan=<token>), submit the
+  // token immediately and strip it from the URL so a refresh can't
+  // double-submit.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const pending = params.get('scan')
+    if (!pending) return
+    params.delete('scan')
+    const qs = params.toString()
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''))
+    handleScanResult(pending)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleScanResult = async (qrText: string) => {
     try {
-      // Parse the QR data
+      // Parse the QR data — supports the deep-link URL form
+      // (.../staff/my-attendance?scan=<token>), the legacy {t, d} JSON
+      // form, and a bare token.
       let token: string
       try {
         const parsed = JSON.parse(qrText)
@@ -67,6 +84,8 @@ export function QrAttendanceScanner() {
       } catch {
         token = qrText
       }
+      const urlScan = token.match(/[?&]scan=([^&\s]+)/)
+      if (urlScan) token = urlScan[1]
 
       // Stop scanning
       await stopScanner()

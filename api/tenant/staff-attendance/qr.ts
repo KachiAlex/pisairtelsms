@@ -35,6 +35,19 @@ function generateToken(): string {
   return `qr_${randomUUID().replace(/-/g, '')}`
 }
 
+/**
+ * QR payload is a deep link into the staff portal so ANY camera app can
+ * scan it (native camera → opens the link → in-app consumer submits the
+ * scan if already logged in). The in-app scanner also understands this
+ * URL form and the legacy {t, d} JSON form.
+ */
+function qrPayload(req: ApiRequest, token: string): string {
+  const proto = ((req.headers?.['x-forwarded-proto'] as string) || 'https').split(',')[0].trim()
+  const host = ((req.headers?.['x-forwarded-host'] as string) || (req.headers?.host as string) || '').split(',')[0].trim()
+  if (!host) return JSON.stringify({ t: token })
+  return `${proto}://${host}/staff/my-attendance?scan=${token}`
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
@@ -87,7 +100,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(200).json({
           success: true,
           token,
-          qrData: JSON.stringify({ t: token, d: today }),
+          qrData: qrPayload(req, token),
           date: today,
           expiresAt: expiresAt.toISOString(),
         })
@@ -118,11 +131,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(200).json({
           success: true,
           token: session.token,
-          qrData: JSON.stringify({
-            t: session.token,
-            d: session.date,
-            e: session.expires_at,
-          }),
+          qrData: qrPayload(req, session.token),
           date: session.date,
           expiresAt: session.expires_at,
           createdAt: session.created_at,
@@ -156,7 +165,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const today = new Date().toISOString().split('T')[0]
         const token = generateToken()
         const id = `qrs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+        // validity: 'day' → printable fallback code valid until end of day
+        // (weaker: a photo works all day). Default stays 5 minutes.
+        const isDay = body.validity === 'day'
+        const expiresAt = isDay
+          ? new Date(`${today}T23:59:59`)
+          : new Date(Date.now() + 5 * 60 * 1000)
 
         await sql`
           INSERT INTO staff_attendance_qr_sessions (id, token, tenant_id, date, generated_by, expires_at, used)
@@ -166,14 +180,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(200).json({
           success: true,
           token,
-          qrData: JSON.stringify({
-            t: token,
-            d: today,
-            e: expiresAt.toISOString(),
-          }),
+          qrData: qrPayload(req, token),
           date: today,
           expiresAt: expiresAt.toISOString(),
-          message: 'QR code generated. Valid for 5 minutes.',
+          message: isDay ? 'Printable code generated. Valid until end of today.' : 'QR code generated. Valid for 5 minutes.',
         })
       } catch (error) {
         console.error('QR generation error:', error)
@@ -337,11 +347,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             VALUES (${id}, ${record.staffId}, ${staffName}, ${tenantId}, ${targetDate},
                     ${record.checkIn || null}, ${record.checkOut || null}, ${record.status},
                     ${record.notes || 'Admin manual mark'}, true)
-            ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
+            ON CONFLICT (staff_id, date) DO UPDATE SET
               status = EXCLUDED.status,
               check_in = COALESCE(EXCLUDED.check_in, staff_attendance.check_in),
               check_out = COALESCE(EXCLUDED.check_out, staff_attendance.check_out),
-              notes = EXCLUDED.notes
+              notes = EXCLUDED.notes,
+              tenant_id = EXCLUDED.tenant_id
           `
           successCount++
         } catch (err) {

@@ -235,11 +235,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         INSERT INTO staff_attendance (id, staff_id, staff_name, tenant_id, date, check_in, check_out, status, notes, geo_verified)
         VALUES (${id}, ${staffId}, ${staffName}, ${tenantId}, ${date},
                 ${checkIn || null}, ${checkOut || null}, ${status}, ${notes || 'Admin override'}, true)
-        ON CONFLICT (tenant_id, staff_id, date) DO UPDATE SET
+        ON CONFLICT (staff_id, date) DO UPDATE SET
           status = EXCLUDED.status,
           check_in = COALESCE(EXCLUDED.check_in, staff_attendance.check_in),
           check_out = COALESCE(EXCLUDED.check_out, staff_attendance.check_out),
           notes = EXCLUDED.notes,
+          tenant_id = EXCLUDED.tenant_id,
           geo_verified = true
         RETURNING *
       `

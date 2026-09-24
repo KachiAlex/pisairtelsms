@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Clock, AlertTriangle, CheckCircle, Flag, ChevronLeft, ChevronRight,
-  Loader2, ShieldCheck, LogOut, Send,
+  Loader2, ShieldCheck, LogOut, Send, Camera, CameraOff,
 } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { getAuthFromStorage } from '../../../lib/auth'
-import { startExamSecurityMonitoring } from '../../../lib/cbt/security-enforcement'
+import { startExamSecurityMonitoring, logSecurityEvent } from '../../../lib/cbt/security-enforcement'
 
 interface PaperQuestion {
   id: string
@@ -69,6 +69,10 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
   const stopSecurityRef = useRef<(() => void) | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const submittedRef = useRef(false)
+  const streamRef = useRef<MediaStream | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [cameraOn, setCameraOn] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
 
   const headers = useCallback(
     (json = false) => ({
@@ -117,8 +121,81 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
     return () => {
       cancelled = true
       stopSecurityRef.current?.()
+      stopCamera()
     }
   }, [examId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------- Camera proctoring ----------
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    setCameraOn(false)
+  }, [])
+
+  const requestCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('This browser does not support camera access')
+      return false
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 320, height: 240 },
+        audio: false,
+      })
+      streamRef.current = stream
+      if (videoRef.current) videoRef.current.srcObject = stream
+      setCameraOn(true)
+      setCameraError(null)
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        setCameraOn(false)
+        setCameraError('Camera disconnected')
+        void logSecurityEvent(examId, 'camera_lost', { timestamp: new Date().toISOString() })
+      })
+      return true
+    } catch {
+      setCameraOn(false)
+      setCameraError('Camera access denied — this exam requires a webcam')
+      void logSecurityEvent(examId, 'camera_denied', { timestamp: new Date().toISOString() })
+      return false
+    }
+  }, [examId])
+
+  // Acquire the camera as soon as we know it is required
+  useEffect(() => {
+    if (security?.requireCamera && !cameraOn && !streamRef.current && phase === 'intro') {
+      void requestCamera()
+    }
+  }, [security, cameraOn, phase, requestCamera])
+
+  // Keep the video element bound to the stream whenever it mounts
+  useEffect(() => {
+    if (videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  })
+
+  // Periodic snapshot capture while the exam is active
+  useEffect(() => {
+    if (phase !== 'active' || !security?.requireCamera || !cameraOn || !token) return
+    const capture = async () => {
+      const video = videoRef.current
+      if (!video || video.readyState < 2) return
+      const canvas = document.createElement('canvas')
+      canvas.width = 320
+      canvas.height = 240
+      canvas.getContext('2d')?.drawImage(video, 0, 0, 320, 240)
+      const image = canvas.toDataURL('image/jpeg', 0.6)
+      await fetch('/api/tenant/cbt/security/snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ examId, image }),
+      }).catch(() => {})
+    }
+    void capture()
+    const interval = setInterval(() => void capture(), 30_000)
+    return () => clearInterval(interval)
+  }, [phase, security, cameraOn, examId, token])
 
   // Countdown
   useEffect(() => {
@@ -196,6 +273,7 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
     submittedRef.current = true
     setPhase('submitting')
     stopSecurityRef.current?.()
+    stopCamera()
     window.removeEventListener('blur', bumpWarnings)
     try {
       const res = await fetch(`/api/student/exams/${examId}/submit`, {
@@ -217,7 +295,7 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
       setError('Submission failed — check your connection and try again')
       setPhase('active')
     }
-  }, [examId, answers, headers])
+  }, [examId, answers, headers, stopCamera])
 
   const answeredCount = questions.filter((q) => answers[q.id] != null && answers[q.id] !== '').length
   const fmtTime = (s: number) =>
@@ -291,17 +369,38 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
           </div>
         </div>
 
-        {security && (security.enableProctoring || security.disableCopyPaste || security.disableRightClick) && (
+        {security && (security.enableProctoring || security.disableCopyPaste || security.disableRightClick || security.requireCamera) && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 flex gap-2">
             <ShieldCheck className="w-5 h-5 flex-shrink-0" />
             <div>
               <p className="font-medium">This exam is proctored.</p>
               <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                {security.requireCamera && <li>Your webcam is monitored throughout the exam.</li>}
                 {security.enableProctoring && <li>Tab switches and focus loss are recorded.</li>}
                 {security.disableCopyPaste && <li>Copy and paste are disabled.</li>}
                 {security.disableRightClick && <li>Right-click is disabled.</li>}
               </ul>
             </div>
+          </div>
+        )}
+
+        {security?.requireCamera && (
+          <div
+            className={`rounded-lg border p-3 text-sm flex items-center gap-2 ${
+              cameraOn
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            {cameraOn ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
+            <span className="flex-1">
+              {cameraOn ? 'Camera ready' : cameraError || 'Requesting camera access…'}
+            </span>
+            {!cameraOn && cameraError && (
+              <Button size="sm" variant="outline" onClick={() => void requestCamera()}>
+                Retry
+              </Button>
+            )}
           </div>
         )}
 
@@ -336,7 +435,11 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
           <Button
             className="flex-1"
             onClick={startExam}
-            disabled={notOpen || (security?.requiresPassword && !password)}
+            disabled={
+              notOpen ||
+              (security?.requiresPassword && !password) ||
+              (security?.requireCamera && !cameraOn)
+            }
           >
             {Object.keys(answers).length > 0 ? 'Resume Exam' : 'Start Exam'}
           </Button>
@@ -376,6 +479,14 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4" /> {error}
+        </div>
+      )}
+
+      {security?.requireCamera && !cameraOn && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-center gap-2">
+          <CameraOff className="w-4 h-4" />
+          <span className="flex-1">Camera lost — {cameraError || 'reconnecting is required for this exam'}. This has been logged.</span>
+          <Button size="sm" variant="outline" onClick={() => void requestCamera()}>Reconnect</Button>
         </div>
       )}
 
@@ -508,6 +619,17 @@ export function TakeExam({ examId, onExit }: { examId: string; onExit: () => voi
           </Button>
         </div>
       </div>
+
+      {/* Live webcam preview (proctoring) */}
+      {security?.requireCamera && cameraOn && (
+        <div className="fixed bottom-4 right-4 z-40 w-40 rounded-lg overflow-hidden border-2 border-gray-300 shadow-lg bg-black">
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-28 object-cover" />
+          <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 rounded px-1.5 py-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-[10px] text-white font-medium">REC</span>
+          </div>
+        </div>
+      )}
 
       {/* Confirm submit */}
       {confirmSubmit && (

@@ -214,7 +214,15 @@ export function isRightClickDisabled(): boolean {
  */
 export async function logSecurityEvent(
   examId: string,
-  eventType: 'copy_attempt' | 'paste_attempt' | 'right_click',
+  eventType:
+    | 'copy_attempt'
+    | 'paste_attempt'
+    | 'right_click'
+    | 'tab_switch'
+    | 'window_blur'
+    | 'fullscreen_exit'
+    | 'camera_denied'
+    | 'camera_lost',
   details: Record<string, any> = {}
 ): Promise<void> {
   try {
@@ -250,8 +258,7 @@ export function monitorTabSwitches(
   const handleVisibilityChange = async () => {
     if (document.hidden) {
       // Tab is hidden - log tab switch
-      await logSecurityEvent(examId, 'right_click', {
-        eventType: 'tab_switch',
+      await logSecurityEvent(examId, 'tab_switch', {
         timestamp: new Date().toISOString(),
       });
       onTabSwitch?.(new Event('tabswitch'));
@@ -275,8 +282,7 @@ export function monitorWindowFocus(
 ): () => void {
   const handleBlur = async () => {
     // Window lost focus - log focus loss
-    await logSecurityEvent(examId, 'right_click', {
-      eventType: 'window_blur',
+    await logSecurityEvent(examId, 'window_blur', {
       timestamp: new Date().toISOString(),
     });
     onFocusLoss?.(new Event('blur'));
@@ -300,8 +306,7 @@ export function monitorFullscreenExit(
   const handleFullscreenChange = async () => {
     if (!document.fullscreenElement) {
       // Exited fullscreen - log event
-      await logSecurityEvent(examId, 'right_click', {
-        eventType: 'fullscreen_exit',
+      await logSecurityEvent(examId, 'fullscreen_exit', {
         timestamp: new Date().toISOString(),
       });
       onFullscreenExit?.(new Event('fullscreenexit'));

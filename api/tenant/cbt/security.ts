@@ -5,6 +5,7 @@
 
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
+import { queryOne } from './_lib/db.js'
 import {
   getSecuritySettings,
   upsertSecuritySettings,
@@ -58,9 +59,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   const { id, action } = req.query
 
-  // Students may only log proctoring events for their own exam session.
-  if (decoded.role === 'student' && action !== 'log-event') {
+  // Students may only log proctoring events or upload camera snapshots for
+  // their own exam session.
+  if (decoded.role === 'student' && action !== 'log-event' && action !== 'snapshot') {
     return res.status(403).json({ success: false, error: 'Forbidden' })
+  }
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+  // Verify the exam belongs to the caller's tenant (prevents cross-tenant
+  // proctoring writes) and return the student's own id for student callers.
+  async function verifyExamOwnership(examId: string): Promise<boolean> {
+    const tenantId = decoded!.tenantId || 'default-tenant'
+    const exam = await queryOne<{ id: string }>(
+      'SELECT id FROM exams WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL',
+      [examId, tenantId]
+    )
+    return Boolean(exam)
   }
 
   // POST /api/tenant/cbt/security/log-event — body: { examId, eventType, details, studentId? }
@@ -73,7 +88,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const studentId = decoded.role === 'student'
       ? decoded.studentId || decoded.userId
       : body.studentId || decoded.userId
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (examId && !UUID_RE.test(String(examId))) {
       return res.status(400).json({ success: false, error: 'examId must be a valid exam id' })
     }
@@ -89,6 +103,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       })
     }
     try {
+      if (!(await verifyExamOwnership(examId))) {
+        return res.status(404).json({ success: false, error: 'Exam not found' })
+      }
       const log = await createProctoringLog({
         examId,
         studentId,
@@ -99,6 +116,61 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     } catch (error: any) {
       console.error('Error logging security event:', error)
       return res.status(500).json({ success: false, error: 'Failed to log security event' })
+    }
+  }
+
+  // POST /api/tenant/cbt/security/snapshot — body: { examId, image }
+  // Periodic webcam capture while a student sits a require_camera exam.
+  if (req.method === 'POST' && action === 'snapshot') {
+    if (decoded.role !== 'student') {
+      return res.status(403).json({ success: false, error: 'Forbidden' })
+    }
+    const body = parseBody(req)
+    const examId = body?.examId
+    const image = body?.image
+    const studentId = decoded.studentId || decoded.userId
+    if (!examId || !UUID_RE.test(String(examId))) {
+      return res.status(400).json({ success: false, error: 'examId must be a valid exam id' })
+    }
+    if (typeof image !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) {
+      return res.status(400).json({ success: false, error: 'image must be a base64 image data URL' })
+    }
+    if (image.length > 700_000) {
+      return res.status(413).json({ success: false, error: 'image too large' })
+    }
+    try {
+      if (!(await verifyExamOwnership(examId))) {
+        return res.status(404).json({ success: false, error: 'Exam not found' })
+      }
+      // Only students with an active sitting may upload snapshots
+      const sitting = await queryOne<{ status: string }>(
+        `SELECT status FROM student_exam_progress
+         WHERE exam_id = $1 AND student_id = $2`,
+        [examId, studentId]
+      )
+      if (!sitting || sitting.status !== 'Active') {
+        return res.status(409).json({ success: false, error: 'No active exam sitting' })
+      }
+      // Rate-limit: one snapshot per 15s per student per exam
+      const recent = await queryOne<{ id: string }>(
+        `SELECT id FROM proctoring_snapshots
+         WHERE exam_id = $1 AND student_id = $2
+           AND captured_at > now() - interval '15 seconds'
+         LIMIT 1`,
+        [examId, studentId]
+      )
+      if (recent) {
+        return res.status(429).json({ success: false, error: 'Snapshot rate limit' })
+      }
+      const row = await queryOne<{ id: string }>(
+        `INSERT INTO proctoring_snapshots (exam_id, student_id, image_data)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [examId, studentId, image]
+      )
+      return res.status(201).json({ success: true, data: { id: row?.id } })
+    } catch (error: any) {
+      console.error('Error saving proctoring snapshot:', error)
+      return res.status(500).json({ success: false, error: 'Failed to save snapshot' })
     }
   }
 

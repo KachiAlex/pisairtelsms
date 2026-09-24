@@ -1018,6 +1018,10 @@
       "destination": "/api/tenant/cbt/security.ts?action=log-event"
     },
     {
+      "source": "/api/tenant/cbt/security/snapshot",
+      "destination": "/api/tenant/cbt/security.ts?action=snapshot"
+    },
+    {
       "source": "/api/tenant/cbt/security/:id/:action",
       "destination": "/api/tenant/cbt/security.ts?id=:id&action=:action"
     },

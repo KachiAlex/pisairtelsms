@@ -49,13 +49,17 @@ function rlsReady(): boolean {
  * when a tenant context exists and the app_user role has been provisioned.
  * Falls back to a plain pool query otherwise (owner role — unchanged path).
  */
+// Lazy "ensure table/column" DDL runs as owner — RLS governs row access, not
+// schema; running it as app_user would fail on CREATE permission anyway.
+const DDL_RE = /^\s*(create|alter|drop|truncate)\b/i
+
 export async function scopedQuery<T = any>(
   pool: { connect: () => Promise<any>; query: (t: string, v?: any[]) => Promise<any> },
   text: string,
   values?: any[]
 ): Promise<{ rows: T[]; rowCount: number; command: string; oid: number; fields: any[] }> {
   const tid = getRlsContext()?.tenantId
-  if (!tid || !(await rlsRoleExists(pool))) {
+  if (!tid || DDL_RE.test(text) || !(await rlsRoleExists(pool))) {
     return pool.query(text, values)
   }
   // Malformed tenant ids must never bypass scoping — clamp to an impossible value.

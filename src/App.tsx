@@ -64,6 +64,7 @@ const CAConfiguration = lazy(() => import('./components/pages/CAConfiguration'))
 const GradingPolicy = lazy(() => import('./components/pages/GradingPolicy'));
 const AcademicCalendar = lazy(() => import('./components/pages/AcademicCalendar'));
 const AcademicSessions = lazy(() => import('./components/pages/AcademicSessions'));
+const LessonNoteReview = lazy(() => import('./components/pages/LessonNoteReview').then(m => ({ default: m.LessonNoteReview })));
 const CAScoreEntry = lazy(() => import('./components/pages/CAScoreEntry'));
 const ResultComputation = lazy(() => import('./components/pages/ResultComputation'));
 const ResultApproval = lazy(() => import('./components/pages/ResultApproval'));
@@ -298,6 +299,8 @@ export default function App() {
         return <SubjectsCatalog />;
       case 'teacher-allocation':
         return <TeacherAllocation />;
+      case 'lesson-notes':
+        return <LessonNoteReview />;
       case 'ca-configuration':
         return <CAConfiguration />;
       case 'ca-entry':

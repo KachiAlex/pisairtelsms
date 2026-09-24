@@ -22,6 +22,7 @@ import {
   BookOpen,
   FileSpreadsheet,
   ShieldAlert,
+  FileText,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -44,6 +45,7 @@ import { TeacherAssignments } from '../pages/staff/TeacherAssignments'
 import { CourseMaterials } from '../pages/staff/CourseMaterials'
 import { StaffResults } from '../pages/staff/Results'
 import { StaffConduct } from '../pages/staff/StaffConduct'
+import { LessonNotes } from '../pages/staff/LessonNotes'
 import { NotificationsDropdown } from '../staff/NotificationsDropdown'
 import { SessionTermLabel } from '../SessionTermLabel'
 
@@ -61,6 +63,7 @@ const navItems = [
   { id: 'tasks', label: 'My Tasks', icon: CheckSquare },
   { id: 'assignments', label: 'Assignments', icon: ClipboardList },
   { id: 'materials', label: 'Course Materials', icon: BookOpen },
+  { id: 'lesson-notes', label: 'Lesson Notes', icon: FileText },
   { id: 'results', label: 'Results', icon: FileSpreadsheet },
   { id: 'conduct', label: 'Conduct', icon: ShieldAlert },
   { id: 'documents', label: 'Documents', icon: FolderOpen },
@@ -137,6 +140,8 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         return <CourseMaterials />
       case 'results':
         return <StaffResults />
+      case 'lesson-notes':
+        return <LessonNotes />
       case 'conduct':
         return <StaffConduct />
       case 'documents':

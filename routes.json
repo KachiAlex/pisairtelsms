@@ -1142,6 +1142,14 @@
       "destination": "/api/staff/profile.ts"
     },
     {
+      "source": "/api/tenant/schemes",
+      "destination": "/api/tenant/schemes.ts"
+    },
+    {
+      "source": "/api/tenant/lesson-notes",
+      "destination": "/api/tenant/lesson-notes.ts"
+    },
+    {
       "source": "/api/student/exams/:examId/paper",
       "destination": "/api/student/exam-taking.ts?examId=:examId&action=paper"
     },

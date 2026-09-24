@@ -64,6 +64,7 @@ const navItems: NavItem[] = [
       { id: 'classes', label: 'Classes & Arms' },
       { id: 'subjects', label: 'Subjects' },
       { id: 'teacher-allocation', label: 'Teacher Allocation' },
+      { id: 'lesson-notes', label: 'Scheme & Lesson Notes' },
       { id: 'ca-configuration', label: 'CA Configuration' },
       { id: 'grading-policy', label: 'Grading Policy' },
       { id: 'academic-calendar', label: 'Academic Calendar' },

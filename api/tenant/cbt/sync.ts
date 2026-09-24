@@ -274,7 +274,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       // Create queue entry
-      const entry = await createSyncQueueEntry(bodyStudentId, bodyExamId, answers)
+      const entry = await createSyncQueueEntry(bodyStudentId, bodyExamId, answers, tenantId)
 
       const response: ApiResult<any> = {
         success: true,

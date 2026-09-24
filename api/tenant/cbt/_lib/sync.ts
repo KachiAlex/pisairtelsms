@@ -193,13 +193,14 @@ export async function syncOfflineAnswers(
 export async function createSyncQueueEntry(
   studentId: string,
   examId: string,
-  answers: StudentAnswer[]
+  answers: StudentAnswer[],
+  tenantId?: string
 ): Promise<OfflineSyncQueue> {
   const entry = await queryOne<OfflineSyncQueue>(
-    `INSERT INTO offline_sync_queue (student_id, exam_id, answers, sync_status, retry_count)
-     VALUES ($1, $2, $3, 'pending', 0)
+    `INSERT INTO offline_sync_queue (student_id, exam_id, tenant_id, answers, sync_status, retry_count)
+     VALUES ($1, $2, $3, $4, 'pending', 0)
      RETURNING *`,
-    [studentId, examId, JSON.stringify(answers)]
+    [studentId, examId, tenantId ?? null, JSON.stringify(answers)]
   );
 
   if (!entry) {
@@ -291,7 +292,7 @@ export async function getSyncStatistics(tenantId?: string): Promise<{
       COUNT(CASE WHEN q.sync_status = 'failed' THEN 1 END) as failed,
       COALESCE(SUM(q.retry_count), 0) as total_retries
      FROM offline_sync_queue q
-     ${tenantId ? 'JOIN exams e ON e.id = q.exam_id WHERE e.tenant_id = $1' : ''}`,
+     ${tenantId ? 'WHERE q.tenant_id = $1' : ''}`,
     tenantId ? [tenantId] : undefined
   );
 

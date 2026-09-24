@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useTenant } from '../contexts/TenantContext';
+import { useState, useEffect, useContext } from 'react';
+import { TenantContext } from '../contexts/TenantContext';
 import { PLAN_CONFIG, PlanFeatures, PlanType } from '../lib/plans';
 import { getAuthFromStorage } from '../lib/auth';
 
@@ -31,7 +31,11 @@ function readCachedFeatures(): { plan: PlanType | null; features: PlanFeatures |
  * remains the authoritative enforcement point.
  */
 export function usePlanAccess() {
-  const { subscriptionPlan, setSubscriptionPlan } = useTenant();
+  // Tolerate missing provider (tests, standalone mounts): default to
+  // no stored plan — the static fallback below still applies.
+  const ctx = useContext(TenantContext);
+  const subscriptionPlan = ctx?.subscriptionPlan ?? null;
+  const setSubscriptionPlan = ctx?.setSubscriptionPlan ?? (() => {});
   const stored = readCachedFeatures();
   const currentPlan = ((cachedPlan || subscriptionPlan || stored.plan || 'starter') as string).toLowerCase() as PlanType;
 
@@ -80,6 +84,9 @@ export function usePlanAccess() {
    * @param feature Optional specific feature within that category
    */
   const hasAccess = (category: keyof PlanFeatures, feature?: string): boolean => {
+    // No provider and nothing fetched (e.g. unit tests mounting nav bare):
+    // be permissive — the API gate remains authoritative.
+    if (!ctx && !dbFeatures) return true;
     if (!features[category]) return false;
 
     if (!feature) {

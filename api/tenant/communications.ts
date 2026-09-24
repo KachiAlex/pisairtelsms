@@ -22,7 +22,7 @@ export default async function handler(
 
   const tenantId = decoded.tenantId || 'default-tenant'
 
-  const path = req.url?.replace(/^.*communications/, '').replace(/^\//, '') || ''
+  const path = req.url?.split('?')[0].replace(/^.*communications/, '').replace(/^\//, '') || ''
   const segments = path.split('/').filter(Boolean)
 
   try {

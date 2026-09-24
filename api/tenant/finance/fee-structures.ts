@@ -10,7 +10,13 @@ import {
   getFeeStructureWithItems,
   updateFeeStructure,
   copyFeeStructure,
-  getFeeStructureHistory,
+  getFeeStructureVersions,
+  rollbackFeeStructure,
+  getClassOverrides,
+  createClassOverride,
+  updateClassOverride,
+  deleteClassOverride,
+  previewClassOverrides,
 } from './_lib/fee-structures.js'
 
 let migrationsInitialized = false
@@ -49,7 +55,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
 
-  const { id, action } = req.query as Record<string, string | undefined>
+  const { id, action, overrideId } = req.query as Record<string, string | undefined>
   const tenantId = decoded.tenantId || 'default-tenant'
   console.log('Fee structures request:', { method: req.method, id, action, tenantId })
 
@@ -91,11 +97,136 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET /api/tenant/finance/fee-structures/:id/history
   if (req.method === 'GET' && id && action === 'history') {
     try {
-      const history = await getFeeStructureHistory(id)
+      const history = await getFeeStructureVersions(id, tenantId)
       return res.status(200).json({ data: history })
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return res.status(200).json({ data: [] })
+      }
       console.error('Error fetching fee structure history:', error)
       return res.status(500).json({ error: 'Failed to fetch fee structure history' })
+    }
+  }
+
+  // POST /api/tenant/finance/fee-structures/:id/rollback
+  if (req.method === 'POST' && id && action === 'rollback') {
+    const body = parseBody(req)
+    const targetVersion = Number(body?.targetVersion)
+    if (!body || !Number.isInteger(targetVersion) || targetVersion < 1) {
+      return res.status(400).json({ error: 'targetVersion (integer) is required' })
+    }
+    try {
+      const rolledBack = await rollbackFeeStructure(
+        id,
+        tenantId,
+        targetVersion,
+        decoded.userId || decoded.staffId || 'system'
+      )
+      if (!rolledBack) {
+        return res.status(404).json({ error: 'Fee structure or version not found' })
+      }
+      return res.status(200).json({ data: rolledBack })
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return res.status(503).json({ error: 'Version history is not available yet' })
+      }
+      console.error('Error rolling back fee structure:', error)
+      return res.status(500).json({ error: 'Failed to rollback fee structure' })
+    }
+  }
+
+  // GET/POST /api/tenant/finance/fee-structures/:id/class-overrides
+  if (req.method === 'GET' && id && action === 'class-overrides' && !overrideId) {
+    try {
+      const overrides = await getClassOverrides(id, tenantId)
+      return res.status(200).json({ data: overrides })
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return res.status(200).json({ data: [] })
+      }
+      console.error('Error fetching class overrides:', error)
+      return res.status(500).json({ error: 'Failed to fetch class overrides' })
+    }
+  }
+
+  if (req.method === 'POST' && id && action === 'class-overrides' && !overrideId) {
+    const body = parseBody(req)
+    if (!body || !body.className || !body.feeCategory || body.overrideAmount === undefined || !body.effectiveFrom) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        details: ['className', 'feeCategory', 'overrideAmount', 'effectiveFrom'],
+      })
+    }
+    try {
+      const override = await createClassOverride(id, tenantId, {
+        className: body.className,
+        feeCategory: body.feeCategory,
+        originalAmount: Number(body.originalAmount) || 0,
+        overrideAmount: Number(body.overrideAmount),
+        reason: body.reason || null,
+        effectiveFrom: body.effectiveFrom,
+        effectiveTo: body.effectiveTo || null,
+      }, decoded.userId || decoded.staffId || 'system')
+      return res.status(201).json({ data: override })
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return res.status(503).json({ error: 'Class overrides are not available yet' })
+      }
+      console.error('Error creating class override:', error)
+      return res.status(500).json({ error: 'Failed to create class override' })
+    }
+  }
+
+  // PUT/DELETE /api/tenant/finance/fee-structures/:id/class-overrides/:overrideId
+  if (req.method === 'PUT' && id && action === 'class-overrides' && overrideId) {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' })
+    }
+    try {
+      const override = await updateClassOverride(id, overrideId, tenantId, body)
+      if (!override) {
+        return res.status(404).json({ error: 'Class override not found' })
+      }
+      return res.status(200).json({ data: override })
+    } catch (error) {
+      console.error('Error updating class override:', error)
+      return res.status(500).json({ error: 'Failed to update class override' })
+    }
+  }
+
+  if (req.method === 'DELETE' && id && action === 'class-overrides' && overrideId) {
+    try {
+      const deleted = await deleteClassOverride(id, overrideId, tenantId)
+      if (!deleted) {
+        return res.status(404).json({ error: 'Class override not found' })
+      }
+      return res.status(200).json({ message: 'Class override deleted' })
+    } catch (error) {
+      console.error('Error deleting class override:', error)
+      return res.status(500).json({ error: 'Failed to delete class override' })
+    }
+  }
+
+  // POST /api/tenant/finance/fee-structures/:id/class-overrides/preview
+  if (req.method === 'POST' && id && action === 'class-override-preview') {
+    const body = parseBody(req)
+    try {
+      const preview = await previewClassOverrides(
+        id,
+        tenantId,
+        Array.isArray(body?.overrides) && body.overrides.length > 0 ? body.overrides : undefined
+      )
+      return res.status(200).json({ data: preview })
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return res.status(200).json({ data: { totalOriginal: 0, totalAfterOverrides: 0, byClass: [] } })
+      }
+      if (error.message === 'Fee structure not found') {
+        return res.status(404).json({ error: 'Fee structure not found' })
+      }
+      console.error('Error generating override preview:', error)
+      return res.status(500).json({ error: 'Failed to generate preview' })
     }
   }
 
@@ -178,6 +309,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         effectiveFrom,
         effectiveTo,
         status,
+        updatedBy: decoded.userId || decoded.staffId || 'system',
       })
 
       if (!updated) {

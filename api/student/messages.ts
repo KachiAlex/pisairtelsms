@@ -72,7 +72,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
   }
 
-  if (req.method === 'PUT') {
+  if (req.method === 'PUT' || (req.method === 'POST' && req.query.action === 'read')) {
     try {
       const { id } = req.query;
       if (!id || typeof id !== 'string') {

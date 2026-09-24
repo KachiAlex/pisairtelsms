@@ -205,6 +205,26 @@
       "destination": "/api/tenant/finance/fee-adjustments.ts"
     },
     {
+      "source": "/api/tenant/finance/fee-assignments/:faId/exemptions/:eid/:action",
+      "destination": "/api/tenant/finance/exemptions.ts?feeAssignmentId=:faId&exemptionId=:eid&action=:action"
+    },
+    {
+      "source": "/api/tenant/finance/fee-assignments/:faId/exemptions/:eid",
+      "destination": "/api/tenant/finance/exemptions.ts?feeAssignmentId=:faId&exemptionId=:eid"
+    },
+    {
+      "source": "/api/tenant/finance/fee-assignments/:faId/exemptions",
+      "destination": "/api/tenant/finance/exemptions.ts?feeAssignmentId=:faId"
+    },
+    {
+      "source": "/api/tenant/finance/fee-assignments/:id/:action",
+      "destination": "/api/tenant/finance/fee-assignments.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/finance/fee-assignments/:id",
+      "destination": "/api/tenant/finance/fee-assignments.ts?id=:id"
+    },
+    {
       "source": "/api/tenant/finance/fee-assignments",
       "destination": "/api/tenant/finance/fee-assignments.ts"
     },
@@ -255,6 +275,22 @@
     {
       "source": "/api/tenant/attendance/audit-trail",
       "destination": "/api/tenant/attendance/audit-trail.ts"
+    },
+    {
+      "source": "/api/tenant/finance/fee-structures/:id/class-overrides/preview",
+      "destination": "/api/tenant/finance/fee-structures.ts?id=:id&action=class-override-preview"
+    },
+    {
+      "source": "/api/tenant/finance/fee-structures/:id/class-overrides/:oid",
+      "destination": "/api/tenant/finance/fee-structures.ts?id=:id&action=class-overrides&overrideId=:oid"
+    },
+    {
+      "source": "/api/tenant/finance/fee-structures/:id/:action",
+      "destination": "/api/tenant/finance/fee-structures.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/finance/fee-structures/:id",
+      "destination": "/api/tenant/finance/fee-structures.ts?id=:id"
     },
     {
       "source": "/api/tenant/finance/fee-structures",
@@ -541,6 +577,14 @@
       "destination": "/api/tenant/exam-assignments.ts"
     },
     {
+      "source": "/api/tenant/finance/payments/:id/:action",
+      "destination": "/api/tenant/finance/payments.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/finance/payments/:id",
+      "destination": "/api/tenant/finance/payments.ts?id=:id"
+    },
+    {
       "source": "/api/tenant/finance/payments",
       "destination": "/api/tenant/finance/payments.ts"
     },
@@ -601,6 +645,10 @@
       "destination": "/api/tenant/finance/migrate.ts"
     },
     {
+      "source": "/api/tenant/finance/reports/:report",
+      "destination": "/api/tenant/finance/reports.ts?report=:report"
+    },
+    {
       "source": "/api/tenant/finance/reports",
       "destination": "/api/tenant/finance/reports.ts"
     },
@@ -621,6 +669,38 @@
       "destination": "/api/admin/tenants-handler.ts"
     },
     {
+      "source": "/api/admin/tenants",
+      "destination": "/api/admin/tenants-handler.ts"
+    },
+    {
+      "source": "/api/admin/tenant-admins",
+      "destination": "/api/admin/tenant-admins-handler.ts"
+    },
+    {
+      "source": "/api/admin/plans",
+      "destination": "/api/admin/plans-handler.ts"
+    },
+    {
+      "source": "/api/admin/stats",
+      "destination": "/api/admin/admin-handler.ts?action=stats"
+    },
+    {
+      "source": "/api/admin/provisioning-queue",
+      "destination": "/api/admin/admin-handler.ts?action=provisioning-queue"
+    },
+    {
+      "source": "/api/admin/activity-feed",
+      "destination": "/api/admin/admin-handler.ts?action=activity-feed"
+    },
+    {
+      "source": "/api/admin/incidents",
+      "destination": "/api/admin/admin-handler.ts?action=incidents"
+    },
+    {
+      "source": "/api/admin/audit-log",
+      "destination": "/api/admin/admin-handler.ts?action=audit-log"
+    },
+    {
       "source": "/api/student/announcements",
       "destination": "/api/student/announcements.ts"
     },
@@ -630,6 +710,22 @@
     },
     {
       "source": "/api/tenant/alerts-handler",
+      "destination": "/api/tenant/alerts-handler.ts"
+    },
+    {
+      "source": "/api/tenant/alerts/statistics/summary",
+      "destination": "/api/tenant/alerts-handler.ts?id=statistics&sub=summary"
+    },
+    {
+      "source": "/api/tenant/alerts/:id/:action",
+      "destination": "/api/tenant/alerts-handler.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/alerts/:id",
+      "destination": "/api/tenant/alerts-handler.ts?id=:id"
+    },
+    {
+      "source": "/api/tenant/alerts",
       "destination": "/api/tenant/alerts-handler.ts"
     },
     {
@@ -645,12 +741,36 @@
       "destination": "/api/tenant/communications.ts"
     },
     {
+      "source": "/api/tenant/communications/:seg1",
+      "destination": "/api/tenant/communications.ts"
+    },
+    {
+      "source": "/api/tenant/communications/:seg1/:seg2",
+      "destination": "/api/tenant/communications.ts"
+    },
+    {
       "source": "/api/parent/announcements",
       "destination": "/api/parent/announcements.ts"
     },
     {
       "source": "/api/parent/notifications",
       "destination": "/api/parent/notifications.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/questions/stats",
+      "destination": "/api/tenant/cbt/questions.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/questions/export",
+      "destination": "/api/tenant/cbt/questions.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/questions/tags",
+      "destination": "/api/tenant/cbt/questions.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/questions/subjects",
+      "destination": "/api/tenant/cbt/questions.ts"
     },
     {
       "source": "/api/tenant/cbt/questions",
@@ -858,6 +978,10 @@
       "destination": "/api/staff/auth/login.ts"
     },
     {
+      "source": "/api/student/messages/:id/read",
+      "destination": "/api/student/messages.ts?id=:id&action=read"
+    },
+    {
       "source": "/api/student/messages",
       "destination": "/api/student/messages.ts"
     },
@@ -876,6 +1000,30 @@
     {
       "source": "/api/tenant/cbt/exams",
       "destination": "/api/tenant/cbt/exams.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/exams/:seg1",
+      "destination": "/api/tenant/cbt/exams.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/exams/:seg1/:seg2",
+      "destination": "/api/tenant/cbt/exams.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/offline-sync",
+      "destination": "/api/tenant/cbt/offline-sync-routes.ts"
+    },
+    {
+      "source": "/api/tenant/cbt/security/log-event",
+      "destination": "/api/tenant/cbt/security.ts?action=log-event"
+    },
+    {
+      "source": "/api/tenant/cbt/security/:id/:action",
+      "destination": "/api/tenant/cbt/security.ts?id=:id&action=:action"
+    },
+    {
+      "source": "/api/tenant/cbt/security/:id",
+      "destination": "/api/tenant/cbt/security.ts?id=:id"
     },
     {
       "source": "/api/parent/academic",

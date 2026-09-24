@@ -53,11 +53,52 @@ function validateTenantId(tenantId: string | undefined, res: ApiResponse): boole
  * Main handler
  */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin', 'student'])
   if (!decoded) return
 
-  const tenantId = decoded.tenantId || 'default-tenant'
   const { id, action } = req.query
+
+  // Students may only log proctoring events for their own exam session.
+  if (decoded.role === 'student' && action !== 'log-event') {
+    return res.status(403).json({ success: false, error: 'Forbidden' })
+  }
+
+  // POST /api/tenant/cbt/security/log-event — body: { examId, eventType, details, studentId? }
+  if (req.method === 'POST' && action === 'log-event') {
+    const body = parseBody(req)
+    if (!body) {
+      return res.status(400).json({ success: false, error: 'Request body is required' })
+    }
+    const { examId, eventType, details, eventDetails } = body
+    const studentId = decoded.role === 'student'
+      ? decoded.studentId || decoded.userId
+      : body.studentId || decoded.userId
+    if (!examId || !eventType || !studentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields',
+        validationErrors: {
+          ...(examId ? {} : { examId: 'examId is required' }),
+          ...(eventType ? {} : { eventType: 'eventType is required' }),
+          ...(studentId ? {} : { studentId: 'studentId is required' }),
+        },
+      })
+    }
+    try {
+      const log = await createProctoringLog({
+        examId,
+        studentId,
+        eventType,
+        eventDetails: eventDetails || details,
+      })
+      return res.status(201).json({ success: true, data: log })
+    } catch (error: any) {
+      console.error('Error logging security event:', error)
+      return res.status(500).json({ success: false, error: 'Failed to log security event' })
+    }
+  }
+
+  const tenantId = decoded.tenantId || 'default-tenant'
 
   // Validate tenant ID
   if (!validateTenantId(tenantId, res)) {

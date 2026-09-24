@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, History, AlertCircle, RotateCcw } from 'lucide-react';
+import { Plus, Edit2, Trash2, History, AlertCircle, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../ui/dialog';
 import { FeeStructureForm } from './FeeStructureForm';
 import { FeeStructureHistory } from './FeeStructureHistory';
+import { ClassLevelOverride } from './ClassLevelOverride';
 import { financeApiGet, financeApiDelete } from '../../../lib/financeApi';
 
 interface FeeStructure {
@@ -39,6 +40,7 @@ export function FeeStructureConfig({ onClose }: FeeStructureConfigProps) {
   const [selectedStructure, setSelectedStructure] = useState<FeeStructure | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showOverrides, setShowOverrides] = useState(false);
   const [editingStructure, setEditingStructure] = useState<FeeStructure | null>(null);
 
   useEffect(() => {
@@ -255,6 +257,33 @@ export function FeeStructureConfig({ onClose }: FeeStructureConfigProps) {
                               </DialogHeader>
                               {selectedStructure && (
                                 <FeeStructureHistory structureId={selectedStructure.id} />
+                              )}
+                            </DialogContent>
+                          </Dialog>
+
+                          <Dialog open={showOverrides && selectedStructure?.id === structure.id} onOpenChange={(open) => {
+                            if (open) {
+                              setSelectedStructure(structure);
+                              setShowOverrides(true);
+                            } else {
+                              setShowOverrides(false);
+                            }
+                          }}>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Class overrides"
+                              >
+                                <SlidersHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Class Overrides — {selectedStructure?.name}</DialogTitle>
+                              </DialogHeader>
+                              {selectedStructure && (
+                                <ClassLevelOverride feeStructureId={selectedStructure.id} />
                               )}
                             </DialogContent>
                           </Dialog>

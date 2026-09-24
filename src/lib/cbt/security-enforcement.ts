@@ -4,6 +4,8 @@
  * Requirements: 5.3, 5.4
  */
 
+import { getAuthFromStorage } from '../auth';
+
 /**
  * Security enforcement options
  */
@@ -216,16 +218,17 @@ export async function logSecurityEvent(
   details: Record<string, any> = {}
 ): Promise<void> {
   try {
+    const auth = getAuthFromStorage();
     const response = await fetch('/api/tenant/cbt/security/log-event', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(auth ? { Authorization: `Bearer ${auth.token}` } : {}),
       },
       body: JSON.stringify({
         examId,
         eventType,
-        details,
-        timestamp: new Date().toISOString(),
+        details: { ...details, timestamp: new Date().toISOString() },
       }),
     });
 

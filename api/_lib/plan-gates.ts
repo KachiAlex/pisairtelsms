@@ -88,6 +88,8 @@ const GATES: Array<[string, keyof PlanFeatures, string]> = [
   ['/api/tenant/teacher-allocation', 'academicStructure', 'teacherAllocation'],
   ['/api/tenant/teacher-workloads', 'academicStructure', 'teacherAllocation'],
   ['/api/tenant/communication-logs', 'communication', 'logs'],
+  ['/api/tenant/communications/logs', 'communication', 'logs'],
+  ['/api/tenant/communication/logs', 'communication', 'logs'],
   ['/api/tenant/bulk-notifications', 'communication', 'bulkNotifications'],
   ['/api/tenant/parent-messages', 'communication', 'parentTeacherMessaging'],
   ['/api/tenant/staff-messages', 'communication', 'messaging'],

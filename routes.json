@@ -1150,6 +1150,10 @@
       "destination": "/api/tenant/lesson-notes.ts"
     },
     {
+      "source": "/api/student/lesson-notes",
+      "destination": "/api/student/lesson-notes.ts"
+    },
+    {
       "source": "/api/student/exams/:examId/paper",
       "destination": "/api/student/exam-taking.ts?examId=:examId&action=paper"
     },

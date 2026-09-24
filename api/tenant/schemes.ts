@@ -47,10 +47,38 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     if (req.method === 'POST') {
       if (!isAdmin) return res.status(403).json({ error: 'Only admins can manage the scheme of work' })
-      const { subject, class: className, session, term, week, topic, description } = req.body || {}
+      const { subject, class: className, session, term, week, topic, description, items } = req.body || {}
+      if (!subject || !className || !session || !term) {
+        return res.status(400).json({ error: 'subject, class, session, and term are required' })
+      }
+
+      // Bulk import: { items: [{ week, topic, description? }, ...] }
+      if (Array.isArray(items)) {
+        if (items.length === 0 || items.length > 40) {
+          return res.status(400).json({ error: 'items must contain 1-40 entries' })
+        }
+        const bad = items.findIndex(
+          (it: any) => !it.topic || !Number.isInteger(Number(it.week)) || Number(it.week) < 1 || Number(it.week) > 20
+        )
+        if (bad >= 0) {
+          return res.status(400).json({ error: `items[${bad}]: week (1-20) and topic are required` })
+        }
+        let created = 0
+        for (const it of items as any[]) {
+          await sql`
+            INSERT INTO scheme_topics (tenant_id, subject, class, session, term, week, topic, description, created_by)
+            VALUES (${tenantId}, ${subject}, ${className}, ${session}, ${term}, ${Number(it.week)},
+                    ${it.topic}, ${it.description || null}, ${decoded.userId || 'admin'})
+            ON CONFLICT (tenant_id, subject, class, session, term, week)
+            DO UPDATE SET topic = EXCLUDED.topic, description = EXCLUDED.description, updated_at = now()`
+          created++
+        }
+        return res.status(201).json({ success: true, imported: created })
+      }
+
       const wk = Number(week)
-      if (!subject || !className || !session || !term || !topic || !Number.isInteger(wk) || wk < 1 || wk > 20) {
-        return res.status(400).json({ error: 'subject, class, session, term, topic, and week (1-20) are required' })
+      if (!topic || !Number.isInteger(wk) || wk < 1 || wk > 20) {
+        return res.status(400).json({ error: 'topic and week (1-20) are required' })
       }
       const r = await sql`
         INSERT INTO scheme_topics (tenant_id, subject, class, session, term, week, topic, description, created_by)

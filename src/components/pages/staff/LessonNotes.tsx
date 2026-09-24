@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   BookOpen, Plus, Loader2, AlertTriangle, Send, Pencil, Trash2,
-  CheckCircle, XCircle, GraduationCap, ExternalLink,
+  CheckCircle, XCircle, GraduationCap, ExternalLink, Paperclip, Download,
 } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { tenantApiGet, tenantApiFetch } from '../../../lib/tenantApi'
@@ -51,6 +51,7 @@ const statusStyle: Record<LessonNote['status'], { label: string; cls: string }> 
 
 const emptyForm = {
   class: '', subject: '', week: 1, topic: '', title: '', content: '', link: '', schemeTopicId: '',
+  attachment: '', attachmentName: '', attachmentRemoved: false,
 }
 
 export function LessonNotes() {
@@ -120,6 +121,7 @@ export function LessonNotes() {
     setForm({
       class: full.class, subject: full.subject, week: full.week, topic: full.topic || '',
       title: full.title, content: full.content || '', link: full.link || '', schemeTopicId: full.scheme_topic_id || '',
+      attachment: '', attachmentName: full.attachment_name || '', attachmentRemoved: false,
     })
     setShowEditor(true)
   }
@@ -143,7 +145,14 @@ export function LessonNotes() {
       if (editing) {
         const res = await tenantApiFetch(`/api/tenant/lesson-notes?id=${editing.id}`, {
           method: 'PUT',
-          body: JSON.stringify({ title: form.title, content: form.content, link: form.link || null, topic: form.topic || null }),
+          body: JSON.stringify({
+            title: form.title, content: form.content, link: form.link || null, topic: form.topic || null,
+            ...(form.attachment
+              ? { attachment: form.attachment, attachmentName: form.attachmentName }
+              : form.attachmentRemoved
+                ? { attachment: null }
+                : {}),
+          }),
         })
         if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Failed to save')
       } else {
@@ -153,6 +162,7 @@ export function LessonNotes() {
             subject: form.subject, class: form.class, session, term: effTerm, week: form.week,
             topic: form.topic || null, schemeTopicId: form.schemeTopicId || null,
             title: form.title, content: form.content, link: form.link || null,
+            ...(form.attachment ? { attachment: form.attachment, attachmentName: form.attachmentName } : {}),
           }),
         })
         const data = await res.json().catch(() => null)
@@ -180,6 +190,16 @@ export function LessonNotes() {
       return
     }
     void load()
+  }
+
+  const downloadAttachment = async (n: LessonNote) => {
+    const res = await tenantApiGet(`/api/tenant/lesson-notes?id=${n.id}`)
+    const d = await res.json().catch(() => null)
+    if (!d?.data?.attachment_data) return
+    const a = document.createElement('a')
+    a.href = d.data.attachment_data
+    a.download = d.data.attachment_name || 'attachment'
+    a.click()
   }
 
   const doDelete = async (n: LessonNote) => {
@@ -254,6 +274,14 @@ export function LessonNotes() {
                       <a href={n.link} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
                         <ExternalLink className="w-3 h-3" /> Attachment link
                       </a>
+                    )}
+                    {(n as any).has_attachment && (
+                      <button
+                        onClick={() => void downloadAttachment(n)}
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <Download className="w-3 h-3" /> {(n as any).attachment_name || 'Download attachment'}
+                      </button>
                     )}
                     {n.status === 'returned' && n.review_comment && (
                       <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-2 mt-2">
@@ -380,6 +408,44 @@ export function LessonNotes() {
                 placeholder="https://…"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                File attachment <span className="text-gray-400 font-normal">(optional, max 2MB)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 cursor-pointer hover:bg-gray-50">
+                  <Paperclip className="w-4 h-4" />
+                  {form.attachmentName || 'Choose file'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      if (file.size > 2_000_000) {
+                        setError('File too large — max 2MB')
+                        return
+                      }
+                      const reader = new FileReader()
+                      reader.onload = () => setForm((f) => ({ ...f, attachment: String(reader.result), attachmentName: file.name }))
+                      reader.readAsDataURL(file)
+                    }}
+                  />
+                </label>
+                {form.attachmentName && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, attachment: '', attachmentName: '', attachmentRemoved: true }))}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {editing && (editing as any).has_attachment && !form.attachment && (
+                <p className="text-xs text-gray-400 mt-1">Existing attachment kept unless replaced.</p>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">

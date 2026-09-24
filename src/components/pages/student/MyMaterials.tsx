@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { FileText, Video, Music, Link2, Image, Search, Download, Eye, Filter, BookOpen, Clock, X, Star, Loader2, AlertCircle } from 'lucide-react'
+import { FileText, Video, Music, Link2, Image, Search, Download, Eye, Filter, BookOpen, Clock, X, Star, Loader2, AlertCircle, GraduationCap, Paperclip } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { getAuthFromStorage } from '../../../lib/auth'
 
@@ -23,6 +23,24 @@ interface CourseMaterial {
   tags: string[]
   isRequired: boolean
   viewCount: number
+}
+
+interface LessonNote {
+  id: string
+  staff_name: string | null
+  subject: string
+  session: string
+  term: string
+  week: number
+  topic: string | null
+  title: string
+  excerpt?: string
+  content?: string
+  link: string | null
+  attachment_name: string | null
+  attachment_data?: string
+  has_attachment?: boolean
+  taught_at: string | null
 }
 
 interface MaterialsResponse {
@@ -49,11 +67,32 @@ export function MyMaterials() {
   const [selectedSubject, setSelectedSubject] = useState<string>('all')
   const [selectedType, setSelectedType] = useState<string>('all')
   const [showRequiredOnly, setShowRequiredOnly] = useState(false)
+  const [lessonNotes, setLessonNotes] = useState<LessonNote[]>([])
+  const [openNote, setOpenNote] = useState<LessonNote | null>(null)
   const auth = getAuthFromStorage()
 
   useEffect(() => {
     fetchMaterials()
   }, [selectedSubject, selectedType, showRequiredOnly])
+
+  useEffect(() => {
+    const token = auth?.token
+    if (!token) return
+    fetch('/api/student/lesson-notes', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setLessonNotes(d?.data || []))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openLessonNote = async (n: LessonNote) => {
+    const token = auth?.token
+    const res = await fetch(`/api/student/lesson-notes?id=${n.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const d = await res.json().catch(() => null)
+    setOpenNote(d?.data || n)
+  }
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -222,6 +261,35 @@ export function MyMaterials() {
         })}
       </div>
 
+      {/* Approved Lesson Notes */}
+      {lessonNotes.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-indigo-600" />
+            <h2 className="font-semibold text-gray-900">Lesson Notes</h2>
+            <span className="text-xs text-gray-500">— approved notes from your teachers</span>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {lessonNotes.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => void openLessonNote(n)}
+                className="text-left border border-gray-200 rounded-lg p-3 hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span className="font-medium text-indigo-700">{n.subject}</span>
+                  <span>·</span>
+                  <span>Week {n.week}</span>
+                  {n.has_attachment && <Paperclip className="w-3 h-3" />}
+                </div>
+                <p className="text-sm font-medium text-gray-900 mt-0.5 truncate">{n.title}</p>
+                {n.topic && <p className="text-xs text-gray-500 truncate">{n.topic}</p>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Materials List */}
       {loading ? (
         <div className="space-y-3">
@@ -330,6 +398,56 @@ export function MyMaterials() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Lesson note reader */}
+      {openNote && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setOpenNote(null)}>
+          <div
+            className="bg-white rounded-lg w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span className="font-medium text-indigo-700">{openNote.subject}</span>
+                  <span>·</span>
+                  <span>Week {openNote.week}</span>
+                  <span>·</span>
+                  <span>{openNote.staff_name || 'Teacher'}</span>
+                </div>
+                <h2 className="text-lg font-bold text-gray-900 mt-1">{openNote.title}</h2>
+                {openNote.topic && <p className="text-sm text-gray-500">Topic: {openNote.topic}</p>}
+              </div>
+              <button onClick={() => setOpenNote(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap text-sm text-gray-800 bg-gray-50 rounded-lg p-4 border border-gray-100 font-sans">
+              {openNote.content || openNote.excerpt}
+            </pre>
+            <div className="flex items-center gap-3">
+              {openNote.link && (
+                <a href={openNote.link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                  <Link2 className="w-4 h-4" /> Open link
+                </a>
+              )}
+              {openNote.attachment_data && (
+                <button
+                  onClick={() => {
+                    const a = document.createElement('a')
+                    a.href = openNote.attachment_data!
+                    a.download = openNote.attachment_name || 'attachment'
+                    a.click()
+                  }}
+                  className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                >
+                  <Download className="w-4 h-4" /> {openNote.attachment_name || 'Download attachment'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -20,6 +20,20 @@ import { requireRole } from '../_lib/auth-middleware.js'
  * teacher_allocation_slots — unless the school has configured no allocations
  * for that teacher at all (then the feature stays usable).
  */
+// Attachment must be a base64 data URL; ~2.7MB base64 ≈ 2MB file.
+function validateAttachment(attachment: unknown, res: ApiResponse): boolean {
+  if (attachment === undefined || attachment === null) return false
+  if (typeof attachment !== 'string' || !attachment.startsWith('data:') || !attachment.includes(';base64,')) {
+    res.status(400).json({ error: 'attachment must be a base64 data URL' })
+    return true
+  }
+  if (attachment.length > 2_800_000) {
+    res.status(413).json({ error: 'attachment too large (max ~2MB)' })
+    return true
+  }
+  return false
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
   if (!decoded) return
@@ -87,6 +101,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         `SELECT id::text, staff_id, staff_name, subject, class, session, term, week, topic,
                 scheme_topic_id::text, title, link, status, submitted_at, reviewed_at,
                 review_comment, taught_at, updated_at,
+                attachment_data IS NOT NULL AS has_attachment, attachment_name,
                 LEFT(content, 300) AS excerpt
          FROM lesson_notes WHERE ${conditions.join(' AND ')}
          ORDER BY week ASC, updated_at DESC LIMIT 200`, params)
@@ -94,11 +109,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     if (req.method === 'POST') {
-      const { subject, class: className, session, term, week, title, content, link, topic, schemeTopicId } = req.body || {}
+      const { subject, class: className, session, term, week, title, content, link, topic, schemeTopicId, attachment, attachmentName } = req.body || {}
       const wk = Number(week)
       if (!subject || !className || !session || !term || !title || !content || !Number.isInteger(wk) || wk < 1 || wk > 20) {
         return res.status(400).json({ error: 'subject, class, session, term, week (1-20), title, and content are required' })
       }
+      const attachErr = validateAttachment(attachment, res)
+      if (attachErr) return
       if (!(await staffTeaches(subject, className))) {
         return res.status(403).json({ error: 'You are not allocated to teach this subject in this class' })
       }
@@ -106,9 +123,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const r = await sql`
         INSERT INTO lesson_notes
           (tenant_id, staff_id, staff_name, subject, class, session, term, week, topic,
-           scheme_topic_id, title, content, link)
+           scheme_topic_id, title, content, link, attachment_data, attachment_name)
         VALUES (${tenantId}, ${staffId}, ${name}, ${subject}, ${className}, ${session}, ${term},
-                ${wk}, ${topic || null}, ${schemeTopicId || null}, ${title}, ${content}, ${link || null})
+                ${wk}, ${topic || null}, ${schemeTopicId || null}, ${title}, ${content}, ${link || null},
+                ${attachment || null}, ${attachment ? attachmentName || 'attachment' : null})
         RETURNING id::text, status`
       return res.status(201).json({ data: r.rows[0] })
     }
@@ -163,13 +181,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (note.status !== 'draft' && note.status !== 'returned') {
         return res.status(409).json({ error: `A ${note.status} note cannot be edited` })
       }
-      const { title, content, link, topic } = req.body || {}
+      const { title, content, link, topic, attachment, attachmentName } = req.body || {}
+      const attachErr = validateAttachment(attachment, res)
+      if (attachErr) return
       await sql`
         UPDATE lesson_notes
         SET title = COALESCE(${title ?? null}, title),
             content = COALESCE(${content ?? null}, content),
             link = ${link === undefined ? note.link : link},
             topic = ${topic === undefined ? note.topic : topic},
+            attachment_data = ${attachment === undefined ? note.attachment_data : attachment},
+            attachment_name = ${attachment === undefined ? note.attachment_name : (attachment ? attachmentName || 'attachment' : null)},
             updated_at = now()
         WHERE id = ${id}`
       return res.status(200).json({ success: true })

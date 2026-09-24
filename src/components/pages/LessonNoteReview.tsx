@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   BookOpen, Loader2, AlertTriangle, CheckCircle, XCircle, Plus, Trash2,
   ClipboardCheck, ListChecks, BarChart3, ExternalLink, GraduationCap,
+  Upload, Download,
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { tenantApiGet, tenantApiFetch } from '../../lib/tenantApi'
@@ -47,6 +48,8 @@ export function LessonNoteReview() {
   const [scheme, setScheme] = useState<SchemeTopic[]>([])
   const [coverage, setCoverage] = useState<CoverageNote[]>([])
   const [newTopic, setNewTopic] = useState({ week: 1, topic: '', description: '' })
+  const [showImport, setShowImport] = useState(false)
+  const [csvText, setCsvText] = useState('')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -154,6 +157,35 @@ export function LessonNoteReview() {
     void (tab === 'coverage' ? loadCoverage() : loadScheme())
   }
 
+  const importCsv = async () => {
+    // Lines: week,topic,description(optional) — '#' lines and blanks skipped
+    const items = csvText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'))
+      .map((l) => {
+        const [w, topic, ...rest] = l.split(',').map((s) => s.trim())
+        return { week: Number(w), topic, description: rest.join(', ') || null }
+      })
+    const bad = items.findIndex((it) => !it.topic || !Number.isInteger(it.week) || it.week < 1 || it.week > 20)
+    if (!items.length || bad >= 0) {
+      setError(bad >= 0 ? `Line ${bad + 1} is invalid — use "week,topic,description"` : 'Nothing to import')
+      return
+    }
+    const res = await tenantApiFetch('/api/tenant/schemes', {
+      method: 'POST',
+      body: JSON.stringify({ subject: selSubject, class: selClass, session, term: effTerm, items }),
+    })
+    const d = await res.json().catch(() => null)
+    if (!res.ok) {
+      setError(d?.error || 'Import failed')
+      return
+    }
+    setCsvText('')
+    setShowImport(false)
+    void loadScheme()
+  }
+
   const removeSchemeTopic = async (id: string) => {
     await tenantApiFetch(`/api/tenant/schemes?id=${id}`, { method: 'DELETE' })
     void (tab === 'coverage' ? loadCoverage() : loadScheme())
@@ -253,6 +285,19 @@ export function LessonNoteReview() {
                           <ExternalLink className="w-3 h-3" /> {expanded.link}
                         </a>
                       )}
+                      {(expanded as any).attachment_data && (
+                        <button
+                          onClick={() => {
+                            const a = document.createElement('a')
+                            a.href = (expanded as any).attachment_data
+                            a.download = (expanded as any).attachment_name || 'attachment'
+                            a.click()
+                          }}
+                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          <Download className="w-3 h-3" /> {(expanded as any).attachment_name || 'Download attachment'}
+                        </button>
+                      )}
                       <textarea
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
@@ -290,9 +335,32 @@ export function LessonNoteReview() {
         <div className="space-y-4">
           {scopeSelectors}
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm font-semibold text-gray-700 mb-3">
-              Scheme for {selSubject} — {selClass} — {effTerm}
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-700">
+                Scheme for {selSubject} — {selClass} — {effTerm}
+              </p>
+              <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)} className="gap-1">
+                <Upload className="w-3.5 h-3.5" /> Import CSV
+              </Button>
+            </div>
+
+            {showImport && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                <p className="text-xs text-blue-800">
+                  Paste one topic per line as <code>week,topic,description</code> — e.g.{' '}
+                  <code>1,Number systems,Place value and bases</code>. Lines starting with # are ignored.
+                  Existing weeks are updated, not duplicated.
+                </p>
+                <textarea
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  rows={5}
+                  placeholder={'1,Number systems,Place value\n2,Fractions,Equivalence and ordering\n3,Decimals'}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono"
+                />
+                <Button size="sm" onClick={() => void importCsv()} disabled={!csvText.trim()}>Import topics</Button>
+              </div>
+            )}
             <div className="grid grid-cols-12 gap-2 mb-3 items-end">
               <select
                 value={newTopic.week}

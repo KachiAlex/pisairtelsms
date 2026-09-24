@@ -23,6 +23,8 @@ import { Button } from '../ui/button'
 import { useBranding } from '../../contexts/BrandingContext'
 import { StudentNotificationsDropdown } from '../student/StudentNotificationsDropdown'
 import { SessionTermLabel } from '../SessionTermLabel'
+import { usePlanAccess } from '../../hooks/usePlanAccess'
+import { STUDENT_NAV_FEATURES, navItemAllowed } from '../../lib/nav-features'
 
 const StudentDashboard = lazy(() => import('../pages/student/StudentDashboard').then(m => ({ default: m.StudentDashboard })))
 const MyResults = lazy(() => import('../pages/student/MyResults').then(m => ({ default: m.MyResults })))
@@ -62,6 +64,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const { branding } = useBranding()
+  const { hasAccess } = usePlanAccess()
   const auth = getAuthFromStorage()
 
   // Extract current page from URL path
@@ -161,7 +164,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
 
         {/* Nav items */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItems.filter(item => navItemAllowed(STUDENT_NAV_FEATURES, item.id, hasAccess)).map((item) => {
             const Icon = item.icon
             const isActive = currentPage === item.id
             return (

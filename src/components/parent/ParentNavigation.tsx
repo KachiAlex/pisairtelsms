@@ -17,6 +17,8 @@ import {
   CalendarDays,
   Shield,
 } from 'lucide-react'
+import { usePlanAccess } from '../../hooks/usePlanAccess'
+import { PARENT_NAV_FEATURES, navItemAllowed } from '../../lib/nav-features'
 
 interface NavItem {
   id: string
@@ -50,9 +52,10 @@ const navItems: NavItem[] = [
 ]
 
 export function ParentNavigation({ currentPage, onNavigate }: ParentNavigationProps) {
+  const { hasAccess } = usePlanAccess()
   return (
     <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-      {navItems.map((item) => {
+      {navItems.filter(item => navItemAllowed(PARENT_NAV_FEATURES, item.id, hasAccess)).map((item) => {
         const Icon = item.icon
         const isActive = currentPage === item.id
         return (

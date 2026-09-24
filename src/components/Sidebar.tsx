@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useBranding } from '../contexts/BrandingContext';
 import { getAuthFromStorage } from '../lib/auth';
+import { usePlanAccess } from '../hooks/usePlanAccess';
+import { ADMIN_NAV_FEATURES, navItemAllowed } from '../lib/nav-features';
 import {
   LayoutDashboard,
   Users,
@@ -249,6 +251,19 @@ const navItems: NavItem[] = [
 export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProps) {
   const [openSections, setOpenSections] = React.useState<string[]>(['system']);
   const { branding } = useBranding();
+  const { hasAccess } = usePlanAccess();
+
+  // Hide items gated off by the tenant's subscription plan; drop a section
+  // entirely when every child is gated.
+  const visibleNavItems = navItems
+    .map((item) =>
+      item.children
+        ? { ...item, children: item.children.filter((c) => navItemAllowed(ADMIN_NAV_FEATURES, c.id, hasAccess)) }
+        : item
+    )
+    .filter((item) =>
+      item.children ? item.children.length > 0 : navItemAllowed(ADMIN_NAV_FEATURES, item.id, hasAccess)
+    );
 
   const toggleSection = (id: string) => {
     setOpenSections(prev =>
@@ -306,7 +321,7 @@ export function Sidebar({ activePage, onNavigate, isOpen, onClose }: SidebarProp
         {/* Navigation */}
         <ScrollArea className="flex-1">
           <nav className="p-3 space-y-1">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <div key={item.id}>
                 {item.children ? (
                   <Collapsible

@@ -1078,6 +1078,10 @@
       "destination": "/api/tenant/settings.ts"
     },
     {
+      "source": "/api/tenant/plan",
+      "destination": "/api/tenant/plan.ts"
+    },
+    {
       "source": "/api/tenant/students",
       "destination": "/api/tenant/students.ts"
     },

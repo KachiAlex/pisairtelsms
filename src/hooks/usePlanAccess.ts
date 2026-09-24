@@ -1,49 +1,76 @@
 import { useState, useEffect } from 'react';
 import { useTenant } from '../contexts/TenantContext';
 import { PLAN_CONFIG, PlanFeatures, PlanType } from '../lib/plans';
+import { getAuthFromStorage } from '../lib/auth';
 
-let cachedDbConfig: Record<string, PlanFeatures> | null = null;
+let cachedFeatures: PlanFeatures | null = null;
+let cachedPlan: PlanType | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 60000;
+const LS_FEATURES_KEY = 'planFeatures';
+const LS_PLAN_KEY = 'subscriptionPlan';
+
+function readCachedFeatures(): { plan: PlanType | null; features: PlanFeatures | null } {
+  try {
+    const raw = localStorage.getItem(LS_FEATURES_KEY);
+    if (!raw) return { plan: null, features: null };
+    const parsed = JSON.parse(raw);
+    return { plan: parsed.plan || null, features: parsed.features || null };
+  } catch {
+    return { plan: null, features: null };
+  }
+}
 
 /**
  * Hook to check if the current tenant has access to a specific feature
  * based on their subscription plan.
- * Fetches plan config from the API (with caching) so superadmin changes take effect.
+ * Fetches the tenant's resolved feature matrix from /api/tenant/plan
+ * (DB-backed, same source enforcePlan uses) with localStorage persistence
+ * so nav renders correctly on first paint.
+ * On fetch failure the UI fails open (shows nav items) — the API gate
+ * remains the authoritative enforcement point.
  */
 export function usePlanAccess() {
-  const { subscriptionPlan } = useTenant();
-  const currentPlan = (subscriptionPlan || 'starter').toLowerCase() as PlanType;
+  const { subscriptionPlan, setSubscriptionPlan } = useTenant();
+  const stored = readCachedFeatures();
+  const currentPlan = ((cachedPlan || subscriptionPlan || stored.plan || 'starter') as string).toLowerCase() as PlanType;
 
-  const [dbFeatures, setDbFeatures] = useState<PlanFeatures | null>(null);
+  const [dbFeatures, setDbFeatures] = useState<PlanFeatures | null>(
+    cachedFeatures || stored.features
+  );
 
   useEffect(() => {
     const now = Date.now();
-    if (cachedDbConfig && now - cacheTimestamp < CACHE_TTL) {
-      setDbFeatures(cachedDbConfig[currentPlan] || null);
+    if (cachedFeatures && now - cacheTimestamp < CACHE_TTL) {
       return;
     }
 
-    fetch('/api/admin/plans', {
-      headers: { 'Content-Type': 'application/json' },
+    const auth = getAuthFromStorage();
+    if (!auth) {
+      return;
+    }
+
+    fetch('/api/tenant/plan', {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` },
     })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data.success && data.data) {
-          const config: Record<string, PlanFeatures> = {};
-          for (const plan of data.data) {
-            config[plan.planName] = plan.features;
-          }
-          cachedDbConfig = config;
+        if (data?.features) {
+          const plan = (data.plan || 'starter').toLowerCase() as PlanType;
+          cachedFeatures = data.features as PlanFeatures;
+          cachedPlan = plan;
           cacheTimestamp = Date.now();
-          setDbFeatures(config[currentPlan] || null);
+          setDbFeatures(cachedFeatures);
+          try {
+            localStorage.setItem(LS_FEATURES_KEY, JSON.stringify({ plan, features: data.features }));
+          } catch { /* storage full — non-fatal */ }
+          if (plan !== subscriptionPlan) setSubscriptionPlan(plan);
         }
       })
       .catch(() => {
-        // Fallback to static config
-        setDbFeatures(null);
+        // Fail open: keep existing/static features, API gate still enforces.
       });
-  }, [currentPlan]);
+  }, []);
 
   const features = dbFeatures || PLAN_CONFIG[currentPlan] || PLAN_CONFIG.starter;
 
@@ -54,9 +81,8 @@ export function usePlanAccess() {
    */
   const hasAccess = (category: keyof PlanFeatures, feature?: string): boolean => {
     if (!features[category]) return false;
-    
+
     if (!feature) {
-      // If only category is provided, check if any feature in that category is enabled
       return Object.values(features[category]).some(val => val === true);
     }
 

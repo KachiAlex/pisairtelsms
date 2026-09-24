@@ -10,6 +10,8 @@ import fs from 'fs';
 import { readFileSync } from 'fs';
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { matchPlanGate } from './api/_lib/plan-gates.ts';
+import { enforcePlan } from './api/_lib/plan-middleware.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -161,6 +163,17 @@ for (const rewrite of rewrites) {
       if (!handler) {
         return res.status(404).json({ error: `Handler not found: ${filePath}` });
       }
+
+      // Subscription plan gate: authenticated requests to gated routes must
+      // have the feature enabled on the tenant's plan. Unauthenticated
+      // requests pass through — handlers enforce their own auth, and public
+      // endpoints (lead capture, certificate verification) stay public.
+      const gate = matchPlanGate(req.path);
+      if (gate && (req.headers.authorization || req.headers.cookie?.includes('auth_token'))) {
+        const allowed = await enforcePlan(req, res, gate.category, gate.feature);
+        if (!allowed) return;
+      }
+
       await handler(req, res);
     } catch (err) {
       console.error(`[API Error] ${req.method} ${req.path}:`, err);

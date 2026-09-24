@@ -48,6 +48,8 @@ import { StaffConduct } from '../pages/staff/StaffConduct'
 import { LessonNotes } from '../pages/staff/LessonNotes'
 import { NotificationsDropdown } from '../staff/NotificationsDropdown'
 import { SessionTermLabel } from '../SessionTermLabel'
+import { usePlanAccess } from '../../hooks/usePlanAccess'
+import { STAFF_NAV_FEATURES, navItemAllowed } from '../../lib/nav-features'
 
 interface StaffLayoutProps {
   children?: React.ReactNode
@@ -81,6 +83,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   const [isPayrollApprover, setIsPayrollApprover] = useState(false)
   const auth = getAuthFromStorage()
   const { branding } = useBranding()
+  const { hasAccess } = usePlanAccess()
 
   // Probe payroll access once — the API 403s non-approver staff
   useEffect(() => {
@@ -211,7 +214,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
 
         {/* Nav items */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.filter(item => !(item as any).approversOnly || isPayrollApprover).map((item) => {
+          {navItems.filter(item => (!(item as any).approversOnly || isPayrollApprover) && navItemAllowed(STAFF_NAV_FEATURES, item.id, hasAccess)).map((item) => {
             const Icon = item.icon
             const isActive = currentPage === item.id
             return (

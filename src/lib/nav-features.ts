@@ -1,0 +1,149 @@
+import type { PlanFeatures } from './plans';
+
+/**
+ * Maps nav item ids → plan feature keys. Items not listed are ungated
+ * (dashboards, profiles, settings, help — platform core).
+ * Used by Sidebar and portal layouts with usePlanAccess().hasAccess().
+ */
+
+type Gate = [keyof PlanFeatures, string];
+
+export const ADMIN_NAV_FEATURES: Record<string, Gate> = {
+  'students-list': ['studentManagement', 'directory'],
+  'student-enrollment': ['admissions', 'enrollmentWorkflow'],
+  'student-promotion': ['studentManagement', 'promotion'],
+  'student-documents': ['studentManagement', 'documents'],
+  'academic-structure': ['academicStructure', 'overviewDashboard'],
+  'academic-sessions': ['academicStructure', 'setup'],
+  'classes': ['academicStructure', 'setup'],
+  'subjects': ['academicStructure', 'subjects'],
+  'teacher-allocation': ['academicStructure', 'teacherAllocation'],
+  'lesson-notes': ['academicStructure', 'lessonNotes'],
+  'ca-configuration': ['results', 'caConfig'],
+  'grading-policy': ['results', 'gradingScales'],
+  'academic-calendar': ['academicStructure', 'calendar'],
+  'ca-entry': ['results', 'caConfig'],
+  'result-computation': ['results', 'autoComputation'],
+  'result-approval': ['results', 'approvalWorkflow'],
+  'broadsheets': ['results', 'broadsheets'],
+  'transcripts': ['results', 'transcripts'],
+  'result-publishing': ['results', 'publishing'],
+  'student-attendance': ['attendance', 'dailyStudent'],
+  'staff-attendance': ['attendance', 'staffTracking'],
+  'attendance-reports': ['analytics', 'attendance'],
+  'cbt-question-bank': ['exams', 'questionBank'],
+  'cbt-exam-creation': ['exams', 'creation'],
+  'cbt-live-monitoring': ['exams', 'liveMonitoring'],
+  'cbt-results': ['exams', 'autoGrading'],
+  'cbt-security': ['exams', 'security'],
+  'virtual-classrooms': ['digitalLearning', 'virtualClassrooms'],
+  'private-lesson-request': ['digitalLearning', 'privateLessons'],
+  'private-lesson-approvals': ['digitalLearning', 'privateLessons'],
+  'virtual-learning-settings': ['digitalLearning', 'consentManagement'],
+  'timetable-configure': ['scheduling', 'configuration'],
+  'timetable-class': ['scheduling', 'timetables'],
+  'timetable-teacher': ['scheduling', 'timetables'],
+  'timetable-exam': ['exams', 'timetabling'],
+  'fee-structure': ['finance', 'feeStructure'],
+  'fee-collection': ['finance', 'collection'],
+  'outstanding-fees': ['finance', 'collection'],
+  'invoices': ['finance', 'invoice'],
+  'financial-reports': ['analytics', 'financial'],
+  'staff-list': ['hr', 'staffDirectory'],
+  'staff-roles': ['hr', 'rolesDepartments'],
+  'payroll': ['hr', 'payroll'],
+  'leave-management': ['hr', 'leave'],
+  'performance': ['hr', 'performance'],
+  'announcements': ['communication', 'announcements'],
+  'bulk-notifications': ['communication', 'bulkNotifications'],
+  'parent-messaging': ['communication', 'parentTeacherMessaging'],
+  'communication-logs': ['communication', 'logs'],
+  'academic-analytics': ['analytics', 'academic'],
+  'student-progress': ['analytics', 'studentProgress'],
+  'teacher-performance': ['analytics', 'teacherPerformance'],
+  'attendance-analytics': ['analytics', 'attendance'],
+  'financial-analytics': ['analytics', 'financial'],
+  'access-control': ['security', 'rbac'],
+  'session-management': ['security', 'sessionManagement'],
+  'data-encryption': ['security', 'encryption'],
+  'backup-restore': ['admin', 'backupRestore'],
+  'action-center': ['admin', 'commandCenter'],
+  'notifications': ['communication', 'inAppNotifications'],
+  'pending-approvals': ['security', 'approvalCenter'],
+  'system-alerts': ['admin', 'commandCenter'],
+  'task-management': ['security', 'taskManagement'],
+  'branding': ['admin', 'branding'],
+  'report-templates': ['results', 'customTemplates'],
+  'grading-scale': ['results', 'gradingScales'],
+  'payment-gateway': ['finance', 'paymentGateway'],
+  'biometric-devices': ['admin', 'biometricIntegration'],
+  'lms-integration': ['admin', 'lmsIntegration'],
+  'api-management': ['admin', 'apiAccess'],
+  'roles-permissions': ['security', 'customRoles'],
+  'user-accounts': ['security', 'rbac'],
+  'audit-logs': ['security', 'systemAuditLogs'],
+  'import-export': ['admin', 'importExport'],
+  'system-health': ['admin', 'opsMonitoring'],
+  'error-logs': ['admin', 'opsMonitoring'],
+  'help-center': ['support', 'helpCenter'],
+  'support-tickets': ['support', 'ticketSystem'],
+};
+
+export const STAFF_NAV_FEATURES: Record<string, Gate> = {
+  'timetable': ['scheduling', 'timetables'],
+  'virtual-classes': ['digitalLearning', 'virtualClassrooms'],
+  'my-attendance': ['attendance', 'staffTracking'],
+  'attendance': ['attendance', 'dailyStudent'],
+  'leave': ['hr', 'leave'],
+  'tasks': ['security', 'taskManagement'],
+  'assignments': ['assignments', 'management'],
+  'materials': ['digitalLearning', 'materialsRepository'],
+  'lesson-notes': ['academicStructure', 'lessonNotes'],
+  'results': ['results', 'caConfig'],
+  'conduct': ['studentManagement', 'behavioral'],
+  'documents': ['hr', 'documents'],
+  'payslips': ['hr', 'payslips'],
+  'payroll-approvals': ['hr', 'payroll'],
+  'communications': ['communication', 'messaging'],
+};
+
+export const STUDENT_NAV_FEATURES: Record<string, Gate> = {
+  'results': ['results', 'publishing'],
+  'transcript': ['results', 'transcripts'],
+  'attendance': ['attendance', 'dailyStudent'],
+  'assignments': ['assignments', 'management'],
+  'materials': ['digitalLearning', 'materialsRepository'],
+  'live-class': ['digitalLearning', 'virtualClassrooms'],
+  'exams': ['exams', 'creation'],
+  'timetable': ['scheduling', 'timetables'],
+  'fees': ['finance', 'collection'],
+  'communications': ['communication', 'announcements'],
+};
+
+export const PARENT_NAV_FEATURES: Record<string, Gate> = {
+  'academic': ['results', 'publishing'],
+  'transcript': ['results', 'transcripts'],
+  'attendance': ['attendance', 'dailyStudent'],
+  'behavioral': ['studentManagement', 'behavioral'],
+  'communications': ['communication', 'announcements'],
+  'messages': ['communication', 'parentTeacherMessaging'],
+  'fees': ['finance', 'collection'],
+  'assignments': ['assignments', 'management'],
+  'exams': ['exams', 'creation'],
+  'timetable': ['scheduling', 'timetables'],
+  'events': ['academicStructure', 'calendar'],
+  'health': ['studentManagement', 'healthRecords'],
+  'virtual-learning-consents': ['digitalLearning', 'consentManagement'],
+  'private-lessons': ['digitalLearning', 'privateLessons'],
+  'notifications': ['communication', 'inAppNotifications'],
+};
+
+export function navItemAllowed(
+  map: Record<string, Gate>,
+  id: string,
+  hasAccess: (category: keyof PlanFeatures, feature?: string) => boolean
+): boolean {
+  const gate = map[id];
+  if (!gate) return true;
+  return hasAccess(gate[0], gate[1]);
+}

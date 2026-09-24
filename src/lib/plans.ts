@@ -18,6 +18,7 @@ export interface PlanFeatures {
     documents: boolean;
     healthRecords: boolean;
     promotion: boolean;
+    behavioral: boolean;
   };
   academicStructure: {
     setup: boolean;
@@ -25,6 +26,11 @@ export interface PlanFeatures {
     teacherAllocation: boolean;
     calendar: boolean;
     overviewDashboard: boolean;
+    lessonNotes: boolean;
+    schemeOfWork: boolean;
+  };
+  assignments: {
+    management: boolean;
   };
   attendance: {
     dailyStudent: boolean;
@@ -99,6 +105,8 @@ export interface PlanFeatures {
     parentTeacherMessaging: boolean;
     emailIntegration: boolean;
     logs: boolean;
+    inAppNotifications: boolean;
+    messaging: boolean;
   };
   analytics: {
     academic: boolean;
@@ -125,6 +133,9 @@ export interface PlanFeatures {
     lmsIntegration: boolean;
     apiAccess: boolean;
     multiSchool: boolean;
+    commandCenter: boolean;
+    opsMonitoring: boolean;
+    backupRestore: boolean;
   };
   support: {
     helpCenter: boolean;
@@ -142,8 +153,9 @@ export const PLAN_RATES: Record<PlanType, number> = {
 export const PLAN_CONFIG: Record<PlanType, PlanFeatures> = {
   starter: {
     admissions: { publicPortal: false, inquiryManagement: false, enrollmentWorkflow: true, bulkImport: false },
-    studentManagement: { registration: true, directory: true, documents: false, healthRecords: false, promotion: false },
-    academicStructure: { setup: true, subjects: true, teacherAllocation: false, calendar: false, overviewDashboard: false },
+    studentManagement: { registration: true, directory: true, documents: false, healthRecords: false, promotion: false, behavioral: false },
+    academicStructure: { setup: true, subjects: true, teacherAllocation: false, calendar: false, overviewDashboard: false, lessonNotes: true, schemeOfWork: false },
+    assignments: { management: true },
     attendance: { dailyStudent: true, qrCode: false, batchUpload: false, staffTracking: false, absenceReason: false, auditTrail: false, biometric: false },
     results: { caConfig: true, autoComputation: true, approvalWorkflow: false, broadsheets: true, transcripts: false, publishing: true, gradingScales: false, customTemplates: false },
     exams: { timetabling: true, questionBank: true, creation: true, autoGrading: true, liveMonitoring: false, security: false, itemAnalysis: false, offlineSync: false, verification: false },
@@ -151,16 +163,17 @@ export const PLAN_CONFIG: Record<PlanType, PlanFeatures> = {
     digitalLearning: { virtualClassrooms: false, materialsRepository: false, discussions: false, privateLessons: false, consentManagement: false },
     finance: { feeStructure: true, collection: true, invoice: true, receipt: true, reminders: false, paymentPlans: false, bulkUpload: false, exemptions: false, ledger: false, reversals: false, paymentGateway: false, reconciliation: false, auditLog: false },
     hr: { staffDirectory: true, rolesDepartments: false, documents: false, payroll: false, payslips: false, leave: false, performance: false },
-    communication: { announcements: true, smsNotification: false, bulkNotifications: false, parentTeacherMessaging: false, emailIntegration: false, logs: false },
+    communication: { announcements: true, smsNotification: false, bulkNotifications: false, parentTeacherMessaging: false, emailIntegration: false, logs: false, inAppNotifications: true, messaging: false },
     analytics: { academic: false, attendance: false, financial: false, studentProgress: false, teacherPerformance: false, predictiveRisk: false },
     security: { rbac: true, encryption: true, sessionManagement: false, approvalCenter: false, taskManagement: false, customRoles: false, systemAuditLogs: false, privacyIncident: false },
-    admin: { branding: true, importExport: false, biometricIntegration: false, lmsIntegration: false, apiAccess: false, multiSchool: false },
+    admin: { branding: true, importExport: false, biometricIntegration: false, lmsIntegration: false, apiAccess: false, multiSchool: false, commandCenter: false, opsMonitoring: false, backupRestore: false },
     support: { helpCenter: true, ticketSystem: false, prioritySupport: false },
   },
   standard: {
     admissions: { publicPortal: true, inquiryManagement: true, enrollmentWorkflow: true, bulkImport: true },
-    studentManagement: { registration: true, directory: true, documents: true, healthRecords: true, promotion: true },
-    academicStructure: { setup: true, subjects: true, teacherAllocation: true, calendar: true, overviewDashboard: false },
+    studentManagement: { registration: true, directory: true, documents: true, healthRecords: true, promotion: true, behavioral: true },
+    academicStructure: { setup: true, subjects: true, teacherAllocation: true, calendar: true, overviewDashboard: false, lessonNotes: true, schemeOfWork: true },
+    assignments: { management: true },
     attendance: { dailyStudent: true, qrCode: true, batchUpload: true, staffTracking: true, absenceReason: true, auditTrail: false, biometric: false },
     results: { caConfig: true, autoComputation: true, approvalWorkflow: true, broadsheets: true, transcripts: true, publishing: true, gradingScales: true, customTemplates: false },
     exams: { timetabling: true, questionBank: true, creation: true, autoGrading: true, liveMonitoring: true, security: true, itemAnalysis: false, offlineSync: false, verification: false },
@@ -168,16 +181,17 @@ export const PLAN_CONFIG: Record<PlanType, PlanFeatures> = {
     digitalLearning: { virtualClassrooms: false, materialsRepository: false, discussions: false, privateLessons: false, consentManagement: false },
     finance: { feeStructure: true, collection: true, invoice: true, receipt: true, reminders: true, paymentPlans: true, bulkUpload: true, exemptions: true, ledger: true, reversals: true, paymentGateway: false, reconciliation: false, auditLog: false },
     hr: { staffDirectory: true, rolesDepartments: true, documents: true, payroll: false, payslips: false, leave: false, performance: false },
-    communication: { announcements: true, smsNotification: true, bulkNotifications: true, parentTeacherMessaging: true, emailIntegration: true, logs: false },
+    communication: { announcements: true, smsNotification: true, bulkNotifications: true, parentTeacherMessaging: true, emailIntegration: true, logs: false, inAppNotifications: true, messaging: true },
     analytics: { academic: true, attendance: true, financial: true, studentProgress: true, teacherPerformance: false, predictiveRisk: false },
     security: { rbac: true, encryption: true, sessionManagement: true, approvalCenter: true, taskManagement: false, customRoles: false, systemAuditLogs: false, privacyIncident: false },
-    admin: { branding: true, importExport: true, biometricIntegration: false, lmsIntegration: false, apiAccess: false, multiSchool: false },
+    admin: { branding: true, importExport: true, biometricIntegration: false, lmsIntegration: false, apiAccess: false, multiSchool: false, commandCenter: false, opsMonitoring: false, backupRestore: true },
     support: { helpCenter: true, ticketSystem: true, prioritySupport: false },
   },
   premium: {
     admissions: { publicPortal: true, inquiryManagement: true, enrollmentWorkflow: true, bulkImport: true },
-    studentManagement: { registration: true, directory: true, documents: true, healthRecords: true, promotion: true },
-    academicStructure: { setup: true, subjects: true, teacherAllocation: true, calendar: true, overviewDashboard: true },
+    studentManagement: { registration: true, directory: true, documents: true, healthRecords: true, promotion: true, behavioral: true },
+    academicStructure: { setup: true, subjects: true, teacherAllocation: true, calendar: true, overviewDashboard: true, lessonNotes: true, schemeOfWork: true },
+    assignments: { management: true },
     attendance: { dailyStudent: true, qrCode: true, batchUpload: true, staffTracking: true, absenceReason: true, auditTrail: true, biometric: true },
     results: { caConfig: true, autoComputation: true, approvalWorkflow: true, broadsheets: true, transcripts: true, publishing: true, gradingScales: true, customTemplates: true },
     exams: { timetabling: true, questionBank: true, creation: true, autoGrading: true, liveMonitoring: true, security: true, itemAnalysis: true, offlineSync: true, verification: true },
@@ -185,10 +199,10 @@ export const PLAN_CONFIG: Record<PlanType, PlanFeatures> = {
     digitalLearning: { virtualClassrooms: true, materialsRepository: true, discussions: true, privateLessons: true, consentManagement: true },
     finance: { feeStructure: true, collection: true, invoice: true, receipt: true, reminders: true, paymentPlans: true, bulkUpload: true, exemptions: true, ledger: true, reversals: true, paymentGateway: true, reconciliation: true, auditLog: true },
     hr: { staffDirectory: true, rolesDepartments: true, documents: true, payroll: true, payslips: true, leave: true, performance: true },
-    communication: { announcements: true, smsNotification: true, bulkNotifications: true, parentTeacherMessaging: true, emailIntegration: true, logs: true },
+    communication: { announcements: true, smsNotification: true, bulkNotifications: true, parentTeacherMessaging: true, emailIntegration: true, logs: true, inAppNotifications: true, messaging: true },
     analytics: { academic: true, attendance: true, financial: true, studentProgress: true, teacherPerformance: true, predictiveRisk: true },
     security: { rbac: true, encryption: true, sessionManagement: true, approvalCenter: true, taskManagement: true, customRoles: true, systemAuditLogs: true, privacyIncident: true },
-    admin: { branding: true, importExport: true, biometricIntegration: true, lmsIntegration: true, apiAccess: true, multiSchool: true },
+    admin: { branding: true, importExport: true, biometricIntegration: true, lmsIntegration: true, apiAccess: true, multiSchool: true, commandCenter: true, opsMonitoring: true, backupRestore: true },
     support: { helpCenter: true, ticketSystem: true, prioritySupport: true },
   },
 };

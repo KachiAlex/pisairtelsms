@@ -16,8 +16,12 @@ export interface PlanGate {
   feature: string
 }
 
-/** [pathPrefix, category, feature] — longest matching prefix wins. */
-const GATES: Array<[string, keyof PlanFeatures, string]> = [
+/**
+ * [pathPrefix, category, feature, methods?] — longest matching prefix wins.
+ * When `methods` is present the rule only applies to those HTTP methods;
+ * used where an endpoint mixes plan tiers (e.g. inbox reads vs compose).
+ */
+const GATES: Array<[string, keyof PlanFeatures, string, string[]?]> = [
   // ---------- Tenant admin API ----------
   ['/api/tenant/academics/calendar', 'academicStructure', 'calendar'],
   ['/api/tenant/academics/overview', 'academicStructure', 'overviewDashboard'],
@@ -137,7 +141,10 @@ const GATES: Array<[string, keyof PlanFeatures, string]> = [
   ['/api/staff/tasks', 'security', 'taskManagement'],
   ['/api/staff/materials', 'digitalLearning', 'materialsRepository'],
   ['/api/staff/virtual-classes', 'digitalLearning', 'virtualClassrooms'],
-  ['/api/staff/messages', 'communication', 'messaging'],
+  // Inbox reads belong to in-app notifications (broadcasts land here);
+  // staff POST is genuine compose, so it stays under messaging.
+  ['/api/staff/messages', 'communication', 'inAppNotifications', ['GET', 'PUT']],
+  ['/api/staff/messages', 'communication', 'messaging', ['POST']],
   ['/api/staff/timetable', 'scheduling', 'timetables'],
   ['/api/staff/announcements', 'communication', 'announcements'],
   ['/api/staff/documents', 'hr', 'documents'],
@@ -149,7 +156,9 @@ const GATES: Array<[string, keyof PlanFeatures, string]> = [
   ['/api/student/lesson-notes', 'academicStructure', 'lessonNotes'],
   ['/api/student/materials', 'digitalLearning', 'materialsRepository'],
   ['/api/student/live-meetings', 'digitalLearning', 'virtualClassrooms'],
-  ['/api/student/messages', 'communication', 'messaging'],
+  // Students can only read/mark-read/reply to received broadcasts — no
+  // compose exists — so the whole endpoint is the notification loop.
+  ['/api/student/messages', 'communication', 'inAppNotifications'],
   ['/api/student/results', 'results', 'publishing'],
   ['/api/student/transcript', 'results', 'transcripts'],
   ['/api/student/timetable', 'scheduling', 'timetables'],
@@ -174,12 +183,26 @@ const GATES: Array<[string, keyof PlanFeatures, string]> = [
 ]
 
 /**
- * Returns the plan gate for a request path, or null if ungated.
- * Longest matching prefix wins so specific rules beat general ones.
+ * Exact-shape overrides evaluated before prefix rules — for paths where the
+ * feature tier depends on the operation, not just the resource prefix.
+ * Mark-read endpoints are inbox operations, not compose.
  */
-export function matchPlanGate(path: string): PlanGate | null {
+const GATE_OVERRIDES: Array<[RegExp, keyof PlanFeatures, string]> = [
+  [/^\/api\/staff\/messages\/[^/]+\/read$/, 'communication', 'inAppNotifications'],
+]
+
+/**
+ * Returns the plan gate for a request, or null if ungated.
+ * Longest matching prefix wins so specific rules beat general ones.
+ * Rules carrying a method list only apply to those methods.
+ */
+export function matchPlanGate(path: string, method = 'GET'): PlanGate | null {
+  for (const [pattern, category, feature] of GATE_OVERRIDES) {
+    if (pattern.test(path)) return { category, feature }
+  }
   let best: { len: number; gate: PlanGate } | null = null
-  for (const [prefix, category, feature] of GATES) {
+  for (const [prefix, category, feature, methods] of GATES) {
+    if (methods && !methods.includes(method)) continue
     if (path === prefix || path.startsWith(prefix + '/')) {
       if (!best || prefix.length > best.len) {
         best = { len: prefix.length, gate: { category, feature } }

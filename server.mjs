@@ -168,7 +168,7 @@ for (const rewrite of rewrites) {
       // have the feature enabled on the tenant's plan. Unauthenticated
       // requests pass through — handlers enforce their own auth, and public
       // endpoints (lead capture, certificate verification) stay public.
-      const gate = matchPlanGate(req.path);
+      const gate = matchPlanGate(req.path, req.method);
       if (gate && (req.headers.authorization || req.headers.cookie?.includes('auth_token'))) {
         const allowed = await enforcePlan(req, res, gate.category, gate.feature);
         if (!allowed) return;

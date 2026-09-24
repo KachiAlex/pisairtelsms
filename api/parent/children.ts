@@ -24,7 +24,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse) {
     const result = await sql`
       SELECT s.id, s.name, s.admission_no, s.class, s.arm
       FROM parent_students ps
-      JOIN students s ON s.id = ps.student_id AND s.deleted_at IS NULL
+      JOIN students s ON s.id::text = ps.student_id AND s.deleted_at IS NULL
       WHERE ps.parent_id = ${parentId}
       ORDER BY s.name
     `

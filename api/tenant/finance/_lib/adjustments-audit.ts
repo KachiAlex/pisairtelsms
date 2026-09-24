@@ -97,12 +97,14 @@ export async function createFeeAdjustment(
 
   const result = await sql<FeeAdjustmentRow>`
     INSERT INTO fee_adjustments
-      (id, fee_assignment_id, adjustment_type, amount, reason, approved_by, approval_date, created_by)
-    VALUES
-      (${id}, ${feeAssignmentId}, ${adjustmentType}, ${amount}, ${reason}, ${approvedBy}, NOW(), ${createdBy})
+      (id, tenant_id, fee_assignment_id, adjustment_type, amount, reason, approved_by, approval_date, created_by)
+    SELECT
+      ${id}, s.tenant_id, ${feeAssignmentId}, ${adjustmentType}, ${amount}, ${reason}, ${approvedBy}, NOW(), ${createdBy}
+    FROM fee_assignments s WHERE s.id = ${feeAssignmentId}
     RETURNING *
   `
 
+  if (!result.rows[0]) throw new Error(`Fee assignment not found: ${feeAssignmentId}`)
   return rowToFeeAdjustment(result.rows[0])
 }
 

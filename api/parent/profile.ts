@@ -24,17 +24,17 @@ async function handleGet(req: ApiRequest, res: ApiResponse) {
     if (!decoded) return
     const parentId = decoded.parentId!
 
-    const parentResult = await sql`SELECT id, name, email, phone, address FROM parents WHERE id = ${parentId} LIMIT 1`
+    const parentResult = await sql`SELECT id, name, email, phone FROM parents WHERE id = ${parentId} LIMIT 1`
     if (!parentResult.rows[0]) return res.status(404).json({ error: 'Parent not found' })
     const p = parentResult.rows[0]
 
     const childrenResult = await sql`
       SELECT s.id, s.name, s.admission_no, s.class FROM parent_students ps
-      JOIN students s ON s.id = ps.student_id AND s.deleted_at IS NULL
+      JOIN students s ON s.id::text = ps.student_id AND s.deleted_at IS NULL
       WHERE ps.parent_id = ${parentId} ORDER BY s.name
     `
     return res.status(200).json({
-      id: p.id, name: p.name, email: p.email, phone: p.phone ?? '', address: p.address ?? '',
+      id: p.id, name: p.name, email: p.email, phone: p.phone ?? '', address: '',
       linkedChildren: childrenResult.rows.map(r => ({ id: r.id, name: r.name, admissionNumber: r.admission_no, class: r.class })),
     })
   } catch (error) {
@@ -52,7 +52,7 @@ async function handlePut(req: ApiRequest, res: ApiResponse) {
     // CSRF protection for state-changing request
     if (requireCSRF(req, res, parentId)) return
 
-    const { email, phone, address } = req.body
+    const { email, phone } = req.body
 
     // Validate email format
     if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
@@ -63,19 +63,18 @@ async function handlePut(req: ApiRequest, res: ApiResponse) {
       UPDATE parents SET
         email   = COALESCE(${email   ?? null}, email),
         phone   = COALESCE(${phone   ?? null}, phone),
-        address = COALESCE(${address ?? null}, address),
         updated_at = NOW()
       WHERE id = ${parentId}
     `
-    const updated = await sql`SELECT id, name, email, phone, address FROM parents WHERE id = ${parentId} LIMIT 1`
+    const updated = await sql`SELECT id, name, email, phone FROM parents WHERE id = ${parentId} LIMIT 1`
     const u = updated.rows[0]
     const childrenResult = await sql`
       SELECT s.id, s.name, s.admission_no, s.class FROM parent_students ps
-      JOIN students s ON s.id = ps.student_id AND s.deleted_at IS NULL
+      JOIN students s ON s.id::text = ps.student_id AND s.deleted_at IS NULL
       WHERE ps.parent_id = ${parentId} ORDER BY s.name
     `
     return res.status(200).json({
-      id: u.id, name: u.name, email: u.email, phone: u.phone ?? '', address: u.address ?? '',
+      id: u.id, name: u.name, email: u.email, phone: u.phone ?? '', address: '',
       linkedChildren: childrenResult.rows.map(r => ({ id: r.id, name: r.name, admissionNumber: r.admission_no, class: r.class })),
     })
   } catch (error) {

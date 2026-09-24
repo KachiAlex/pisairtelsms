@@ -43,7 +43,7 @@ const TENANT_FIELDS = `
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET: list tenants or single tenant by id
   if (req.method === 'GET') {
-    const decoded = await requireRole(req, res, ['super_admin', 'tenant_admin'])
+    const decoded = await requireRole(req, res, ['super_admin'])
     if (!decoded) return
 
     try {

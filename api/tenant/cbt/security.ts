@@ -73,6 +73,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const studentId = decoded.role === 'student'
       ? decoded.studentId || decoded.userId
       : body.studentId || decoded.userId
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (examId && !UUID_RE.test(String(examId))) {
+      return res.status(400).json({ success: false, error: 'examId must be a valid exam id' })
+    }
     if (!examId || !eventType || !studentId) {
       return res.status(400).json({
         success: false,

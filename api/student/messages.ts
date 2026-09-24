@@ -75,8 +75,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'PUT' || (req.method === 'POST' && req.query.action === 'read')) {
     try {
       const { id } = req.query;
-      if (!id || typeof id !== 'string') {
-        return res.status(400).json({ error: 'Message ID is required' });
+      if (!id || typeof id !== 'string' || !/^\d+$/.test(id)) {
+        return res.status(400).json({ error: 'Valid message ID is required' });
       }
 
       await sql`UPDATE student_messages SET is_read = true WHERE id = ${id} AND student_id = ${studentId} AND tenant_id = ${tenantId}`;

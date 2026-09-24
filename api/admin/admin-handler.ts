@@ -10,7 +10,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }
 
-  const decoded = await requireRole(req, res, ['super_admin', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['super_admin'])
   if (!decoded) return
 
   const action = req.query['action'] as string

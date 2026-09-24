@@ -90,6 +90,28 @@ export const emailTemplates = {
     return { html: baseTemplate(content, 'Staff Account Credentials'), subject: 'Your Pisairtel SMS Staff Account' }
   },
 
+  studentCredentials: (data: TemplateData) => {
+    const content = `
+      <h2 style="margin:0 0 16px;color:#1f2937;">Student Portal Login Details</h2>
+      <p style="color:#4b5563;line-height:1.6;">Dear <strong>${data.guardianName || 'Parent/Guardian'}</strong>,</p>
+      <p style="color:#4b5563;line-height:1.6;">
+        A student portal account has been created for <strong>${data.studentName || 'your ward'}</strong>.
+        They can log in with the details below:
+      </p>
+      <table style="width:100%;margin:20px 0;background:#f3f4f6;border-radius:6px;padding:16px;">
+        <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Login URL:</td><td style="color:#1f2937;font-weight:500;"><a href="${data.loginUrl || 'https://pisairtelsms.com'}" style="color:#1e40af;">${data.loginUrl || 'https://pisairtelsms.com'}</a></td></tr>
+        <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Admission No:</td><td style="color:#1f2937;font-weight:500;font-family:monospace;">${data.admissionNo || ''}</td></tr>
+        <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Password:</td><td style="color:#1f2937;font-weight:500;font-family:monospace;">${data.password || ''}</td></tr>
+      </table>
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:12px 16px;margin:16px 0;">
+        <p style="margin:0;color:#92400e;font-size:13px;">
+          <strong>Important:</strong> The student should change this password after their first login.
+        </p>
+      </div>
+      <p style="color:#4b5563;line-height:1.6;">If you did not expect this email, please contact the school.</p>`
+    return { html: baseTemplate(content, 'Student Portal Login Details'), subject: `Student Portal Login: ${data.studentName || 'Your Ward'}` }
+  },
+
   attendanceAlert: (data: TemplateData) => {
     const content = `
       <h2 style="margin:0 0 16px;color:#dc2626;">Attendance Alert</h2>

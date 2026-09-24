@@ -397,7 +397,18 @@ export function StudentEnrollment() {
                               phone: '',
                               guardianEmail: d.email !== '—' ? d.email : undefined,
                             }))
-                            await createStudents(payloads)
+                            const created = await createStudents(payloads)
+                            // Portal credentials are returned once — download them immediately.
+                            const withCreds = created.filter((s: any) => s.tempPassword)
+                            if (withCreds.length > 0) {
+                              const csv = ['Name,Admission No,Password', ...withCreds.map((s: any) => `"${s.name}","${s.admissionNo}","${s.tempPassword}"`)].join('\n')
+                              const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = 'student-credentials.csv'
+                              a.click()
+                              URL.revokeObjectURL(url)
+                            }
                             setBatchUploadOpen(false)
                             setUploadStep('upload')
                             setParsedData([])
@@ -432,6 +443,7 @@ export function StudentEnrollment() {
         tips={[
           'Share your school\'s public links below — inquiries arrive here automatically, already scoped to your school.',
           'Move each inquiry through assessment and approval; approved applicants enroll into Students with a generated admission number.',
+          'Each enrolled student gets a temporary portal password — shown once after creation and emailed to the guardian when an email is on record.',
           'The link slug is set under System Settings → Tenant Settings → School Link.',
         ]}
       />

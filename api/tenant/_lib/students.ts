@@ -7,6 +7,7 @@ import { queryAll, queryOne, query, transaction } from '../cbt/_lib/db.js';
 import { fetchTenantSettings } from './tenant-settings.js';
 import { createOrLinkParent } from './parents.js';
 import { normalizeClassName } from './class-names.js';
+import { hashPasswordSecurely } from '../../_lib/password-hashing.js';
 
 // Internal API-layer Student type (camelCase, for API responses only)
 interface StudentDTO {
@@ -20,6 +21,8 @@ interface StudentDTO {
   guardian: string;
   phone: string;
   guardianEmail?: string;
+  /** One-time temporary password — only present on create responses. */
+  tempPassword?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -222,9 +225,15 @@ export async function createStudent(tenantId: string, studentData: StudentPayloa
  * caller can inspect the error code (e.g. 23505 for unique violation).
  */
 async function insertStudent(tenantId: string, admissionNo: string, studentData: StudentPayload): Promise<StudentDTO> {
+  // Generate a temporary portal password the same way staff accounts do —
+  // firstname@NNNN — so the student can log in immediately. Returned once in
+  // the create response and emailed to the guardian when one is on record.
+  const tempPassword = `${(studentData.name || 'student').split(' ')[0].toLowerCase().replace(/[^a-z]/g, '') || 'student'}@${Date.now().toString().slice(-4)}`;
+  const passwordHash = await hashPasswordSecurely(tempPassword);
+
   const row = await queryOne<any>(
-    `INSERT INTO students (tenant_id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO students (tenant_id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email, password_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING id, admission_no, name, class, arm, gender, status, guardian, phone, guardian_email, created_at, updated_at`,
     [
       tenantId,
@@ -237,6 +246,7 @@ async function insertStudent(tenantId: string, admissionNo: string, studentData:
       studentData.guardian,
       studentData.phone,
       studentData.guardianEmail ?? null,
+      passwordHash,
     ]
   );
 
@@ -245,6 +255,25 @@ async function insertStudent(tenantId: string, admissionNo: string, studentData:
   }
 
   const dto = rowToDTO(row);
+  dto.tempPassword = tempPassword;
+
+  // Email the credentials to the guardian — students have no own mailbox.
+  if (studentData.guardianEmail) {
+    try {
+      const { sendEmail } = await import('../../_lib/email.js');
+      const { emailTemplates } = await import('../../_lib/email-templates.js');
+      const { html, subject } = emailTemplates.studentCredentials({
+        studentName: studentData.name,
+        guardianName: studentData.guardian,
+        admissionNo,
+        password: tempPassword,
+        loginUrl: process.env.APP_URL || 'https://pisairtelsms.com',
+      });
+      await sendEmail({ to: studentData.guardianEmail, subject, html });
+    } catch (emailErr) {
+      console.error('Student credentials email failed:', emailErr);
+    }
+  }
 
   if (studentData.guardianEmail) {
     try {
@@ -261,6 +290,49 @@ async function insertStudent(tenantId: string, admissionNo: string, studentData:
   }
 
   return dto;
+}
+
+/**
+ * Issue a fresh temporary portal password for an existing student.
+ * Returns the credentials once — never stored or retrievable later.
+ */
+export async function resetStudentPassword(
+  id: string,
+  tenantId: string
+): Promise<{ admissionNo: string; tempPassword: string; name: string; guardianEmail?: string } | null> {
+  const student = await queryOne<any>(
+    `SELECT admission_no, name, guardian, guardian_email FROM students WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
+  );
+  if (!student) return null;
+
+  const tempPassword = `${(student.name || 'student').split(' ')[0].toLowerCase().replace(/[^a-z]/g, '') || 'student'}@${Date.now().toString().slice(-4)}`;
+  const passwordHash = await hashPasswordSecurely(tempPassword);
+  await query(`UPDATE students SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`, [passwordHash, id, tenantId]);
+
+  if (student.guardian_email) {
+    try {
+      const { sendEmail } = await import('../../_lib/email.js');
+      const { emailTemplates } = await import('../../_lib/email-templates.js');
+      const { html, subject } = emailTemplates.studentCredentials({
+        studentName: student.name,
+        guardianName: student.guardian,
+        admissionNo: student.admission_no,
+        password: tempPassword,
+        loginUrl: process.env.APP_URL || 'https://pisairtelsms.com',
+      });
+      await sendEmail({ to: student.guardian_email, subject, html });
+    } catch (emailErr) {
+      console.error('Student credentials email failed:', emailErr);
+    }
+  }
+
+  return {
+    admissionNo: student.admission_no,
+    tempPassword,
+    name: student.name,
+    guardianEmail: student.guardian_email ?? undefined,
+  };
 }
 
 /**

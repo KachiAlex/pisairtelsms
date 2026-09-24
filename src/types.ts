@@ -9,6 +9,8 @@ export interface Student {
   guardian: string;
   phone: string;
   guardianEmail?: string;
+  /** One-time temporary portal password — only present on create responses. */
+  tempPassword?: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -52,6 +52,8 @@ export default function StudentsList() {
   const [statusFilter, setStatusFilter] = useState<'all' | Student['status']>('all')
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [createdCredentials, setCreatedCredentials] = useState<{ admissionNo: string; tempPassword: string; name: string; guardianEmail?: string }[]>([])
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   // Add Student form state
@@ -117,6 +119,16 @@ export default function StudentsList() {
       // Add to local state
       setStudents(prev => [...prev, createdStudent])
 
+      // Surface the one-time portal credentials to the admin
+      if (createdStudent.tempPassword) {
+        setCreatedCredentials([{
+          admissionNo: createdStudent.admissionNo,
+          tempPassword: createdStudent.tempPassword,
+          name: createdStudent.name,
+          guardianEmail: createdStudent.guardianEmail,
+        }])
+      }
+
       // Reset form and close dialog
       setNewStudent({
         firstName: '',
@@ -140,6 +152,10 @@ export default function StudentsList() {
     try {
       const createdStudents = await createStudents(importedStudents)
       setStudents(prev => [...prev, ...createdStudents])
+      const creds = createdStudents
+        .filter(s => s.tempPassword)
+        .map(s => ({ admissionNo: s.admissionNo, tempPassword: s.tempPassword!, name: s.name, guardianEmail: s.guardianEmail }))
+      if (creds.length > 0) setCreatedCredentials(creds)
     } catch (err) {
       console.error('Error importing students:', err)
       setError('Failed to import students. Please try again.')
@@ -547,6 +563,39 @@ export default function StudentsList() {
                   </div>
                 )}
               </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={resettingPassword === selectedStudent.id}
+                  onClick={async () => {
+                    setResettingPassword(selectedStudent.id)
+                    try {
+                      const { tenantApiPut } = await import('../../lib/tenantApi')
+                      const res = await tenantApiPut(
+                        `/api/tenant/students?id=${encodeURIComponent(selectedStudent.id)}&action=reset-password`,
+                        {}
+                      )
+                      if (!res.ok) throw new Error('Reset failed')
+                      const { data } = await res.json()
+                      if (data?.tempPassword) {
+                        setCreatedCredentials([{
+                          admissionNo: data.admissionNo,
+                          tempPassword: data.tempPassword,
+                          name: data.name,
+                          guardianEmail: data.guardianEmail,
+                        }])
+                      }
+                    } catch {
+                      setError('Failed to reset portal password.')
+                    } finally {
+                      setResettingPassword(null)
+                    }
+                  }}
+                >
+                  {resettingPassword === selectedStudent.id ? 'Resetting…' : 'Reset portal password'}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
@@ -823,6 +872,55 @@ export default function StudentsList() {
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Portal credentials — shown once right after creation */}
+      <Dialog open={createdCredentials.length > 0} onOpenChange={(open) => { if (!open) setCreatedCredentials([]) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Student Portal Credentials</DialogTitle>
+            <DialogDescription>
+              Login details for the student portal. These passwords are shown only once —
+              {createdCredentials.some(c => c.guardianEmail)
+                ? ' they have also been emailed to the guardian address on record.'
+                : ' copy them now to share with the student.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-72 overflow-y-auto">
+            {createdCredentials.map((c) => (
+              <div key={c.admissionNo} className="border rounded-md p-3 bg-gray-50">
+                <p className="text-sm font-medium text-gray-900">{c.name}</p>
+                <div className="mt-1 grid grid-cols-2 gap-1 text-sm">
+                  <span className="text-gray-500">Admission No:</span>
+                  <span className="font-mono">{c.admissionNo}</span>
+                  <span className="text-gray-500">Password:</span>
+                  <span className="font-mono">{c.tempPassword}</span>
+                </div>
+                {c.guardianEmail && (
+                  <p className="text-xs text-green-700 mt-1">Emailed to {c.guardianEmail}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                const csv = ['Name,Admission No,Password', ...createdCredentials.map(c => `"${c.name}","${c.admissionNo}","${c.tempPassword}"`)].join('\n')
+                const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'student-credentials.csv'
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+            >
+              Download CSV
+            </Button>
+            <Button className="flex-1" onClick={() => setCreatedCredentials([])}>Done</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -90,6 +90,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           status: s.status,
           guardian: s.guardian,
           phone: s.phone,
+          guardianEmail: s.guardianEmail,
         }))
 
         const created = await createStudents(tenantId, studentPayloads)
@@ -116,6 +117,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         status: studentData.status,
         guardian: studentData.guardian,
         phone: studentData.phone,
+        guardianEmail: studentData.guardianEmail,
       }
       const created = await createStudent(tenantId, payload)
       await auditAcademicChange(tenantId, 'student', created.id, 'insert', decoded.userId || decoded.staffId || 'unknown', decoded.email || 'system', null, payload)
@@ -127,9 +129,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   if (method === 'PUT') {
-    const { id } = req.query
+    const { id, action } = req.query
     if (!id || typeof id !== 'string') {
       return res.status(400).json({ error: 'Student ID is required as query param' })
+    }
+
+    // PUT /api/tenant/students?id=X&action=reset-password — issue a fresh
+    // temporary portal password; returned once and emailed to the guardian.
+    if (action === 'reset-password') {
+      try {
+        const { resetStudentPassword } = await import('./_lib/students.js')
+        const result = await resetStudentPassword(id, tenantId)
+        if (!result) return res.status(404).json({ error: 'Student not found' })
+        await auditAcademicChange(tenantId, 'student', id, 'update', decoded.userId || decoded.staffId || 'unknown', decoded.email || 'system', null, { action: 'reset-password' })
+        return res.status(200).json({ data: result })
+      } catch (error) {
+        console.error('Error resetting student password:', error)
+        return res.status(500).json({ error: 'Failed to reset password' })
+      }
     }
 
     const body = parseBody(req)

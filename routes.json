@@ -1086,6 +1086,10 @@
       "destination": "/api/tenant/students.ts"
     },
     {
+      "source": "/api/tenant/parents",
+      "destination": "/api/tenant/parents.ts"
+    },
+    {
       "source": "/api/parent/profile",
       "destination": "/api/parent/profile.ts"
     },

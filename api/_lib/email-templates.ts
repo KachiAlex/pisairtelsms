@@ -112,6 +112,28 @@ export const emailTemplates = {
     return { html: baseTemplate(content, 'Student Portal Login Details'), subject: `Student Portal Login: ${data.studentName || 'Your Ward'}` }
   },
 
+  parentCredentials: (data: TemplateData) => {
+    const content = `
+      <h2 style="margin:0 0 16px;color:#1f2937;">Your Parent Portal Access</h2>
+      <p style="color:#4b5563;line-height:1.6;">Dear <strong>${data.name || 'Parent/Guardian'}</strong>,</p>
+      <p style="color:#4b5563;line-height:1.6;">
+        A parent portal account has been created for you${data.studentName ? ` following the enrollment of <strong>${data.studentName}</strong>` : ''}.
+        You can monitor attendance, results, fees and school communication there.
+      </p>
+      <table style="width:100%;margin:20px 0;background:#f3f4f6;border-radius:6px;padding:16px;">
+        <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Portal URL:</td><td style="color:#1f2937;font-weight:500;"><a href="${data.loginUrl || 'https://pisairtelsms.com'}" style="color:#1e40af;">${data.loginUrl || 'https://pisairtelsms.com'}</a></td></tr>
+        <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Email:</td><td style="color:#1f2937;font-weight:500;">${data.email || ''}</td></tr>
+        <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Password:</td><td style="color:#1f2937;font-weight:500;font-family:monospace;">${data.password || ''}</td></tr>
+      </table>
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:12px 16px;margin:16px 0;">
+        <p style="margin:0;color:#92400e;font-size:13px;">
+          <strong>Important:</strong> Please change your password after your first login.
+        </p>
+      </div>
+      <p style="color:#4b5563;line-height:1.6;">If you did not expect this email, please contact the school.</p>`
+    return { html: baseTemplate(content, 'Parent Portal Access'), subject: 'Your Parent Portal Login Details' }
+  },
+
   attendanceAlert: (data: TemplateData) => {
     const content = `
       <h2 style="margin:0 0 16px;color:#dc2626;">Attendance Alert</h2>

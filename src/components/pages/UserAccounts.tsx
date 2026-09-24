@@ -19,9 +19,9 @@ interface UserAccount {
   last_active: string | null
   invited_at: string | null
   created_at: string
-  /** 'user' rows are tenant_users accounts; 'staff'/'student' are people records.
+  /** 'user'/'admin' rows are tenant_users accounts; 'staff'/'student'/'parent' are people records.
    *  A staff row carries account_id/account_status when a mirrored login account exists. */
-  type: 'user' | 'staff' | 'student'
+  type: 'user' | 'admin' | 'staff' | 'student' | 'parent'
   account_id: string | null
   account_status: string | null
 }
@@ -49,8 +49,10 @@ const statusColors: Record<string, string> = {
 
 const typeColors: Record<UserAccount['type'], string> = {
   user: 'bg-violet-100 text-violet-700',
+  admin: 'bg-purple-100 text-purple-700',
   staff: 'bg-blue-100 text-blue-700',
   student: 'bg-gray-100 text-gray-600',
+  parent: 'bg-teal-100 text-teal-700',
 }
 
 const ROLES = ['School Admin', 'Finance Officer', 'Faculty Lead', 'Read Only Auditor', 'Staff']
@@ -254,6 +256,71 @@ function StaffPasswordDialog({ user, onDone }: { user: UserAccount; onDone: () =
   )
 }
 
+function ParentPasswordDialog({ user, onDone }: { user: UserAccount; onDone: () => void }) {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [issued, setIssued] = useState<{ email: string; tempPassword: string } | null>(null)
+
+  const handleReset = async () => {
+    try {
+      setSaving(true)
+      const res = await fetch(`/api/tenant/parents?id=${encodeURIComponent(user.id)}&action=reset-password`, {
+        method: 'PUT',
+        headers: getApiHeaders(),
+        body: '{}',
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Failed to reset password')
+      setIssued({ email: json.data.email, tempPassword: json.data.tempPassword })
+      onDone()
+    } catch (err) {
+      toast({ title: 'Reset failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setIssued(null) }}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-amber-600" title="Issue parent portal password">
+          <KeyRound className="h-3 w-3 mr-1" />Password
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Parent portal access</DialogTitle>
+          <DialogDescription>
+            {issued
+              ? 'Share these credentials with the parent — the password is shown only once and was also emailed to them.'
+              : `Generate a new temporary password for ${user.name}. This replaces any existing password and is emailed to ${user.email}.`}
+          </DialogDescription>
+        </DialogHeader>
+        {issued ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-1 text-sm">
+            <p><span className="text-gray-500">Email:</span> <span className="font-medium">{issued.email}</span></p>
+            <p><span className="text-gray-500">Password:</span> <span className="font-mono font-medium">{issued.tempPassword}</span></p>
+          </div>
+        ) : null}
+        <DialogFooter>
+          {issued ? (
+            <Button onClick={() => { setOpen(false); setIssued(null) }}>Done</Button>
+          ) : (
+            <>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={handleReset} disabled={saving}>
+                {saving ? <Loader className="h-3 w-3 animate-spin mr-1" /> : null}
+                Generate password
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function UserAccounts() {
   const { toast } = useToast()
   const [users, setUsers] = useState<UserAccount[]>([])
@@ -261,6 +328,7 @@ export function UserAccounts() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | UserAccount['status']>('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'admin' | 'staff' | 'parent' | 'student' | 'user'>('all')
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
   const loadUsers = useCallback(async () => {
@@ -364,9 +432,10 @@ export function UserAccounts() {
         (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.role.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === 'all' || user.status === statusFilter
-      return matchesSearch && matchesStatus
+      const matchesType = typeFilter === 'all' || user.type === typeFilter
+      return matchesSearch && matchesStatus && matchesType
     })
-  }, [users, searchTerm, statusFilter])
+  }, [users, searchTerm, statusFilter, typeFilter])
 
   return (
     <div className="space-y-6">
@@ -389,8 +458,9 @@ export function UserAccounts() {
         id="user-accounts"
         title="What this directory shows"
         tips={[
-          'One row per person — a staff member\'s login account is folded into their Staff row. Type badge distinguishes Users, Staff, and Students.',
+          'One row per person — a staff member\'s login account is folded into their Staff row. Use the type filter to view Admins, Staff, Parents, or Students.',
           'Staff sign in at the staff portal with their email and password — set one here with Password, or use Staff Management → key icon. Suspending a staff member blocks their login immediately.',
+          'Parents get portal credentials automatically when a student is enrolled with a guardian email — use Password on a parent row to re-issue them.',
           'Edit/Resend/Delete apply to invited user accounts. Student profiles are managed in Students.',
         ]}
       />
@@ -416,6 +486,18 @@ export function UserAccounts() {
                     className="pl-10"
                   />
                 </div>
+                <select
+                  value={typeFilter}
+                  onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                >
+                  <option value="all">All account types</option>
+                  <option value="admin">Admin</option>
+                  <option value="staff">Staff</option>
+                  <option value="parent">Parent</option>
+                  <option value="student">Student</option>
+                  <option value="user">Other users</option>
+                </select>
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
@@ -469,7 +551,7 @@ export function UserAccounts() {
                         {user.last_active ? new Date(user.last_active).toLocaleString() : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        {user.type === 'user' ? (
+                        {user.type === 'user' || user.type === 'admin' ? (
                           <div className="flex justify-end gap-1">
                             <EditUserDialog user={user} onUpdated={loadUsers} />
                             {user.status === 'invited' ? (
@@ -511,6 +593,10 @@ export function UserAccounts() {
                             >
                               {togglingId === user.id ? <Loader className="h-3 w-3 animate-spin" /> : user.status === 'suspended' ? 'Reactivate' : 'Suspend'}
                             </Button>
+                          </div>
+                        ) : user.type === 'parent' ? (
+                          <div className="flex justify-end gap-1" title="Issue a fresh portal password for this parent">
+                            <ParentPasswordDialog user={user} onDone={loadUsers} />
                           </div>
                         ) : (
                           <span className="text-xs text-gray-400">Managed in Students</span>

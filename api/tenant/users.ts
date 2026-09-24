@@ -21,7 +21,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // the login without showing the same person twice.
       const result = await sql`
         SELECT tu.id::text AS id, tu.name, tu.email, tu.role, tu.status,
-               tu.last_active, tu.invited_at, tu.created_at, 'user' AS type,
+               tu.last_active, tu.invited_at, tu.created_at,
+               CASE WHEN lower(tu.role) LIKE '%admin%' THEN 'admin' ELSE 'user' END AS type,
                NULL::text AS account_id, NULL::text AS account_status
         FROM tenant_users tu
         WHERE tu.tenant_id = ${tenantId}
@@ -45,6 +46,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                NULL::text AS account_id, NULL::text AS account_status
         FROM students st
         WHERE st.tenant_id = ${tenantId} AND st.deleted_at IS NULL
+        UNION ALL
+        SELECT p.id::text AS id, p.name, p.email, 'Parent' AS role,
+               CASE WHEN p.password_hash IS NOT NULL THEN 'active' ELSE 'invited' END AS status,
+               NULL AS last_active, NULL AS invited_at, p.created_at, 'parent' AS type,
+               NULL::text AS account_id, NULL::text AS account_status
+        FROM parents p
+        WHERE p.tenant_id = ${tenantId}
         ORDER BY created_at DESC
       `
       return res.status(200).json({ data: result.rows })

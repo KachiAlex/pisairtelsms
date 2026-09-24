@@ -182,44 +182,27 @@ interface SendInvitePayload {
 }
 
 async function sendParentInviteEmail(payload: SendInvitePayload): Promise<void> {
-  const { email, name, tempPassword, accessToken } = payload;
+  const { email, name, tempPassword, studentId } = payload;
 
-  const portalUrl = process.env.PARENT_PORTAL_URL || `${process.env.APP_URL || 'http://localhost:3000'}/parent-login`;
-  const loginUrl = `${portalUrl}?token=${accessToken}`;
+  const loginUrl = process.env.PARENT_PORTAL_URL || `${process.env.APP_URL || 'http://localhost:3000'}/parent-login`;
 
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    console.warn('RESEND_API_KEY not set — skipping parent invite email to', email);
-    console.info('Parent portal URL:', loginUrl, '| Temp password:', tempPassword);
-    return;
-  }
-
-  const body = {
-    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
-    to: [email],
-    subject: 'Your Parent Portal Access',
-    html: `
-      <p>Dear ${name},</p>
-      <p>A student has been enrolled and linked to your account on ScholarX.</p>
-      <p>You can access the parent portal to monitor your child's progress using the link below:</p>
-      <p><a href="${loginUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;">Access Parent Portal</a></p>
-      <p>Or visit: <a href="${portalUrl}">${portalUrl}</a></p>
-      <p><strong>Your login credentials:</strong><br/>
-      Email: ${email}<br/>
-      Temporary Password: <code>${tempPassword}</code></p>
-      <p>Please change your password after your first login.</p>
-      <p>If you have any questions, contact your school administrator.</p>
-    `,
-  };
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendApiKey}` },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
+  try {
+    const { sendEmail } = await import('../../_lib/email.js');
+    const { emailTemplates } = await import('../../_lib/email-templates.js');
+    const { sql } = await import('../../_lib/sql.js');
+    const stu = await sql<{ name: string }>`SELECT name FROM students WHERE id = ${studentId} LIMIT 1`.catch(() => ({ rows: [] as any[] }));
+    const { html, subject } = emailTemplates.parentCredentials({
+      name,
+      email,
+      password: tempPassword,
+      studentName: stu.rows[0]?.name,
+      loginUrl,
+    });
+    const result = await sendEmail({ to: email, subject, html });
+    if (!result.success) {
+      console.warn('Parent invite email not delivered:', result.error);
+    }
+  } catch (err) {
     console.error('Failed to send parent invite email:', err);
   }
 }

@@ -90,7 +90,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           FROM behavioral_incidents bi
           LEFT JOIN students s ON s.id = bi.student_id
           LEFT JOIN staff st ON st.id::text = bi.reported_by
-          WHERE bi.tenant_id = ${tenantId} AND bi.student_id = ANY(${studentFilter})
+          WHERE bi.tenant_id = ${tenantId} AND bi.student_id::text = ANY(${studentFilter})
           ORDER BY bi.date DESC NULLS LAST, bi.created_at DESC
           LIMIT 200
         `,
@@ -100,7 +100,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           FROM behavioral_recognition br
           LEFT JOIN students s ON s.id = br.student_id
           LEFT JOIN staff st ON st.id::text = br.awarded_by
-          WHERE br.tenant_id = ${tenantId} AND br.student_id = ANY(${studentFilter})
+          WHERE br.tenant_id = ${tenantId} AND br.student_id::text = ANY(${studentFilter})
           ORDER BY br.date DESC NULLS LAST
           LIMIT 200
         `,
@@ -110,7 +110,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           FROM teacher_comments tc
           LEFT JOIN students s ON s.id = tc.student_id
           LEFT JOIN staff st ON st.id::text = tc.staff_id
-          WHERE tc.tenant_id = ${tenantId} AND tc.student_id = ANY(${studentFilter})
+          WHERE tc.tenant_id = ${tenantId} AND tc.student_id::text = ANY(${studentFilter})
           ORDER BY tc.date DESC NULLS LAST
           LIMIT 200
         `,

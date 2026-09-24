@@ -43,12 +43,14 @@ async function main() {
     console.error('smoke: no tenant found in DB')
     process.exit(1)
   }
-  const admin = (await q(
-    `SELECT id FROM users WHERE role = 'tenant_admin' AND tenant_id = '${tenant.id}' LIMIT 1`
-  ))[0]
   const staff = (await q(
     `SELECT id FROM staff WHERE tenant_id = '${tenant.id}' LIMIT 1`
   ))[0]
+  // tenant_admin rows live in staff (role 'admin'); the JWT role claim is
+  // what handlers authorize on, so any real user id works for the token.
+  const admin = (await q(
+    `SELECT id FROM staff WHERE tenant_id = '${tenant.id}' AND role IN ('admin','tenant_admin') LIMIT 1`
+  ))[0] || staff
   const student = (await q(
     `SELECT id FROM students WHERE tenant_id = '${tenant.id}' AND deleted_at IS NULL LIMIT 1`
   ))[0]

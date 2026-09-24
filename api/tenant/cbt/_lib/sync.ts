@@ -273,7 +273,7 @@ export async function getSyncEntriesByStatus(
 /**
  * Get sync statistics
  */
-export async function getSyncStatistics(): Promise<{
+export async function getSyncStatistics(tenantId?: string): Promise<{
   pending: number;
   synced: number;
   failed: number;
@@ -286,11 +286,13 @@ export async function getSyncStatistics(): Promise<{
     total_retries: number;
   }>(
     `SELECT
-      COUNT(CASE WHEN sync_status = 'pending' THEN 1 END) as pending,
-      COUNT(CASE WHEN sync_status = 'synced' THEN 1 END) as synced,
-      COUNT(CASE WHEN sync_status = 'failed' THEN 1 END) as failed,
-      COALESCE(SUM(retry_count), 0) as total_retries
-     FROM offline_sync_queue`
+      COUNT(CASE WHEN q.sync_status = 'pending' THEN 1 END) as pending,
+      COUNT(CASE WHEN q.sync_status = 'synced' THEN 1 END) as synced,
+      COUNT(CASE WHEN q.sync_status = 'failed' THEN 1 END) as failed,
+      COALESCE(SUM(q.retry_count), 0) as total_retries
+     FROM offline_sync_queue q
+     ${tenantId ? 'JOIN exams e ON e.id = q.exam_id WHERE e.tenant_id = $1' : ''}`,
+    tenantId ? [tenantId] : undefined
   );
 
   return {

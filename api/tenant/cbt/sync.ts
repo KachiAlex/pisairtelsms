@@ -357,7 +357,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // GET /api/tenant/cbt/sync/statistics
   if (req.method === 'GET' && action === 'statistics') {
     try {
-      const stats = await getSyncStatistics()
+      const stats = await getSyncStatistics(tenantId)
 
       const response: ApiResult<any> = {
         success: true,

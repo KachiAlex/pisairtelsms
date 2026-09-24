@@ -23,7 +23,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   try {
     if (type === 'statistics') {
-      const syncStats = await getSyncStatistics();
+      const syncStats = await getSyncStatistics(tenantId);
 
       const deviceStats = await queryOne<{ total: number; ready: number }>(
         `SELECT
@@ -39,13 +39,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           COUNT(CASE WHEN status = 'published' THEN 1 END) as published
          FROM offline_sync_packages WHERE tenant_id = $1`,
         [tenantId]
-      );
-
-      const recentSyncs = await queryOne<{ fresh: number }>(
-        `SELECT COUNT(*) as fresh
-         FROM offline_sync_queue
-         WHERE sync_status = 'synced'
-           AND updated_at > NOW() - INTERVAL '12 hours'`
       );
 
       const totalSynced = syncStats.synced || 0;

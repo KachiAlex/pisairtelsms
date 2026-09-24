@@ -47,7 +47,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const examResult = await sql`SELECT id::text, COALESCE(subject, title) AS subject, COALESCE(description, '') AS paper,
       scheduled_date::text AS date, scheduled_time::text AS start_time,
-      duration AS duration_minutes, COALESCE(class, '') AS student_class
+      duration AS duration_minutes, COALESCE(class, '') AS student_class,
+      status AS db_status
       FROM exams
       WHERE tenant_id = ${decoded.tenantId || 'default-tenant'}
         AND deleted_at IS NULL
@@ -73,7 +74,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         id: r.id, subject: r.subject, paper: r.paper, date: r.date,
         startTime: start, endTime: end, duration: durationStr,
         venue: '', type: 'terminal' as Exam['type'],
-        status: examStatus, instructions: '', materialsAllowed: [],
+        status: examStatus, dbStatus: r.db_status, instructions: '', materialsAllowed: [],
       };
     });
 

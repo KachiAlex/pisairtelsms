@@ -1138,6 +1138,22 @@
       "destination": "/api/staff/profile.ts"
     },
     {
+      "source": "/api/student/exams/:examId/paper",
+      "destination": "/api/student/exam-taking.ts?examId=:examId&action=paper"
+    },
+    {
+      "source": "/api/student/exams/:examId/start",
+      "destination": "/api/student/exam-taking.ts?examId=:examId&action=start"
+    },
+    {
+      "source": "/api/student/exams/:examId/progress",
+      "destination": "/api/student/exam-taking.ts?examId=:examId&action=progress"
+    },
+    {
+      "source": "/api/student/exams/:examId/submit",
+      "destination": "/api/student/exam-taking.ts?examId=:examId&action=submit"
+    },
+    {
       "source": "/api/student/exams",
       "destination": "/api/student/exams.ts"
     },

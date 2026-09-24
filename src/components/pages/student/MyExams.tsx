@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, Clock, MapPin, FileText, AlertCircle, CheckCircle, Loader2, Download, Filter, ChevronRight, BookOpen } from 'lucide-react'
+import { Calendar, Clock, MapPin, FileText, AlertCircle, CheckCircle, Loader2, Download, Filter, ChevronRight, BookOpen, PlayCircle } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { getAuthFromStorage } from '../../../lib/auth'
+import { TakeExam } from './TakeExam'
 
 type ExamStatus = 'upcoming' | 'ongoing' | 'completed'
 type ExamType = 'midterm' | 'terminal' | 'mock' | 'promotion'
@@ -17,6 +18,7 @@ interface Exam {
   venue: string
   type: ExamType
   status: ExamStatus
+  dbStatus?: string
   instructions: string
   materialsAllowed: string[]
 }
@@ -48,6 +50,7 @@ export function MyExams() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<ExamStatus | 'all'>('all')
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null)
+  const [takingExamId, setTakingExamId] = useState<string | null>(null)
   const auth = getAuthFromStorage()
 
   useEffect(() => {
@@ -115,6 +118,11 @@ export function MyExams() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  // Exam player (full-screen takeover)
+  if (takingExamId) {
+    return <TakeExam examId={takingExamId} onExit={() => { setTakingExamId(null); setSelectedExam(null); fetchExams() }} />
   }
 
   // Detail view
@@ -195,6 +203,26 @@ export function MyExams() {
               ))}
             </div>
           </div>
+
+          {selectedExam.status === 'ongoing' && (
+            <div className="pt-2 border-t border-gray-100">
+              {selectedExam.dbStatus === 'Ongoing' ? (
+                <>
+                  <Button onClick={() => setTakingExamId(selectedExam.id)} className="gap-2 bg-green-600 hover:bg-green-700">
+                    <PlayCircle className="w-4 h-4" />
+                    Enter Exam Room
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    The exam is open. Once you start, the timer runs and cannot be paused.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  The exam window is open, but staff has not started this sitting yet. The Enter button will appear once the exam is opened.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )

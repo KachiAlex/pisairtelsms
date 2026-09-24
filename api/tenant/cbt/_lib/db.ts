@@ -7,6 +7,7 @@ import { Pool, QueryResult, QueryResultRow } from 'pg';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { scopedQuery, applyRlsScope } from '../../../_lib/rls-context.js';
 
 // Database connection pool
 let pool: Pool | null = null;
@@ -68,7 +69,7 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
 ): Promise<QueryResult<T>> {
   const pool = getPool();
   try {
-    return await pool.query<T>(text, values);
+    return await scopedQuery<T>(pool, text, values) as QueryResult<T>;
   } catch (error) {
     console.error('Database query error:', error);
     throw error;
@@ -108,6 +109,7 @@ export async function transaction<T>(
 
   try {
     await client.query('BEGIN');
+    await applyRlsScope(client);
     const result = await callback(client);
     await client.query('COMMIT');
     return result;

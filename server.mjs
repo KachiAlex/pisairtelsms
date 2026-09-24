@@ -12,6 +12,27 @@ import { resolve, join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { matchPlanGate } from './api/_lib/plan-gates.ts';
 import { enforcePlan } from './api/_lib/plan-middleware.ts';
+import { rlsStorage } from './api/_lib/rls-context.ts';
+import { decodeJwt } from 'jose';
+
+// Extract tenantId from the caller's JWT (Bearer or auth_token cookie) without
+// verifying — the handler still verifies the signature; the claim is only used
+// to scope RLS, and a forged token gets 401 anyway.
+function tenantIdFromRequest(req) {
+  let token;
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) token = auth.slice(7);
+  if (!token && req.headers.cookie) {
+    const m = req.headers.cookie.match(/(?:^|;\s*)auth_token=([^;]+)/);
+    if (m) token = m[1];
+  }
+  if (!token) return undefined;
+  try {
+    return decodeJwt(token).tenantId;
+  } catch {
+    return undefined;
+  }
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -174,7 +195,7 @@ for (const rewrite of rewrites) {
         if (!allowed) return;
       }
 
-      await handler(req, res);
+      await rlsStorage.run({ tenantId: tenantIdFromRequest(req) }, () => handler(req, res));
     } catch (err) {
       console.error(`[API Error] ${req.method} ${req.path}:`, err);
       if (!res.headersSent) {

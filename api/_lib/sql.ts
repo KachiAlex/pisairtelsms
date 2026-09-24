@@ -9,6 +9,7 @@
  */
 
 import { getPool, poolQuery } from './pg-pool.js'
+import { scopedQuery, applyRlsScope } from './rls-context.js'
 
 export interface SqlResult<T = any> {
   rows: T[]
@@ -31,7 +32,7 @@ export function sql<T = any>(strings: TemplateStringsArray, ...values: any[]): P
       text += `$${i + 1}`
     }
   }
-  return getPool().query(text, values) as Promise<SqlResult<T>>
+  return scopedQuery<T>(getPool(), text, values) as Promise<SqlResult<T>>
 }
 
 /**
@@ -39,7 +40,7 @@ export function sql<T = any>(strings: TemplateStringsArray, ...values: any[]): P
  * Generic type parameter T specifies the row shape.
  */
 sql.query = function <T = any>(text: string, params?: any[]): Promise<SqlResult<T>> {
-  return getPool().query(text, params) as Promise<SqlResult<T>>
+  return scopedQuery<T>(getPool(), text, params) as Promise<SqlResult<T>>
 }
 
 /**
@@ -50,6 +51,7 @@ export const db = {
     const client = await getPool().connect()
     try {
       await client.query('BEGIN')
+      await applyRlsScope(client)
       const tx = {
         query: <R = any>(text: string, params?: any[]) => client.query(text, params) as Promise<SqlResult<R>>,
       }

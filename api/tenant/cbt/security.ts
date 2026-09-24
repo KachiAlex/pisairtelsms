@@ -5,7 +5,7 @@
 
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { requireRole } from '../../_lib/auth-middleware.js'
-import { queryOne } from './_lib/db.js'
+import { queryOne, queryAll } from './_lib/db.js'
 import {
   getSecuritySettings,
   upsertSecuritySettings,
@@ -179,6 +179,59 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   // Validate tenant ID
   if (!validateTenantId(tenantId, res)) {
     return
+  }
+
+  // GET /api/tenant/cbt/security/:examId/snapshots?studentId=
+  // Staff/admin review list — metadata only; images are fetched one at a time
+  // via snapshot-image so this stays light even with hundreds of captures.
+  if (req.method === 'GET' && id && action === 'snapshots') {
+    try {
+      if (!(await verifyExamOwnership(id as string))) {
+        return res.status(404).json({ success: false, error: 'Exam not found' })
+      }
+      const filterStudent = typeof req.query.studentId === 'string' ? req.query.studentId : null
+      const rows = await queryAll<{
+        id: string; student_id: string; captured_at: string
+        student_name: string | null; admission_no: string | null
+      }>(
+        `SELECT ps.id::text, ps.student_id, ps.captured_at::text,
+                s.name AS student_name, s.admission_no
+         FROM proctoring_snapshots ps
+         LEFT JOIN students s ON s.id::text = ps.student_id AND s.tenant_id = $1
+         WHERE ps.exam_id = $2 ${filterStudent ? 'AND ps.student_id = $3' : ''}
+         ORDER BY ps.captured_at DESC
+         LIMIT 300`,
+        filterStudent ? [tenantId, id, filterStudent] : [tenantId, id]
+      )
+      return res.status(200).json({ success: true, data: rows })
+    } catch (error: any) {
+      console.error('Error listing proctoring snapshots:', error)
+      return res.status(500).json({ success: false, error: 'Failed to list snapshots' })
+    }
+  }
+
+  // GET /api/tenant/cbt/security/:examId/snapshot-image&snapshotId=
+  if (req.method === 'GET' && id && action === 'snapshot-image') {
+    const snapshotId = req.query.snapshotId
+    if (!snapshotId || !UUID_RE.test(String(snapshotId))) {
+      return res.status(400).json({ success: false, error: 'snapshotId must be a valid id' })
+    }
+    try {
+      if (!(await verifyExamOwnership(id as string))) {
+        return res.status(404).json({ success: false, error: 'Exam not found' })
+      }
+      const row = await queryOne<{ image_data: string }>(
+        `SELECT image_data FROM proctoring_snapshots WHERE id = $1 AND exam_id = $2`,
+        [snapshotId, id]
+      )
+      if (!row) {
+        return res.status(404).json({ success: false, error: 'Snapshot not found' })
+      }
+      return res.status(200).json({ success: true, data: { image: row.image_data } })
+    } catch (error: any) {
+      console.error('Error fetching proctoring snapshot:', error)
+      return res.status(500).json({ success: false, error: 'Failed to fetch snapshot' })
+    }
   }
 
   // GET /api/tenant/cbt/security/:examId

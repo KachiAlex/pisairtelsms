@@ -41,7 +41,7 @@ describe('Classes Library', () => {
       expect(result[0].name).toBe('JSS1')
       // Verify tenant_id is used in the WHERE clause
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE tenant_id = $1'),
+        expect.stringContaining('WHERE c.tenant_id = $1'),
         ['t1']
       )
     })
@@ -67,7 +67,7 @@ describe('Classes Library', () => {
       mockQuery.mockResolvedValue({ rows: [] })
       await getClassById('t1', 'c1')
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('tenant_id = $1 AND id = $2'),
+        expect.stringContaining('c.tenant_id = $1 AND c.id = $2'),
         ['t1', 'c1']
       )
     })

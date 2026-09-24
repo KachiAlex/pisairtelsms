@@ -51,9 +51,9 @@ COPY --from=builder /app/dist ./dist
 # Copy API handlers, server, and config
 COPY api ./api
 COPY src/lib ./src/lib
+COPY scripts ./scripts
 COPY server.mjs ./
 COPY routes.json ./
-COPY scripts ./scripts
 COPY prisma ./prisma
 
 # Generate Prisma client (needed by cbt/schema-verify)
@@ -67,4 +67,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
 # Run the Express server with tsx for TypeScript API handler support
-CMD ["npx", "tsx", "server.mjs"]
+CMD ["sh", "-c", "node scripts/migrate.mjs && npx tsx server.mjs"]

@@ -37,7 +37,10 @@ jobs:
         run: pnpm run check-chunks
 
       - name: Type check
-        run: pnpm run type-check || true
+        run: pnpm run type-check
+
+      - name: Route coverage check
+        run: pnpm run check-routes
 
       - name: Test
-        run: pnpm test || true
+        run: pnpm exec vitest run

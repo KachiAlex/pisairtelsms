@@ -12,10 +12,16 @@ vi.mock('../_lib/sql.js', () => ({
   sql: vi.fn(),
 }));
 
+vi.mock('./_lib/verify-child.js', () => ({
+  verifyParentChildAccess: vi.fn(),
+}));
+
 import { sql } from '../_lib/sql.js'
+import { verifyParentChildAccess } from './_lib/verify-child.js'
 
 const mockRequireRole = vi.mocked(requireRole);
 const mockSql = vi.mocked(sql);
+const mockVerifyChild = vi.mocked(verifyParentChildAccess);
 
 const mockDecoded = {
   tenantId: 'test-tenant',
@@ -35,6 +41,8 @@ describe('Parent Dashboard API', () => {
     responseData = null
     mockRequireRole.mockReset()
     mockRequireRole.mockResolvedValue(mockDecoded)
+    mockVerifyChild.mockReset()
+    mockVerifyChild.mockResolvedValue(true)
     mockSql.mockReset()
     mockSql.mockImplementation(async (strings: any) => {
       const text = (strings as TemplateStringsArray).join(' ')
@@ -50,8 +58,8 @@ describe('Parent Dashboard API', () => {
       if (text.includes('FROM fee_assignments')) {
         return { rows: [{ balance: '5000' }] }
       }
-      if (text.includes('FROM results')) {
-        return { rows: [{ id: 'r1', subject: 'Mathematics', score: '85', date: '2024-05-01' }] }
+      if (text.includes('FROM compiled_results')) {
+        return { rows: [{ id: 'r1', subject: 'Mathematics', total_score: '85', compiled_at: '2024-05-01' }] }
       }
       if (text.includes('FROM announcements')) {
         return { rows: [{ id: 'a1', title: 'Announcement', date: '2024-05-01', preview: 'Preview text' }] }

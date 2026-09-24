@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "check-chunks": "node scripts/check-chunk-sizes.mjs",
+    "check-routes": "node scripts/check-routes.mjs",
+    "type-check": "tsc --noEmit",
     "clean-violations": "node scripts/clean-violations.mjs",
     "migrate": "node scripts/run-consolidated-migration.mjs",
     "deploy": "node server/deploy.mjs",

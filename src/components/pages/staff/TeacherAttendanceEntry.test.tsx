@@ -10,6 +10,12 @@ vi.mock('../../ui/use-toast', () => ({
   }),
 }))
 
+// Mock useAcademicPeriod so its settings fetch doesn't consume the
+// sequential fetch mocks below
+vi.mock('../../../hooks/useAcademicPeriod', () => ({
+  useAcademicPeriod: () => ({ session: '2025/2026', term: 'First Term' }),
+}))
+
 // Mock fetch
 global.fetch = vi.fn()
 

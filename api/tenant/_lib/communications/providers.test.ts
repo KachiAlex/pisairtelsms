@@ -23,8 +23,9 @@ describe('Message providers', () => {
     expect(result.providerMessageId).toBeDefined()
   })
 
-  it('EmailProvider simulates send when webhook is not configured', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('EmailProvider fails honestly when no provider is configured', async () => {
+    delete process.env.BREVO_SMTP_USER
+    delete process.env.BREVO_SMTP_KEY
     const provider = new EmailProvider()
     const result = await provider.send({
       to: 'test@example.com',
@@ -34,12 +35,11 @@ describe('Message providers', () => {
       communicationId: 'comm_1',
       channel: 'email',
     })
-    expect(result.success).toBe(true)
-    expect(warn).toHaveBeenCalled()
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('not configured')
   })
 
-  it('SmsProvider simulates send when webhook is not configured', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('SmsProvider fails honestly when webhook is not configured', async () => {
     const provider = new SmsProvider()
     const result = await provider.send({
       to: '+1234567890',
@@ -49,12 +49,11 @@ describe('Message providers', () => {
       communicationId: 'comm_1',
       channel: 'sms',
     })
-    expect(result.success).toBe(true)
-    expect(warn).toHaveBeenCalled()
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('not configured')
   })
 
-  it('PushProvider simulates send when webhook is not configured', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('PushProvider fails honestly when webhook is not configured', async () => {
     const provider = new PushProvider()
     const result = await provider.send({
       to: 'device-token',
@@ -64,8 +63,8 @@ describe('Message providers', () => {
       communicationId: 'comm_1',
       channel: 'push',
     })
-    expect(result.success).toBe(true)
-    expect(warn).toHaveBeenCalled()
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('not configured')
   })
 
   it('getProvider returns the correct provider for each channel', () => {

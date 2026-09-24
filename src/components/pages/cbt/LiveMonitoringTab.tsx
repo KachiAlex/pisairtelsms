@@ -83,9 +83,10 @@ export function LiveMonitoringTab() {
       const res = await tenantApiGet('/api/tenant/cbt/exams?status=Ongoing&limit=50');
       if (res.ok) {
         const data = await res.json();
-        setOngoingExams(data.data || []);
-        if (data.data?.length > 0 && !selectedExamId) {
-          setSelectedExamId(data.data[0].id);
+        const list = Array.isArray(data.data) ? data.data : [];
+        setOngoingExams(list);
+        if (list.length > 0 && !selectedExamId) {
+          setSelectedExamId(list[0].id);
         }
       }
     } catch {

@@ -43,3 +43,6 @@ jobs:
               echo "=== WARNING: App may not be healthy (status: $STATUS) ==="
               docker logs pisairtel-sms --tail 20
             fi
+
+            echo "=== Smoke check ==="
+            docker exec pisairtel-sms node scripts/smoke-check.mjs || echo "WARNING: smoke check reported failures"

@@ -20,6 +20,10 @@ interface Exam {
   status: ExamStatus
   instructions: string
   materialsAllowed: string[]
+  score?: number | null
+  totalMarks?: number | null
+  percentage?: number | null
+  resultStatus?: string | null
 }
 
 interface ExamSummary {
@@ -141,6 +145,22 @@ export function ChildExams() {
             <h1 className="text-xl font-bold text-gray-900">{selectedExam.subject}</h1>
             <p className="text-gray-600 mt-1">{selectedExam.paper}</p>
           </div>
+
+          {selectedExam.percentage != null && (
+            <div className="flex items-center gap-3 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <GraduationCap className="w-5 h-5 text-indigo-600" />
+              <div>
+                <p className="text-sm font-semibold text-indigo-900">
+                  {selectedChild?.name} scored {selectedExam.score}/{selectedExam.totalMarks} — {Math.round(selectedExam.percentage)}%
+                </p>
+                <p className="text-xs text-indigo-600">
+                  {selectedExam.resultStatus === 'pending_review'
+                    ? 'Submitted — awaiting review of essay questions'
+                    : 'Result recorded'}
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -286,6 +306,12 @@ export function ChildExams() {
                       {exam.status === 'upcoming' && daysUntil <= 3 && daysUntil > 0 && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
                           {daysUntil} day{daysUntil !== 1 ? 's' : ''} left
+                        </span>
+                      )}
+                      {exam.percentage != null && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          Score: {exam.score}/{exam.totalMarks} ({Math.round(exam.percentage)}%)
+                          {exam.resultStatus === 'pending_review' ? ' · under review' : ''}
                         </span>
                       )}
                     </div>

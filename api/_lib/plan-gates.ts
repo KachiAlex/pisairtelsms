@@ -177,6 +177,7 @@ const GATES: Array<[string, keyof PlanFeatures, string, string[]?]> = [
   ['/api/parent/assignments', 'assignments', 'management'],
   ['/api/parent/attendance', 'attendance', 'dailyStudent'],
   ['/api/parent/behavioral', 'studentManagement', 'behavioral'],
+  ['/api/parent/documents', 'studentManagement', 'documents'],
   ['/api/parent/events', 'academicStructure', 'calendar'],
   ['/api/parent/exams', 'exams', 'creation'],
   ['/api/parent/fees', 'finance', 'collection'],

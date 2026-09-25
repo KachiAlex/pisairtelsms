@@ -16,6 +16,11 @@ interface Exam {
   status: 'upcoming' | 'ongoing' | 'completed';
   instructions: string;
   materialsAllowed: string[];
+  score?: number | null;
+  totalMarks?: number | null;
+  percentage?: number | null;
+  resultStatus?: string | null;
+  submittedAt?: string | null;
 }
 
 interface ExamsResponse {
@@ -59,15 +64,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const studentClassBase = studentClass.replace(/\s+[A-Z]$/, '');
 
-    const examResult = await sql`SELECT id::text, COALESCE(subject, title) AS subject, COALESCE(description, '') AS paper,
-      scheduled_date::text AS date, scheduled_time::text AS start_time,
-      duration AS duration_minutes, COALESCE(class, '') AS student_class
-      FROM exams
-      WHERE tenant_id = ${tenantId}
-        AND deleted_at IS NULL
-        AND status IN ('Scheduled', 'Ongoing', 'Completed')
-        AND (class = ${studentClass} OR class = ${studentClassBase} OR class IS NULL OR class = '')
-      ORDER BY scheduled_date, scheduled_time`;
+    const examResult = await sql`SELECT e.id::text, COALESCE(e.subject, e.title) AS subject, COALESCE(e.description, '') AS paper,
+      e.scheduled_date::text AS date, e.scheduled_time::text AS start_time,
+      e.duration AS duration_minutes, COALESCE(e.class, '') AS student_class,
+      er.score, er.total_marks, er.percentage, er.status AS result_status, er.submitted_at::text AS submitted_at
+      FROM exams e
+      LEFT JOIN exam_results er ON er.exam_id = e.id AND er.student_id = ${childId as string}
+      WHERE e.tenant_id = ${tenantId}
+        AND e.deleted_at IS NULL
+        AND e.status IN ('Scheduled', 'Ongoing', 'Completed')
+        AND (e.class = ${studentClass} OR e.class = ${studentClassBase} OR e.class IS NULL OR e.class = '')
+      ORDER BY e.scheduled_date, e.scheduled_time`;
 
     const now = new Date();
     let exams: Exam[] = examResult.rows.map(r => {
@@ -88,6 +95,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         startTime: start, endTime: end, duration: durationStr,
         venue: '', type: 'terminal' as Exam['type'],
         status: examStatus, instructions: '', materialsAllowed: [],
+        score: r.score ?? null,
+        totalMarks: r.total_marks ?? null,
+        percentage: r.percentage ?? null,
+        resultStatus: r.result_status ?? null,
+        submittedAt: r.submitted_at ?? null,
       };
     });
 

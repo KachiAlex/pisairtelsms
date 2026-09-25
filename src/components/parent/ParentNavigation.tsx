@@ -16,6 +16,8 @@ import {
   FileText,
   CalendarDays,
   Shield,
+  FolderOpen,
+  LifeBuoy,
 } from 'lucide-react'
 import { usePlanAccess } from '../../hooks/usePlanAccess'
 import { PARENT_NAV_FEATURES, navItemAllowed } from '../../lib/nav-features'
@@ -47,7 +49,9 @@ const navItems: NavItem[] = [
   { id: 'health', label: 'Health & Wellness', icon: Heart },
   { id: 'virtual-learning-consents', label: 'Virtual Consents', icon: Shield },
   { id: 'private-lessons', label: 'Private Lessons', icon: GraduationCap },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'support', label: 'Help & Support', icon: LifeBuoy },
   { id: 'profile', label: 'Profile', icon: User },
 ]
 

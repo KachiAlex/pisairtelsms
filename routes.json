@@ -9,6 +9,10 @@
       "destination": "/api/parent/support.ts"
     },
     {
+      "source": "/api/parent/documents",
+      "destination": "/api/parent/documents.ts"
+    },
+    {
       "source": "/api/student/support",
       "destination": "/api/student/support.ts"
     },

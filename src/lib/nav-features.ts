@@ -142,6 +142,8 @@ export const PARENT_NAV_FEATURES: Record<string, Gate> = {
   'health': ['studentManagement', 'healthRecords'],
   'virtual-learning-consents': ['digitalLearning', 'consentManagement'],
   'private-lessons': ['digitalLearning', 'privateLessons'],
+  'documents': ['studentManagement', 'documents'],
+  'support': ['communication', 'inAppNotifications'],
   'notifications': ['communication', 'inAppNotifications'],
 };
 

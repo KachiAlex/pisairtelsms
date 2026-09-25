@@ -61,25 +61,29 @@ function parseBody(req: ApiRequest) {
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   await ensureMigrations()
 
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin', 'parent'])
+  const decoded = await requireRole(req, res, ['staff', 'tenant_admin', 'parent', 'student'])
   if (!decoded) return
 
   const { id, action } = req.query
   const tenantId = decoded.tenantId || 'default-tenant'
 
-  // Parents may only view and pay fees for their own children — everything
-  // else (settings, pending queue, confirm/reject, proofs) stays staff/admin.
+  // Parents may only view and pay fees for their own children; students may
+  // only view and pay their own fees — everything else (settings, pending
+  // queue, confirm/reject, proofs) stays staff/admin.
   const isParent = decoded.role === 'parent'
+  const isStudent = decoded.role === 'student'
   const parentOwns = (studentId?: string) =>
     verifyParentChildAccess(decoded.parentId, studentId, tenantId)
+  const studentOwns = (studentId?: string) =>
+    !!studentId && studentId === (decoded.studentId || decoded.userId)
 
-  if (isParent) {
+  if (isParent || isStudent) {
     const allowed =
       (req.method === 'GET' && !id && (action === 'active-gateway' || !action)) ||
       (req.method === 'GET' && !!id && !action) ||
       (req.method === 'POST' && !id && (action === 'initiate' || action === 'verify' || action === 'manual'))
     if (!allowed) {
-      return res.status(403).json({ error: 'Parents can only view and make payments for their children' })
+      return res.status(403).json({ error: 'You can only view and make payments for your own account' })
     }
   }
 
@@ -237,6 +241,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (isParent && !await parentOwns(studentId)) {
       return res.status(403).json({ error: 'You can only pay fees for your own children' })
     }
+    if (isStudent && !studentOwns(studentId)) {
+      return res.status(403).json({ error: 'You can only pay your own fees' })
+    }
 
     // Check active gateway
     const activeGateway = await getActivePaymentGateway(tenantId)
@@ -278,13 +285,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'gatewayRef is required' })
     }
 
-    if (isParent) {
+    if (isParent || isStudent) {
       const refRow = await sql`
         SELECT student_id FROM payments WHERE gateway_ref = ${gatewayRef} AND tenant_id = ${tenantId} LIMIT 1
       `.catch(() => ({ rows: [] as any[] }))
       const refStudent = refRow.rows[0]?.student_id
-      if (!refStudent || !await parentOwns(refStudent)) {
-        return res.status(403).json({ error: 'You can only verify payments for your own children' })
+      const owns = isStudent ? studentOwns(refStudent) : await parentOwns(refStudent)
+      if (!refStudent || !owns) {
+        return res.status(403).json({ error: 'You can only verify payments for your own account' })
       }
     }
 
@@ -327,6 +335,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     if (isParent && !await parentOwns(studentId)) {
       return res.status(403).json({ error: 'You can only submit payments for your own children' })
+    }
+    if (isStudent && !studentOwns(studentId)) {
+      return res.status(403).json({ error: 'You can only submit payments for your own account' })
     }
 
     try {
@@ -513,6 +524,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (isParent && (!studentId || !await parentOwns(studentId as string))) {
       return res.status(403).json({ error: 'You can only view payments for your own children' })
     }
+    if (isStudent && !studentOwns(studentId as string)) {
+      return res.status(403).json({ error: 'You can only view your own payments' })
+    }
     try {
       const payments = await getPayments(
         tenantId,
@@ -544,6 +558,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
       if (isParent && !await parentOwns(payment.studentId)) {
         return res.status(403).json({ error: 'You can only view payments for your own children' })
+      }
+      if (isStudent && !studentOwns(payment.studentId)) {
+        return res.status(403).json({ error: 'You can only view your own payments' })
       }
       return res.status(200).json({ data: payment })
     } catch (error) {

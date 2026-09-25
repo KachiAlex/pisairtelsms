@@ -1,6 +1,38 @@
 {
   "rewrites": [
     {
+      "source": "/api/tenant/attendance-excuses",
+      "destination": "/api/tenant/attendance-excuses.ts"
+    },
+    {
+      "source": "/api/parent/support",
+      "destination": "/api/parent/support.ts"
+    },
+    {
+      "source": "/api/student/support",
+      "destination": "/api/student/support.ts"
+    },
+    {
+      "source": "/api/student/discussions",
+      "destination": "/api/student/discussions.ts"
+    },
+    {
+      "source": "/api/student/behavioral",
+      "destination": "/api/student/behavioral.ts"
+    },
+    {
+      "source": "/api/student/documents",
+      "destination": "/api/student/documents.ts"
+    },
+    {
+      "source": "/api/student/events",
+      "destination": "/api/student/events.ts"
+    },
+    {
+      "source": "/api/student/notifications",
+      "destination": "/api/student/notifications.ts"
+    },
+    {
       "source": "/api/tenant/attendance/analytics/homeroom-leaderboard",
       "destination": "/api/tenant/attendance/analytics/homeroom-leaderboard.ts"
     },
@@ -788,7 +820,6 @@
       "source": "/api/tenant/live-meetings",
       "destination": "/api/tenant/live-meetings.ts"
     },
-
     {
       "source": "/api/admin/admin-handler",
       "destination": "/api/admin/admin-handler.ts"

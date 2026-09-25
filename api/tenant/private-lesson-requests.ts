@@ -15,6 +15,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     // GET - list requests (filtered by role)
     if (req.method === 'GET') {
       const { status, teacherId, studentId } = req.query
+
+      // Lightweight teacher directory for request forms (all roles)
+      if (req.query.action === 'teachers') {
+        const teachers = await sql`
+          SELECT id::text, name, COALESCE(role, 'Teacher') AS role
+          FROM staff WHERE tenant_id = ${tenantId} ORDER BY name
+        `
+        return res.status(200).json({ data: teachers.rows })
+      }
       let result
 
       if (userRole === 'tenant_admin') {
@@ -79,6 +88,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
               '{}'::text[])
           ORDER BY plr.created_at DESC
         `
+      } else if (userRole === 'student') {
+        // Student sees requests that include them
+        result = await sql`
+          SELECT plr.*, t.name as teacher_name, s.name as subject_name,
+            (SELECT array_agg(st.name ORDER BY st.name) FROM students st
+             WHERE st.id::text = ANY(plr.student_ids)) AS student_names
+          FROM private_lesson_requests plr
+          LEFT JOIN staff t ON t.id = plr.teacher_id
+          LEFT JOIN subjects s ON s.id::text = plr.subject_id
+          WHERE plr.tenant_id = ${tenantId}
+            AND ${userId}::text = ANY(plr.student_ids)
+          ORDER BY plr.created_at DESC
+        `
       } else {
         return res.status(403).json({ error: 'Not authorized to view private lesson requests' })
       }
@@ -86,12 +108,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(200).json({ data: result.rows })
     }
 
-    // POST - create request (teachers only)
+    // POST - create request (staff/admin for any students; parents for their children)
     if (req.method === 'POST') {
-      if (userRole !== 'staff' && userRole !== 'tenant_admin') {
-        return res.status(403).json({ error: 'Only teachers can request private lessons' })
+      let { studentIds, subjectId, classroomId, purpose, proposedSchedule, durationMinutes, numSessions, teacherId } = req.body || {}
+
+      if (userRole === 'parent') {
+        // Parents may only request lessons for their own children
+        const kids = await sql`
+          SELECT student_id FROM parent_students
+          WHERE parent_id = ${userId} AND tenant_id = ${tenantId}
+        `
+        const childIds = kids.rows.map((r: any) => r.student_id)
+        if (!Array.isArray(studentIds) || !studentIds.length || studentIds.some((s: string) => !childIds.includes(s))) {
+          return res.status(403).json({ error: 'You can only request lessons for your own children' })
+        }
+        // teacher_id is NOT NULL — the parent picks a teacher (admin can reassign)
+        if (!teacherId) {
+          return res.status(400).json({ error: 'teacherId is required' })
+        }
+        const t = await sql`SELECT id FROM staff WHERE id = ${teacherId} AND tenant_id = ${tenantId} LIMIT 1`
+        if (!t.rows[0]) return res.status(400).json({ error: 'Invalid teacher' })
+      } else if (userRole !== 'staff' && userRole !== 'tenant_admin') {
+        return res.status(403).json({ error: 'Only teachers or parents can request private lessons' })
       }
-      const { studentIds, subjectId, classroomId, purpose, proposedSchedule, durationMinutes, numSessions } = req.body || {}
+
       if (!Array.isArray(studentIds) || !studentIds.length || !purpose || !proposedSchedule) {
         return res.status(400).json({ error: 'studentIds (array), purpose, and proposedSchedule are required' })
       }
@@ -161,7 +201,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           fee_amount, fee_currency, payment_mode, status
         )
         VALUES (
-          ${tenantId}, ${userId}, ${studentIds}, ${subjectId || null}, ${classroomId || null},
+          ${tenantId}, ${userRole === 'parent' ? teacherId : userId}, ${studentIds}, ${subjectId || null}, ${classroomId || null},
           ${purpose}, ${proposedSchedule}, ${durationMinutes || 60}, ${numSessions || 1},
           ${feeAmount}, ${feeCurrency}, ${paymentMode}, 'pending_admin'
         )

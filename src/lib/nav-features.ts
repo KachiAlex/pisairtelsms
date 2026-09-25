@@ -118,6 +118,13 @@ export const STUDENT_NAV_FEATURES: Record<string, Gate> = {
   'timetable': ['scheduling', 'timetables'],
   'fees': ['finance', 'collection'],
   'communications': ['communication', 'announcements'],
+  'messages': ['communication', 'inAppNotifications'],
+  'events': ['academicStructure', 'calendar'],
+  'documents': ['studentManagement', 'documents'],
+  'discussions': ['digitalLearning', 'discussions'],
+  'conduct': ['studentManagement', 'behavioral'],
+  'private-lessons': ['digitalLearning', 'privateLessons'],
+  'support': ['communication', 'inAppNotifications'],
 };
 
 export const PARENT_NAV_FEATURES: Record<string, Gate> = {

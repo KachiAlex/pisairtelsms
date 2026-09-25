@@ -192,6 +192,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             ON CONFLICT (id) DO NOTHING
           `
         }
+
+        // Notify the students themselves too
+        const { notifyStudents } = await import('../_lib/student-notify.js')
+        await notifyStudents(
+          tenantId,
+          publishedStudents.rows.map((r: any) => r.student_id),
+          {
+            type: 'results',
+            title: 'Results Published',
+            message: `Your ${term} results for ${academicSession} are now available.`,
+            actionUrl: '/student/results',
+          }
+        )
       } catch (notifError) {
         // Notification failure should not block the publish operation
         console.error('[Result Publishing] Notification error (non-critical):', notifError)

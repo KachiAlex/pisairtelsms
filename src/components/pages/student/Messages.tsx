@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Mail, ChevronLeft, Send } from 'lucide-react';
+import { AlertCircle, Mail, ChevronLeft, Send, PenSquare } from 'lucide-react';
 import { Button } from '../../ui/button';
 
 interface Reply {
@@ -28,6 +28,10 @@ export function Messages() {
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [composing, setComposing] = useState(false);
+  const [recipients, setRecipients] = useState<Array<{ id: string; name: string; role: string }>>([]);
+  const [compose, setCompose] = useState({ recipientId: '', subject: '', body: '' });
+  const [composeError, setComposeError] = useState<string | null>(null);
   const LIMIT = 20;
 
   const getToken = () => {
@@ -97,6 +101,96 @@ export function Messages() {
 
   const unreadCount = messages.filter(m => !m.isRead).length;
 
+  const openCompose = async () => {
+    setComposing(true);
+    setComposeError(null);
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch('/api/student/messages?action=recipients', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRecipients(data.recipients || []);
+      }
+    } catch { /* recipients list stays empty */ }
+  };
+
+  const handleSendCompose = async () => {
+    if (!compose.recipientId || !compose.subject.trim() || !compose.body.trim()) return;
+    try {
+      setIsSending(true);
+      setComposeError(null);
+      const token = getToken();
+      const res = await fetch('/api/student/messages?action=compose', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(compose),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to send message');
+      }
+      setComposing(false);
+      setCompose({ recipientId: '', subject: '', body: '' });
+    } catch (err) {
+      setComposeError(err instanceof Error ? err.message : 'Failed to send');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  if (composing) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => setComposing(false)} className="gap-2">
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </Button>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900">Message a teacher</h2>
+          {composeError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{composeError}</div>
+          )}
+          <select
+            value={compose.recipientId}
+            onChange={e => setCompose(c => ({ ...c, recipientId: e.target.value }))}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="">Select a teacher or staff member...</option>
+            {recipients.map(r => (
+              <option key={r.id} value={r.id}>{r.name} — {r.role}</option>
+            ))}
+          </select>
+          <input
+            value={compose.subject}
+            onChange={e => setCompose(c => ({ ...c, subject: e.target.value }))}
+            placeholder="Subject"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+          <textarea
+            value={compose.body}
+            onChange={e => setCompose(c => ({ ...c, body: e.target.value }))}
+            placeholder="Write your message..."
+            rows={5}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <Button
+            onClick={handleSendCompose}
+            disabled={isSending || !compose.recipientId || !compose.subject.trim() || !compose.body.trim()}
+            className="gap-2"
+          >
+            <Send className="h-4 w-4" />
+            {isSending ? 'Sending...' : 'Send Message'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (selected) {
     return (
       <div className="space-y-6">
@@ -154,11 +248,16 @@ export function Messages() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-        {unreadCount > 0 && (
-          <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
-            {unreadCount} unread
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {unreadCount > 0 && (
+            <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+              {unreadCount} unread
+            </span>
+          )}
+          <Button size="sm" onClick={openCompose} className="gap-1">
+            <PenSquare className="h-4 w-4" /> New message
+          </Button>
+        </div>
       </div>
 
       {error && (

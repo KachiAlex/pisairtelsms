@@ -99,6 +99,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       if (!result.rows[0]) {
         return res.status(404).json({ error: 'Submission not found' })
       }
+
+      // Notify the student their work was graded
+      if (result.rows[0].status === 'graded') {
+        try {
+          const { notifyStudents } = await import('../_lib/student-notify.js')
+          const sub = result.rows[0]
+          const a = await sql`SELECT title FROM assignments WHERE id = ${sub.assignment_id} AND tenant_id = ${tenantId} LIMIT 1`
+          await notifyStudents(tenantId, [sub.student_id], {
+            type: 'assignment',
+            title: `Graded: ${a.rows[0]?.title || 'Assignment'}`,
+            message: `Score: ${sub.grade ?? '—'}${sub.feedback ? `. Feedback: ${String(sub.feedback).slice(0, 120)}` : ''}`,
+            actionUrl: '/student/assignments',
+          })
+        } catch (e) {
+          console.warn('Grading notification failed:', e)
+        }
+      }
+
       return res.status(200).json({ data: result.rows[0] })
     }
 

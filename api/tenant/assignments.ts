@@ -37,6 +37,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         VALUES (${classroomId}, ${lessonId || null}, ${tenantId}, ${title}, ${instructions || null}, ${points || 100}, ${dueDate}, ${allowLateSubmission ?? true}, ${latePenaltyPercent || 0}, ${attachmentUrls || null}, ${userId})
         RETURNING *
       `
+
+      // Notify students whose class matches this classroom
+      try {
+        const { notifyStudents } = await import('../_lib/student-notify.js')
+        const students = await sql.query(
+          `SELECT s.id::text FROM students s
+           JOIN virtual_classrooms vc ON vc.id = $1 AND vc.tenant_id = s.tenant_id
+           LEFT JOIN classes c ON c.id::text = vc.class_arm_id AND c.tenant_id = s.tenant_id
+           WHERE s.tenant_id = $2 AND s.deleted_at IS NULL
+             AND (
+               (vc.class_level IS NOT NULL AND vc.class_level != '' AND LOWER(vc.class_level) = LOWER(s.class))
+               OR (c.id IS NOT NULL AND LOWER(c.name) = LOWER(s.class)
+                   AND (c.arm IS NULL OR c.arm = '' OR LOWER(c.arm) = LOWER(s.arm)))
+             )`,
+          [classroomId, tenantId]
+        )
+        await notifyStudents(tenantId, students.rows.map((r: any) => r.id), {
+          type: 'assignment',
+          title: `New assignment: ${title}`,
+          message: `Due ${new Date(dueDate).toLocaleDateString()}. Open Assignments to view and submit.`,
+          actionUrl: '/student/assignments',
+        })
+      } catch (e) {
+        console.warn('Assignment notification failed:', e)
+      }
+
       return res.status(201).json({ data: result.rows[0] })
     }
 

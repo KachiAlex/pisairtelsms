@@ -142,6 +142,18 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
   // Notifications
   const [sendingNotices, setSendingNotices] = useState(false)
 
+  // Excuse requests submitted by students/parents
+  const [excuses, setExcuses] = useState<Array<{
+    id: string; student_id: string; attendance_date: string; reason: string
+    submitted_by_role: string; submitted_by_name: string; status: string
+    review_note: string | null; created_at: string
+    student_name: string | null; student_class: string | null
+  }>>([])
+  const [excusesLoading, setExcusesLoading] = useState(false)
+  const [excuseReviewNote, setExcuseReviewNote] = useState<Record<string, string>>({})
+  const [excuseActing, setExcuseActing] = useState<string | null>(null)
+  const excusePending = excuses.filter(e => e.status === 'pending').length
+
   // Absence reasons catalog (managed here; feeds staff attendance dropdowns)
   const [absenceReasons, setAbsenceReasons] = useState<Array<{ id: string; reasonName?: string; reason_name?: string; description?: string; isActive?: boolean; is_active?: boolean }>>([])
   const [reasonsLoading, setReasonsLoading] = useState(false)
@@ -657,6 +669,44 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
     }
   }
 
+  // ── Excuse requests (submitted by students/parents) ───────────────────────
+  const fetchExcuses = useCallback(async () => {
+    setExcusesLoading(true)
+    try {
+      const res = await tenantApiGet('/api/tenant/attendance-excuses?status=pending')
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setExcuses(data.data ?? [])
+    } catch { /* leave list empty */ } finally {
+      setExcusesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'excuses') fetchExcuses()
+  }, [activeTab, fetchExcuses])
+
+  // Also refresh pending count when the tab bar renders
+  useEffect(() => { fetchExcuses() }, [fetchExcuses])
+
+  const reviewExcuse = async (id: string, action: 'approve' | 'reject') => {
+    setExcuseActing(id)
+    try {
+      const res = await tenantApiFetch('/api/tenant/attendance-excuses', {
+        method: 'PUT',
+        body: JSON.stringify({ id, action, note: excuseReviewNote[id]?.trim() || undefined }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `Failed (${res.status})`)
+      toast({ title: action === 'approve' ? 'Excuse approved — record marked excused' : 'Excuse rejected' })
+      setExcuseReviewNote(prev => ({ ...prev, [id]: '' }))
+      await fetchExcuses()
+    } catch (e: any) {
+      toast({ title: 'Review failed', description: e?.message, variant: 'destructive' })
+    } finally {
+      setExcuseActing(null)
+    }
+  }
+
   // Re-fetch when reason filter changes
   useEffect(() => {
     setAtRiskPage(0)
@@ -767,7 +817,7 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="students">
             <Users className="h-4 w-4 mr-2" />
             Student Attendance
@@ -791,6 +841,10 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
           <TabsTrigger value="reasons">
             <ListChecks className="h-4 w-4 mr-2" />
             Reasons
+          </TabsTrigger>
+          <TabsTrigger value="excuses">
+            <ClipboardCheck className="h-4 w-4 mr-2" />
+            Excuses{excusePending > 0 ? ` (${excusePending})` : ''}
           </TabsTrigger>
         </TabsList>
 
@@ -2031,6 +2085,70 @@ export function StudentAttendance({ initialTab }: { initialTab?: string }) {
                     })}
                   </TableBody>
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Excuse Requests Tab */}
+        <TabsContent value="excuses" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Absence Excuse Requests</CardTitle>
+              <CardDescription>
+                Students and parents submit excuses for recorded absences. Approving marks the
+                day as excused and notifies the student and their parents.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {excusesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : excuses.length === 0 ? (
+                <p className="text-sm text-gray-500 py-6 text-center">No pending excuse requests.</p>
+              ) : (
+                <div className="space-y-4">
+                  {excuses.map(e => (
+                    <div key={e.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {e.student_name || 'Student'}
+                            {e.student_class ? <span className="text-gray-500 font-normal"> · {e.student_class}</span> : null}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {e.attendance_date} · submitted by {e.submitted_by_name || e.submitted_by_role} · {new Date(e.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3">{e.reason}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Input
+                          className="w-64"
+                          placeholder="Review note (optional)"
+                          value={excuseReviewNote[e.id] || ''}
+                          onChange={ev => setExcuseReviewNote(prev => ({ ...prev, [e.id]: ev.target.value }))}
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => reviewExcuse(e.id, 'approve')}
+                          disabled={excuseActing === e.id}
+                        >
+                          {excuseActing === e.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Approve'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => reviewExcuse(e.id, 'reject')}
+                          disabled={excuseActing === e.id}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>

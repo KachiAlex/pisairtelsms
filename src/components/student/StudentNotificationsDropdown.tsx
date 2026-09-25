@@ -45,7 +45,7 @@ export function StudentNotificationsDropdown() {
       const token = auth?.token
       if (!token) return
 
-      const [messagesRes, announcementsRes, virtualRes] = await Promise.all([
+      const [messagesRes, announcementsRes, virtualRes, notifRes] = await Promise.all([
         fetch('/api/student/messages', {
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => null),
@@ -55,9 +55,28 @@ export function StudentNotificationsDropdown() {
         fetch('/api/tenant/virtual-learning-notifications', {
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => null),
+        fetch('/api/student/notifications', {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null),
       ])
 
       const notificationsList: Notification[] = []
+
+      if (notifRes?.ok) {
+        const notifData = await notifRes.json()
+        const items = notifData.notifications || []
+        notificationsList.push(
+          ...items.map((n: any) => ({
+            id: `ntf-${n.id}`,
+            type: 'announcement' as const,
+            title: n.title,
+            message: n.message || '',
+            date: n.date,
+            isRead: n.isRead,
+            link: n.actionUrl || undefined,
+          }))
+        )
+      }
 
       if (messagesRes?.ok) {
         const messagesData = await messagesRes.json()
@@ -129,6 +148,11 @@ export function StudentNotificationsDropdown() {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         })
+      } else if (type === 'ntf') {
+        await fetch(`/api/student/notifications?id=${id}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+        })
       }
 
       setNotifications(prev =>
@@ -148,15 +172,19 @@ export function StudentNotificationsDropdown() {
 
       const unreadMessages = notifications.filter(n => !n.isRead && n.type === 'message')
 
-      await Promise.all(
-        unreadMessages.map(n => {
+      await Promise.all([
+        ...unreadMessages.map(n => {
           const [, id] = n.id.split('-')
           return fetch(`/api/student/messages/${id}/read`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           })
-        })
-      )
+        }),
+        fetch('/api/student/notifications?all=1', {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ])
 
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
     } catch (err) {

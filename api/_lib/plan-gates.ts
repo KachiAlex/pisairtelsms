@@ -36,6 +36,7 @@ const GATES: Array<[string, keyof PlanFeatures, string, string[]?]> = [
   ['/api/tenant/attendance/audit-trail', 'attendance', 'auditTrail'],
   ['/api/tenant/attendance/batch-upload', 'attendance', 'batchUpload'],
   ['/api/tenant/attendance/notifications', 'communication', 'bulkNotifications'],
+  ['/api/tenant/attendance-excuses', 'attendance', 'dailyStudent'],
   ['/api/tenant/attendance/reports', 'analytics', 'attendance'],
   ['/api/tenant/attendance', 'attendance', 'dailyStudent'],
   ['/api/tenant/staff-attendance', 'attendance', 'staffTracking'],
@@ -156,14 +157,19 @@ const GATES: Array<[string, keyof PlanFeatures, string, string[]?]> = [
   ['/api/student/lesson-notes', 'academicStructure', 'lessonNotes'],
   ['/api/student/materials', 'digitalLearning', 'materialsRepository'],
   ['/api/student/live-meetings', 'digitalLearning', 'virtualClassrooms'],
-  // Students can only read/mark-read/reply to received broadcasts — no
-  // compose exists — so the whole endpoint is the notification loop.
+  // Student inbox + teacher compose are part of the notification loop.
   ['/api/student/messages', 'communication', 'inAppNotifications'],
   ['/api/student/results', 'results', 'publishing'],
   ['/api/student/transcript', 'results', 'transcripts'],
   ['/api/student/timetable', 'scheduling', 'timetables'],
   ['/api/student/fees', 'finance', 'collection'],
   ['/api/student/announcements', 'communication', 'announcements'],
+  ['/api/student/notifications', 'communication', 'inAppNotifications'],
+  ['/api/student/events', 'academicStructure', 'calendar'],
+  ['/api/student/documents', 'studentManagement', 'documents'],
+  ['/api/student/behavioral', 'studentManagement', 'behavioral'],
+  ['/api/student/discussions', 'digitalLearning', 'discussions'],
+  ['/api/student/support', 'communication', 'inAppNotifications'],
 
   // ---------- Parent portal API ----------
   ['/api/parent/academic', 'results', 'publishing'],
@@ -176,6 +182,7 @@ const GATES: Array<[string, keyof PlanFeatures, string, string[]?]> = [
   ['/api/parent/fees', 'finance', 'collection'],
   ['/api/parent/health', 'studentManagement', 'healthRecords'],
   ['/api/parent/messages', 'communication', 'parentTeacherMessaging'],
+  ['/api/parent/support', 'communication', 'inAppNotifications'],
   ['/api/parent/notifications', 'communication', 'inAppNotifications'],
   ['/api/parent/notification-preferences', 'communication', 'inAppNotifications'],
   ['/api/parent/timetable', 'scheduling', 'timetables'],

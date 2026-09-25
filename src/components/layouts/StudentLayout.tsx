@@ -17,6 +17,13 @@ import {
   Library,
   GraduationCap as ExamIcon,
   FileText,
+  Calendar,
+  FolderOpen,
+  MessagesSquare,
+  ShieldCheck,
+  UserPlus,
+  Mail,
+  LifeBuoy,
 } from 'lucide-react'
 import { clearAuthFromStorage, getAuthFromStorage } from '../../lib/auth'
 import { Button } from '../ui/button'
@@ -39,6 +46,12 @@ const MyMaterials = lazy(() => import('../pages/student/MyMaterials').then(m => 
 const MyExams = lazy(() => import('../pages/student/MyExams').then(m => ({ default: m.MyExams })))
 const MyTranscript = lazy(() => import('../pages/student/MyTranscript').then(m => ({ default: m.MyTranscript })))
 const StudentLiveClass = lazy(() => import('../pages/student/StudentLiveClass').then(m => ({ default: m.StudentLiveClass })))
+const MyEvents = lazy(() => import('../pages/student/MyEvents').then(m => ({ default: m.MyEvents })))
+const MyDocuments = lazy(() => import('../pages/student/MyDocuments').then(m => ({ default: m.MyDocuments })))
+const MyConduct = lazy(() => import('../pages/student/MyConduct').then(m => ({ default: m.MyConduct })))
+const MyDiscussions = lazy(() => import('../pages/student/MyDiscussions').then(m => ({ default: m.MyDiscussions })))
+const MySupport = lazy(() => import('../pages/student/MySupport').then(m => ({ default: m.MySupport })))
+const MyPrivateLessons = lazy(() => import('../pages/student/MyPrivateLessons').then(m => ({ default: m.MyPrivateLessons })))
 
 interface StudentLayoutProps {
   children?: React.ReactNode
@@ -55,7 +68,14 @@ const navItems = [
   { id: 'exams', label: 'Exams', icon: ExamIcon },
   { id: 'timetable', label: 'Timetable', icon: Clock },
   { id: 'fees', label: 'Fees & Payments', icon: CreditCard },
+  { id: 'events', label: 'Calendar', icon: Calendar },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
+  { id: 'discussions', label: 'Discussions', icon: MessagesSquare },
+  { id: 'conduct', label: 'Conduct', icon: ShieldCheck },
+  { id: 'private-lessons', label: 'Private Lessons', icon: UserPlus },
   { id: 'communications', label: 'Communications', icon: MessageSquare },
+  { id: 'messages', label: 'Messages', icon: Mail },
+  { id: 'support', label: 'Help & Support', icon: LifeBuoy },
   { id: 'profile', label: 'Profile', icon: User },
 ]
 
@@ -103,6 +123,18 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         return <MyMaterials />
       case 'live-class':
         return <StudentLiveClass />
+      case 'events':
+        return <MyEvents />
+      case 'documents':
+        return <MyDocuments />
+      case 'discussions':
+        return <MyDiscussions />
+      case 'conduct':
+        return <MyConduct />
+      case 'private-lessons':
+        return <MyPrivateLessons />
+      case 'support':
+        return <MySupport />
       case 'communications':
         return <Communications />
       case 'messages':

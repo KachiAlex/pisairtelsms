@@ -66,6 +66,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       `;
       if (!result.rows[0]) return res.status(404).json({ error: 'Student not found' });
       const r = result.rows[0];
+
+      // Real login history from tracked sessions (device + IP + timestamp)
+      const sessions = await sql`
+        SELECT created_at::text AS login_at, device_info, ip_address
+        FROM user_sessions
+        WHERE user_id = ${studentId}
+        ORDER BY created_at DESC
+        LIMIT 10
+      `.catch(() => ({ rows: [] as any[] }));
+      const loginHistory: LoginHistory[] = sessions.rows.map((s: any) => {
+        const d = new Date(s.login_at);
+        const di = s.device_info || {};
+        return {
+          date: d.toISOString().split('T')[0],
+          time: d.toTimeString().slice(0, 8),
+          device: [di.type, di.os, di.browser].filter(Boolean).join(' · ') || 'Unknown device',
+          ipAddress: s.ip_address || '',
+        };
+      });
+
       return res.status(200).json({
         profile: {
           id: r.id,
@@ -78,7 +98,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           phone: r.phone || '',
           guardian: { name: r.guardian || '', phone: r.phone || '' },
         },
-        loginHistory: [],
+        loginHistory,
       });
     } catch (error) {
       console.error('Error fetching profile:', error);

@@ -7,6 +7,7 @@ interface AttendanceRecord {
   subject: string;
   status: 'present' | 'absent' | 'late' | 'excused';
   reason?: string;
+  excuseStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 interface AttendanceData {
@@ -31,6 +32,10 @@ export function MyAttendance() {
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [excuseFor, setExcuseFor] = useState<string | null>(null);
+  const [excuseReason, setExcuseReason] = useState('');
+  const [excuseSending, setExcuseSending] = useState(false);
+  const [excuseMsg, setExcuseMsg] = useState<string | null>(null);
 
   const fetchAttendance = async () => {
     try {
@@ -55,6 +60,30 @@ export function MyAttendance() {
   };
 
   useEffect(() => { fetchAttendance(); }, []);
+
+  const submitExcuse = async () => {
+    if (!excuseFor || !excuseReason.trim()) return;
+    try {
+      setExcuseSending(true);
+      setExcuseMsg(null);
+      const auth = localStorage.getItem('auth');
+      if (!auth) { setExcuseMsg('Not authenticated'); return; }
+      const { token } = JSON.parse(auth);
+      const res = await fetch('/api/student/attendance', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: excuseFor, reason: excuseReason }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Failed to submit excuse');
+      setExcuseFor(null);
+      fetchAttendance();
+    } catch (err) {
+      setExcuseMsg(err instanceof Error ? err.message : 'Failed to submit excuse');
+    } finally {
+      setExcuseSending(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -128,6 +157,7 @@ export function MyAttendance() {
                       <th className="text-left px-4 py-3 font-medium text-gray-600">Subject</th>
                       <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
                       <th className="text-left px-4 py-3 font-medium text-gray-600">Reason</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Excuse</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -143,6 +173,25 @@ export function MyAttendance() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-gray-600">{r.reason ?? '—'}</td>
+                          <td className="px-4 py-3">
+                            {(r.status === 'absent' || r.status === 'late') && !r.excuseStatus && (
+                              <button
+                                onClick={() => { setExcuseFor(r.date); setExcuseReason(''); setExcuseMsg(null); }}
+                                className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
+                              >
+                                Submit excuse
+                              </button>
+                            )}
+                            {r.excuseStatus && (
+                              <span className={`text-xs font-medium ${
+                                r.excuseStatus === 'approved' ? 'text-green-600'
+                                : r.excuseStatus === 'rejected' ? 'text-red-600'
+                                : 'text-amber-600'
+                              }`}>
+                                Excuse {r.excuseStatus}
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -152,6 +201,33 @@ export function MyAttendance() {
             </div>
           )}
         </>
+      )}
+
+      {/* Excuse submission dialog */}
+      {excuseFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 space-y-4 shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-900">Submit an excuse</h2>
+            <p className="text-sm text-gray-600">
+              Explain why you were absent on <span className="font-medium">{excuseFor}</span>.
+              A teacher or admin will review it.
+            </p>
+            {excuseMsg && <p className="text-sm text-red-600">{excuseMsg}</p>}
+            <textarea
+              value={excuseReason}
+              onChange={e => setExcuseReason(e.target.value)}
+              placeholder="e.g. I was ill and visited the clinic..."
+              rows={4}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setExcuseFor(null)}>Cancel</Button>
+              <Button size="sm" onClick={submitExcuse} disabled={excuseSending || !excuseReason.trim()}>
+                {excuseSending ? 'Submitting...' : 'Submit excuse'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

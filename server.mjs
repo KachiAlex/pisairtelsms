@@ -65,10 +65,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.text({ limit: '50mb' }));
 
-app.use((req, res, next) => {
-  res.setHeader('X-Powered-By', 'Pisairtel-SMS');
-  next();
-});
+// Never disclose the platform — X-Powered-By fingerprints the stack for scanners.
+app.disable('x-powered-by');
 
 // Security headers on API responses
 const isProduction = process.env.NODE_ENV === 'production';

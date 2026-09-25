@@ -1313,6 +1313,10 @@
       "destination": "/api/public/resolve.ts"
     },
     {
+      "source": "/api/public/verify-certificate",
+      "destination": "/api/public/verify-certificate.ts"
+    },
+    {
       "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }

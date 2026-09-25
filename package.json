@@ -15,7 +15,8 @@
     "migrate": "node scripts/run-consolidated-migration.mjs",
     "deploy": "node server/deploy.mjs",
     "deploy:build-only": "node server/deploy.mjs --build-only",
-    "deploy:skip-build": "node server/deploy.mjs --skip-build"
+    "deploy:skip-build": "node server/deploy.mjs --skip-build",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@cloudflare/realtimekit-react": "2.0.1",
@@ -95,6 +96,7 @@
   },
   "devDependencies": {
     "@fast-check/vitest": "^0.4.1",
+    "@playwright/test": "^1.63.0",
     "@prisma/client": "^6.0.0",
     "@rollup/rollup-win32-x64-msvc": "4.57.1",
     "@tailwindcss/forms": "^0.5.11",

@@ -38,6 +38,7 @@ const Dashboard = lazy(() => import('./components/pages/Dashboard'));
 const StudentsList = lazy(() => import('./components/pages/StudentsList'));
 const StudentEnrollment = lazy(() => import('./components/pages/StudentEnrollment'));
 const PublicApplicationForm = lazy(() => import('./components/pages/PublicApplicationForm'));
+const VerifyCertificatePage = lazy(() => import('./components/pages/public/VerifyCertificatePage'));
 const PublicInquiryForm = lazy(() => import('./components/pages/PublicInquiryForm'));
 const DemoRequestForm = lazy(() => import('./components/pages/DemoRequestForm'));
 const StudentPromotion = lazy(() => import('./components/pages/StudentPromotion'));
@@ -579,6 +580,7 @@ export default function App() {
         <Route path="/student/*" element={<RoleBasedRoute allowedRoles={['student']}><StudentLayout /></RoleBasedRoute>} />
         <Route path="/staff/*" element={<RoleBasedRoute allowedRoles={['staff']}><StaffLayout /></RoleBasedRoute>} />
         <Route path="/parent/login" element={<ParentLoginPage />} />
+        <Route path="/verify-certificate" element={<ErrorBoundary><Suspense fallback={<div>Loading...</div>}><VerifyCertificatePage /></Suspense></ErrorBoundary>} />
         <Route path="/parent/forgot-password" element={<ParentForgotPasswordPage />} />
         <Route path="/parent/*" element={<RoleBasedRoute allowedRoles={['parent']} redirectTo="/parent/login"><ParentContextProvider><ErrorBoundary><Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}><ParentLayout /></Suspense></ErrorBoundary></ParentContextProvider></RoleBasedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />

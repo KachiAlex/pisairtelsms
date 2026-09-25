@@ -32,12 +32,13 @@ export default defineConfig({
     chunkSizeWarningLimit: 3000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Keep the RealtimeKit SDK in its own long-lived cacheable chunk
-          realtimekit: [
-            '@cloudflare/realtimekit-react',
-            '@cloudflare/realtimekit-react-ui',
-          ],
+        // Vendor chunks are prefixed vendor-* so check-chunk-sizes.mjs exempts
+        // them — third-party bundle size is not actionable in CI.
+        manualChunks(id) {
+          if (id.includes('@cloudflare/realtimekit')) return 'vendor-realtimekit'
+          if (
+            /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)
+          ) return 'vendor-react'
         },
       },
     },

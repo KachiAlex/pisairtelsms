@@ -93,6 +93,53 @@ interface LegacyTokenClaims {
 }
 
 /**
+ * Account-liveness revalidation: a JWT stays cryptographically valid until
+ * expiry even after the account is deleted or deactivated, and session
+ * termination alone doesn't cover accounts whose sessions were never tracked.
+ * A short TTL cache keeps revocation bounded (~5 min) without a per-request
+ * lookup storm. Fails OPEN on DB error — same policy as session validation.
+ */
+const LIVENESS_TTL_MS = 5 * 60 * 1000
+const livenessCache = new Map<string, { ok: boolean; at: number }>()
+
+export async function userStillActive(claims: { role?: string; tenantId?: string; userId?: string; staffId?: string; studentId?: string; parentId?: string }): Promise<boolean> {
+  const role = claims.role
+  const userId = claims.userId ?? claims.staffId ?? claims.studentId ?? claims.parentId ?? null
+  if (!userId || !role) return true // nothing to bind to (service/cron tokens)
+
+  const key = `${role}:${userId}`
+  const hit = livenessCache.get(key)
+  if (hit && Date.now() - hit.at < LIVENESS_TTL_MS) return hit.ok
+
+  let ok = true
+  try {
+    const tid = claims.tenantId ?? ''
+    if (role === 'student') {
+      const r = await sql`SELECT 1 FROM students WHERE id::text = ${userId} AND tenant_id::text = ${tid} AND deleted_at IS NULL LIMIT 1`
+      ok = r.rows.length > 0
+    } else if (role === 'staff' || role === 'tenant_admin') {
+      const r = await sql`SELECT 1 FROM staff WHERE id::text = ${userId} AND tenant_id::text = ${tid} AND LOWER(COALESCE(status, 'active')) <> 'inactive' LIMIT 1`
+      ok = r.rows.length > 0
+    } else if (role === 'user') {
+      const r = await sql`SELECT 1 FROM tenant_users WHERE id::text = ${userId} AND tenant_id::text = ${tid} LIMIT 1`
+      ok = r.rows.length > 0
+    } else if (role === 'parent') {
+      const r = await sql`SELECT 1 FROM parents WHERE id::text = ${userId} AND tenant_id::text = ${tid} LIMIT 1`
+      ok = r.rows.length > 0
+    } else if (role === 'super_admin') {
+      const r = await sql`SELECT 1 FROM super_admin_accounts WHERE id::text = ${userId} LIMIT 1`
+      ok = r.rows.length > 0
+    }
+    // Unrecognized roles pass — avoids breaking token types added later.
+  } catch (error) {
+    console.error('User liveness check error:', error)
+    return true
+  }
+  livenessCache.set(key, { ok, at: Date.now() })
+  return ok
+}
+
+/**
  * Adopt a sid-less token into user_sessions so pre-tracking logins appear in
  * active sessions and can be terminated. Creates the row once, then behaves
  * like touchSession: false when the row is terminated or expired.

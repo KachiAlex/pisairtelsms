@@ -44,7 +44,8 @@ const ids = await (async () => {
   const tid = (await pool.query(`SELECT id::text AS id FROM tenants LIMIT 1`)).rows[0]?.id
   const students = (await pool.query(`SELECT id::text AS id FROM students WHERE tenant_id::text=$1 AND deleted_at IS NULL ORDER BY id LIMIT 2`, [tid])).rows.map(r => r.id)
   const staff = (await pool.query(`SELECT id::text AS id FROM staff WHERE tenant_id::text=$1 LIMIT 1`, [tid])).rows[0]?.id
-  const admin = (await pool.query(`SELECT id::text AS id FROM tenant_users WHERE tenant_id::text=$1 LIMIT 1`, [tid])).rows[0]?.id
+  const admin = (await pool.query(`SELECT id::text AS id FROM staff WHERE tenant_id::text=$1 AND role IN ('tenant_admin','Admin','Principal','admin','principal') LIMIT 1`, [tid])).rows[0]?.id
+    || (await pool.query(`SELECT id::text AS id FROM staff WHERE tenant_id::text=$1 LIMIT 1`, [tid])).rows[0]?.id
   const link = (await pool.query(`SELECT parent_id::text AS parent_id, student_id::text AS student_id FROM parent_students WHERE tenant_id::text=$1 LIMIT 1`, [tid])).rows[0]
   const otherChild = (await pool.query(
     `SELECT id::text AS id FROM students WHERE tenant_id::text=$1 AND deleted_at IS NULL AND id::text NOT IN (SELECT student_id::text FROM parent_students WHERE parent_id::text=$2) LIMIT 1`,

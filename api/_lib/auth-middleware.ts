@@ -1,7 +1,7 @@
 import type { ApiRequest, ApiResponse } from './http-types.js'
 import { jwtVerify } from 'jose'
 import { getJwtSecret } from './jwt-secret.js'
-import { touchSession, adoptLegacySession } from './session-tracker.js'
+import { touchSession, adoptLegacySession, userStillActive } from './session-tracker.js'
 
 export type UserRole = 'super_admin' | 'tenant_admin' | 'student' | 'staff' | 'parent'
 
@@ -36,9 +36,14 @@ export interface DecodedToken {
  */
 async function sessionStillValid(decoded: DecodedToken, token: string, req: ApiRequest): Promise<boolean> {
   try {
-    if (decoded.sid) return await touchSession(decoded.sid)
-    if (decoded.tenantId) return await adoptLegacySession(decoded, token, req)
-    return true
+    if (decoded.sid) {
+      if (!(await touchSession(decoded.sid))) return false
+    } else if (decoded.tenantId) {
+      if (!(await adoptLegacySession(decoded, token, req))) return false
+    }
+    // Reject tokens whose account was deleted or deactivated — otherwise a
+    // JWT stays usable until expiry regardless of account state.
+    return await userStillActive(decoded)
   } catch (error) {
     console.error('Session validation error:', error)
     return true

@@ -6,7 +6,7 @@ import { recordSession, terminateSession, logSecurityEvent } from '../../_lib/se
 /** Persistent session-management API. The old implementation used process
  * memory, which lost sessions on restart and could not terminate JWT sessions. */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['tenant_admin'])
   if (!decoded) return
   const tenantId = decoded.tenantId
   if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context required' })

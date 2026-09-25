@@ -7,7 +7,7 @@ import { requireRole } from '../../_lib/auth-middleware.js'
  * Returns security overview metrics
  */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['tenant_admin'])
   if (!decoded) return
 
   if (req.method !== 'GET') {

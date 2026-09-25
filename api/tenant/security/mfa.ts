@@ -12,7 +12,7 @@ import { requireRole } from '../../_lib/auth-middleware.js'
  * UI always renders meaningful data.
  */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
+  const decoded = await requireRole(req, res, ['tenant_admin'])
   if (!decoded) return
 
   // SEC-06/tenant scoping: derive tenantId from the verified token, not query params

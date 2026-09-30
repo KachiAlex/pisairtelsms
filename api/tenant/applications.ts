@@ -3,6 +3,7 @@ import { runMigrations, initializeDatabase } from './cbt/_lib/db.js'
 import { fetchApplications, createApplication, updateApplicationStatus, type ApplicationPayload } from './_lib/applications.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { resolveTenantFromRequest, resolveShortCode } from '../_lib/tenant-resolver.js'
+import { notifyPlatformAdmin } from '../_lib/form-notify.js'
 
 function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST,PUT')
@@ -106,6 +107,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         tenantId,
       }
       const created = await createApplication(payload)
+      notifyPlatformAdmin({
+        kind: 'New admission application',
+        replyTo: contactEmail ? String(contactEmail).trim() : undefined,
+        fields: [
+          ['Student', studentName],
+          ['Parent / guardian', parentName],
+          ['Phone', contactPhone],
+          ['Email', contactEmail],
+          ['Class applying', classApplying],
+          ['Session', data.academicSession],
+          ['Previous school', data.previousSchool],
+          ['Tenant', tenantId],
+          ['Tracking ID', (created as any)?.trackingId],
+        ],
+      })
       return res.status(201).json({ data: created })
     } catch (error) {
       console.error('Error creating application:', error)

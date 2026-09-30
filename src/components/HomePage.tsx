@@ -547,6 +547,9 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
               <p style={{ fontSize:13, color:'var(--ink-dim)', maxWidth:260, lineHeight:1.6 }}>
                 School management software from the Pisairtel family — the same account works across every Pisairtel product.
               </p>
+              <a href="mailto:admin@pisairtel.com" style={{ display:'inline-block', marginTop:12, fontSize:13.5, fontWeight:600, color:'var(--ink)', fontFamily:'JetBrains Mono,monospace' }}>
+                admin@pisairtel.com
+              </a>
             </div>
             <div style={{ display:'flex', flexWrap:'wrap', gap:56 }}>
               <div>
@@ -558,7 +561,7 @@ export function HomePage({ onNavigateToDashboard }: HomePageProps) {
               <div>
                 <b style={{ display:'block', fontFamily:'JetBrains Mono,monospace', fontSize:11, letterSpacing:'.1em', color:'var(--ink-faint)', marginBottom:14 }}>COMPANY</b>
                 <a href="/inquiry" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>About Pisairtel</a>
-                <a href="/inquiry" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>Contact</a>
+                <a href="mailto:admin@pisairtel.com" style={{ display:'block', fontSize:13.5, color:'var(--ink-dim)', marginBottom:10 }}>admin@pisairtel.com</a>
               </div>
               <div>
                 <b style={{ display:'block', fontFamily:'JetBrains Mono,monospace', fontSize:11, letterSpacing:'.1em', color:'var(--ink-faint)', marginBottom:14 }}>RESOURCES</b>

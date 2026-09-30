@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { createLead, fetchLeads } from './_lib/lead.js'
 import { requireRole } from '../_lib/auth-middleware.js'
 import { resolveTenantFromRequest, resolveShortCode } from '../_lib/tenant-resolver.js'
+import { notifyPlatformAdmin } from '../_lib/form-notify.js'
 
 function methodNotAllowed(res: ApiResponse) {
   res.setHeader('Allow', 'GET,POST')
@@ -84,6 +85,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         source: source || 'website',
         status: status || 'new',
         tenantId,
+      })
+      notifyPlatformAdmin({
+        kind: source === 'demo_request' ? 'New demo request' : 'New inquiry form submission',
+        replyTo: contactEmail ? String(contactEmail).trim() : undefined,
+        fields: [
+          ['Student / school', studentName],
+          ['Parent / contact', parentName],
+          ['Phone', contactPhone],
+          ['Email', contactEmail],
+          ['Class / size', classInterested],
+          ['Source', source],
+          ['Tenant', tenantId],
+          ['Lead ID', id],
+        ],
       })
       return res.status(201).json({ data: result })
     } catch (error) {

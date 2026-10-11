@@ -54,6 +54,15 @@ interface DashboardStats {
     database: boolean
   }
   revenueByMonth?: Array<{ month: string; amount: number }>
+  setup?: {
+    sessionTermSet: boolean
+    classesDefined: number
+    totalStaff: number
+    subjectsCount: number
+    feeStructuresCount: number
+    gradingConfigured: boolean
+    leadsCount: number
+  }
 }
 
 const LoadingSkeleton = () => (
@@ -230,25 +239,32 @@ export function Dashboard() {
         }))
     : []
 
-  // First-run checklist — shown until the school has its core structure.
+  // First-run checklist — shown until every required step is done.
   // Completion is read from real counts, so items tick themselves off.
+  const setup = dashboardStats.setup
   const setupSteps = [
     {
       label: 'Set the current session & term',
       detail: 'System Controls — drives attendance, results, and billing defaults.',
-      done: false, // no cheap signal — always listed as actionable
+      done: setup?.sessionTermSet === true,
       target: '/tenant/system-settings',
     },
     {
       label: 'Create classes & arms',
       detail: 'Canonical names like "JSS 1" — the source of truth for every module.',
-      done: (dashboardStats.classesCount ?? 0) > 0,
+      done: (setup?.classesDefined ?? dashboardStats.classesCount ?? 0) > 0,
       target: '/tenant/classes',
+    },
+    {
+      label: 'Create subjects',
+      detail: 'Subjects feed timetables, CA entry, and result computation.',
+      done: (setup?.subjectsCount ?? 0) > 0,
+      target: '/tenant/subjects',
     },
     {
       label: 'Add teaching & admin staff',
       detail: 'First login uses their email address as the temporary password.',
-      done: (dashboardStats.totalTeachers ?? 0) > 0,
+      done: (setup?.totalStaff ?? dashboardStats.totalTeachers ?? 0) > 0,
       target: '/tenant/staff',
     },
     {
@@ -258,13 +274,29 @@ export function Dashboard() {
       target: '/tenant/students',
     },
     {
+      label: 'Set up your fee structure',
+      detail: 'What each class is billed — powers invoices and fee tracking.',
+      done: (setup?.feeStructuresCount ?? 0) > 0,
+      target: '/tenant/fee-structure',
+    },
+    {
+      label: 'Configure grading & CA weights',
+      detail: 'Grading bands and CA weighting — required before results compute.',
+      done: setup?.gradingConfigured === true,
+      target: '/tenant/grading-policy',
+    },
+    {
       label: 'Share your application & inquiry links',
       detail: 'Public forms scoped to your school via its slug.',
-      done: false,
+      done: (setup?.leadsCount ?? 0) > 0,
       target: '/tenant/student-enrollment',
+      optional: true,
     },
   ]
-  const showSetup = (dashboardStats.classesCount ?? 0) === 0 || (dashboardStats.totalStudents ?? 0) === 0
+  const requiredSteps = setupSteps.filter((s) => !s.optional)
+  const setupDoneCount = requiredSteps.filter((s) => s.done).length
+  const setupPct = Math.round((setupDoneCount / requiredSteps.length) * 100)
+  const showSetup = setupDoneCount < requiredSteps.length
 
   return (
     <div className="space-y-6">
@@ -276,6 +308,13 @@ export function Dashboard() {
               Get your school set up
             </CardTitle>
             <p className="text-sm text-gray-600">Complete these steps once — they unlock every other module.</p>
+            <div className="pt-2 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <span>{setupDoneCount} of {requiredSteps.length} steps complete</span>
+                <span className="font-medium text-blue-600">{setupPct}%</span>
+              </div>
+              <Progress value={setupPct} className="h-2" />
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             {setupSteps.map((step) => (
@@ -289,7 +328,12 @@ export function Dashboard() {
                     ? <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                     : <Clock className="w-5 h-5 text-gray-300 shrink-0" />}
                   <div>
-                    <p className={`text-sm font-medium ${step.done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{step.label}</p>
+                    <p className={`text-sm font-medium ${step.done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                      {step.label}
+                      {step.optional && (
+                        <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 align-middle">Recommended</span>
+                      )}
+                    </p>
                     <p className="text-xs text-gray-500">{step.detail}</p>
                   </div>
                 </div>

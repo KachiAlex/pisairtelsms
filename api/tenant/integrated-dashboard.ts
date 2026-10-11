@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../_lib/http-types.js'
 import { sql } from '../_lib/sql.js'
 import { requireRole } from '../_lib/auth-middleware.js'
+import { fetchTenantSettings } from './_lib/tenant-settings.js'
 
 interface RecentActivityItem {
   type: string
@@ -34,6 +35,17 @@ interface DashboardStats {
     database: boolean
   }
   revenueByMonth: RevenueMonth[]
+  setup: SetupSignals
+}
+
+interface SetupSignals {
+  sessionTermSet: boolean
+  classesDefined: number
+  totalStaff: number
+  subjectsCount: number
+  feeStructuresCount: number
+  gradingConfigured: boolean
+  leadsCount: number
 }
 
 async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
@@ -177,6 +189,48 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }))
   }, [])
 
+  // Onboarding signals — each powers one step of the "Get your school set up"
+  // checklist. All are measured against real rows so steps tick themselves off.
+  const tenantSettings = await safeQuery(async () => fetchTenantSettings(tenantId), null)
+  const sessionTermSet = Boolean(tenantSettings?.currentSession && tenantSettings?.currentTerm)
+
+  const classesDefined = await safeQuery(async () => {
+    const r = await sql`SELECT COUNT(*)::int AS count FROM classes WHERE tenant_id = ${tenantId} AND deleted_at IS NULL`
+    return r.rows[0]?.count ?? 0
+  }, 0)
+
+  const totalStaff = await safeQuery(async () => {
+    const r = await sql`SELECT COUNT(*)::int AS count FROM staff WHERE tenant_id = ${tenantId}`
+    return r.rows[0]?.count ?? 0
+  }, 0)
+
+  const subjectsCount = await safeQuery(async () => {
+    const r = await sql`SELECT COUNT(*)::int AS count FROM subjects WHERE tenant_id = ${tenantId}`
+    return r.rows[0]?.count ?? 0
+  }, 0)
+
+  const feeStructuresCount = await safeQuery(async () => {
+    const r = await sql`SELECT COUNT(*)::int AS count FROM fee_structures WHERE tenant_id = ${tenantId}`
+    return r.rows[0]?.count ?? 0
+  }, 0)
+
+  // Results can't compute until a grading scale or CA weighting exists.
+  const gradingConfigured = await safeQuery(async () => {
+    const r = await sql`
+      SELECT (
+        (SELECT COUNT(*) FROM grading_scales WHERE tenant_id = ${tenantId}) +
+        (SELECT COUNT(*) FROM ca_config WHERE tenant_id = ${tenantId})
+      )::int AS count
+    `
+    return (r.rows[0]?.count ?? 0) > 0
+  }, false)
+
+  // First lead means a public application/inquiry link was shared and used.
+  const leadsCount = await safeQuery(async () => {
+    const r = await sql`SELECT COUNT(*)::int AS count FROM leads WHERE tenant_id = ${tenantId}`
+    return r.rows[0]?.count ?? 0
+  }, 0)
+
   const stats: DashboardStats = {
     totalStudents,
     totalTeachers,
@@ -192,6 +246,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       database: true,
     },
     revenueByMonth,
+    setup: {
+      sessionTermSet,
+      classesDefined,
+      totalStaff,
+      subjectsCount,
+      feeStructuresCount,
+      gradingConfigured,
+      leadsCount,
+    },
   }
 
   return res.status(200).json({ data: stats })

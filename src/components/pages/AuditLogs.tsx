@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Clock, Filter, ShieldCheck, Download, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Clock, ShieldCheck, Download, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -42,12 +42,21 @@ export function AuditLogs() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [surfaceFilter, setSurfaceFilter] = useState('all')
+  const [severityFilter, setSeverityFilter] = useState('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   const loadLogs = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch('/api/tenant/audit-logs', { headers: getApiHeaders() })
+      const params = new URLSearchParams({ limit: '200' })
+      if (surfaceFilter !== 'all') params.set('surface', surfaceFilter)
+      if (severityFilter !== 'all') params.set('severity', severityFilter)
+      if (searchTerm.trim()) params.set('search', searchTerm.trim())
+      if (fromDate) params.set('from', fromDate)
+      if (toDate) params.set('to', toDate)
+      const res = await fetch(`/api/tenant/audit-logs?${params}`, { headers: getApiHeaders() })
       if (!res.ok) throw new Error('Failed to load audit logs')
       const json = await res.json()
       setEntries(json.data || [])
@@ -57,15 +66,17 @@ export function AuditLogs() {
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [toast, surfaceFilter, severityFilter, searchTerm, fromDate, toDate])
 
+  // Refetch whenever a filter changes; the debounce keeps typing cheap.
   useEffect(() => {
-    loadLogs()
+    const t = setTimeout(() => { void loadLogs() }, 300)
+    return () => clearTimeout(t)
   }, [loadLogs])
 
   const exportCsv = () => {
     const escape = (value: string) => `"${String(value ?? '').replace(/"/g, '""')}"`
-    const rows = filteredEntries.map((entry) => [
+    const rows = entries.map((entry) => [
       new Date(entry.time).toISOString(), entry.actor, entry.action, entry.surface, entry.meta, entry.severity,
     ])
     const csv = [['Timestamp', 'Actor', 'Action', 'Surface', 'Meta', 'Severity'], ...rows]
@@ -78,17 +89,6 @@ export function AuditLogs() {
     anchor.click()
     URL.revokeObjectURL(url)
   }
-
-  const filteredEntries = useMemo(() => {
-    return entries.filter((entry) => {
-      const matchesSurface = surfaceFilter === 'all' || entry.surface === surfaceFilter
-      const matchesSearch =
-        entry.actor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.meta.toLowerCase().includes(searchTerm.toLowerCase())
-      return matchesSurface && matchesSearch
-    })
-  }, [entries, searchTerm, surfaceFilter])
 
   return (
     <div className="space-y-6">
@@ -103,7 +103,7 @@ export function AuditLogs() {
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button variant="outline" onClick={exportCsv} disabled={filteredEntries.length === 0}>
+          <Button variant="outline" onClick={exportCsv} disabled={entries.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -132,7 +132,7 @@ export function AuditLogs() {
               />
               <ShieldCheck className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 className="rounded-xl border border-gray-200 px-3 py-2 text-sm"
                 value={surfaceFilter}
@@ -144,6 +144,46 @@ export function AuditLogs() {
                 <option value="Examinations">Examinations</option>
                 <option value="Academics">Academics</option>
               </select>
+              <select
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                value={severityFilter}
+                onChange={(event) => setSeverityFilter(event.target.value)}
+              >
+                <option value="all">All severities</option>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+              </select>
+              <Input
+                type="date"
+                aria-label="From date"
+                value={fromDate}
+                onChange={(event) => setFromDate(event.target.value)}
+                className="w-40"
+              />
+              <span className="text-xs text-gray-400">to</span>
+              <Input
+                type="date"
+                aria-label="To date"
+                value={toDate}
+                onChange={(event) => setToDate(event.target.value)}
+                className="w-40"
+              />
+              {(fromDate || toDate || severityFilter !== 'all' || surfaceFilter !== 'all' || searchTerm) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setFromDate('')
+                    setToDate('')
+                    setSeverityFilter('all')
+                    setSurfaceFilter('all')
+                    setSearchTerm('')
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -163,9 +203,9 @@ export function AuditLogs() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600" /><p className="mt-2 text-sm text-gray-500">Loading audit stream...</p></TableCell></TableRow>
-                ) : filteredEntries.length === 0 ? (
+                ) : entries.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="text-center py-20 text-gray-500"><ShieldCheck className="h-10 w-10 mx-auto mb-2 opacity-20" /><p>No logs found matching your criteria.</p></TableCell></TableRow>
-                ) : filteredEntries.map((entry: AuditEntry) => (
+                ) : entries.map((entry: AuditEntry) => (
                   <TableRow key={entry.id}>
                     <TableCell className="text-sm text-gray-500">{new Date(entry.time).toLocaleString()}</TableCell>
                     <TableCell className="text-sm font-medium text-gray-900">{entry.actor}</TableCell>

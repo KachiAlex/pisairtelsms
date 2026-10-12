@@ -17,7 +17,8 @@ const ACCESS_EVENTS = [
  *  - audit_logs                → Examinations   (CBT exam audit trail)
  *  - academic_structure_audit  → Academics      (class/subject/student changes)
  *
- * Supports ?surface=, ?search=, ?limit=, ?offset= server-side.
+ * Supports ?surface=, ?severity=, ?search=, ?from=YYYY-MM-DD, ?to=YYYY-MM-DD,
+ * ?limit=, ?offset= server-side.
  */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const decoded = await requireRole(req, res, ['staff', 'tenant_admin'])
@@ -34,11 +35,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   try {
-    const { surface, search, limit = '50', offset = '0' } = req.query
+    const { surface, search, severity, from, to, limit = '50', offset = '0' } = req.query
     const surfaceFilter = typeof surface === 'string' && surface !== 'all' ? surface : null
     const searchFilter = typeof search === 'string' && search.trim() ? `%${search.trim()}%` : null
     const limitNum = Math.min(200, Math.max(1, Number(limit) || 50))
     const offsetNum = Math.max(0, Number(offset) || 0)
+
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+    const fromTs = typeof from === 'string' && DATE_RE.test(from) ? `${from}T00:00:00Z` : null
+    // `to` is inclusive — bound by start of the following day.
+    const toTs = typeof to === 'string' && DATE_RE.test(to)
+      ? new Date(new Date(`${to}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000).toISOString()
+      : null
+    const severityFilter = typeof severity === 'string' && ['info', 'warning', 'critical'].includes(severity)
+      ? severity
+      : null
 
     const result = await sql`
       SELECT * FROM (
@@ -91,6 +102,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       ) t
       WHERE (${surfaceFilter}::text IS NULL OR t.surface = ${surfaceFilter})
         AND (${searchFilter}::text IS NULL OR t.actor ILIKE ${searchFilter} OR t.action ILIKE ${searchFilter} OR t.meta ILIKE ${searchFilter})
+        AND (${severityFilter}::text IS NULL OR t.severity = ${severityFilter})
+        AND (${fromTs}::timestamptz IS NULL OR t.time >= ${fromTs})
+        AND (${toTs}::timestamptz IS NULL OR t.time < ${toTs})
       ORDER BY t.time DESC
       LIMIT ${limitNum}
       OFFSET ${offsetNum}

@@ -5,7 +5,7 @@ import { requireRole } from '../_lib/auth-middleware.js'
 // Auth/security event types that belong to the Access surface; everything else
 // in security_events is Security.
 const ACCESS_EVENTS = [
-  'login_success', 'login_failure', 'logout', 'session_terminated',
+  'login_success', 'login_failure', 'login_failed', 'logout', 'session_terminated',
   'password_change', 'password_reset',
 ]
 
@@ -53,11 +53,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             WHEN 'medium' THEN 'warning'
             ELSE 'info'
           END AS severity,
-          COALESCE(s.name, st.name, se.user_id, 'System') AS actor,
+          COALESCE(s.name, st.name, sa.full_name, se.user_id, 'System') AS actor,
           se.created_at AS time
         FROM security_events se
         LEFT JOIN staff s ON s.id = se.user_id AND s.tenant_id::text = se.tenant_id
         LEFT JOIN students st ON st.id::text = se.user_id AND st.tenant_id::text = se.tenant_id
+        LEFT JOIN super_admin_accounts sa ON sa.id::text = se.user_id
         WHERE se.tenant_id = ${tenantId}
 
         UNION ALL
@@ -80,7 +81,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         SELECT
           aa.id::text,
           aa.action || ' ' || aa.entity_type,
-          'Academics',
+          CASE WHEN aa.entity_type = 'exam' THEN 'Examinations' ELSE 'Academics' END,
           COALESCE(aa.new_values::text, aa.old_values::text, ''),
           'info',
           COALESCE(aa.actor_name, aa.actor_id, 'System'),

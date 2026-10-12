@@ -6,8 +6,8 @@
 
 import { sql } from '../../_lib/sql.js'
 
-export type AcademicEntityType = 'class' | 'subject' | 'department' | 'program' | 'milestone' | 'student'
-export type AuditAction = 'insert' | 'update' | 'delete'
+export type AcademicEntityType = 'class' | 'subject' | 'department' | 'program' | 'milestone' | 'student' | 'exam'
+export type AuditAction = 'insert' | 'update' | 'delete' | 'schedule' | 'publish' | 'start' | 'end'
 
 /**
  * Record an audit entry for an academic structure mutation.

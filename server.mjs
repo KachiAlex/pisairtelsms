@@ -13,12 +13,13 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { matchPlanGate } from './api/_lib/plan-gates.ts';
 import { enforcePlan } from './api/_lib/plan-middleware.ts';
 import { rlsStorage } from './api/_lib/rls-context.ts';
+import { logAuditEvent } from './api/_lib/audit-logger.ts';
 import { decodeJwt } from 'jose';
 
-// Extract tenantId from the caller's JWT (Bearer or auth_token cookie) without
-// verifying — the handler still verifies the signature; the claim is only used
-// to scope RLS, and a forged token gets 401 anyway.
-function tenantIdFromRequest(req) {
+// Extract claims from the caller's JWT (Bearer or auth_token cookie) without
+// verifying — the handler still verifies the signature; claims are only used
+// to scope RLS and attribute audit rows, and a forged token gets 401 anyway.
+function claimsFromRequest(req) {
   let token;
   const auth = req.headers.authorization;
   if (auth?.startsWith('Bearer ')) token = auth.slice(7);
@@ -28,11 +29,20 @@ function tenantIdFromRequest(req) {
   }
   if (!token) return undefined;
   try {
-    return decodeJwt(token).tenantId;
+    return decodeJwt(token);
   } catch {
     return undefined;
   }
 }
+
+function tenantIdFromRequest(req) {
+  return claimsFromRequest(req)?.tenantId;
+}
+
+// Paths already covered by dedicated audit events (auth logins/logouts,
+// password flows) or too high-frequency to be useful rows (exam sync,
+// monitoring heartbeats, realtime channels).
+const SKIP_MUTATION_AUDIT = /\/auth\/|\/api\/health|\/sync|\/monitoring|\/presence|\/heartbeat|\/realtime|\/ws\b/i;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -191,6 +201,29 @@ for (const rewrite of rewrites) {
       if (gate && (req.headers.authorization || req.headers.cookie?.includes('auth_token'))) {
         const allowed = await enforcePlan(req, res, gate.category, gate.feature);
         if (!allowed) return;
+      }
+
+      // Universal mutation audit — log every authenticated write request so
+      // tenant Audit Logs reflect actual usage even on endpoints without a
+      // dedicated entity-level trail. Denied requests (4xx) are covered by
+      // permission_denied/login events instead.
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && !SKIP_MUTATION_AUDIT.test(req.path)) {
+        const claims = claimsFromRequest(req);
+        if (claims) {
+          res.on('finish', () => {
+            if (res.statusCode < 400) {
+              logAuditEvent('data_modification', {
+                tenantId: claims.tenantId ?? null,
+                userId: claims.userId ?? claims.staffId ?? claims.studentId ?? claims.parentId ?? claims.sub,
+                role: claims.role,
+                ipAddress: req.headers['x-forwarded-for'] || req.ip,
+                userAgent: req.headers['user-agent'],
+                resource: `${req.method} ${req.path}`,
+                details: { status: res.statusCode },
+              });
+            }
+          });
+        }
       }
 
       await rlsStorage.run({ tenantId: tenantIdFromRequest(req) }, () => handler(req, res));

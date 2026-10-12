@@ -5,6 +5,7 @@ import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
+import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger.js'
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   setSecurityHeaders(res)
@@ -38,6 +39,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const account = await verifySuperAdminCredentials(normalizedEmail, password)
 
     if (!account) {
+      await logLoginFailure(req, normalizedEmail, 'Invalid credentials', 'super-admin')
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
@@ -62,6 +64,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       maxAge: expiresIn,
       path: '/',
     })
+
+    await logLoginSuccess(req, String(account.id), 'super_admin', 'super-admin')
 
     return res.status(200).json({
       token,

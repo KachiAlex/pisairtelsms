@@ -1,4 +1,5 @@
 import type { ApiRequest, ApiResponse } from './http-types.js'
+import { logRateLimitExceeded } from './audit-logger.js'
 
 interface RateLimitEntry {
   count: number
@@ -40,6 +41,7 @@ export function rateLimit(
 
   if (entry.count >= maxRequests) {
     // Rate limit exceeded
+    void logRateLimitExceeded(req, identifier)
     res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000).toString())
     res.status(429).json({
       error: 'Too many requests',

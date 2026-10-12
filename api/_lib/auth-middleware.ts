@@ -2,6 +2,11 @@ import type { ApiRequest, ApiResponse } from './http-types.js'
 import { jwtVerify } from 'jose'
 import { getJwtSecret } from './jwt-secret.js'
 import { touchSession, adoptLegacySession, userStillActive } from './session-tracker.js'
+import { logPermissionDenied } from './audit-logger.js'
+
+function requestResource(req: ApiRequest): string {
+  return `${req.method} ${req.originalUrl ?? req.url ?? ''}`.trim()
+}
 
 export type UserRole = 'super_admin' | 'tenant_admin' | 'student' | 'staff' | 'parent'
 
@@ -128,6 +133,13 @@ export async function requireRole(
   }
 
   if (!allowedRoles.includes(decoded.role)) {
+    void logPermissionDenied(
+      req,
+      decoded.userId ?? decoded.staffId ?? decoded.studentId ?? decoded.parentId ?? decoded.sub,
+      decoded.role,
+      requestResource(req),
+      decoded.tenantId,
+    )
     res.status(403).json({ error: 'Forbidden: Insufficient permissions' })
     return null
   }
@@ -173,6 +185,13 @@ export async function getTenantIdFromRequest(
   if (!decoded) return null
 
   if (!decoded.tenantId) {
+    void logPermissionDenied(
+      req,
+      decoded.userId ?? decoded.staffId ?? decoded.studentId ?? decoded.parentId ?? decoded.sub,
+      decoded.role,
+      requestResource(req),
+      null,
+    )
     res.status(403).json({ error: 'Forbidden: No tenant associated with this account' })
     return null
   }

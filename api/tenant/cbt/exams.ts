@@ -19,6 +19,7 @@ import {
   getExamStats,
 } from './_lib/exams.js'
 import { initializeDatabase, runMigrations } from './_lib/db.js'
+import { auditAcademicChange } from '../_lib/academic-audit.js'
 import type { ExamFilter, CreateExamInput, UpdateExamInput } from './_lib/types.js'
 
 /**
@@ -225,6 +226,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       const exam = await createExam(tenantId, userId, input)
+      await auditAcademicChange(tenantId, 'exam', exam.id, 'insert', userId, decoded.email || 'system', null, { title, subject, class: examClass })
       return res.status(201).json({ success: true, data: exam })
     } catch (error: any) {
       console.error('Error creating exam:', error)
@@ -256,6 +258,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
 
       const updated = await updateExam(tenantId, id as string, input)
+      await auditAcademicChange(tenantId, 'exam', id as string, 'update', userId, decoded.email || 'system', null, body)
       return res.status(200).json({ success: true, data: updated })
     } catch (error: any) {
       if (error.message === 'Exam not found') {
@@ -273,6 +276,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'DELETE' && id && !action) {
     try {
       await deleteExam(tenantId, id as string)
+      await auditAcademicChange(tenantId, 'exam', id as string, 'delete', userId, decoded.email || 'system', null, null)
       return res.status(200).json({ success: true, message: 'Exam deleted successfully' })
     } catch (error: any) {
       if (error.message === 'Exam not found') {
@@ -310,6 +314,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     try {
       const exam = await scheduleExam(tenantId, id as string, scheduledDate, scheduledTime)
+      await auditAcademicChange(tenantId, 'exam', id as string, 'schedule', userId, decoded.email || 'system', null, { scheduledDate, scheduledTime })
       return res.status(200).json({ success: true, data: exam })
     } catch (error: any) {
       if (error.message === 'Exam not found') {
@@ -327,6 +332,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'POST' && id && action === 'publish') {
     try {
       const exam = await publishExam(tenantId, id as string)
+      await auditAcademicChange(tenantId, 'exam', id as string, 'publish', userId, decoded.email || 'system', null, null)
       return res.status(200).json({ success: true, data: exam })
     } catch (error: any) {
       if (error.message === 'Exam not found') {
@@ -344,6 +350,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'POST' && id && action === 'start') {
     try {
       const exam = await startExam(tenantId, id as string)
+      await auditAcademicChange(tenantId, 'exam', id as string, 'start', userId, decoded.email || 'system', null, null)
       return res.status(200).json({ success: true, data: exam })
     } catch (error: any) {
       if (error.message === 'Exam not found') {
@@ -361,6 +368,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'POST' && id && action === 'end') {
     try {
       const exam = await endExam(tenantId, id as string)
+      await auditAcademicChange(tenantId, 'exam', id as string, 'end', userId, decoded.email || 'system', null, null)
       return res.status(200).json({ success: true, data: exam })
     } catch (error: any) {
       if (error.message === 'Exam not found') {

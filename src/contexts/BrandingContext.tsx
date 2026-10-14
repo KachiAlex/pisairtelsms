@@ -73,6 +73,10 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
+      // Branding is tenant-scoped — a super-admin session would just 403 and
+      // write a permission_denied audit row on every page load.
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+      if (auth?.role === 'super_admin') return
       const res = await fetch('/api/tenant/branding')
       if (!res.ok) return
       const result = await res.json()

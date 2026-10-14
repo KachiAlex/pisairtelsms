@@ -34,6 +34,7 @@ import { Progress } from '../ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 
 import { useToast } from '../ui/use-toast'
+import { clearAuthFromStorage } from '../../lib/auth'
 
 interface SuperAdminPortalProps {
   onSignOut: () => void
@@ -157,36 +158,31 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           }
     if (token) headers['Authorization'] = `Bearer ${token}`
 
+    // A 401 on any admin endpoint means the stored token is dead (expired or
+    // the account was removed) — clear it and return to login instead of
+    // rendering an empty portal.
+    let unauthorized = false
+    const adminGet = (path: string) =>
+      fetch(path, { headers }).then(async (r) => {
+        if (r.status === 401) { unauthorized = true; throw new Error(`${path} 401`) }
+        if (!r.ok) throw new Error(`${path} ${r.status}`)
+        return r.json()
+      }).catch((e) => { console.error(e); return {} })
+
     Promise.all([
-      fetch('/api/admin/tenants', { headers }).then(async (r) => {
-        if (!r.ok) throw new Error(`Tenants API ${r.status}`)
-        return r.json()
-      }).catch((e) => { console.error(e); return {} }),
-      fetch('/api/admin/provisioning-queue', { headers }).then(async (r) => {
-        if (!r.ok) throw new Error(`Provisioning API ${r.status}`)
-        return r.json()
-      }).catch((e) => { console.error(e); return {} }),
-      fetch('/api/admin/activity-feed', { headers }).then(async (r) => {
-        if (!r.ok) throw new Error(`Activity API ${r.status}`)
-        return r.json()
-      }).catch((e) => { console.error(e); return {} }),
-      fetch('/api/admin/incidents', { headers }).then(async (r) => {
-        if (!r.ok) throw new Error(`Incidents API ${r.status}`)
-        return r.json()
-      }).catch((e) => { console.error(e); return {} }),
-      fetch('/api/admin/stats', { headers }).then(async (r) => {
-        if (!r.ok) throw new Error(`Stats API ${r.status}`)
-        return r.json()
-      }).catch((e) => { console.error(e); return {} }),
-      fetch('/api/admin/plans', { headers }).then(async (r) => {
-        if (!r.ok) throw new Error(`Plans API ${r.status}`)
-        return r.json()
-      }).catch((e) => { console.error(e); return {} }),
-      fetch('/api/admin/audit-log', { headers }).then(async (r) => {
-        if (!r.ok) throw new Error(`Audit API ${r.status}`)
-        return r.json()
-      }).catch((e) => { console.error(e); return {} }),
+      adminGet('/api/admin/tenants'),
+      adminGet('/api/admin/provisioning-queue'),
+      adminGet('/api/admin/activity-feed'),
+      adminGet('/api/admin/incidents'),
+      adminGet('/api/admin/stats'),
+      adminGet('/api/admin/plans'),
+      adminGet('/api/admin/audit-log'),
     ]).then(([tenantsRes, queueRes, feedRes, incidentsRes, statsRes, plansRes, auditRes]) => {
+      if (unauthorized) {
+        clearAuthFromStorage()
+        onSignOut()
+        return
+      }
       if (tenantsRes.data) setTenants(tenantsRes.data)
       if (queueRes.data) setProvisioningQueue(queueRes.data)
       if (feedRes.data) setActivityFeed(feedRes.data)
@@ -201,7 +197,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       }
       if (auditRes.data) setAuditLog(auditRes.data)
     }).finally(() => setLoading(false))
-  }, [])
+  }, [onSignOut])
 
   async function handleProvisionSubmit(e: React.FormEvent) {
     e.preventDefault()

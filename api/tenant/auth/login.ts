@@ -5,7 +5,7 @@ import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { setCookie } from '../../_lib/cookie-helper.js'
 import { getJwtSecret } from '../../_lib/jwt-secret.js'
 import { needsTransparentUpgrade } from '../../_lib/password-hashing.js'
-import { fetchStaffByEmail, verifyStaffPassword, hashPassword } from '../../tenant/_lib/staff.js'
+import { fetchAllStaffByEmail, verifyStaffPassword, hashPassword } from '../../tenant/_lib/staff.js'
 import { poolQuery } from '../../_lib/pg-pool.js'
 import { recordSession, logSecurityEvent } from '../../_lib/session-tracker.js'
 
@@ -40,47 +40,59 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'password must be at least 6 characters' })
     }
 
-    // Look up staff member with an admin role
-    const staff = await fetchStaffByEmail(normalizedEmail)
+    // Emails are not unique across tenants — authenticate against whichever
+    // active admin-capable row's stored hash verifies the password.
+    const candidates = await fetchAllStaffByEmail(normalizedEmail)
 
-    if (!staff) {
+    if (candidates.length === 0) {
       await logSecurityEvent('unknown', null, 'login_failure', `Failed admin login for ${normalizedEmail}: account not found`, 'medium')
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
-    if (!ADMIN_ROLES.has(staff.role)) {
-      await logSecurityEvent(staff.tenantId, staff.id, 'login_failure', `Failed admin login for ${normalizedEmail}: insufficient privileges`, 'medium')
-      return res.status(403).json({ error: 'Account does not have admin privileges' })
+    let staff: (typeof candidates)[number] | null = null
+    let hashlessAdmin: (typeof candidates)[number] | null = null
+    for (const c of candidates) {
+      if (!ADMIN_ROLES.has(c.role) || c.status !== 'active') continue
+      if (c.passwordHash) {
+        if (await verifyStaffPassword(password, c.passwordHash)) { staff = c; break }
+      } else if (!hashlessAdmin) {
+        hashlessAdmin = c
+      }
     }
 
-    if (staff.status !== 'active') {
-      await logSecurityEvent(staff.tenantId, staff.id, 'login_failure', `Failed admin login for ${normalizedEmail}: account inactive`, 'medium')
-      return res.status(403).json({ error: 'Account is inactive or suspended' })
-    }
-
-    // Verify password
-    if (!staff.passwordHash) {
+    if (!staff && hashlessAdmin) {
       // No password set — allow email-as-password for first login
       if (password !== normalizedEmail) {
-        await logSecurityEvent(staff.tenantId, staff.id, 'login_failure', `Failed admin login for ${normalizedEmail}: bad temporary password`, 'medium')
+        await logSecurityEvent(hashlessAdmin.tenantId, hashlessAdmin.id, 'login_failure', `Failed admin login for ${normalizedEmail}: bad temporary password`, 'medium')
         return res.status(401).json({
           error: 'No password set. Use your email address as your temporary password.',
         })
       }
       // Auto-set the password hash
       const newHash = await hashPassword(password)
-      await poolQuery('UPDATE staff SET password_hash = $1 WHERE id = $2', [newHash, staff.id])
-    } else {
-      const valid = await verifyStaffPassword(password, staff.passwordHash)
-      if (!valid) {
-        await logSecurityEvent(staff.tenantId, staff.id, 'login_failure', `Failed admin login for ${normalizedEmail}: invalid password`, 'medium')
-        return res.status(401).json({ error: 'Invalid email or password' })
+      await poolQuery('UPDATE staff SET password_hash = $1 WHERE id = $2', [newHash, hashlessAdmin.id])
+      staff = hashlessAdmin
+    }
+
+    if (!staff) {
+      // Report errors against the deterministic first row
+      const first = candidates[0]
+      if (!ADMIN_ROLES.has(first.role)) {
+        await logSecurityEvent(first.tenantId, first.id, 'login_failure', `Failed admin login for ${normalizedEmail}: insufficient privileges`, 'medium')
+        return res.status(403).json({ error: 'Account does not have admin privileges' })
       }
-      // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
-      if (needsTransparentUpgrade(staff.passwordHash)) {
-        const upgradedHash = await hashPassword(password)
-        await poolQuery('UPDATE staff SET password_hash = $1 WHERE id = $2', [upgradedHash, staff.id])
+      if (first.status !== 'active') {
+        await logSecurityEvent(first.tenantId, first.id, 'login_failure', `Failed admin login for ${normalizedEmail}: account inactive`, 'medium')
+        return res.status(403).json({ error: 'Account is inactive or suspended' })
       }
+      await logSecurityEvent(first.tenantId, first.id, 'login_failure', `Failed admin login for ${normalizedEmail}: invalid password`, 'medium')
+      return res.status(401).json({ error: 'Invalid email or password' })
+    }
+
+    // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
+    if (staff.passwordHash && needsTransparentUpgrade(staff.passwordHash)) {
+      const upgradedHash = await hashPassword(password)
+      await poolQuery('UPDATE staff SET password_hash = $1 WHERE id = $2', [upgradedHash, staff.id])
     }
 
     const resolvedTenantId = staff.tenantId  // SEC-06: derive from staff record, not fallbacks

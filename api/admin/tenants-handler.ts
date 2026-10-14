@@ -109,7 +109,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // Create tenant
       const r = await poolQuery(
         `INSERT INTO tenants (name, subscription_plan, region, status, subdomain, contact_email, contact_phone, address, trial_starts_at, trial_ends_at)
-         VALUES ($1, $2, $3, 'active', $4, $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3, 'provisioning', $4, $5, $6, $7, $8, $9)
          RETURNING ${TENANT_FIELDS}`,
         [
           name.trim(), subscription, region, finalSubdomain,

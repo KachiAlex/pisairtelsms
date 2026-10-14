@@ -90,6 +90,7 @@ const statusBadge = (status: string) => {
     case 'Degraded':
       return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Degraded</Badge>
     case 'Provisioning':
+    case 'provisioning':
       return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Provisioning</Badge>
     case 'suspended':
       return <Badge className="bg-red-100 text-red-700 border-red-200">Suspended</Badge>
@@ -123,6 +124,8 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [provisionContactPhone, setProvisionContactPhone] = useState('')
   const [provisionAdminName, setProvisionAdminName] = useState('')
   const [provisionAdminEmail, setProvisionAdminEmail] = useState('')
+  const [provisionAdminPassword, setProvisionAdminPassword] = useState('')
+  const [provisionedCreds, setProvisionedCreds] = useState<{ tenantName: string; adminEmail: string; password: string } | null>(null)
   const [provisionTrialDays, setProvisionTrialDays] = useState<number | ''>('')
 
   // Tenant Admin Modal
@@ -220,6 +223,9 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
 
       if (status === 'completed') {
         setProvisioningQueue((q) => q.filter((q2) => q2.id !== item.id))
+        if (item.tenantId) {
+          setTenants((ts) => ts.map((t) => t.id === item.tenantId ? { ...t, status: 'active' } : t))
+        }
         toast({ title: 'Pushed live', description: `${item.name} provisioning completed.` })
       } else {
         setProvisioningQueue((q) => q.map((q2) => q2.id === item.id ? { ...q2, status } : q2))
@@ -258,6 +264,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
           contactPhone: provisionContactPhone || undefined,
           adminName: provisionAdminName || undefined,
           adminEmail: provisionAdminEmail || undefined,
+          adminPassword: provisionAdminPassword || undefined,
           trialDays: provisionTrialDays || undefined,
         }),
       })
@@ -273,11 +280,18 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       setProvisionContactPhone('')
       setProvisionAdminName('')
       setProvisionAdminEmail('')
+      setProvisionAdminPassword('')
       setProvisionTrialDays('')
       setProvisionPlan(availablePlans[0]?.planName || 'starter')
       setProvisionRegion('global')
-      if (data.generatedPassword) {
-        toast({ title: 'Tenant provisioned', description: `Admin password: ${data.generatedPassword}` })
+      if (data.generatedPassword && provisionAdminEmail) {
+        // Show credentials in a persistent dialog — a toast disappears and
+        // the generated password is unrecoverable once missed.
+        setProvisionedCreds({
+          tenantName: data.data?.name || provisionName.trim(),
+          adminEmail: provisionAdminEmail,
+          password: data.generatedPassword,
+        })
       }
     } catch (err: any) {
       setProvisionError(err.message || 'Something went wrong')
@@ -690,6 +704,14 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                         className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm"
                       />
                     </div>
+                    <input
+                      type="text"
+                      value={provisionAdminPassword}
+                      onChange={(e) => setProvisionAdminPassword(e.target.value)}
+                      placeholder="Admin password (optional — auto-generated if blank)"
+                      minLength={6}
+                      className="w-full rounded-lg border border-[#d5cfc0] bg-white px-3 py-2 text-sm"
+                    />
                   </div>
                   {provisionError && <p className="text-sm text-[#e31e24]">{provisionError}</p>}
                   <div className="flex gap-2">
@@ -1305,6 +1327,51 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Provisioned Credentials Dialog */}
+      <Dialog open={!!provisionedCreds} onOpenChange={(open) => { if (!open) setProvisionedCreds(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#15161a]">
+              <div className="h-7 w-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              </div>
+              Tenant provisioned
+            </DialogTitle>
+            <DialogDescription className="text-[#5b5c63]">
+              {provisionedCreds ? `${provisionedCreds.tenantName} is in the provisioning queue. Save these admin credentials — they won't be shown again.` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {provisionedCreds && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-1">
+                <p className="text-xs text-emerald-700">Admin email: <span className="font-mono font-semibold">{provisionedCreds.adminEmail}</span></p>
+                <p className="text-xs text-emerald-700">Password: <span className="font-mono font-semibold">{provisionedCreds.password}</span></p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-[#d5cfc0] text-[#5b5c63] rounded-lg gap-2"
+                  onClick={() => navigator.clipboard.writeText(`${provisionedCreds.adminEmail} / ${provisionedCreds.password}`)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy credentials
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-[#e31e24] hover:bg-[#cf1a1f] text-white rounded-lg"
+                  onClick={() => setProvisionedCreds(null)}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

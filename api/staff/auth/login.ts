@@ -1,6 +1,6 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { SignJWT } from 'jose'
-import { fetchStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
+import { fetchAllStaffByEmail, verifyStaffPassword, resetStaffPassword } from '../../tenant/_lib/staff.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
 import { setSecurityHeaders } from '../../_lib/security-headers.js'
 import { logLoginSuccess, logLoginFailure } from '../../_lib/audit-logger.js'
@@ -32,33 +32,46 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       })
     }
 
-    const staff = await fetchStaffByEmail(email)
+    // Emails are not unique across tenants — authenticate against whichever
+    // row's stored hash verifies the submitted password.
+    const candidates = await fetchAllStaffByEmail(email)
 
-    if (!staff) {
+    if (candidates.length === 0) {
       await logLoginFailure(req, email, 'Staff not found')
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
-    if (!staff.passwordHash) {
+    let staff: (typeof candidates)[number] | null = null
+    let hashlessRow: (typeof candidates)[number] | null = null
+    for (const c of candidates) {
+      if (c.passwordHash) {
+        if (await verifyStaffPassword(password, c.passwordHash)) { staff = c; break }
+      } else if (!hashlessRow) {
+        hashlessRow = c
+      }
+    }
+
+    if (!staff && hashlessRow) {
       // Existing staff with no password: use email as one-time default password.
       // On success, auto-set it so future logins use the real hash.
       if (password !== email.trim().toLowerCase()) {
-        await logLoginFailure(req, email, 'Default password incorrect', staff.tenantId)
+        await logLoginFailure(req, email, 'Default password incorrect', hashlessRow.tenantId)
         return res.status(401).json({
           error: 'No password has been set for this account. Use your email address as your temporary password to log in for the first time.',
         })
       }
+      await resetStaffPassword(hashlessRow.id, password)
+      staff = hashlessRow
+    }
+
+    if (!staff) {
+      await logLoginFailure(req, email, 'Invalid password', candidates[0].tenantId)
+      return res.status(401).json({ error: 'Invalid email or password' })
+    }
+
+    // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
+    if (staff.passwordHash && needsTransparentUpgrade(staff.passwordHash)) {
       await resetStaffPassword(staff.id, password)
-    } else {
-      const valid = await verifyStaffPassword(password, staff.passwordHash)
-      if (!valid) {
-        await logLoginFailure(req, email, 'Invalid password', staff.tenantId)
-        return res.status(401).json({ error: 'Invalid email or password' })
-      }
-      // SEC-08: transparently upgrade legacy (scrypt/HMAC) hashes to Argon2id
-      if (needsTransparentUpgrade(staff.passwordHash)) {
-        await resetStaffPassword(staff.id, password)
-      }
     }
 
     // Suspended or otherwise inactive staff must not be issued a session —

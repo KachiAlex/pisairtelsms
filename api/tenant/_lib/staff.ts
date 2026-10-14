@@ -542,23 +542,28 @@ export async function fetchStaffById(id: string, tenantId?: string): Promise<Sta
 }
 
 export async function fetchStaffByEmail(email: string): Promise<(Staff & { passwordHash: string | null }) | null> {
+  const all = await fetchAllStaffByEmail(email)
+  return all[0] || null
+}
+
+// Emails are not unique across tenants — login must see every matching row so
+// the submitted password can disambiguate which account/tenant is meant.
+export async function fetchAllStaffByEmail(email: string): Promise<(Staff & { passwordHash: string | null })[]> {
   await ensureStaffTables()
   try {
-    // Deterministic pick when legacy duplicate rows share an email: prefer an
-    // active row linked to a tenant account, then one with a password set,
-    // then the oldest record.
+    // Deterministic order when duplicate rows share an email: prefer an active
+    // row linked to a tenant account, then one with a password set, then the
+    // oldest record.
     const result = await poolQuery<StaffRow & { password_hash: string | null }>(
       `SELECT * FROM staff WHERE lower(email) = lower($1)
        ORDER BY (status = 'active') DESC, (user_id IS NOT NULL) DESC,
-                (password_hash IS NOT NULL) DESC, created_at ASC
-       LIMIT 1`,
+                (password_hash IS NOT NULL) DESC, created_at ASC`,
       [email]
     )
-    if (!result.rows[0]) return null
-    return { ...rowToStaff(result.rows[0]), passwordHash: result.rows[0].password_hash }
+    return result.rows.map((row) => ({ ...rowToStaff(row), passwordHash: row.password_hash }))
   } catch (error) {
     console.error('Error fetching staff by email:', error)
-    return null
+    return []
   }
 }
 

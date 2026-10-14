@@ -1,6 +1,6 @@
 import type { ApiRequest, ApiResponse } from '../../_lib/http-types.js'
 import { poolQuery } from '../../_lib/pg-pool.js'
-import { fetchStaffByEmail, hashPassword } from '../../tenant/_lib/staff.js'
+import { fetchAllStaffByEmail, hashPassword } from '../../tenant/_lib/staff.js'
 import { sendEmail } from '../../_lib/email.js'
 import { emailTemplates } from '../../_lib/email-templates.js'
 import { rateLimit } from '../../_lib/rate-limit.js'
@@ -31,32 +31,37 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Invalid email format' })
     }
 
-    const staff = await fetchStaffByEmail(normalizedEmail)
+    // Emails are not unique across tenants — reset every matching account so
+    // the mailbox owner gets working credentials for each tenant they belong
+    // to (each gets a distinct temp password so login disambiguation still works).
+    const candidates = await fetchAllStaffByEmail(normalizedEmail)
 
-    if (!staff) {
+    if (candidates.length === 0) {
       return res.status(200).json({
         success: true,
         message: 'If an account exists with this email, a reset link has been sent.',
       })
     }
 
-    const tempPassword = `reset_${Math.random().toString(36).slice(2, 10)}`
-    const passwordHash = await hashPassword(tempPassword)
+    for (const staff of candidates) {
+      const tempPassword = `reset_${Math.random().toString(36).slice(2, 10)}`
+      const passwordHash = await hashPassword(tempPassword)
 
-    await poolQuery(
-      'UPDATE staff SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-      [passwordHash, staff.id]
-    )
+      await poolQuery(
+        'UPDATE staff SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+        [passwordHash, staff.id]
+      )
 
-    try {
-      const template = emailTemplates.passwordReset({ name: staff.name, password: tempPassword })
-      await sendEmail({
-        to: normalizedEmail,
-        subject: template.subject,
-        html: template.html,
-      })
-    } catch (emailErr) {
-      console.error('Failed to send password reset email:', emailErr)
+      try {
+        const template = emailTemplates.passwordReset({ name: staff.name, password: tempPassword })
+        await sendEmail({
+          to: normalizedEmail,
+          subject: template.subject,
+          html: template.html,
+        })
+      } catch (emailErr) {
+        console.error('Failed to send password reset email:', emailErr)
+      }
     }
 
     return res.status(200).json({

@@ -10,8 +10,11 @@ CREATE TABLE IF NOT EXISTS admin_provisioning_queue (
       eta VARCHAR(50) DEFAULT 'pending',
       owner VARCHAR(255),
       status VARCHAR(50) DEFAULT 'pending',
+      tenant_id VARCHAR(255),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
+
+ALTER TABLE admin_provisioning_queue ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS admin_activity_feed (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

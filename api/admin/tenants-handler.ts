@@ -122,9 +122,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       // Add to provisioning queue
       try {
         await poolQuery(
-          `INSERT INTO admin_provisioning_queue (name, type, eta, owner, status)
-           VALUES ($1, 'tenant', 'pending', $2, 'pending')`,
-          [name.trim(), decoded.email || 'super_admin']
+          `INSERT INTO admin_provisioning_queue (name, type, eta, owner, status, tenant_id)
+           VALUES ($1, 'tenant', 'pending', $2, 'pending', $3)`,
+          [name.trim(), decoded.email || 'super_admin', tenant.id]
         )
       } catch (e) {
         console.error('provisioning queue insert failed:', e)

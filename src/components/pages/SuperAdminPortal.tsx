@@ -57,6 +57,8 @@ interface ProvisioningItem {
   type: string
   eta: string
   owner: string
+  status: string
+  tenantId: string | null
 }
 
 interface ActivityItem {
@@ -149,6 +151,7 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
   const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null)
   const [resetPasswordInput, setResetPasswordInput] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
+  const [queueActionLoading, setQueueActionLoading] = useState<string | null>(null)
 
   useEffect(() => {
     const authRaw = localStorage.getItem('auth')
@@ -198,6 +201,36 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
       if (auditRes.data) setAuditLog(auditRes.data)
     }).finally(() => setLoading(false))
   }, [onSignOut])
+
+  async function handleQueueAction(item: ProvisioningItem, status: 'pending' | 'paused' | 'completed') {
+    setQueueActionLoading(item.id)
+    try {
+      const authRaw = localStorage.getItem('auth')
+      const token = authRaw ? JSON.parse(authRaw).token : null
+      const res = await fetch('/api/admin/provisioning-queue', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id: item.id, status }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `Failed (${res.status})`)
+
+      if (status === 'completed') {
+        setProvisioningQueue((q) => q.filter((q2) => q2.id !== item.id))
+        toast({ title: 'Pushed live', description: `${item.name} provisioning completed.` })
+      } else {
+        setProvisioningQueue((q) => q.map((q2) => q2.id === item.id ? { ...q2, status } : q2))
+        toast({ title: status === 'paused' ? 'Paused' : 'Resumed', description: `${item.name} marked ${status}.` })
+      }
+    } catch (e) {
+      toast({ title: 'Queue action failed', description: e instanceof Error ? e.message : 'Try again', variant: 'destructive' })
+    } finally {
+      setQueueActionLoading(null)
+    }
+  }
 
   async function handleProvisionSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -782,14 +815,31 @@ export function SuperAdminPortal({ onSignOut }: SuperAdminPortalProps) {
                         <p className="font-medium text-[#15161a]">{item.name}</p>
                         <p className="text-xs text-[#9b9a94]">{item.type}</p>
                       </div>
-                      <Badge className="bg-[#F7931E]/10 text-[#F7931E] border-[#F7931E]/20">{item.eta}</Badge>
+                      <Badge className={
+                        item.status === 'paused'
+                          ? 'bg-amber-100 text-amber-700 border-amber-200'
+                          : 'bg-[#F7931E]/10 text-[#F7931E] border-[#F7931E]/20'
+                      }>
+                        {item.status === 'paused' ? 'Paused' : item.eta}
+                      </Badge>
                     </div>
                     <p className="mt-3 text-xs text-[#5b5c63]">Owner • {item.owner}</p>
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 border-[#d5cfc0] text-[#5b5c63] rounded-lg">
-                        Pause
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-[#d5cfc0] text-[#5b5c63] rounded-lg"
+                        disabled={queueActionLoading === item.id}
+                        onClick={() => handleQueueAction(item, item.status === 'paused' ? 'pending' : 'paused')}
+                      >
+                        {item.status === 'paused' ? 'Resume' : 'Pause'}
                       </Button>
-                      <Button size="sm" className="flex-1 bg-[#15161a] hover:bg-[#15161a]/90 text-white rounded-lg">
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-[#15161a] hover:bg-[#15161a]/90 text-white rounded-lg"
+                        disabled={queueActionLoading === item.id}
+                        onClick={() => handleQueueAction(item, 'completed')}
+                      >
                         Push live
                       </Button>
                     </div>

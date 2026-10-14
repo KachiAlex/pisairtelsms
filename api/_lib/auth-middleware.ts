@@ -94,16 +94,17 @@ export function extractTokenFromHeader(authHeader: string | undefined): string |
 }
 
 /**
- * Extracts token from either cookie or Authorization header.
- * Cookie takes priority for httpOnly cookie auth.
+ * Extracts token from either Authorization header or cookie.
+ * An explicit Bearer header wins over the cookie — a stale cookie left
+ * behind by a previous session must not shadow the session the SPA is
+ * actually using (localStorage token).
  */
 export function extractToken(req: ApiRequest): string | null {
-  // Try cookie first (httpOnly cookie auth)
-  const cookieToken = extractTokenFromCookie(req)
-  if (cookieToken) return cookieToken
-  
-  // Fallback to Authorization header (for backward compatibility)
-  return extractTokenFromHeader(req.headers.authorization)
+  const headerToken = extractTokenFromHeader(req.headers.authorization)
+  if (headerToken) return headerToken
+
+  // Fallback to httpOnly cookie for callers that don't attach a header
+  return extractTokenFromCookie(req)
 }
 
 /**
